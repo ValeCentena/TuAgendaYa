@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const router = express.Router();
-const db = require('../db/database');
+const db = require('../db');
 const { adminAuthMiddleware, signAdminToken } = require('../middleware/adminAuth');
 
 // ── Comparación segura de strings (evita timing attacks) ──────
@@ -124,7 +124,6 @@ router.get('/professionals/:id', adminAuthMiddleware, (req, res) => {
 
   if (!professional) return res.status(404).json({ error: 'Profesional no encontrado' });
 
-  // Limpiar datos sensibles
   const { password_hash, google_access_token, google_refresh_token, ...safe } = professional;
 
   const recentAppointments = db.prepare(`
