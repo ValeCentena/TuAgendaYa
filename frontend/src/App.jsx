@@ -1,42 +1,27 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
-
-import Layout from './components/Layout.jsx';
-import AdminLayout from './components/layout/AdminLayout.jsx';
-import LoginPage from './pages/LoginPage.jsx';
-import RegisterPage from './pages/RegisterPage.jsx';
-import HomePage from './pages/HomePage.jsx';
-import DashboardPage from './pages/DashboardPage.jsx';
-import BookPage from './pages/BookPage.jsx';
-import AdminLoginPage from './pages/AdminLoginPage.jsx';
-import AdminDashboardPage from './pages/AdminDashboardPage.jsx';
-import AdminProfessionalsPage from './pages/AdminProfessionalsPage.jsx';
-import AdminProfessionalDetailPage from './pages/AdminProfessionalDetailPage.jsx';
-
-export default function App() {
-  return (
-    <Routes>
-      {/* Público */}
-      <Route path="/" element={<Navigate to="/login" replace />} />
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
-
-      {/* Panel profesional */}
-      <Route element={<Layout />}>
-        <Route path="/home" element={<HomePage />} />
-        <Route path="/dashboard" element={<DashboardPage />} />
-      </Route>
-
-      {/* Panel admin */}
-      <Route path="/admin/login" element={<AdminLoginPage />} />
-      <Route path="/admin" element={<AdminLayout />}>
-        <Route index element={<Navigate to="/admin/dashboard" replace />} />
-        <Route path="dashboard" element={<AdminDashboardPage />} />
-        <Route path="professionals" element={<AdminProfessionalsPage />} />
-        <Route path="professionals/:id" element={<AdminProfessionalDetailPage />} />
-      </Route>
-
-      {/* Booking público — debe ir al final para no capturar otras rutas */}
-      <Route path="/:slug" element={<BookPage />} />
-    </Routes>
-  );
+{
+  "name": "tuagendaya-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.28.0",
+    "axios": "^1.6.8",
+    "date-fns": "^3.6.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-hot-toast": "^2.4.1",
+    "react-router-dom": "^6.22.3",
+    "zustand": "^4.5.2"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.66",
+    "@types/react-dom": "^18.2.22",
+    "@vitejs/plugin-react": "^4.2.1",
+    "vite": "^5.2.0"
+  }
 }
