@@ -39,11 +39,11 @@ app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // ── Rutas ────────────────────────────────────────────────────
-// ⚠️ El bookingLimiter debe montarse ANTES que el router de appointments
-app.use('/api/appointments/public', bookingLimiter);
+// ⚠️ El bookingLimiter debe montarse ANTES que el router de bookings
+app.use('/api/bookings/public', bookingLimiter);
 app.use('/api/auth', authLimiter, require('./routes/auth'));
 app.use('/api/admin', adminLimiter, require('./routes/admin'));
-app.use('/api/appointments', require('./routes/appointments'));
+app.use('/api/bookings', require('./routes/bookings'));
 app.use('/api/clients', require('./routes/clients'));
 app.use('/api/services', require('./routes/services'));
 app.use('/api/settings', require('./routes/settings'));
