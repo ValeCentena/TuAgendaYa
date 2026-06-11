@@ -1,63 +1,69 @@
+require('dotenv').config();
 const express = require('express');
-const { db } = require('../db');
-const { authProfessional } = require('../middleware/auth');
-const { asyncHandler } = require('../middleware/errorHandler');
-const { bookingLimiter } = require('../middleware/rateLimit');
-const { validateBookingInput } = require('../utils/validate');
-const { AppError } = require('../utils/errors');
-const { createBookingWithNotification } = require('../services/bookingService');
-const logger = require('../utils/logger');
+const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 
-const router = express.Router();
+const app = express();
+const PORT = process.env.PORT || 3001;
 
-router.post('/', bookingLimiter, asyncHandler(async (req, res) => {
-  const input = validateBookingInput(req.body);
-  const result = await createBookingWithNotification(input);
-  res.status(201).json(result);
+// ── Seguridad ────────────────────────────────────────────────
+app.use(helmet());
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  credentials: true,
 }));
 
-router.get('/:id/confirmation', asyncHandler((req, res) => {
-  const booking = db.prepare(`
-    SELECT b.id, b.date, b.time, b.client_name, b.status,
-           p.name as professional_name, p.specialty, p.duration_minutes
-    FROM bookings b
-    JOIN professionals p ON p.id = b.professional_id
-    WHERE b.id = ?
-  `).get(req.params.id);
+// Rate limiting para rutas públicas de booking
+const bookingLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 30,
+  message: { error: 'Demasiadas solicitudes. Intentá en unos minutos.' },
+});
 
-  if (!booking) {
-    throw new AppError(404, 'Reserva no encontrada');
-  }
+// Rate limiting para auth
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { error: 'Demasiados intentos de acceso. Intentá en 15 minutos.' },
+});
 
-  if (booking.status !== 'confirmed') {
-    throw new AppError(410, 'Esta reserva fue cancelada');
-  }
+// Rate limiting para admin (más estricto)
+const adminLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: { error: 'Demasiados intentos al panel admin. Intentá en 15 minutos.' },
+});
 
-  res.json({
-    id: booking.id,
-    date: booking.date,
-    time: booking.time,
-    clientName: booking.client_name,
-    professional: {
-      name: booking.professional_name,
-      specialty: booking.specialty,
-      duration_minutes: booking.duration_minutes,
-    },
-  });
-}));
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: true }));
 
-router.delete('/:id', authProfessional, asyncHandler((req, res) => {
-  const booking = db.prepare(
-    'SELECT * FROM bookings WHERE id = ? AND professional_id = ?',
-  ).get(req.params.id, req.user.id);
+// ── Rutas ────────────────────────────────────────────────────
+// ⚠️ El bookingLimiter debe montarse ANTES que el router de appointments
+app.use('/api/appointments/public', bookingLimiter);
+app.use('/api/auth', authLimiter, require('./routes/auth'));
+app.use('/api/admin', adminLimiter, require('./routes/admin'));
+app.use('/api/appointments', require('./routes/appointments'));
+app.use('/api/clients', require('./routes/clients'));
+app.use('/api/services', require('./routes/services'));
+app.use('/api/settings', require('./routes/settings'));
+app.use('/api/calendar', require('./routes/calendar'));
 
-  if (!booking) {
-    throw new AppError(404, 'Turno no encontrado');
-  }
+// ── Health check ─────────────────────────────────────────────
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', version: '1.0.0', timestamp: new Date().toISOString() });
+});
 
-  db.prepare("UPDATE bookings SET status = 'cancelled' WHERE id = ?").run(req.params.id);
-  logger.info('Reserva cancelada', { bookingId: booking.id, professionalId: req.user.id });
-  res.json({ ok: true });
-}));
+// ── Error handler ────────────────────────────────────────────
+app.use((err, req, res, next) => {
+  console.error('Error no manejado:', err);
+  res.status(500).json({ error: 'Error interno del servidor' });
+});
 
-module.exports = router;
+app.listen(PORT, () => {
+  console.log(`\n🚀 TuAgendaYa API corriendo en http://localhost:${PORT}`);
+  console.log(`   Ambiente: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`   Frontend: ${process.env.FRONTEND_URL || 'http://localhost:5173'}\n`);
+});
+
+module.exports = app;

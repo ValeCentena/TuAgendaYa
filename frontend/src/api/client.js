@@ -1,131 +1,130 @@
-import { API_URL } from '../config';
+import axios from 'axios';
 
-export class ApiError extends Error {
-  constructor(message, status = 0, details = null) {
-    super(message);
-    this.name = 'ApiError';
-    this.status = status;
-    this.details = details;
+const api = axios.create({
+  baseURL: '/api',
+  timeout: 15000,
+});
+
+// Token automático en cada request
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('tuagendaya_token');
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
+// Redirect a login si 401
+api.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    if (err.response?.status === 401) {
+      localStorage.removeItem('tuagendaya_token');
+      window.location.href = '/login';
+    }
+    return Promise.reject(err);
   }
-}
+);
 
-async function request(path, options = {}) {
-  let res;
-  try {
-    res = await fetch(`${API_URL}${path}`, {
-      ...options,
-      headers: { 'Content-Type': 'application/json', ...options.headers },
-    });
-  } catch {
-    throw new ApiError('No se pudo conectar con el servidor. Verificá tu conexión.', 0);
+// ── Auth ─────────────────────────────────────────────────────
+export const authApi = {
+  register: (data) => api.post('/auth/register', data),
+  login: (data) => api.post('/auth/login', data),
+  me: () => api.get('/auth/me'),
+  updateMe: (data) => api.put('/auth/me', data),
+  changePassword: (data) => api.post('/auth/change-password', data),
+  checkSlug: (slug) => api.get(`/auth/check-slug/${slug}`),
+  forgotPassword: (data) => api.post('/auth/forgot-password', data),
+  resetPassword: (data) => api.post('/auth/reset-password', data),
+};
+
+// ── Appointments ──────────────────────────────────────────────
+export const appointmentsApi = {
+  // Dashboard
+  list: (params) => api.get('/appointments', { params }),
+  get: (id) => api.get(`/appointments/${id}`),
+  create: (data) => api.post('/appointments', data),
+  updateStatus: (id, data) => api.put(`/appointments/${id}/status`, data),
+  reschedule: (id, data) => api.put(`/appointments/${id}/reschedule`, data),
+  metrics: () => api.get('/appointments/metrics/summary'),
+  getSlotsDashboard: (params) => api.get('/appointments/slots', { params }),
+
+  // Pública (booking por clientes)
+  getPublicProfile: (slug) => api.get(`/appointments/public/${slug}`),
+  getSlots: (slug, params) => api.get(`/appointments/public/${slug}/slots`, { params }),
+  getAvailableDays: (slug, params) => api.get(`/appointments/public/${slug}/available-days`, { params }),
+  book: (slug, data) => api.post(`/appointments/public/${slug}/book`, data),
+
+  // Por token público
+  getByToken: (token) => api.get(`/appointments/token/${token}`),
+  confirmByToken: (token) => api.post(`/appointments/token/${token}/confirm`),
+  cancelByToken: (token, data) => api.post(`/appointments/token/${token}/cancel`, data),
+};
+
+// ── Clients ───────────────────────────────────────────────────
+export const clientsApi = {
+  list: (params) => api.get('/clients', { params }),
+  get: (id) => api.get(`/clients/${id}`),
+  update: (id, data) => api.put(`/clients/${id}`, data),
+  delete: (id) => api.delete(`/clients/${id}`),
+};
+
+// ── Services ──────────────────────────────────────────────────
+export const servicesApi = {
+  list: () => api.get('/services'),
+  create: (data) => api.post('/services', data),
+  update: (id, data) => api.put(`/services/${id}`, data),
+  delete: (id) => api.delete(`/services/${id}`),
+};
+
+// ── Settings ──────────────────────────────────────────────────
+export const settingsApi = {
+  getAvailability: () => api.get('/settings/availability'),
+  updateAvailability: (data) => api.put('/settings/availability', data),
+  getExceptions: () => api.get('/settings/exceptions'),
+  addException: (data) => api.post('/settings/exceptions', data),
+  deleteException: (id) => api.delete(`/settings/exceptions/${id}`),
+  getCancellationPolicy: () => api.get('/settings/cancellation-policy'),
+  updateCancellationPolicy: (data) => api.put('/settings/cancellation-policy', data),
+};
+
+// ── Google Calendar ───────────────────────────────────────────
+export const calendarApi = {
+  getAuthUrl: () => api.get('/calendar/auth-url'),
+  getStatus: () => api.get('/calendar/status'),
+  listCalendars: () => api.get('/calendar/list'),
+  updateSettings: (data) => api.put('/calendar/settings', data),
+  disconnect: () => api.delete('/calendar/disconnect'),
+  sync: () => api.post('/calendar/sync'),
+};
+
+// ── Admin API (panel superadmin) ──────────────────────────────
+const adminAxios = axios.create({
+  baseURL: '/api',
+  timeout: 15000,
+});
+
+adminAxios.interceptors.request.use((config) => {
+  const token = localStorage.getItem('tuagendaya_admin_token');
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
+adminAxios.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    if (err.response?.status === 401) {
+      localStorage.removeItem('tuagendaya_admin_token');
+      window.location.href = '/admin/login';
+    }
+    return Promise.reject(err);
   }
+);
 
-  const data = await res.json().catch(() => ({}));
+export const adminApi = {
+  login: (data) => adminAxios.post('/admin/login', data),
+  stats: () => adminAxios.get('/admin/stats'),
+  professionals: (params) => adminAxios.get('/admin/professionals', { params }),
+  professionalDetail: (id) => adminAxios.get(`/admin/professionals/${id}`),
+  updateStatus: (id, status) => adminAxios.patch(`/admin/professionals/${id}/status`, { status }),
+};
 
-  if (!res.ok) {
-    throw new ApiError(data.error || 'Error en la solicitud', res.status, data.details);
-  }
-
-  return data;
-}
-
-export function getProfessionals() {
-  return request('/api/professionals');
-}
-
-export function getProfessionalBySlug(slug) {
-  return request(`/api/professionals/slug/${slug}`);
-}
-
-export function getAvailableDates(slug, month) {
-  return request(`/api/professionals/slug/${slug}/dates?month=${month}`);
-}
-
-export function getAvailableSlots(slug, date) {
-  return request(`/api/professionals/slug/${slug}/slots?date=${date}`);
-}
-
-export function createBooking(data) {
-  return request('/api/bookings', { method: 'POST', body: JSON.stringify(data) });
-}
-
-export function getBookingConfirmation(id) {
-  return request(`/api/bookings/${id}/confirmation`);
-}
-
-export function registerProfessional(data) {
-  return request('/api/auth/register', { method: 'POST', body: JSON.stringify(data) });
-}
-
-export function loginProfessional(email, password) {
-  return request('/api/auth/login', {
-    method: 'POST',
-    body: JSON.stringify({ email, password }),
-  });
-}
-
-export function loginAdmin(email, password) {
-  return request('/api/auth/admin/login', {
-    method: 'POST',
-    body: JSON.stringify({ email, password }),
-  });
-}
-
-function authHeaders(token) {
-  return { Authorization: `Bearer ${token}` };
-}
-
-export function getMe(token) {
-  return request('/api/professionals/me', { headers: authHeaders(token) });
-}
-
-export function updateMe(token, data) {
-  return request('/api/professionals/me', {
-    method: 'PUT',
-    headers: authHeaders(token),
-    body: JSON.stringify(data),
-  });
-}
-
-export function getMyBookings(token) {
-  return request('/api/professionals/me/bookings', { headers: authHeaders(token) });
-}
-
-export function cancelBooking(token, id) {
-  return request(`/api/bookings/${id}`, {
-    method: 'DELETE',
-    headers: authHeaders(token),
-  });
-}
-
-export function getMyAvailability(token) {
-  return request('/api/professionals/me/availability', { headers: authHeaders(token) });
-}
-
-export function updateMyAvailability(token, slots) {
-  return request('/api/professionals/me/availability', {
-    method: 'PUT',
-    headers: authHeaders(token),
-    body: JSON.stringify({ slots }),
-  });
-}
-
-export function getAdminStats(token) {
-  return request('/api/admin/stats', { headers: authHeaders(token) });
-}
-
-export function getAdminProfessionals(token) {
-  return request('/api/admin/professionals', { headers: authHeaders(token) });
-}
-
-export function toggleProfessional(token, id, active) {
-  return request(`/api/admin/professionals/${id}`, {
-    method: 'PATCH',
-    headers: authHeaders(token),
-    body: JSON.stringify({ active }),
-  });
-}
-
-export function getAdminBookings(token) {
-  return request('/api/admin/bookings', { headers: authHeaders(token) });
-}
+export default api;

@@ -1,163 +1,153 @@
-import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import {
-  getAdminStats,
-  getAdminProfessionals,
-  getAdminBookings,
-  toggleProfessional,
-} from '../api/client';
+import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
+import { adminApi } from '../api/client';
+
+function StatCard({ icon, label, value, sub, color = '#0071e3' }) {
+  return (
+    <div style={{
+      background: '#fff',
+      borderRadius: '16px',
+      padding: '24px',
+      boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+    }}>
+      <div style={{
+        width: '44px', height: '44px',
+        background: `${color}18`,
+        borderRadius: '12px',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: '22px',
+        marginBottom: '16px',
+      }}>
+        {icon}
+      </div>
+      <div style={{ fontSize: '32px', fontWeight: 700, color: '#1a1a1a', lineHeight: 1 }}>
+        {value ?? '—'}
+      </div>
+      <div style={{ fontSize: '14px', color: '#86868b', marginTop: '6px' }}>{label}</div>
+      {sub && <div style={{ fontSize: '13px', color, marginTop: '4px', fontWeight: 500 }}>{sub}</div>}
+    </div>
+  );
+}
+
+function StatusBadge({ status }) {
+  const isActive = !status || status === 'active';
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: '5px',
+      padding: '3px 10px',
+      borderRadius: '20px',
+      fontSize: '12px', fontWeight: 600,
+      background: isActive ? '#e8f5e9' : '#ffeaea',
+      color: isActive ? '#2e7d32' : '#c62828',
+    }}>
+      <span style={{ fontSize: '8px' }}>●</span>
+      {isActive ? 'Activo' : 'Suspendido'}
+    </span>
+  );
+}
 
 export default function AdminDashboardPage() {
-  const navigate = useNavigate();
-  const token = localStorage.getItem('adminToken');
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['admin-stats'],
+    queryFn: () => adminApi.stats().then(r => r.data),
+    staleTime: 30_000,
+  });
 
-  const [tab, setTab] = useState('stats');
-  const [stats, setStats] = useState(null);
-  const [professionals, setProfessionals] = useState([]);
-  const [bookings, setBookings] = useState([]);
-  const [loading, setLoading] = useState(true);
+  if (isLoading) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '200px', color: '#86868b', fontSize: '15px' }}>
+      Cargando estadísticas...
+    </div>
+  );
 
-  const load = () => {
-    Promise.all([
-      getAdminStats(token),
-      getAdminProfessionals(token),
-      getAdminBookings(token),
-    ])
-      .then(([s, p, b]) => {
-        setStats(s);
-        setProfessionals(p);
-        setBookings(b);
-      })
-      .catch(() => navigate('/admin/login'))
-      .finally(() => setLoading(false));
-  };
+  if (error) return (
+    <div style={{ padding: '32px', color: '#ff3b30' }}>
+      Error al cargar: {error.response?.data?.error || error.message}
+    </div>
+  );
 
-  useEffect(() => {
-    if (!token) {
-      navigate('/admin/login');
-      return;
-    }
-    load();
-  }, [token, navigate]);
-
-  const handleToggle = async (id, currentActive) => {
-    await toggleProfessional(token, id, !currentActive);
-    load();
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('adminToken');
-    localStorage.removeItem('admin');
-    navigate('/admin/login');
-  };
-
-  if (loading) return <p className="empty-state">Cargando panel...</p>;
+  const { totals, recent_professionals } = data;
 
   return (
-    <div>
-      <header className="app-header">
-        <Link to="/" className="app-logo">Tu<span>Agenda</span>Ya Admin</Link>
-        <button type="button" className="btn btn-secondary" onClick={handleLogout}>Cerrar sesión</button>
-      </header>
+    <div style={{ padding: '32px' }}>
+      {/* Header */}
+      <div style={{ marginBottom: '32px' }}>
+        <h1 style={{ fontSize: '28px', fontWeight: 700, color: '#1a1a1a', margin: '0 0 6px' }}>
+          Dashboard
+        </h1>
+        <p style={{ color: '#86868b', fontSize: '15px', margin: 0 }}>
+          Visión general de la plataforma
+        </p>
+      </div>
 
-      <div className="dashboard">
-        <h1>Panel administrativo</h1>
+      {/* Stats grid */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+        gap: '16px',
+        marginBottom: '32px',
+      }}>
+        <StatCard icon="👥" label="Profesionales" value={totals.professionals} sub={`+${totals.new_this_month} este mes`} />
+        <StatCard icon="✅" label="Activos" value={totals.active} color="#34c759" />
+        <StatCard icon="🚫" label="Suspendidos" value={totals.suspended} color="#ff3b30" />
+        <StatCard icon="📅" label="Turnos totales" value={totals.appointments} color="#ff9500" />
+        <StatCard icon="🧑‍💼" label="Clientes totales" value={totals.clients} color="#af52de" />
+      </div>
 
-        <div className="tabs" style={{ marginTop: '1.5rem' }}>
-          <button type="button" className={`tab${tab === 'stats' ? ' active' : ''}`} onClick={() => setTab('stats')}>Resumen</button>
-          <button type="button" className={`tab${tab === 'professionals' ? ' active' : ''}`} onClick={() => setTab('professionals')}>Profesionales</button>
-          <button type="button" className={`tab${tab === 'bookings' ? ' active' : ''}`} onClick={() => setTab('bookings')}>Turnos</button>
+      {/* Recent professionals */}
+      <div style={{
+        background: '#fff',
+        borderRadius: '16px',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+        overflow: 'hidden',
+      }}>
+        <div style={{
+          padding: '20px 24px',
+          borderBottom: '1px solid #f2f2f7',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}>
+          <h2 style={{ fontSize: '17px', fontWeight: 600, margin: 0, color: '#1a1a1a' }}>
+            Profesionales recientes
+          </h2>
+          <Link to="/admin/professionals" style={{ color: '#0071e3', fontSize: '14px', textDecoration: 'none', fontWeight: 500 }}>
+            Ver todos →
+          </Link>
         </div>
 
-        {tab === 'stats' && stats && (
-          <div className="stats-grid">
-            <div className="card stat-card">
-              <div className="value">{stats.professionals}</div>
-              <div className="label">Profesionales totales</div>
-            </div>
-            <div className="card stat-card">
-              <div className="value">{stats.activeProfessionals}</div>
-              <div className="label">Activos</div>
-            </div>
-            <div className="card stat-card">
-              <div className="value">{stats.bookings}</div>
-              <div className="label">Turnos confirmados</div>
-            </div>
-            <div className="card stat-card">
-              <div className="value">{stats.todayBookings}</div>
-              <div className="label">Turnos hoy</div>
-            </div>
-          </div>
-        )}
-
-        {tab === 'professionals' && (
-          <div className="card" style={{ overflow: 'auto' }}>
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Nombre</th>
-                  <th>Email</th>
-                  <th>Especialidad</th>
-                  <th>Turnos</th>
-                  <th>Estado</th>
-                  <th>Acción</th>
-                </tr>
-              </thead>
-              <tbody>
-                {professionals.map((p) => (
-                  <tr key={p.id}>
-                    <td>{p.name}</td>
-                    <td>{p.email}</td>
-                    <td>{p.specialty}</td>
-                    <td>{p.booking_count}</td>
-                    <td>
-                      <span className={`badge ${p.active ? 'badge-active' : 'badge-inactive'}`}>
-                        {p.active ? 'Activo' : 'Inactivo'}
-                      </span>
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        style={{ padding: '0.35rem 0.75rem', fontSize: '0.8125rem' }}
-                        onClick={() => handleToggle(p.id, p.active)}
-                      >
-                        {p.active ? 'Desactivar' : 'Activar'}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {tab === 'bookings' && (
-          <div className="card" style={{ overflow: 'auto' }}>
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Fecha</th>
-                  <th>Hora</th>
-                  <th>Cliente</th>
-                  <th>Teléfono</th>
-                  <th>Profesional</th>
-                </tr>
-              </thead>
-              <tbody>
-                {bookings.map((b) => (
-                  <tr key={b.id}>
-                    <td>{b.date}</td>
-                    <td>{b.time}</td>
-                    <td>{b.client_name}</td>
-                    <td>{b.client_phone}</td>
-                    <td>{b.professional_name}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr style={{ background: '#f9f9f9' }}>
+              {['Nombre', 'Email', 'Profesión', 'Turnos', 'Estado'].map(h => (
+                <th key={h} style={{
+                  padding: '11px 24px', textAlign: 'left',
+                  fontSize: '12px', fontWeight: 600, color: '#86868b',
+                  letterSpacing: '0.3px', textTransform: 'uppercase',
+                }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {(recent_professionals || []).map((p, i) => (
+              <tr key={p.id} style={{ borderTop: i === 0 ? 'none' : '1px solid #f2f2f7' }}>
+                <td style={{ padding: '14px 24px' }}>
+                  <Link to={`/admin/professionals/${p.id}`} style={{ color: '#0071e3', textDecoration: 'none', fontWeight: 500, fontSize: '15px' }}>
+                    {p.name}
+                  </Link>
+                </td>
+                <td style={{ padding: '14px 24px', color: '#86868b', fontSize: '14px' }}>{p.email}</td>
+                <td style={{ padding: '14px 24px', color: '#86868b', fontSize: '14px' }}>{p.profession || '—'}</td>
+                <td style={{ padding: '14px 24px', color: '#1a1a1a', fontSize: '14px', fontWeight: 500 }}>{p.appointment_count}</td>
+                <td style={{ padding: '14px 24px' }}><StatusBadge status={p.status} /></td>
+              </tr>
+            ))}
+            {!recent_professionals?.length && (
+              <tr>
+                <td colSpan={5} style={{ padding: '32px', textAlign: 'center', color: '#86868b', fontSize: '15px' }}>
+                  No hay profesionales aún
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );
