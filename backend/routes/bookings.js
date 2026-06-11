@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { v4: uuidv4 } = require('uuid');
+const crypto = require('crypto');
 const db = require('../db/database');
 const { authMiddleware } = require('../middleware/auth');
 const email = require('../utils/email');
@@ -98,7 +98,7 @@ router.post('/public/:slug/book', (req, res) => {
   endDate.setMinutes(endDate.getMinutes() + service.duration);
   const endTime = endDate.toISOString().replace('T', ' ').slice(0, 19);
   const startTimeFmt = startTime.replace('T', ' ');
-  const publicToken = uuidv4();
+  const publicToken = crypto.randomUUID();
 
   try {
     let client = null;
@@ -443,7 +443,7 @@ router.post('/', authMiddleware, (req, res) => {
   const endDate = new Date(`${date}T${time}:00`);
   endDate.setMinutes(endDate.getMinutes() + service.duration);
   const endTimeFmt = endDate.toISOString().replace('T', ' ').slice(0, 19);
-  const publicToken = uuidv4();
+  const publicToken = crypto.randomUUID();
 
   let client = null;
   if (client_email) {
