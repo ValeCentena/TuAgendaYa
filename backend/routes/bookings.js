@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
-const db = require('../db/database');
+const db = require('../db');
 const { authMiddleware } = require('../middleware/auth');
 const email = require('../utils/email');
 const gcal = require('../utils/googleCalendar');
