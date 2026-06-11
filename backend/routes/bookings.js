@@ -1,14 +1,31 @@
 const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
 const db = require('../db');
-const { authMiddleware } = require('../middleware/auth');
+
+// Auth middleware definido inline para evitar dependencia de nombres de export
+function authMiddleware(req, res, next) {
+  const header = req.headers.authorization;
+  if (!header || !header.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Token requerido' });
+  }
+  try {
+    const decoded = jwt.verify(
+      header.slice(7),
+      process.env.JWT_SECRET || 'tuagendaya-secret-dev-change-in-prod'
+    );
+    req.professional = decoded;
+    next();
+  } catch (e) {
+    return res.status(401).json({ error: 'Token inválido o expirado' });
+  }
+}
 
 // ══════════════════════════════════════════════════════════════
-// RUTAS PÚBLICAS (booking por clientes)
+// RUTAS PÚBLICAS
 // ══════════════════════════════════════════════════════════════
 
-// GET /api/bookings/public/:slug — Perfil público
 router.get('/public/:slug', (req, res) => {
   const prof = db.prepare(`
     SELECT id, name, profession, slug, bio, avatar_initials, plan, status
@@ -17,7 +34,7 @@ router.get('/public/:slug', (req, res) => {
 
   if (!prof) return res.status(404).json({ error: 'Profesional no encontrado' });
   if (prof.status === 'suspended') {
-    return res.status(403).json({ error: 'Este profesional no está disponible en este momento.', suspended: true });
+    return res.status(403).json({ error: 'Este profesional no está disponible.', suspended: true });
   }
 
   const services = db.prepare(`
@@ -34,34 +51,31 @@ router.get('/public/:slug', (req, res) => {
   res.json({ professional: prof, services, cancellation_policy: policy });
 });
 
-// GET /api/bookings/public/:slug/slots — Slots disponibles
 router.get('/public/:slug/slots', (req, res) => {
-  const { date, service_id } = req.query;
-  if (!date || !service_id) return res.status(400).json({ error: 'date y service_id requeridos' });
+  const { date } = req.query;
+  if (!date) return res.status(400).json({ error: 'date requerido' });
 
-  const prof = db.prepare('SELECT * FROM professionals WHERE slug = ?').get(req.params.slug);
+  const prof = db.prepare('SELECT id, status FROM professionals WHERE slug = ?').get(req.params.slug);
   if (!prof) return res.status(404).json({ error: 'No encontrado' });
   if (prof.status === 'suspended') {
-    return res.status(403).json({ error: 'Este profesional no está disponible en este momento.', suspended: true });
+    return res.status(403).json({ error: 'Este profesional no está disponible.', suspended: true });
   }
 
-  // TODO: implementar cálculo de slots disponibles
+  // TODO: implementar cálculo de slots
   res.json({ date, slots: [] });
 });
 
-// GET /api/bookings/public/:slug/available-days — Días disponibles
 router.get('/public/:slug/available-days', (req, res) => {
-  const prof = db.prepare('SELECT * FROM professionals WHERE slug = ?').get(req.params.slug);
+  const prof = db.prepare('SELECT id, status FROM professionals WHERE slug = ?').get(req.params.slug);
   if (!prof) return res.status(404).json({ error: 'No encontrado' });
   if (prof.status === 'suspended') {
-    return res.status(403).json({ error: 'Este profesional no está disponible en este momento.', suspended: true });
+    return res.status(403).json({ error: 'Este profesional no está disponible.', suspended: true });
   }
 
-  // TODO: implementar cálculo de días disponibles
+  // TODO: implementar días disponibles
   res.json({ available_days: [] });
 });
 
-// POST /api/bookings/public/:slug/book — Crear reserva (cliente)
 router.post('/public/:slug/book', (req, res) => {
   const { service_id, date, time, client_name, client_email, client_phone, client_notes } = req.body;
 
@@ -72,17 +86,18 @@ router.post('/public/:slug/book', (req, res) => {
   const prof = db.prepare('SELECT * FROM professionals WHERE slug = ?').get(req.params.slug);
   if (!prof) return res.status(404).json({ error: 'No encontrado' });
   if (prof.status === 'suspended') {
-    return res.status(403).json({ error: 'Este profesional no está disponible en este momento.', suspended: true });
+    return res.status(403).json({ error: 'Este profesional no está disponible.', suspended: true });
   }
 
-  const service = db.prepare('SELECT * FROM services WHERE id = ? AND professional_id = ? AND active = 1').get(parseInt(service_id), prof.id);
+  const service = db.prepare(
+    'SELECT * FROM services WHERE id = ? AND professional_id = ? AND active = 1'
+  ).get(parseInt(service_id), prof.id);
   if (!service) return res.status(404).json({ error: 'Servicio no encontrado' });
 
-  const startTime = `${date}T${time}:00`;
-  const endDate = new Date(startTime);
+  const startTimeFmt = `${date} ${time}:00`;
+  const endDate = new Date(`${date}T${time}:00`);
   endDate.setMinutes(endDate.getMinutes() + service.duration);
-  const endTime = endDate.toISOString().replace('T', ' ').slice(0, 19);
-  const startTimeFmt = startTime.replace('T', ' ');
+  const endTimeFmt = endDate.toISOString().replace('T', ' ').slice(0, 19);
   const publicToken = crypto.randomUUID();
 
   try {
@@ -90,10 +105,9 @@ router.post('/public/:slug/book', (req, res) => {
     if (client_email) {
       client = db.prepare('SELECT * FROM clients WHERE professional_id = ? AND email = ?').get(prof.id, client_email);
       if (!client) {
-        const cr = db.prepare(`
-          INSERT INTO clients (professional_id, name, email, phone)
-          VALUES (?, ?, ?, ?)
-        `).run(prof.id, client_name, client_email, client_phone || null);
+        const cr = db.prepare(
+          'INSERT INTO clients (professional_id, name, email, phone) VALUES (?, ?, ?, ?)'
+        ).run(prof.id, client_name, client_email, client_phone || null);
         client = db.prepare('SELECT * FROM clients WHERE id = ?').get(cr.lastInsertRowid);
       }
     }
@@ -104,9 +118,9 @@ router.post('/public/:slug/book', (req, res) => {
          start_time, end_time, status, public_token, source)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, 'web')
     `).run(
-      prof.id, client?.id || null, service.id,
+      prof.id, client ? client.id : null, service.id,
       client_name, client_email || null, client_phone || null, client_notes || null,
-      startTimeFmt, endTime, publicToken
+      startTimeFmt, endTimeFmt, publicToken
     );
 
     const appointment = db.prepare('SELECT * FROM appointments WHERE id = ?').get(result.lastInsertRowid);
@@ -115,8 +129,6 @@ router.post('/public/:slug/book', (req, res) => {
       INSERT INTO appointment_history (appointment_id, professional_id, action, new_status, performed_by)
       VALUES (?, ?, 'created', 'pending', 'client')
     `).run(appointment.id, prof.id);
-
-    // Email / Google Calendar: no disponibles en esta versión
 
     res.status(201).json({
       appointment: {
@@ -135,7 +147,6 @@ router.post('/public/:slug/book', (req, res) => {
   }
 });
 
-// GET /api/bookings/token/:token — Ver turno por token público
 router.get('/token/:token', (req, res) => {
   const appointment = db.prepare(`
     SELECT a.*, s.name as service_name, s.duration as service_duration, s.price as service_price,
@@ -148,22 +159,22 @@ router.get('/token/:token', (req, res) => {
 
   if (!appointment) return res.status(404).json({ error: 'Turno no encontrado' });
 
-  const policy = db.prepare('SELECT * FROM cancellation_policies WHERE professional_id = ?').get(appointment.professional_id);
+  const policy = db.prepare(
+    'SELECT * FROM cancellation_policies WHERE professional_id = ?'
+  ).get(appointment.professional_id);
 
   res.json({ appointment, cancellation_policy: policy });
 });
 
-// POST /api/bookings/token/:token/confirm — Confirmar asistencia (cliente)
 router.post('/token/:token/confirm', (req, res) => {
   const appointment = db.prepare('SELECT * FROM appointments WHERE public_token = ?').get(req.params.token);
   if (!appointment) return res.status(404).json({ error: 'Turno no encontrado' });
   if (appointment.status === 'cancelled') return res.status(409).json({ error: 'El turno fue cancelado' });
   if (appointment.status === 'confirmed') return res.json({ message: 'Ya confirmado', appointment });
 
-  db.prepare(`
-    UPDATE appointments SET status = 'confirmed', confirmed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-    WHERE id = ?
-  `).run(appointment.id);
+  db.prepare(
+    "UPDATE appointments SET status = 'confirmed', confirmed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+  ).run(appointment.id);
 
   db.prepare(`
     INSERT INTO appointment_history (appointment_id, professional_id, action, old_status, new_status, performed_by)
@@ -173,7 +184,6 @@ router.post('/token/:token/confirm', (req, res) => {
   res.json({ message: 'Asistencia confirmada' });
 });
 
-// POST /api/bookings/token/:token/cancel — Cancelar por token (cliente)
 router.post('/token/:token/cancel', (req, res) => {
   const { reason } = req.body;
   const appointment = db.prepare('SELECT * FROM appointments WHERE public_token = ?').get(req.params.token);
@@ -182,16 +192,22 @@ router.post('/token/:token/cancel', (req, res) => {
     return res.status(409).json({ error: 'El turno no puede ser cancelado' });
   }
 
-  const policy = db.prepare('SELECT * FROM cancellation_policies WHERE professional_id = ?').get(appointment.professional_id);
+  const policy = db.prepare(
+    'SELECT * FROM cancellation_policies WHERE professional_id = ?'
+  ).get(appointment.professional_id);
 
-  let feeApplied = 0, feeAmount = 0;
+  let feeApplied = 0;
+  let feeAmount = 0;
   if (policy && policy.enabled) {
     const hoursUntil = (new Date(appointment.start_time) - new Date()) / (1000 * 60 * 60);
     if (hoursUntil < policy.hours_before) {
       feeApplied = 1;
       const service = db.prepare('SELECT price FROM services WHERE id = ?').get(appointment.service_id);
-      if (policy.fee_type === 'fixed') feeAmount = policy.fee_fixed_amount;
-      else if (policy.fee_type === 'percentage') feeAmount = (service?.price || 0) * policy.fee_percentage / 100;
+      if (policy.fee_type === 'fixed') {
+        feeAmount = policy.fee_fixed_amount;
+      } else if (policy.fee_type === 'percentage') {
+        feeAmount = ((service ? service.price : 0) || 0) * policy.fee_percentage / 100;
+      }
     }
   }
 
@@ -212,16 +228,14 @@ router.post('/token/:token/cancel', (req, res) => {
     db.prepare('UPDATE clients SET cancellation_count = cancellation_count + 1 WHERE id = ?').run(appointment.client_id);
   }
 
-  // Google Calendar / email: no disponibles en esta versión
-
   res.json({ message: 'Turno cancelado', fee_applied: feeApplied, fee_amount: feeAmount });
 });
 
 // ══════════════════════════════════════════════════════════════
-// RUTAS PRIVADAS (dashboard del profesional)
+// RUTAS PRIVADAS (requieren token JWT del profesional)
 // ══════════════════════════════════════════════════════════════
 
-// GET /api/bookings/slots — ⚠️ ANTES de /:id
+// ⚠️ /slots y /metrics/summary DEBEN ir ANTES de /:id
 router.get('/slots', authMiddleware, (req, res) => {
   const { date } = req.query;
   if (!date) return res.status(400).json({ error: 'date requerido' });
@@ -229,7 +243,6 @@ router.get('/slots', authMiddleware, (req, res) => {
   res.json({ date, slots: [] });
 });
 
-// GET /api/bookings/metrics/summary — ⚠️ ANTES de /:id
 router.get('/metrics/summary', authMiddleware, (req, res) => {
   const profId = req.professional.id;
   const today = new Date().toISOString().slice(0, 10);
@@ -270,7 +283,7 @@ router.get('/metrics/summary', authMiddleware, (req, res) => {
 
   const topServices = db.prepare(`
     SELECT s.name, COUNT(*) as count,
-      SUM(CASE WHEN a.status='completed' THEN s.price ELSE 0 END) as revenue
+      SUM(CASE WHEN a.status = 'completed' THEN s.price ELSE 0 END) as revenue
     FROM appointments a JOIN services s ON a.service_id = s.id
     WHERE a.professional_id = ? AND date(a.start_time) >= ?
     GROUP BY s.id ORDER BY count DESC LIMIT 5
@@ -301,7 +314,6 @@ router.get('/metrics/summary', authMiddleware, (req, res) => {
   });
 });
 
-// GET /api/bookings — Listar turnos del profesional
 router.get('/', authMiddleware, (req, res) => {
   const { date, from, to, status, limit = 50, offset = 0 } = req.query;
   const profId = req.professional.id;
@@ -319,7 +331,7 @@ router.get('/', authMiddleware, (req, res) => {
 
   if (status) {
     const statuses = status.split(',');
-    where += ` AND a.status IN (${statuses.map(() => '?').join(',')})`;
+    where += ' AND a.status IN (' + statuses.map(() => '?').join(',') + ')';
     params.push(...statuses);
   }
 
@@ -335,14 +347,13 @@ router.get('/', authMiddleware, (req, res) => {
     LIMIT ? OFFSET ?
   `).all(...params, parseInt(limit), parseInt(offset));
 
-  const total = db.prepare(`
-    SELECT COUNT(*) as count FROM appointments a ${where}
-  `).get(...params).count;
+  const total = db.prepare(
+    'SELECT COUNT(*) as count FROM appointments a ' + where
+  ).get(...params).count;
 
   res.json({ appointments, total, limit: parseInt(limit), offset: parseInt(offset) });
 });
 
-// GET /api/bookings/:id — Detalle de un turno
 router.get('/:id', authMiddleware, (req, res) => {
   const appointment = db.prepare(`
     SELECT a.*,
@@ -357,20 +368,23 @@ router.get('/:id', authMiddleware, (req, res) => {
 
   if (!appointment) return res.status(404).json({ error: 'Turno no encontrado' });
 
-  const history = db.prepare(`
-    SELECT * FROM appointment_history WHERE appointment_id = ? ORDER BY created_at DESC
-  `).all(appointment.id);
+  const history = db.prepare(
+    'SELECT * FROM appointment_history WHERE appointment_id = ? ORDER BY created_at DESC'
+  ).all(appointment.id);
 
   res.json({ appointment, history });
 });
 
-// POST /api/bookings — Crear turno manual (profesional)
 router.post('/', authMiddleware, (req, res) => {
   const { service_id, date, time, client_name, client_email, client_phone, client_notes, status } = req.body;
-  if (!service_id || !date || !time || !client_name) return res.status(400).json({ error: 'Faltan campos' });
+  if (!service_id || !date || !time || !client_name) {
+    return res.status(400).json({ error: 'Faltan campos' });
+  }
 
   const profId = req.professional.id;
-  const service = db.prepare('SELECT * FROM services WHERE id = ? AND professional_id = ?').get(parseInt(service_id), profId);
+  const service = db.prepare(
+    'SELECT * FROM services WHERE id = ? AND professional_id = ?'
+  ).get(parseInt(service_id), profId);
   if (!service) return res.status(404).json({ error: 'Servicio no encontrado' });
 
   const startTimeFmt = `${date} ${time}:00`;
@@ -383,7 +397,9 @@ router.post('/', authMiddleware, (req, res) => {
   if (client_email) {
     client = db.prepare('SELECT * FROM clients WHERE professional_id = ? AND email = ?').get(profId, client_email);
     if (!client) {
-      const cr = db.prepare('INSERT INTO clients (professional_id, name, email, phone) VALUES (?, ?, ?, ?)').run(profId, client_name, client_email, client_phone || null);
+      const cr = db.prepare(
+        'INSERT INTO clients (professional_id, name, email, phone) VALUES (?, ?, ?, ?)'
+      ).run(profId, client_name, client_email, client_phone || null);
       client = db.prepare('SELECT * FROM clients WHERE id = ?').get(cr.lastInsertRowid);
     }
   }
@@ -394,7 +410,11 @@ router.post('/', authMiddleware, (req, res) => {
       (professional_id, client_id, service_id, client_name, client_email, client_phone, client_notes,
        start_time, end_time, status, public_token, source)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual')
-  `).run(profId, client?.id || null, service.id, client_name, client_email || null, client_phone || null, client_notes || null, startTimeFmt, endTimeFmt, initialStatus, publicToken);
+  `).run(
+    profId, client ? client.id : null, service.id,
+    client_name, client_email || null, client_phone || null, client_notes || null,
+    startTimeFmt, endTimeFmt, initialStatus, publicToken
+  );
 
   const appointment = db.prepare('SELECT * FROM appointments WHERE id = ?').get(result.lastInsertRowid);
 
@@ -406,32 +426,36 @@ router.post('/', authMiddleware, (req, res) => {
   res.status(201).json({ appointment });
 });
 
-// PUT /api/bookings/:id/status — Cambiar estado
 router.put('/:id/status', authMiddleware, (req, res) => {
   const { status, reason } = req.body;
   const validStatuses = ['pending', 'confirmed', 'cancelled', 'completed', 'no_show'];
   if (!validStatuses.includes(status)) return res.status(400).json({ error: 'Estado inválido' });
 
-  const appointment = db.prepare('SELECT * FROM appointments WHERE id = ? AND professional_id = ?').get(parseInt(req.params.id), req.professional.id);
+  const appointment = db.prepare(
+    'SELECT * FROM appointments WHERE id = ? AND professional_id = ?'
+  ).get(parseInt(req.params.id), req.professional.id);
   if (!appointment) return res.status(404).json({ error: 'Turno no encontrado' });
 
   const oldStatus = appointment.status;
   const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
 
-  const updates = { status, updated_at: now };
+  const updates = { status: status, updated_at: now };
   if (status === 'confirmed') updates.confirmed_at = now;
   if (status === 'completed') {
     updates.completed_at = now;
     if (appointment.client_id) {
-      const service = db.prepare('SELECT price FROM services WHERE id = ?').get(appointment.service_id);
-      db.prepare('UPDATE clients SET total_visits = total_visits + 1, total_spent = total_spent + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-        .run(service?.price || 0, appointment.client_id);
+      const svc = db.prepare('SELECT price FROM services WHERE id = ?').get(appointment.service_id);
+      db.prepare(
+        'UPDATE clients SET total_visits = total_visits + 1, total_spent = total_spent + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+      ).run((svc ? svc.price : 0) || 0, appointment.client_id);
     }
   }
   if (status === 'no_show') {
     updates.no_show_at = now;
     if (appointment.client_id) {
-      db.prepare('UPDATE clients SET no_show_count = no_show_count + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(appointment.client_id);
+      db.prepare(
+        'UPDATE clients SET no_show_count = no_show_count + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+      ).run(appointment.client_id);
     }
   }
   if (status === 'cancelled') {
@@ -443,8 +467,8 @@ router.put('/:id/status', authMiddleware, (req, res) => {
     }
   }
 
-  const setClauses = Object.keys(updates).map(k => `${k} = ?`).join(', ');
-  db.prepare(`UPDATE appointments SET ${setClauses} WHERE id = ?`).run(...Object.values(updates), appointment.id);
+  const setClauses = Object.keys(updates).map(function(k) { return k + ' = ?'; }).join(', ');
+  db.prepare('UPDATE appointments SET ' + setClauses + ' WHERE id = ?').run(...Object.values(updates), appointment.id);
 
   db.prepare(`
     INSERT INTO appointment_history (appointment_id, professional_id, action, old_status, new_status, note, performed_by)
@@ -455,33 +479,36 @@ router.put('/:id/status', authMiddleware, (req, res) => {
   res.json({ appointment: updated });
 });
 
-// PUT /api/bookings/:id/reschedule — Reprogramar turno
 router.put('/:id/reschedule', authMiddleware, (req, res) => {
   const { date, time } = req.body;
   if (!date || !time) return res.status(400).json({ error: 'date y time requeridos' });
 
-  const appointment = db.prepare('SELECT * FROM appointments WHERE id = ? AND professional_id = ?').get(parseInt(req.params.id), req.professional.id);
+  const appointment = db.prepare(
+    'SELECT * FROM appointments WHERE id = ? AND professional_id = ?'
+  ).get(parseInt(req.params.id), req.professional.id);
   if (!appointment) return res.status(404).json({ error: 'Turno no encontrado' });
   if (['cancelled', 'completed', 'no_show'].includes(appointment.status)) {
     return res.status(409).json({ error: 'No se puede reprogramar este turno' });
   }
 
   const service = db.prepare('SELECT * FROM services WHERE id = ?').get(appointment.service_id);
-  const newStartStr = `${date} ${time}:00`;
-  const endDate = new Date(`${date}T${time}:00`);
+  const newStartStr = date + ' ' + time + ':00';
+  const endDate = new Date(date + 'T' + time + ':00');
   endDate.setMinutes(endDate.getMinutes() + service.duration);
   const newEndTime = endDate.toISOString().replace('T', ' ').slice(0, 19);
   const oldStartTime = appointment.start_time;
 
   db.prepare(`
     UPDATE appointments SET
-      start_time = ?, end_time = ?, rescheduled_from_id = COALESCE(rescheduled_from_id, ?),
+      start_time = ?, end_time = ?,
+      rescheduled_from_id = COALESCE(rescheduled_from_id, ?),
       rescheduled_at = CURRENT_TIMESTAMP, status = 'confirmed', updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
   `).run(newStartStr, newEndTime, appointment.id, appointment.id);
 
   db.prepare(`
-    INSERT INTO appointment_history (appointment_id, professional_id, action, old_start_time, new_start_time, old_status, new_status, performed_by)
+    INSERT INTO appointment_history
+      (appointment_id, professional_id, action, old_start_time, new_start_time, old_status, new_status, performed_by)
     VALUES (?, ?, 'rescheduled', ?, ?, ?, 'confirmed', 'professional')
   `).run(appointment.id, req.professional.id, oldStartTime, newStartStr, appointment.status);
 
