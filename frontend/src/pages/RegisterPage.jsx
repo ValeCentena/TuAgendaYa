@@ -1,80 +1,122 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import FormField from '../components/FormField';
-import { registerProfessional, ApiError } from '../api/client';
-import { validateRegisterForm } from '../utils/validation';
+import { useNavigate, Link } from 'react-router-dom';
+import api from '../api/client.js';
+import toast from 'react-hot-toast';
+
+const registerProfessional = (data) => {
+  return api.post('/auth/register', data);
+};
 
 export default function RegisterPage() {
   const navigate = useNavigate();
-  const [form, setForm] = useState({
-    name: '',
-    email: '',
-    password: '',
-    specialty: '',
-    phone: '',
-    bio: '',
-    durationMinutes: 30,
-  });
-  const [fieldErrors, setFieldErrors] = useState({});
+  const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
 
-  const update = (field) => (e) => setForm({ ...form, [field]: e.target.value });
+  const [form, setForm] = useState({
+    name: '', email: '', password: '', profession: '', slug: '',
+  });
+  const [slugAvailable, setSlugAvailable] = useState(null);
+  const [checkingSlug, setCheckingSlug] = useState(false);
+
+  const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
+
+  const handleSlugCheck = async (value) => {
+    const slug = value.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+    setForm(f => ({ ...f, slug }));
+    if (slug.length < 3) { setSlugAvailable(null); return; }
+    setCheckingSlug(true);
+    try {
+      const res = await api.get(`/auth/check-slug/${slug}`);
+      setSlugAvailable(res.data.available);
+    } catch { setSlugAvailable(null); }
+    finally { setCheckingSlug(false); }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(null);
-
-    const errors = validateRegisterForm(form);
-    setFieldErrors(errors);
-    if (Object.keys(errors).length > 0) return;
-
+    if (step === 1) { setStep(2); return; }
+    if (!slugAvailable) { toast.error('Ese link ya está en uso'); return; }
     setLoading(true);
-
     try {
-      const { token, professional } = await registerProfessional({
-        ...form,
-        durationMinutes: Number(form.durationMinutes),
-      });
-      localStorage.setItem('token', token);
-      localStorage.setItem('professional', JSON.stringify(professional));
-      navigate('/profesional/dashboard');
+      const res = await registerProfessional(form);
+      const { token, professional } = res.data;
+      localStorage.setItem('tuagendaya_token', token);
+      if (professional) {
+        localStorage.setItem('tuagendaya_professional', JSON.stringify(professional));
+      }
+      toast.success('¡Cuenta creada! Bienvenido a TuAgendaYa.');
+      navigate('/dashboard');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'No se pudo crear la cuenta');
-    } finally {
-      setLoading(false);
-    }
+      toast.error(err.response?.data?.error || 'Error al registrarse');
+    } finally { setLoading(false); }
+  };
+
+  const inputStyle = {
+    width: '100%', padding: '10px 12px', borderRadius: 10, border: '0.5px solid #d0d0d5',
+    fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box',
+    marginBottom: 12, background: '#fff', color: '#1a1a1a',
   };
 
   return (
-    <div className="auth-page">
-      <div className="card auth-card">
-        <h1 className="auth-title">Creá tu cuenta</h1>
-        <p className="auth-subtitle">Empezá a recibir turnos online hoy</p>
+    <div style={{ minHeight: '100vh', background: '#f2f2f7', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <style>{`@keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}`}</style>
+      <div style={{ background: '#fff', borderRadius: 24, padding: '36px 32px', border: '0.5px solid #e0e0e5', width: '100%', maxWidth: 400, animation: 'slideUp 250ms cubic-bezier(0.16,1,0.3,1) both', boxShadow: '0 2px 40px rgba(0,0,0,0.06)' }}>
 
-        {error && <div className="alert alert-error">{error}</div>}
+        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+          <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: '#0071e3', marginBottom: 4 }}>TuAgendaYa</div>
+          <div style={{ fontSize: 14, color: '#6e6e73' }}>
+            {step === 1 ? 'Creá tu cuenta' : 'Tu perfil público'}
+          </div>
+        </div>
 
-        <form onSubmit={handleSubmit} noValidate>
-          <FormField id="name" label="Nombre completo" value={form.name} onChange={update('name')} error={fieldErrors.name} required />
-          <FormField id="email" label="Email" type="email" value={form.email} onChange={update('email')} error={fieldErrors.email} required />
-          <FormField id="password" label="Contraseña" type="password" value={form.password} onChange={update('password')} error={fieldErrors.password} required minLength={6} />
-          <FormField id="specialty" label="Especialidad" value={form.specialty} onChange={update('specialty')} placeholder="Ej: Odontología" />
-          <FormField id="phone" label="WhatsApp / Teléfono" type="tel" value={form.phone} onChange={update('phone')} error={fieldErrors.phone} placeholder="+54..." />
-          <FormField id="duration" label="Duración del turno (minutos)" as="select" value={form.durationMinutes} onChange={update('durationMinutes')}>
-            <option value={15}>15 min</option>
-            <option value={30}>30 min</option>
-            <option value={45}>45 min</option>
-            <option value={60}>60 min</option>
-          </FormField>
-          <FormField id="bio" label="Bio (opcional)" as="textarea" value={form.bio} onChange={update('bio')} />
-          <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
-            {loading ? 'Creando cuenta...' : 'Registrarse'}
-          </button>
+        <div style={{ height: 3, background: '#f2f2f7', borderRadius: 2, marginBottom: 24, overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: step === 1 ? '35%' : '100%', background: '#0071e3', borderRadius: 2, transition: 'width 400ms ease' }} />
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          {step === 1 ? (
+            <>
+              <div style={{ fontSize: 11, color: '#6e6e73', marginBottom: 4 }}>Nombre completo</div>
+              <input style={inputStyle} value={form.name} onChange={set('name')} placeholder="Dra. Laura Gómez" required />
+              <div style={{ fontSize: 11, color: '#6e6e73', marginBottom: 4 }}>Email</div>
+              <input style={inputStyle} type="email" value={form.email} onChange={set('email')} placeholder="tu@email.com" required autoComplete="email" />
+              <div style={{ fontSize: 11, color: '#6e6e73', marginBottom: 4 }}>Contraseña</div>
+              <input style={inputStyle} type="password" value={form.password} onChange={set('password')} placeholder="Mínimo 8 caracteres" required autoComplete="new-password" />
+              <button type="submit" style={{ width: '100%', padding: '12px', borderRadius: 12, border: 'none', background: '#0071e3', color: '#fff', fontSize: 14, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', marginTop: 4 }}>
+                Continuar →
+              </button>
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize: 11, color: '#6e6e73', marginBottom: 16 }}>Paso 2 de 2 — Así te verán tus clientes</div>
+              <div style={{ fontSize: 11, color: '#6e6e73', marginBottom: 4 }}>Rubro o profesión</div>
+              <input style={inputStyle} value={form.profession} onChange={set('profession')} placeholder="Odontología, Psicología, Kinesología..." />
+              <div style={{ fontSize: 11, color: '#6e6e73', marginBottom: 4 }}>Tu link único</div>
+              <input style={inputStyle} value={form.slug} onChange={e => handleSlugCheck(e.target.value)} placeholder="dra-laura-gomez" />
+              {form.slug && (
+                <div style={{ background: '#e8f2fd', border: '0.5px solid #cce0f8', borderRadius: 10, padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 6, marginTop: -4, marginBottom: 14, fontSize: 12 }}>
+                  <span style={{ color: '#6e6e73' }}>tuagendaya.app/</span>
+                  <span style={{ color: '#0071e3', fontWeight: 600 }}>{form.slug}</span>
+                  {slugAvailable === true && <span style={{ marginLeft: 'auto', color: '#30d158', fontWeight: 600, fontSize: 11 }}>✓ disponible</span>}
+                  {slugAvailable === false && <span style={{ marginLeft: 'auto', color: '#ff453a', fontWeight: 600, fontSize: 11 }}>✗ en uso</span>}
+                  {checkingSlug && <span style={{ marginLeft: 'auto', color: '#aeaeb2', fontSize: 11 }}>comprobando...</span>}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                <button type="button" onClick={() => setStep(1)} style={{ padding: '12px 16px', borderRadius: 12, border: '0.5px solid #e0e0e5', background: 'transparent', fontSize: 13, color: '#6e6e73', cursor: 'pointer', fontFamily: 'inherit' }}>← Volver</button>
+                <button type="submit" disabled={loading} style={{ flex: 1, padding: '12px', borderRadius: 12, border: 'none', background: loading ? '#aeaeb2' : '#0071e3', color: '#fff', fontSize: 14, fontWeight: 600, fontFamily: 'inherit', cursor: loading ? 'not-allowed' : 'pointer' }}>
+                  {loading ? 'Creando...' : 'Crear mi agenda →'}
+                </button>
+              </div>
+            </>
+          )}
         </form>
 
-        <p className="auth-footer">
-          ¿Ya tenés cuenta? <Link to="/profesional/login">Iniciar sesión</Link>
-        </p>
+        <div style={{ textAlign: 'center', marginTop: 20, fontSize: 13, color: '#6e6e73' }}>
+          ¿Ya tenés cuenta?{' '}
+          <Link to="/login" style={{ color: '#0071e3', textDecoration: 'none', fontWeight: 500 }}>Ingresar</Link>
+        </div>
+        <div style={{ textAlign: 'center', fontSize: 11, color: '#aeaeb2', marginTop: 12 }}>🔒 Tus datos están cifrados y protegidos</div>
       </div>
     </div>
   );
