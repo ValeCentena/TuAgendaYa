@@ -143,3 +143,6 @@ export const registerProfesional = (data) =>
   api.post('/auth/register', data);
 
 export default api;
+export default api;
+
+// rebuild frontend
