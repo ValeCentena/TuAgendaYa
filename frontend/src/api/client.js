@@ -8,7 +8,9 @@ const api = axios.create({
 // Token automático en cada request
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('tuagendaya_token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
   return config;
 });
 
@@ -24,6 +26,16 @@ api.interceptors.response.use(
   }
 );
 
+// Error personalizado
+export class ApiError extends Error {
+  constructor(message, status, data) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.data = data;
+  }
+}
+
 // ── Auth ─────────────────────────────────────────────────────
 export const authApi = {
   register: (data) => api.post('/auth/register', data),
@@ -36,30 +48,51 @@ export const authApi = {
   resetPassword: (data) => api.post('/auth/reset-password', data),
 };
 
-// ── Appointments ──────────────────────────────────────────────
-export const appointmentsApi = {
-  // Dashboard
-  list: (params) => api.get('/appointments', { params }),
-  get: (id) => api.get(`/appointments/${id}`),
-  create: (data) => api.post('/appointments', data),
-  updateStatus: (id, data) => api.put(`/appointments/${id}/status`, data),
-  reschedule: (id, data) => api.put(`/appointments/${id}/reschedule`, data),
-  metrics: () => api.get('/appointments/metrics/summary'),
-  getSlotsDashboard: (params) => api.get('/appointments/slots', { params }),
-
-  // Pública (booking por clientes)
-  getPublicProfile: (slug) => api.get(`/appointments/public/${slug}`),
-  getSlots: (slug, params) => api.get(`/appointments/public/${slug}/slots`, { params }),
-  getAvailableDays: (slug, params) => api.get(`/appointments/public/${slug}/available-days`, { params }),
-  book: (slug, data) => api.post(`/appointments/public/${slug}/book`, data),
-
-  // Por token público
-  getByToken: (token) => api.get(`/appointments/token/${token}`),
-  confirmByToken: (token) => api.post(`/appointments/token/${token}/confirm`),
-  cancelByToken: (token, data) => api.post(`/appointments/token/${token}/cancel`, data),
+// IMPORTANTE: export exacto que pide LoginPage.jsx
+export const loginProfesional = async (email, password) => {
+  return api.post('/auth/login', { email, password });
 };
 
-// ── Clients ───────────────────────────────────────────────────
+export const registerProfesional = async (data) => {
+  return api.post('/auth/register', data);
+};
+
+// ── Appointments / Bookings ──────────────────────────────────
+export const appointmentsApi = {
+  list: (params) => api.get('/bookings', { params }),
+  get: (id) => api.get(`/bookings/${id}`),
+  create: (data) => api.post('/bookings', data),
+  updateStatus: (id, data) => api.put(`/bookings/${id}/status`, data),
+  reschedule: (id, data) => api.put(`/bookings/${id}/reschedule`, data),
+  metrics: () => api.get('/bookings/metrics/summary'),
+  getSlotsDashboard: (params) => api.get('/bookings/slots', { params }),
+
+  // Pública
+  getPublicProfile: (slug) => api.get(`/bookings/public/${slug}`),
+  getSlots: (slug, params) => api.get(`/bookings/public/${slug}/slots`, { params }),
+  getAvailableDays: (slug, params) =>
+    api.get(`/bookings/public/${slug}/available-days`, { params }),
+  book: (slug, data) => api.post(`/bookings/public/${slug}/book`, data),
+
+  // Por token público
+  getByToken: (token) => api.get(`/bookings/token/${token}`),
+  confirmByToken: (token) => api.post(`/bookings/token/${token}/confirm`),
+  cancelByToken: (token, data) => api.post(`/bookings/token/${token}/cancel`, data),
+};
+
+// Alias por si alguna página todavía usa bookingsApi
+export const bookingsApi = appointmentsApi;
+
+// ── Professionals ────────────────────────────────────────────
+export const professionalsApi = {
+  list: (params) => api.get('/professionals', { params }),
+  get: (id) => api.get(`/professionals/${id}`),
+  create: (data) => api.post('/professionals', data),
+  update: (id, data) => api.put(`/professionals/${id}`, data),
+  delete: (id) => api.delete(`/professionals/${id}`),
+};
+
+// ── Clients ──────────────────────────────────────────────────
 export const clientsApi = {
   list: (params) => api.get('/clients', { params }),
   get: (id) => api.get(`/clients/${id}`),
@@ -67,7 +100,7 @@ export const clientsApi = {
   delete: (id) => api.delete(`/clients/${id}`),
 };
 
-// ── Services ──────────────────────────────────────────────────
+// ── Services ─────────────────────────────────────────────────
 export const servicesApi = {
   list: () => api.get('/services'),
   create: (data) => api.post('/services', data),
@@ -75,7 +108,7 @@ export const servicesApi = {
   delete: (id) => api.delete(`/services/${id}`),
 };
 
-// ── Settings ──────────────────────────────────────────────────
+// ── Settings ─────────────────────────────────────────────────
 export const settingsApi = {
   getAvailability: () => api.get('/settings/availability'),
   updateAvailability: (data) => api.put('/settings/availability', data),
@@ -86,7 +119,7 @@ export const settingsApi = {
   updateCancellationPolicy: (data) => api.put('/settings/cancellation-policy', data),
 };
 
-// ── Google Calendar ───────────────────────────────────────────
+// ── Google Calendar ──────────────────────────────────────────
 export const calendarApi = {
   getAuthUrl: () => api.get('/calendar/auth-url'),
   getStatus: () => api.get('/calendar/status'),
@@ -96,7 +129,7 @@ export const calendarApi = {
   sync: () => api.post('/calendar/sync'),
 };
 
-// ── Admin API (panel superadmin) ──────────────────────────────
+// ── Admin API / Superadmin ───────────────────────────────────
 const adminAxios = axios.create({
   baseURL: '/api',
   timeout: 15000,
@@ -104,7 +137,9 @@ const adminAxios = axios.create({
 
 adminAxios.interceptors.request.use((config) => {
   const token = localStorage.getItem('tuagendaya_admin_token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
   return config;
 });
 
@@ -124,24 +159,8 @@ export const adminApi = {
   stats: () => adminAxios.get('/admin/stats'),
   professionals: (params) => adminAxios.get('/admin/professionals', { params }),
   professionalDetail: (id) => adminAxios.get(`/admin/professionals/${id}`),
-  updateStatus: (id, status) => adminAxios.patch(`/admin/professionals/${id}/status`, { status }),
+  updateStatus: (id, status) =>
+    adminAxios.patch(`/admin/professionals/${id}/status`, { status }),
 };
 
-// ── Named helpers para imports directos ──────────────────────
-export class ApiError extends Error {
-  constructor(message, status, data) {
-    super(message);
-    this.status = status;
-    this.data = data;
-  }
-}
-
-export const loginProfesional = (email, password) =>
-  api.post('/auth/login', { email, password });
-
-export const registerProfesional = (data) =>
-  api.post('/auth/register', data);
-
 export default api;
-
-// rebuild frontend
