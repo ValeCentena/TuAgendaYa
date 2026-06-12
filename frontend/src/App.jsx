@@ -1,19 +1,54 @@
 import { useState } from 'react';
 
+const API_URL = 'https://tuagendaya-api.onrender.com/api';
+
 export default function App() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [mensaje, setMensaje] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
+    setMensaje('');
 
     if (!email || !password) {
       setMensaje('Ingresá email y contraseña.');
       return;
     }
 
-    setMensaje('Login cargó correctamente. Próximo paso: conectar API.');
+    try {
+      setLoading(true);
+
+      const response = await fetch(`${API_URL}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          password,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.message || data.error || 'No se pudo iniciar sesión.');
+      }
+
+      const token = data.token || data.accessToken || data.jwt;
+
+      if (token) {
+        localStorage.setItem('tuagendaya_token', token);
+      }
+
+      setMensaje('Login correcto. Token guardado.');
+    } catch (error) {
+      setMensaje(error.message || 'Error al conectar con la API.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -132,19 +167,20 @@ export default function App() {
 
           <button
             type="submit"
+            disabled={loading}
             style={{
               height: 50,
               borderRadius: 16,
               border: 'none',
-              background: '#111827',
+              background: loading ? '#475569' : '#111827',
               color: '#ffffff',
               fontSize: 15,
               fontWeight: 800,
-              cursor: 'pointer',
+              cursor: loading ? 'not-allowed' : 'pointer',
               marginTop: 6,
             }}
           >
-            Ingresar
+            {loading ? 'Ingresando...' : 'Ingresar'}
           </button>
         </form>
 
@@ -154,11 +190,14 @@ export default function App() {
               marginTop: 18,
               padding: 12,
               borderRadius: 14,
-              background: '#eef2ff',
-              color: '#3730a3',
+              background: mensaje.includes('correcto') ? '#ecfdf5' : '#fef2f2',
+              color: mensaje.includes('correcto') ? '#047857' : '#b91c1c',
               fontSize: 14,
               textAlign: 'center',
               fontWeight: 600,
+              border: mensaje.includes('correcto')
+                ? '1px solid #bbf7d0'
+                : '1px solid #fecaca',
             }}
           >
             {mensaje}
