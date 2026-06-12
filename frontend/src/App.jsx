@@ -1,86 +1,170 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
-import LoginPage from './pages/LoginPage.jsx';
+import { useState } from 'react';
 
 export default function App() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [mensaje, setMensaje] = useState('');
+
+  const handleSubmit = (event) => {
+    event.preventDefault();
+
+    if (!email || !password) {
+      setMensaje('Ingresá email y contraseña.');
+      return;
+    }
+
+    setMensaje('Login cargó correctamente. Próximo paso: conectar API.');
+  };
+
   return (
-    <Routes>
-      <Route path="/" element={<Navigate to="/profesional/login" replace />} />
+    <main
+      style={{
+        minHeight: '100vh',
+        width: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#f8fafc',
+        fontFamily:
+          'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+        padding: 24,
+        boxSizing: 'border-box',
+      }}
+    >
+      <section
+        style={{
+          width: '100%',
+          maxWidth: 430,
+          background: '#ffffff',
+          borderRadius: 28,
+          padding: 36,
+          boxShadow: '0 24px 80px rgba(15, 23, 42, 0.14)',
+          border: '1px solid rgba(148, 163, 184, 0.25)',
+          boxSizing: 'border-box',
+        }}
+      >
+        <h1
+          style={{
+            margin: '0 0 10px',
+            fontSize: 34,
+            letterSpacing: '-0.05em',
+            color: '#0f172a',
+            textAlign: 'center',
+          }}
+        >
+          TuAgendaYa
+        </h1>
 
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/profesional/login" element={<LoginPage />} />
+        <p
+          style={{
+            margin: '0 0 28px',
+            color: '#64748b',
+            fontSize: 16,
+            textAlign: 'center',
+          }}
+        >
+          Ingresá a tu panel profesional
+        </p>
 
-      <Route
-        path="*"
-        element={
-          <main
+        <form
+          onSubmit={handleSubmit}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16,
+          }}
+        >
+          <label
             style={{
-              minHeight: '100vh',
-              width: '100%',
               display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: '#f8fafc',
-              fontFamily:
-                'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-              padding: 24,
-              boxSizing: 'border-box',
+              flexDirection: 'column',
+              gap: 8,
+              color: '#334155',
+              fontSize: 14,
+              fontWeight: 700,
             }}
           >
-            <section
+            Email
+            <input
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="tu@email.com"
               style={{
-                width: '100%',
-                maxWidth: 460,
-                background: '#ffffff',
-                borderRadius: 28,
-                padding: 36,
-                boxShadow: '0 24px 80px rgba(15, 23, 42, 0.14)',
-                border: '1px solid rgba(148, 163, 184, 0.25)',
-                textAlign: 'center',
+                height: 48,
+                borderRadius: 14,
+                border: '1px solid #cbd5e1',
+                padding: '0 14px',
+                fontSize: 15,
+                outline: 'none',
+                boxSizing: 'border-box',
               }}
-            >
-              <h1
-                style={{
-                  margin: '0 0 12px',
-                  fontSize: 34,
-                  letterSpacing: '-0.05em',
-                  color: '#0f172a',
-                }}
-              >
-                TuAgendaYa
-              </h1>
+            />
+          </label>
 
-              <p
-                style={{
-                  margin: '0 0 26px',
-                  color: '#64748b',
-                  fontSize: 16,
-                  lineHeight: 1.5,
-                }}
-              >
-                Página no encontrada.
-              </p>
+          <label
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+              color: '#334155',
+              fontSize: 14,
+              fontWeight: 700,
+            }}
+          >
+            Contraseña
+            <input
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="Tu contraseña"
+              style={{
+                height: 48,
+                borderRadius: 14,
+                border: '1px solid #cbd5e1',
+                padding: '0 14px',
+                fontSize: 15,
+                outline: 'none',
+                boxSizing: 'border-box',
+              }}
+            />
+          </label>
 
-              <a
-                href="/profesional/login"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  height: 46,
-                  padding: '0 18px',
-                  borderRadius: 14,
-                  background: '#111827',
-                  color: '#ffffff',
-                  fontWeight: 700,
-                  textDecoration: 'none',
-                }}
-              >
-                Ir al login
-              </a>
-            </section>
-          </main>
-        }
-      />
-    </Routes>
+          <button
+            type="submit"
+            style={{
+              height: 50,
+              borderRadius: 16,
+              border: 'none',
+              background: '#111827',
+              color: '#ffffff',
+              fontSize: 15,
+              fontWeight: 800,
+              cursor: 'pointer',
+              marginTop: 6,
+            }}
+          >
+            Ingresar
+          </button>
+        </form>
+
+        {mensaje ? (
+          <div
+            style={{
+              marginTop: 18,
+              padding: 12,
+              borderRadius: 14,
+              background: '#eef2ff',
+              color: '#3730a3',
+              fontSize: 14,
+              textAlign: 'center',
+              fontWeight: 600,
+            }}
+          >
+            {mensaje}
+          </div>
+        ) : null}
+      </section>
+    </main>
   );
 }
