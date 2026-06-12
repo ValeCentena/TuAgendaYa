@@ -1,37 +1,81 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
-import Layout from './components/Layout.jsx';
-import AdminLayout from './components/layout/AdminLayout.jsx';
 import LoginPage from './pages/LoginPage.jsx';
-import RegisterPage from './pages/RegisterPage.jsx';
-import HomePage from './pages/HomePage.jsx';
-import DashboardPage from './pages/DashboardPage.jsx';
-import BookPage from './pages/BookPage.jsx';
-import AdminLoginPage from './pages/AdminLoginPage.jsx';
-import AdminDashboardPage from './pages/AdminDashboardPage.jsx';
-import AdminProfessionalsPage from './pages/AdminProfessionalsPage.jsx';
-import AdminProfessionalDetailPage from './pages/AdminProfessionalDetailPage.jsx';
 
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route path="/" element={<Navigate to="/profesional/login" replace />} />
+
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
+      <Route path="/profesional/login" element={<LoginPage />} />
 
-      <Route element={<Layout />}>
-        <Route path="/home" element={<HomePage />} />
-        <Route path="/dashboard" element={<DashboardPage />} />
-      </Route>
+      <Route
+        path="*"
+        element={
+          <main
+            style={{
+              minHeight: '100vh',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: '#f8fafc',
+              fontFamily:
+                'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+              padding: 24,
+            }}
+          >
+            <section
+              style={{
+                width: '100%',
+                maxWidth: 420,
+                background: '#ffffff',
+                borderRadius: 24,
+                padding: 32,
+                boxShadow: '0 20px 60px rgba(15, 23, 42, 0.12)',
+                textAlign: 'center',
+              }}
+            >
+              <h1
+                style={{
+                  margin: '0 0 10px',
+                  fontSize: 28,
+                  color: '#0f172a',
+                }}
+              >
+                TuAgendaYa
+              </h1>
 
-      <Route path="/admin/login" element={<AdminLoginPage />} />
-      <Route path="/admin" element={<AdminLayout />}>
-        <Route index element={<Navigate to="/admin/dashboard" replace />} />
-        <Route path="dashboard" element={<AdminDashboardPage />} />
-        <Route path="professionals" element={<AdminProfessionalsPage />} />
-        <Route path="professionals/:id" element={<AdminProfessionalDetailPage />} />
-      </Route>
+              <p
+                style={{
+                  margin: '0 0 24px',
+                  color: '#64748b',
+                  fontSize: 15,
+                }}
+              >
+                Página no encontrada.
+              </p>
 
-      <Route path="/:slug" element={<BookPage />} />
+              <a
+                href="/profesional/login"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  height: 46,
+                  padding: '0 20px',
+                  borderRadius: 14,
+                  background: '#111827',
+                  color: '#ffffff',
+                  textDecoration: 'none',
+                  fontWeight: 700,
+                }}
+              >
+                Ir al login
+              </a>
+            </section>
+          </main>
+        }
+      />
     </Routes>
   );
 }
