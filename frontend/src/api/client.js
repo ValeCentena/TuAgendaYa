@@ -127,4 +127,19 @@ export const adminApi = {
   updateStatus: (id, status) => adminAxios.patch(`/admin/professionals/${id}/status`, { status }),
 };
 
+// ── Named helpers para imports directos ──────────────────────
+export class ApiError extends Error {
+  constructor(message, status, data) {
+    super(message);
+    this.status = status;
+    this.data = data;
+  }
+}
+
+export const loginProfesional = (email, password) =>
+  api.post('/auth/login', { email, password });
+
+export const registerProfesional = (data) =>
+  api.post('/auth/register', data);
+
 export default api;
