@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api, { ApiError } from '../api/client.js';
-import useAuthStore from '../store/authStore.js';
 import Logo from '../components/ui/Logo.jsx';
 import Input from '../components/ui/Input.jsx';
 import Button from '../components/ui/Button.jsx';
@@ -13,9 +12,8 @@ const loginProfesional = (email, password) => {
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { setAuth } = useAuthStore();
-  const [tab, setTab] = useState('login'); // login | register
-  const [step, setStep] = useState(1); // para registro: 1=cuenta, 2=perfil
+  const [tab, setTab] = useState('login');
+  const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
 
   const [form, setForm] = useState({
@@ -43,7 +41,11 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const res = await loginProfesional(form.email, form.password);
-      setAuth(res.data.token, res.data.professional);
+      const { token, professional } = res.data;
+      localStorage.setItem('tuagendaya_token', token);
+      if (professional) {
+        localStorage.setItem('tuagendaya_professional', JSON.stringify(professional));
+      }
       navigate('/dashboard');
     } catch (err) {
       toast.error(err.response?.data?.error || 'Error al ingresar');
@@ -57,7 +59,11 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const res = await api.post('/auth/register', form);
-      setAuth(res.data.token, res.data.professional);
+      const { token, professional } = res.data;
+      localStorage.setItem('tuagendaya_token', token);
+      if (professional) {
+        localStorage.setItem('tuagendaya_professional', JSON.stringify(professional));
+      }
       toast.success('¡Cuenta creada! Bienvenido a TuAgendaYa.');
       navigate('/dashboard');
     } catch (err) {
@@ -78,7 +84,6 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Tabs */}
         <div style={{ display: 'flex', background: '#f2f2f7', borderRadius: 12, padding: 3, marginBottom: 24 }}>
           {['login', 'register'].map(t => (
             <button key={t} onClick={() => { setTab(t); setStep(1); }}
