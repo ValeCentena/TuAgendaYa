@@ -1,214 +1,170 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import api from '../api/client';
 
 export default function LoginPage() {
-  const navigate = useNavigate();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [mensaje, setMensaje] = useState('');
 
-  const [form, setForm] = useState({
-    email: '',
-    password: '',
-  });
-
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  const handleChange = (event) => {
-    const { name, value } = event.target;
-
-    setForm((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
-
-  const handleSubmit = async (event) => {
+  const handleSubmit = (event) => {
     event.preventDefault();
-    setError('');
 
-    if (!form.email || !form.password) {
-      setError('Ingresá tu email y contraseña.');
+    if (!email || !password) {
+      setMensaje('Ingresá email y contraseña.');
       return;
     }
 
-    try {
-      setLoading(true);
-
-      const response = await api.post('/auth/login', {
-        email: form.email,
-        password: form.password,
-      });
-
-      const data = response.data || {};
-      const token = data.token || data.accessToken || data.jwt;
-
-      if (token) {
-        localStorage.setItem('tuagendaya_token', token);
-      }
-
-      navigate('/profesional/dashboard', { replace: true });
-    } catch (err) {
-      const message =
-        err?.response?.data?.message ||
-        err?.response?.data?.error ||
-        'No se pudo iniciar sesión. Revisá tus datos.';
-
-      setError(message);
-    } finally {
-      setLoading(false);
-    }
+    setMensaje('Login cargó correctamente. Próximo paso: conectar API.');
   };
 
   return (
-    <main style={styles.page}>
-      <section style={styles.card}>
-        <div style={styles.logo}>TuAgendaYa</div>
+    <main
+      style={{
+        minHeight: '100vh',
+        width: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#f8fafc',
+        fontFamily:
+          'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+        padding: 24,
+        boxSizing: 'border-box',
+      }}
+    >
+      <section
+        style={{
+          width: '100%',
+          maxWidth: 430,
+          background: '#ffffff',
+          borderRadius: 28,
+          padding: 36,
+          boxShadow: '0 24px 80px rgba(15, 23, 42, 0.14)',
+          border: '1px solid rgba(148, 163, 184, 0.25)',
+          boxSizing: 'border-box',
+        }}
+      >
+        <h1
+          style={{
+            margin: '0 0 10px',
+            fontSize: 34,
+            letterSpacing: '-0.05em',
+            color: '#0f172a',
+            textAlign: 'center',
+          }}
+        >
+          TuAgendaYa
+        </h1>
 
-        <h1 style={styles.title}>Ingresar</h1>
-        <p style={styles.subtitle}>Accedé a tu panel profesional</p>
+        <p
+          style={{
+            margin: '0 0 28px',
+            color: '#64748b',
+            fontSize: 16,
+            textAlign: 'center',
+          }}
+        >
+          Ingresá a tu panel profesional
+        </p>
 
-        {error ? <div style={styles.error}>{error}</div> : null}
-
-        <form onSubmit={handleSubmit} style={styles.form}>
-          <label style={styles.label}>
+        <form
+          onSubmit={handleSubmit}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16,
+          }}
+        >
+          <label
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+              color: '#334155',
+              fontSize: 14,
+              fontWeight: 700,
+            }}
+          >
             Email
             <input
-              style={styles.input}
               type="email"
-              name="email"
-              value={form.email}
-              onChange={handleChange}
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
               placeholder="tu@email.com"
-              autoComplete="email"
+              style={{
+                height: 48,
+                borderRadius: 14,
+                border: '1px solid #cbd5e1',
+                padding: '0 14px',
+                fontSize: 15,
+                outline: 'none',
+                boxSizing: 'border-box',
+              }}
             />
           </label>
 
-          <label style={styles.label}>
+          <label
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+              color: '#334155',
+              fontSize: 14,
+              fontWeight: 700,
+            }}
+          >
             Contraseña
             <input
-              style={styles.input}
               type="password"
-              name="password"
-              value={form.password}
-              onChange={handleChange}
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
               placeholder="Tu contraseña"
-              autoComplete="current-password"
+              style={{
+                height: 48,
+                borderRadius: 14,
+                border: '1px solid #cbd5e1',
+                padding: '0 14px',
+                fontSize: 15,
+                outline: 'none',
+                boxSizing: 'border-box',
+              }}
             />
           </label>
 
-          <button type="submit" style={styles.button} disabled={loading}>
-            {loading ? 'Ingresando...' : 'Ingresar'}
+          <button
+            type="submit"
+            style={{
+              height: 50,
+              borderRadius: 16,
+              border: 'none',
+              background: '#111827',
+              color: '#ffffff',
+              fontSize: 15,
+              fontWeight: 800,
+              cursor: 'pointer',
+              marginTop: 6,
+            }}
+          >
+            Ingresar
           </button>
         </form>
 
-        <p style={styles.footerText}>
-          ¿Todavía no tenés cuenta?{' '}
-          <Link to="/profesional/registro" style={styles.link}>
-            Registrate
-          </Link>
-        </p>
+        {mensaje ? (
+          <div
+            style={{
+              marginTop: 18,
+              padding: 12,
+              borderRadius: 14,
+              background: '#eef2ff',
+              color: '#3730a3',
+              fontSize: 14,
+              textAlign: 'center',
+              fontWeight: 600,
+            }}
+          >
+            {mensaje}
+          </div>
+        ) : null}
       </section>
     </main>
   );
 }
-
-const styles = {
-  page: {
-    minHeight: '100vh',
-    width: '100%',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    background:
-      'linear-gradient(135deg, #f8fafc 0%, #eef2ff 45%, #fdf2f8 100%)',
-    padding: '24px',
-    boxSizing: 'border-box',
-    fontFamily:
-      'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-  },
-  card: {
-    width: '100%',
-    maxWidth: '430px',
-    background: '#ffffff',
-    borderRadius: '28px',
-    padding: '34px',
-    boxShadow: '0 24px 80px rgba(15, 23, 42, 0.14)',
-    border: '1px solid rgba(148, 163, 184, 0.22)',
-    boxSizing: 'border-box',
-  },
-  logo: {
-    fontSize: '25px',
-    fontWeight: '800',
-    color: '#111827',
-    marginBottom: '26px',
-    letterSpacing: '-0.04em',
-  },
-  title: {
-    fontSize: '32px',
-    lineHeight: '1.1',
-    margin: '0 0 8px',
-    color: '#0f172a',
-    letterSpacing: '-0.05em',
-  },
-  subtitle: {
-    margin: '0 0 26px',
-    color: '#64748b',
-    fontSize: '15px',
-  },
-  form: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '18px',
-  },
-  label: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '8px',
-    color: '#334155',
-    fontSize: '14px',
-    fontWeight: '600',
-  },
-  input: {
-    width: '100%',
-    height: '48px',
-    borderRadius: '14px',
-    border: '1px solid #cbd5e1',
-    padding: '0 14px',
-    fontSize: '15px',
-    outline: 'none',
-    boxSizing: 'border-box',
-    background: '#ffffff',
-    color: '#0f172a',
-  },
-  button: {
-    height: '50px',
-    borderRadius: '16px',
-    border: 'none',
-    background: '#111827',
-    color: '#ffffff',
-    fontSize: '15px',
-    fontWeight: '700',
-    cursor: 'pointer',
-    marginTop: '6px',
-  },
-  error: {
-    background: '#fef2f2',
-    color: '#b91c1c',
-    border: '1px solid #fecaca',
-    padding: '12px 14px',
-    borderRadius: '14px',
-    fontSize: '14px',
-    marginBottom: '18px',
-  },
-  footerText: {
-    margin: '22px 0 0',
-    textAlign: 'center',
-    color: '#64748b',
-    fontSize: '14px',
-  },
-  link: {
-    color: '#111827',
-    fontWeight: '700',
-    textDecoration: 'none',
-  },
-};
