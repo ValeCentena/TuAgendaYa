@@ -118,19 +118,40 @@ export const updateBookingStatus = (id, data) => {
   return api.put(`/bookings/${id}/status`, data);
 };
 
+// PUBLIC BOOKING / BOOKPAGE
 export const getPublicProfile = (slug) => {
   return api.get(`/bookings/public/${slug}`);
 };
 
-export const getPublicSlots = (slug, params) => {
+export const getProfessionalBySlug = (slug) => {
+  return api.get(`/bookings/public/${slug}`);
+};
+
+export const getPublicSlots = (slug, params = {}) => {
   return api.get(`/bookings/public/${slug}/slots`, { params });
 };
 
-export const getAvailableDays = (slug, params) => {
+export const getAvailableSlots = (slug, params = {}) => {
+  return api.get(`/bookings/public/${slug}/slots`, { params });
+};
+
+export const getAvailableDays = (slug, params = {}) => {
+  return api.get(`/bookings/public/${slug}/available-days`, { params });
+};
+
+export const getAvailableDates = (slug, params = {}) => {
   return api.get(`/bookings/public/${slug}/available-days`, { params });
 };
 
 export const bookPublicAppointment = (slug, data) => {
+  return api.post(`/bookings/public/${slug}/book`, data);
+};
+
+export const createPublicBooking = (slug, data) => {
+  return api.post(`/bookings/public/${slug}/book`, data);
+};
+
+export const bookAppointment = (slug, data) => {
   return api.post(`/bookings/public/${slug}/book`, data);
 };
 
@@ -248,6 +269,14 @@ export const addException = (data) => {
 
 export const deleteException = (id) => {
   return api.delete(`/settings/exceptions/${id}`);
+};
+
+export const getCancellationPolicy = () => {
+  return api.get('/settings/cancellation-policy');
+};
+
+export const updateCancellationPolicy = (data) => {
+  return api.put('/settings/cancellation-policy', data);
 };
 
 // CALENDAR
