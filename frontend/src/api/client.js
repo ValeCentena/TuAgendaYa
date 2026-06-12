@@ -64,6 +64,10 @@ export const getMe = () => {
   return api.get('/auth/me');
 };
 
+export const updateMe = (data) => {
+  return api.put('/auth/me', data);
+};
+
 // BOOKINGS / APPOINTMENTS
 export const appointmentsApi = {
   list: (params) => api.get('/bookings', { params }),
@@ -207,7 +211,7 @@ export const deleteService = (id) => {
   return api.delete(`/services/${id}`);
 };
 
-// SETTINGS
+// SETTINGS / AVAILABILITY
 export const settingsApi = {
   getAvailability: () => api.get('/settings/availability'),
   updateAvailability: (data) => api.put('/settings/availability', data),
@@ -223,6 +227,14 @@ export const getAvailability = () => {
 };
 
 export const updateAvailability = (data) => {
+  return api.put('/settings/availability', data);
+};
+
+export const getMyAvailability = () => {
+  return api.get('/settings/availability');
+};
+
+export const updateMyAvailability = (data) => {
   return api.put('/settings/availability', data);
 };
 
@@ -248,7 +260,7 @@ export const calendarApi = {
   sync: () => api.post('/calendar/sync'),
 };
 
-// ADMIN
+// ADMIN / SUPERADMIN
 const adminAxios = axios.create({
   baseURL: '/api',
   timeout: 15000,
