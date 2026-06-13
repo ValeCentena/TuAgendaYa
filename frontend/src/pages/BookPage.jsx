@@ -1,231 +1,133 @@
-import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import Layout from '../components/Layout';
-import Calendar from '../components/Calendar';
-import TimeSlots from '../components/TimeSlots';
-import StepProgress from '../components/StepProgress';
-import BookingConfirmation from '../components/BookingConfirmation';
-import FormField from '../components/FormField';
-import {
-  getProfessionalBySlug,
-  getAvailableDates,
-  getAvailableSlots,
-  createBooking,
-  ApiError,
-} from '../api/client';
-import { validateBookingForm } from '../utils/validation';
+import { useState } from 'react';
+import { useParams } from 'react-router-dom';
 
-function initials(name) {
-  return name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase();
-}
+const API_BASE = 'https://tuagendaya-api.onrender.com/api';
 
 export default function BookPage() {
   const { slug } = useParams();
-  const now = new Date();
-
-  const [professional, setProfessional] = useState(null);
-  const [step, setStep] = useState(0);
-  const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth() + 1);
-  const [availableDates, setAvailableDates] = useState([]);
-  const [selectedDate, setSelectedDate] = useState('');
-  const [slots, setSlots] = useState([]);
-  const [selectedTime, setSelectedTime] = useState('');
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
-  const [clientEmail, setClientEmail] = useState('');
-  const [fieldErrors, setFieldErrors] = useState({});
+  const [clientComment, setClientComment] = useState('');
   const [loading, setLoading] = useState(false);
-  const [pageError, setPageError] = useState(null);
-  const [submitError, setSubmitError] = useState(null);
-  const [confirmation, setConfirmation] = useState(null);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState('');
 
-  useEffect(() => {
-    setPageError(null);
-    getProfessionalBySlug(slug)
-      .then(setProfessional)
-      .catch((err) => {
-        setPageError(err instanceof ApiError ? err.message : 'Profesional no encontrado');
-      });
-  }, [slug]);
-
-  useEffect(() => {
-    if (!slug) return;
-    const monthStr = `${year}-${String(month).padStart(2, '0')}`;
-    getAvailableDates(slug, monthStr)
-      .then(setAvailableDates)
-      .catch(() => setAvailableDates([]));
-  }, [slug, year, month]);
-
-  useEffect(() => {
-    if (!slug || !selectedDate) return;
-    getAvailableSlots(slug, selectedDate)
-      .then(setSlots)
-      .catch(() => setSlots([]));
-  }, [slug, selectedDate]);
-
-  const handleDateSelect = (date) => {
-    setSelectedDate(date);
-    setSelectedTime('');
-    setSubmitError(null);
-    setStep(1);
-  };
-
-  const handleTimeSelect = (time) => {
-    setSelectedTime(time);
-    setSubmitError(null);
-    setStep(2);
+  const inputStyle = {
+    width: '100%', padding: '10px 12px', borderRadius: 10,
+    border: '0.5px solid #d0d0d5', fontSize: 14, fontFamily: 'inherit',
+    outline: 'none', boxSizing: 'border-box', marginBottom: 12,
+    background: '#fff', color: '#1a1a1a',
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setSubmitError(null);
+    setError('');
 
-    const errors = validateBookingForm({ clientName, clientPhone, clientEmail });
-    setFieldErrors(errors);
-    if (Object.keys(errors).length > 0) return;
+    if (!clientName.trim()) { setError('El nombre es requerido.'); return; }
+    if (!clientPhone.trim()) { setError('El teléfono es requerido.'); return; }
 
     setLoading(true);
-
     try {
-      const result = await createBooking({
-        slug,
-        date: selectedDate,
-        time: selectedTime,
-        clientName: clientName.trim(),
-        clientPhone: clientPhone.trim(),
-        clientEmail: clientEmail.trim(),
+      const res = await fetch(`${API_BASE}/bookings/public/${slug}/book`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientName: clientName.trim(),
+          clientPhone: clientPhone.trim(),
+          comment: clientComment.trim(),
+        }),
       });
-      setConfirmation(result);
-      setStep(3);
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 409) {
-        setSubmitError('Ese horario acaba de ser reservado. Elegí otro horario.');
-        setStep(1);
-        setSelectedTime('');
-        getAvailableSlots(slug, selectedDate).then(setSlots).catch(() => {});
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || 'No se pudo confirmar la reserva.');
       } else {
-        setSubmitError(err instanceof ApiError ? err.message : 'No se pudo confirmar la reserva');
+        setSuccess(true);
+        setClientName('');
+        setClientPhone('');
+        setClientComment('');
       }
+    } catch (err) {
+      setError('No se pudo confirmar la reserva.');
     } finally {
       setLoading(false);
     }
   };
 
-  if (pageError) {
-    return (
-      <Layout>
-        <div className="page-center">
-          <div className="alert alert-error">{pageError}</div>
-          <Link to="/" className="btn btn-primary">Volver al inicio</Link>
-        </div>
-      </Layout>
-    );
-  }
-
-  if (!professional) {
-    return (
-      <Layout>
-        <div className="page-center">
-          <div className="loading-spinner" aria-label="Cargando" />
-          <p className="text-muted">Cargando agenda...</p>
-        </div>
-      </Layout>
-    );
-  }
-
   return (
-    <Layout showNav={false}>
-      <div className="booking-layout">
-        <div className="card booking-card">
-          <aside className="booking-sidebar">
-            <div className="pro-avatar">{initials(professional.name)}</div>
-            <h2>{professional.name}</h2>
-            <p className="meta">{professional.specialty}</p>
-            <p className="meta">⏱ {professional.duration_minutes} minutos</p>
-            {professional.bio && <p className="meta booking-bio">{professional.bio}</p>}
-            {step < 3 && selectedDate && (
-              <p className="meta booking-selection">
-                {selectedDate}{selectedTime ? ` · ${selectedTime}` : ''}
-              </p>
-            )}
-          </aside>
+    <div style={{ minHeight: '100vh', background: '#f2f2f7', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <style>{`@keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}`}</style>
+      <div style={{ background: '#fff', borderRadius: 24, padding: '36px 32px', border: '0.5px solid #e0e0e5', width: '100%', maxWidth: 420, animation: 'slideUp 250ms cubic-bezier(0.16,1,0.3,1) both', boxShadow: '0 2px 40px rgba(0,0,0,0.06)' }}>
 
-          <main className="booking-main">
-            <StepProgress current={step} />
+        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+          <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: '#0071e3', marginBottom: 4 }}>TuAgendaYa</div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: '#1a1a1a' }}>Reservar turno</div>
+          <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 4 }}>@{slug}</div>
+        </div>
 
-            {step === 0 && (
-              <>
-                <h3 className="step-title">Seleccioná una fecha</h3>
-                <Calendar
-                  year={year}
-                  month={month}
-                  availableDates={availableDates}
-                  selectedDate={selectedDate}
-                  onSelectDate={handleDateSelect}
-                  onMonthChange={(y, m) => { setYear(y); setMonth(m); }}
-                />
-              </>
-            )}
+        {success ? (
+          <div style={{ textAlign: 'center', padding: '24px 0' }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
+            <div style={{ fontSize: 16, fontWeight: 600, color: '#30d158', marginBottom: 8 }}>
+              Reserva confirmada correctamente.
+            </div>
+            <div style={{ fontSize: 13, color: '#6e6e73' }}>
+              El profesional se pondrá en contacto con vos pronto.
+            </div>
+            <button
+              onClick={() => setSuccess(false)}
+              style={{ marginTop: 20, padding: '10px 20px', borderRadius: 12, border: 'none', background: '#0071e3', color: '#fff', fontSize: 14, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}
+            >
+              Hacer otra reserva
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit}>
+            <div style={{ fontSize: 11, color: '#6e6e73', marginBottom: 4 }}>Nombre completo *</div>
+            <input
+              style={inputStyle}
+              value={clientName}
+              onChange={e => setClientName(e.target.value)}
+              placeholder="Tu nombre"
+              required
+            />
 
-            {step === 1 && (
-              <>
-                <button type="button" className="btn btn-ghost step-back" onClick={() => setStep(0)}>
-                  ← Cambiar fecha
-                </button>
-                <h3 className="step-title">Seleccioná un horario</h3>
-                {submitError && <div className="alert alert-error">{submitError}</div>}
-                <TimeSlots slots={slots} selected={selectedTime} onSelect={handleTimeSelect} />
-              </>
-            )}
+            <div style={{ fontSize: 11, color: '#6e6e73', marginBottom: 4 }}>Teléfono *</div>
+            <input
+              style={inputStyle}
+              value={clientPhone}
+              onChange={e => setClientPhone(e.target.value)}
+              placeholder="099 123 456"
+              required
+            />
 
-            {step === 2 && (
-              <>
-                <button type="button" className="btn btn-ghost step-back" onClick={() => setStep(1)}>
-                  ← Cambiar horario
-                </button>
-                <h3 className="step-title">Ingresá tus datos</h3>
-                {submitError && <div className="alert alert-error">{submitError}</div>}
-                <form onSubmit={handleSubmit} noValidate>
-                  <FormField
-                    id="name"
-                    label="Nombre completo"
-                    value={clientName}
-                    onChange={(e) => setClientName(e.target.value)}
-                    error={fieldErrors.clientName}
-                    required
-                  />
-                  <FormField
-                    id="phone"
-                    label="WhatsApp / Teléfono"
-                    type="tel"
-                    value={clientPhone}
-                    onChange={(e) => setClientPhone(e.target.value)}
-                    error={fieldErrors.clientPhone}
-                    placeholder="+54 11 1234-5678"
-                    required
-                  />
-                  <FormField
-                    id="email"
-                    label="Email (opcional)"
-                    type="email"
-                    value={clientEmail}
-                    onChange={(e) => setClientEmail(e.target.value)}
-                    error={fieldErrors.clientEmail}
-                  />
-                  <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
-                    {loading ? 'Confirmando...' : 'Confirmar turno'}
-                  </button>
-                </form>
-              </>
+            <div style={{ fontSize: 11, color: '#6e6e73', marginBottom: 4 }}>Comentario (opcional)</div>
+            <textarea
+              style={{ ...inputStyle, resize: 'vertical', minHeight: 80 }}
+              value={clientComment}
+              onChange={e => setClientComment(e.target.value)}
+              placeholder="¿Algo que quieras aclarar?"
+            />
+
+            {error && (
+              <div style={{ background: '#fff2f2', border: '0.5px solid #ffcdd2', borderRadius: 10, padding: '10px 12px', fontSize: 13, color: '#c62828', marginBottom: 12 }}>
+                {error}
+              </div>
             )}
 
-            {step === 3 && confirmation && (
-              <BookingConfirmation booking={confirmation} />
-            )}
-          </main>
+            <button
+              type="submit"
+              disabled={loading}
+              style={{ width: '100%', padding: '13px', borderRadius: 12, border: 'none', background: loading ? '#aeaeb2' : '#0071e3', color: '#fff', fontSize: 15, fontWeight: 600, fontFamily: 'inherit', cursor: loading ? 'not-allowed' : 'pointer', marginTop: 4 }}
+            >
+              {loading ? 'Enviando reserva...' : 'Confirmar reserva'}
+            </button>
+          </form>
+        )}
+
+        <div style={{ textAlign: 'center', fontSize: 11, color: '#aeaeb2', marginTop: 16 }}>
+          🔒 Tus datos están protegidos
         </div>
       </div>
-    </Layout>
+    </div>
   );
 }
