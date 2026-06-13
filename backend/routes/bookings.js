@@ -21,24 +21,24 @@ function authMiddleware(req, res, next) {
   }
 }
 
-// Genera slots de 09:00 a 17:30 cada 30 minutos
-function generateSlots() {
-  const slots = [];
-  for (let h = 9; h < 18; h++) {
-    for (let m = 0; m < 60; m += 30) {
-      slots.push(
-        `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-      );
-    }
-  }
-  return slots;
-}
-
-// Normaliza un valor TIME de Postgres a "HH:MM"
-// Postgres devuelve "09:00:00" — tomamos los primeros 5 caracteres
 function normalizeTime(t) {
   if (!t) return '';
   return String(t).slice(0, 5);
+}
+
+function generateSlotsFromConfig(startTime, endTime, durationMinutes) {
+  const slots = [];
+  const [sh, sm] = startTime.split(':').map(Number);
+  const [eh, em] = endTime.split(':').map(Number);
+  let cur = sh * 60 + sm;
+  const end = eh * 60 + em;
+  while (cur + durationMinutes <= end) {
+    const h = Math.floor(cur / 60);
+    const m = cur % 60;
+    slots.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+    cur += durationMinutes;
+  }
+  return slots;
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -93,8 +93,32 @@ router.get('/public/:slug/slots', async (req, res) => {
       return res.status(403).json({ error: 'Este profesional no está disponible.', suspended: true });
     }
 
-    // Traer start_time de reservas no canceladas para ese profesional y fecha
-    // Castear a TEXT para que pg nos devuelva el string completo "HH:MM:SS"
+    const dayOfWeek = new Date(date + 'T12:00:00').getDay();
+
+    const availRow = (await db.query(
+      `SELECT is_active, start_time::text AS start_time, end_time::text AS end_time, slot_duration_minutes
+       FROM professional_availability
+       WHERE professional_id = $1 AND day_of_week = $2`,
+      [prof.id, dayOfWeek]
+    )).rows[0];
+
+    let isActive, startTime, endTime, durationMin;
+    if (!availRow) {
+      isActive    = dayOfWeek >= 1 && dayOfWeek <= 5;
+      startTime   = '09:00';
+      endTime     = '18:00';
+      durationMin = 30;
+    } else {
+      isActive    = availRow.is_active === 1 || availRow.is_active === true;
+      startTime   = normalizeTime(availRow.start_time);
+      endTime     = normalizeTime(availRow.end_time);
+      durationMin = availRow.slot_duration_minutes || 30;
+    }
+
+    if (!isActive) {
+      return res.json({ date, slots: [] });
+    }
+
     const booked = (await db.query(
       `SELECT start_time::text AS start_time
        FROM bookings
@@ -104,10 +128,9 @@ router.get('/public/:slug/slots', async (req, res) => {
       [prof.id, date]
     )).rows;
 
-    // Construir Set de horarios ocupados normalizados a "HH:MM"
     const bookedSet = new Set(booked.map(r => normalizeTime(r.start_time)));
 
-    const slots = generateSlots().map(time => ({
+    const slots = generateSlotsFromConfig(startTime, endTime, durationMin).map(time => ({
       time,
       available: !bookedSet.has(time),
     }));
@@ -155,7 +178,6 @@ router.post('/public/:slug/book', async (req, res) => {
       return res.status(403).json({ error: 'Este profesional no está disponible.', suspended: true });
     }
 
-    // Verificar disponibilidad justo antes de insertar
     const conflict = (await db.query(
       `SELECT id FROM bookings
        WHERE professional_id = $1

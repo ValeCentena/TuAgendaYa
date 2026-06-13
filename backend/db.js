@@ -170,6 +170,22 @@ async function initDB() {
         created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
+      CREATE TABLE IF NOT EXISTS professional_availability (
+        id                     SERIAL PRIMARY KEY,
+        professional_id        INTEGER NOT NULL REFERENCES professionals(id) ON DELETE CASCADE,
+        day_of_week            INTEGER NOT NULL CHECK (day_of_week BETWEEN 0 AND 6),
+        is_active              INTEGER NOT NULL DEFAULT 1,
+        start_time             TIME    NOT NULL DEFAULT '09:00',
+        end_time               TIME    NOT NULL DEFAULT '18:00',
+        slot_duration_minutes  INTEGER NOT NULL DEFAULT 30,
+        created_at             TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at             TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (professional_id, day_of_week)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_prof_availability_professional
+        ON professional_availability(professional_id);
+
       CREATE INDEX IF NOT EXISTS idx_appointments_professional_time
         ON appointments(professional_id, start_time);
       CREATE INDEX IF NOT EXISTS idx_appointments_status
@@ -184,7 +200,6 @@ async function initDB() {
         ON bookings(professional_id);
     `);
 
-    // Agregar columnas nuevas si la tabla bookings ya existía sin ellas
     await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS booking_date DATE;`);
     await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS start_time TIME;`);
     await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS end_time TIME;`);

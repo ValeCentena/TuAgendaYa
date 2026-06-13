@@ -1,133 +1,117 @@
 const express = require('express');
-const { db } = require('../db');
-const { authProfessional } = require('../middleware/auth');
-const { asyncHandler } = require('../middleware/errorHandler');
-const { getAvailableSlotsForDate, getAvailableDatesInMonth } = require('../utils/slots');
-const { validateAvailabilitySlots } = require('../utils/validate');
-const { AppError } = require('../utils/errors');
-
 const router = express.Router();
+const jwt = require('jsonwebtoken');
+const db = require('../db');
 
-function publicProfessional(row) {
-  return {
-    id: row.id,
-    name: row.name,
-    specialty: row.specialty,
-    slug: row.slug,
-    bio: row.bio,
-    duration_minutes: row.duration_minutes,
-  };
+function authMiddleware(req, res, next) {
+  const header = req.headers.authorization;
+  if (!header || !header.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Token requerido' });
+  }
+  try {
+    const decoded = jwt.verify(
+      header.slice(7),
+      process.env.JWT_SECRET || 'tuagendaya-secret-dev-change-in-prod'
+    );
+    req.professional = decoded;
+    next();
+  } catch (e) {
+    return res.status(401).json({ error: 'Token inválido o expirado' });
+  }
 }
 
-router.get('/', (_req, res) => {
-  const rows = db.prepare(
-    'SELECT id, name, specialty, slug, bio, duration_minutes FROM professionals WHERE active = 1 ORDER BY name',
-  ).all();
-  res.json(rows);
+function defaultAvailability(professionalId) {
+  return [0, 1, 2, 3, 4, 5, 6].map(day => ({
+    professional_id: professionalId,
+    day_of_week: day,
+    is_active: day >= 1 && day <= 5 ? 1 : 0,
+    start_time: '09:00',
+    end_time: '18:00',
+    slot_duration_minutes: 30,
+  }));
+}
+
+function normTime(t) {
+  if (!t) return '09:00';
+  return String(t).slice(0, 5);
+}
+
+// ── GET /api/professionals/me/availability ────────────────────
+router.get('/me/availability', authMiddleware, async (req, res) => {
+  try {
+    const rows = (await db.query(
+      'SELECT * FROM professional_availability WHERE professional_id = $1 ORDER BY day_of_week',
+      [req.professional.id]
+    )).rows;
+
+    if (rows.length === 0) {
+      return res.json({ availability: defaultAvailability(req.professional.id) });
+    }
+
+    const availability = rows.map(r => ({
+      ...r,
+      start_time: normTime(r.start_time),
+      end_time: normTime(r.end_time),
+    }));
+
+    res.json({ availability });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
 });
 
-router.get('/slug/:slug', (req, res) => {
-  const row = db.prepare(
-    'SELECT id, name, specialty, slug, bio, duration_minutes FROM professionals WHERE slug = ? AND active = 1',
-  ).get(req.params.slug);
+// ── PATCH /api/professionals/me/availability ─────────────────
+router.patch('/me/availability', authMiddleware, async (req, res) => {
+  const { availability } = req.body;
 
-  if (!row) return res.status(404).json({ error: 'Profesional no encontrado' });
-  res.json(row);
-});
-
-router.get('/slug/:slug/dates', asyncHandler((req, res) => {
-  const { month } = req.query;
-  if (!month || !/^\d{4}-\d{2}$/.test(month)) {
-    throw new AppError(400, 'Parámetro month requerido (YYYY-MM)');
+  if (!Array.isArray(availability) || availability.length === 0) {
+    return res.status(400).json({ error: 'availability debe ser un array de 7 días' });
   }
 
-  const row = db.prepare('SELECT id, duration_minutes FROM professionals WHERE slug = ? AND active = 1').get(req.params.slug);
-  if (!row) throw new AppError(404, 'Profesional no encontrado');
+  try {
+    for (const day of availability) {
+      const dow = parseInt(day.day_of_week);
+      if (isNaN(dow) || dow < 0 || dow > 6) continue;
 
-  const [year, mon] = month.split('-').map(Number);
-  const dates = getAvailableDatesInMonth(db, row.id, year, mon, row.duration_minutes);
-  res.json(dates);
-}));
-
-router.get('/slug/:slug/slots', asyncHandler((req, res) => {
-  const { date } = req.query;
-  if (!date) throw new AppError(400, 'Parámetro date requerido (YYYY-MM-DD)');
-
-  const row = db.prepare('SELECT id, duration_minutes FROM professionals WHERE slug = ? AND active = 1').get(req.params.slug);
-  if (!row) throw new AppError(404, 'Profesional no encontrado');
-
-  const slots = getAvailableSlotsForDate(db, row.id, date, row.duration_minutes);
-  res.json(slots);
-}));
-
-router.get('/me', authProfessional, (req, res) => {
-  const row = db.prepare(
-    'SELECT id, name, email, specialty, slug, phone, bio, duration_minutes FROM professionals WHERE id = ?',
-  ).get(req.user.id);
-
-  if (!row) return res.status(404).json({ error: 'Profesional no encontrado' });
-  res.json(row);
-});
-
-router.put('/me', authProfessional, (req, res) => {
-  const { name, specialty, phone, bio, durationMinutes } = req.body;
-
-  db.prepare(`
-    UPDATE professionals SET
-      name = COALESCE(?, name),
-      specialty = COALESCE(?, specialty),
-      phone = COALESCE(?, phone),
-      bio = COALESCE(?, bio),
-      duration_minutes = COALESCE(?, duration_minutes)
-    WHERE id = ?
-  `).run(name, specialty, phone, bio, durationMinutes, req.user.id);
-
-  const row = db.prepare(
-    'SELECT id, name, email, specialty, slug, phone, bio, duration_minutes FROM professionals WHERE id = ?',
-  ).get(req.user.id);
-
-  res.json(row);
-});
-
-router.get('/me/availability', authProfessional, (req, res) => {
-  const rows = db.prepare(
-    'SELECT day_of_week, start_time, end_time FROM availability WHERE professional_id = ? ORDER BY day_of_week, start_time',
-  ).all(req.user.id);
-  res.json(rows);
-});
-
-router.put('/me/availability', authProfessional, asyncHandler((req, res) => {
-  const slots = validateAvailabilitySlots(req.body.slots || []);
-
-  const deleteStmt = db.prepare('DELETE FROM availability WHERE professional_id = ?');
-  const insertStmt = db.prepare(
-    'INSERT INTO availability (professional_id, day_of_week, start_time, end_time) VALUES (?, ?, ?, ?)',
-  );
-
-  const tx = db.transaction(() => {
-    deleteStmt.run(req.user.id);
-    for (const slot of slots) {
-      if (slot.day_of_week == null || !slot.start_time || !slot.end_time) continue;
-      insertStmt.run(req.user.id, slot.day_of_week, slot.start_time, slot.end_time);
+      await db.query(
+        `INSERT INTO professional_availability
+           (professional_id, day_of_week, is_active, start_time, end_time, slot_duration_minutes)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (professional_id, day_of_week)
+         DO UPDATE SET
+           is_active             = EXCLUDED.is_active,
+           start_time            = EXCLUDED.start_time,
+           end_time              = EXCLUDED.end_time,
+           slot_duration_minutes = EXCLUDED.slot_duration_minutes,
+           updated_at            = CURRENT_TIMESTAMP`,
+        [
+          req.professional.id,
+          dow,
+          day.is_active ? 1 : 0,
+          day.start_time || '09:00',
+          day.end_time   || '18:00',
+          day.slot_duration_minutes || 30,
+        ]
+      );
     }
-  });
 
-  tx();
+    const updated = (await db.query(
+      'SELECT * FROM professional_availability WHERE professional_id = $1 ORDER BY day_of_week',
+      [req.professional.id]
+    )).rows;
 
-  const rows = db.prepare(
-    'SELECT day_of_week, start_time, end_time FROM availability WHERE professional_id = ? ORDER BY day_of_week, start_time',
-  ).all(req.user.id);
+    const availability_out = updated.map(r => ({
+      ...r,
+      start_time: normTime(r.start_time),
+      end_time: normTime(r.end_time),
+    }));
 
-  res.json(rows);
-}));
-
-router.get('/me/bookings', authProfessional, (req, res) => {
-  const rows = db.prepare(`
-    SELECT * FROM bookings
-    WHERE professional_id = ? AND status = 'confirmed'
-    ORDER BY date, time
-  `).all(req.user.id);
-  res.json(rows);
+    res.json({ availability: availability_out });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
 });
 
 module.exports = router;
