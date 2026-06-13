@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 
 const API_BASE = 'https://tuagendaya-api.onrender.com/api';
@@ -17,12 +17,30 @@ export default function BookPage() {
   const [clientPhone, setClientPhone] = useState('');
   const [clientComment, setClientComment] = useState('');
   const [bookingDate, setBookingDate] = useState('');
-  const [startTime, setStartTime] = useState('');
+  const [selectedTime, setSelectedTime] = useState('');
+  const [slots, setSlots] = useState([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
 
   const today = new Date().toISOString().slice(0, 10);
+
+  useEffect(() => {
+    if (!bookingDate) {
+      setSlots([]);
+      setSelectedTime('');
+      return;
+    }
+    setSelectedTime('');
+    setSlots([]);
+    setLoadingSlots(true);
+    fetch(`${API_BASE}/bookings/public/${slug}/slots?date=${bookingDate}`)
+      .then(r => r.json())
+      .then(data => setSlots(data.slots || []))
+      .catch(() => setSlots([]))
+      .finally(() => setLoadingSlots(false));
+  }, [bookingDate, slug]);
 
   const inputStyle = {
     width: '100%', padding: '10px 12px', borderRadius: 10,
@@ -40,9 +58,9 @@ export default function BookPage() {
     if (!clientName.trim()) { setError('El nombre es requerido.'); return; }
     if (!clientPhone.trim()) { setError('El teléfono es requerido.'); return; }
     if (!bookingDate) { setError('La fecha del turno es requerida.'); return; }
-    if (!startTime) { setError('El horario de inicio es requerido.'); return; }
+    if (!selectedTime) { setError('Seleccioná un horario disponible.'); return; }
 
-    const endTime = addMinutes(startTime, 30);
+    const endTime = addMinutes(selectedTime, 30);
 
     setLoading(true);
     try {
@@ -54,20 +72,25 @@ export default function BookPage() {
           clientPhone: clientPhone.trim(),
           comment: clientComment.trim(),
           bookingDate,
-          startTime,
+          startTime: selectedTime,
           endTime,
         }),
       });
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || 'No se pudo confirmar la reserva.');
+        // Refrescar slots por si el horario fue tomado mientras tanto
+        if (res.status === 409) {
+          setSelectedTime('');
+          setLoadingSlots(true);
+          fetch(`${API_BASE}/bookings/public/${slug}/slots?date=${bookingDate}`)
+            .then(r => r.json())
+            .then(d => setSlots(d.slots || []))
+            .catch(() => {})
+            .finally(() => setLoadingSlots(false));
+        }
       } else {
         setSuccess(true);
-        setClientName('');
-        setClientPhone('');
-        setClientComment('');
-        setBookingDate('');
-        setStartTime('');
       }
     } catch {
       setError('No se pudo conectar con el servidor.');
@@ -76,15 +99,33 @@ export default function BookPage() {
     }
   };
 
+  const handleReset = () => {
+    setSuccess(false);
+    setClientName('');
+    setClientPhone('');
+    setClientComment('');
+    setBookingDate('');
+    setSelectedTime('');
+    setSlots([]);
+    setError('');
+  };
+
   const formatDate = (d) => {
     if (!d) return '';
     const [y, m, day] = d.split('-');
     return `${day}/${m}/${y}`;
   };
 
+  const availableSlots = slots.filter(s => s.available);
+  const hasSlots = slots.length > 0;
+
   return (
     <div style={{ minHeight: '100vh', background: '#f2f2f7', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <style>{`@keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}`}</style>
+      <style>{`
+        @keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+        .slot-btn { transition: background 0.12s, color 0.12s, transform 0.1s; }
+        .slot-btn:active { transform: scale(0.96); }
+      `}</style>
       <div style={{ background: '#fff', borderRadius: 24, padding: '36px 32px', border: '0.5px solid #e0e0e5', width: '100%', maxWidth: 440, animation: 'slideUp 250ms cubic-bezier(0.16,1,0.3,1) both', boxShadow: '0 2px 40px rgba(0,0,0,0.06)' }}>
 
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
@@ -100,19 +141,17 @@ export default function BookPage() {
               Reserva confirmada
             </div>
             <div style={{ background: '#f2f2f7', borderRadius: 14, padding: '14px 16px', marginBottom: 16, textAlign: 'left' }}>
-              <div style={{ fontSize: 12, color: '#6e6e73', marginBottom: 6 }}>Resumen de tu turno</div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: '#1a1a1a', marginBottom: 4 }}>{clientName || 'Reserva realizada'}</div>
-              {bookingDate && (
-                <div style={{ fontSize: 13, color: '#6e6e73' }}>
-                  📅 {formatDate(bookingDate)}{startTime ? ` · ⏰ ${startTime}` : ''}
-                </div>
-              )}
+              <div style={{ fontSize: 12, color: '#6e6e73', marginBottom: 6 }}>Resumen del turno</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#1a1a1a', marginBottom: 4 }}>{clientName}</div>
+              <div style={{ fontSize: 13, color: '#6e6e73' }}>
+                📅 {formatDate(bookingDate)} · ⏰ {selectedTime}
+              </div>
             </div>
             <div style={{ fontSize: 13, color: '#6e6e73', marginBottom: 20 }}>
               El profesional se pondrá en contacto con vos para confirmar.
             </div>
             <button
-              onClick={() => setSuccess(false)}
+              onClick={handleReset}
               style={{ padding: '10px 24px', borderRadius: 12, border: 'none', background: '#0071e3', color: '#fff', fontSize: 14, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}
             >
               Hacer otra reserva
@@ -121,40 +160,91 @@ export default function BookPage() {
         ) : (
           <form onSubmit={handleSubmit}>
 
+            {/* ── Fecha ── */}
             <div style={{ background: '#f2f2f7', borderRadius: 14, padding: '14px 16px', marginBottom: 14 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#1a1a1a', marginBottom: 10 }}>📅 Fecha y horario</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#1a1a1a', marginBottom: 10 }}>📅 Elegí una fecha</div>
               <label style={labelStyle}>Fecha del turno *</label>
               <input
-                style={inputStyle}
+                style={{ ...inputStyle, marginBottom: 0 }}
                 type="date"
                 value={bookingDate}
                 min={today}
                 onChange={e => setBookingDate(e.target.value)}
                 required
               />
-              <div style={{ display: 'flex', gap: 10 }}>
-                <div style={{ flex: 1 }}>
-                  <label style={labelStyle}>Hora de inicio *</label>
-                  <input
-                    style={{ ...inputStyle, marginBottom: 0 }}
-                    type="time"
-                    value={startTime}
-                    onChange={e => setStartTime(e.target.value)}
-                    required
-                  />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={labelStyle}>Hora de fin</label>
-                  <input
-                    style={{ ...inputStyle, marginBottom: 0, background: '#ebebeb', color: '#aeaeb2' }}
-                    type="time"
-                    value={startTime ? addMinutes(startTime, 30) : ''}
-                    readOnly
-                  />
-                </div>
-              </div>
             </div>
 
+            {/* ── Horarios ── */}
+            {bookingDate && (
+              <div style={{ background: '#f2f2f7', borderRadius: 14, padding: '14px 16px', marginBottom: 14 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#1a1a1a', marginBottom: 10 }}>
+                  ⏰ Elegí un horario
+                  {selectedTime && (
+                    <span style={{ marginLeft: 8, fontWeight: 400, color: '#0071e3' }}>— {selectedTime} seleccionado</span>
+                  )}
+                </div>
+
+                {loadingSlots ? (
+                  <div style={{ textAlign: 'center', color: '#aeaeb2', fontSize: 13, padding: '12px 0' }}>
+                    Cargando horarios...
+                  </div>
+                ) : !hasSlots ? (
+                  <div style={{ textAlign: 'center', color: '#aeaeb2', fontSize: 13, padding: '12px 0' }}>
+                    No hay horarios disponibles para esta fecha.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {slots.map(slot => {
+                      const isSelected = selectedTime === slot.time;
+                      const isAvailable = slot.available;
+                      return (
+                        <button
+                          key={slot.time}
+                          type="button"
+                          className="slot-btn"
+                          disabled={!isAvailable}
+                          onClick={() => isAvailable && setSelectedTime(slot.time)}
+                          style={{
+                            padding: '8px 14px',
+                            borderRadius: 10,
+                            border: isSelected
+                              ? '2px solid #0071e3'
+                              : isAvailable
+                                ? '1px solid #d0d0d5'
+                                : '1px solid #e0e0e5',
+                            background: isSelected
+                              ? '#0071e3'
+                              : isAvailable
+                                ? '#fff'
+                                : '#f2f2f7',
+                            color: isSelected
+                              ? '#fff'
+                              : isAvailable
+                                ? '#1a1a1a'
+                                : '#c0c0c5',
+                            fontSize: 13,
+                            fontWeight: isSelected ? 600 : 400,
+                            fontFamily: 'inherit',
+                            cursor: isAvailable ? 'pointer' : 'not-allowed',
+                            textDecoration: isAvailable ? 'none' : 'line-through',
+                          }}
+                        >
+                          {slot.time}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {hasSlots && availableSlots.length === 0 && (
+                  <div style={{ fontSize: 12, color: '#ff453a', marginTop: 8 }}>
+                    Todos los horarios están ocupados para esta fecha.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Datos personales ── */}
             <div style={{ background: '#f2f2f7', borderRadius: 14, padding: '14px 16px', marginBottom: 14 }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: '#1a1a1a', marginBottom: 10 }}>👤 Tus datos</div>
               <label style={labelStyle}>Nombre completo *</label>

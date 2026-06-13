@@ -21,6 +21,18 @@ function authMiddleware(req, res, next) {
   }
 }
 
+function generateSlots() {
+  const slots = [];
+  for (let h = 9; h < 18; h++) {
+    for (let m = 0; m < 60; m += 30) {
+      slots.push(
+        `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+      );
+    }
+  }
+  return slots; // 09:00 … 17:30
+}
+
 // ══════════════════════════════════════════════════════════════
 // RUTAS PÚBLICAS
 // ══════════════════════════════════════════════════════════════
@@ -58,21 +70,37 @@ router.get('/public/:slug', async (req, res) => {
   }
 });
 
+// GET /api/bookings/public/:slug/slots?date=YYYY-MM-DD
 router.get('/public/:slug/slots', async (req, res) => {
   const { date } = req.query;
-  if (!date) return res.status(400).json({ error: 'date requerido' });
+  if (!date) return res.status(400).json({ error: 'date requerido (YYYY-MM-DD)' });
 
   try {
     const prof = (await db.query(
       'SELECT id, status FROM professionals WHERE slug = $1',
       [req.params.slug]
     )).rows[0];
-    if (!prof) return res.status(404).json({ error: 'No encontrado' });
+    if (!prof) return res.status(404).json({ error: 'Profesional no encontrado' });
     if (prof.status === 'suspended') {
       return res.status(403).json({ error: 'Este profesional no está disponible.', suspended: true });
     }
 
-    res.json({ date, slots: [] });
+    // Horarios ya reservados para ese profesional y fecha (excluyendo cancelados)
+    const booked = (await db.query(
+      `SELECT start_time FROM bookings
+       WHERE professional_id = $1 AND booking_date = $2 AND status != 'cancelled'`,
+      [prof.id, date]
+    )).rows;
+
+    // pg devuelve TIME como "09:00:00" — normalizamos a "HH:MM"
+    const bookedSet = new Set(booked.map(r => String(r.start_time).slice(0, 5)));
+
+    const slots = generateSlots().map(time => ({
+      time,
+      available: !bookedSet.has(time),
+    }));
+
+    res.json({ date, slots });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -113,6 +141,16 @@ router.post('/public/:slug/book', async (req, res) => {
     if (!prof) return res.status(404).json({ error: 'Profesional no encontrado' });
     if (prof.status === 'suspended') {
       return res.status(403).json({ error: 'Este profesional no está disponible.', suspended: true });
+    }
+
+    // Verificar que el horario sigue disponible al momento de confirmar
+    const conflict = (await db.query(
+      `SELECT id FROM bookings
+       WHERE professional_id = $1 AND booking_date = $2 AND start_time = $3 AND status != 'cancelled'`,
+      [prof.id, bookingDate, startTime]
+    )).rows[0];
+    if (conflict) {
+      return res.status(409).json({ error: 'Ese horario ya fue reservado. Por favor elegí otro.' });
     }
 
     const result = await db.query(
@@ -250,7 +288,6 @@ router.post('/token/:token/cancel', async (req, res) => {
 // RUTAS PRIVADAS (requieren token JWT del profesional)
 // ══════════════════════════════════════════════════════════════
 
-// ⚠️ /slots y /metrics/summary DEBEN ir ANTES de /:id
 router.get('/slots', authMiddleware, (req, res) => {
   const { date } = req.query;
   if (!date) return res.status(400).json({ error: 'date requerido' });
@@ -395,8 +432,7 @@ router.get('/', authMiddleware, async (req, res) => {
   }
 });
 
-// ── GET /api/bookings/me — reservas del profesional autenticado ──
-// ⚠️ DEBE ir ANTES de /:id
+// ⚠️ /me DEBE ir ANTES de /:id
 router.get('/me', authMiddleware, async (req, res) => {
   try {
     const bookings = (await db.query(
@@ -418,8 +454,7 @@ router.get('/me', authMiddleware, async (req, res) => {
   }
 });
 
-// ── PATCH /api/bookings/:id/confirm ──────────────────────────
-// ⚠️ DEBE ir ANTES de /:id
+// ⚠️ PATCH /:id/confirm y /:id/cancel DEBEN ir ANTES de GET /:id
 router.patch('/:id/confirm', authMiddleware, async (req, res) => {
   try {
     const booking = (await db.query(
@@ -428,15 +463,9 @@ router.patch('/:id/confirm', authMiddleware, async (req, res) => {
     )).rows[0];
     if (!booking) return res.status(404).json({ error: 'Reserva no encontrada' });
 
-    await db.query(
-      "UPDATE bookings SET status = 'confirmed' WHERE id = $1",
-      [booking.id]
-    );
+    await db.query("UPDATE bookings SET status = 'confirmed' WHERE id = $1", [booking.id]);
 
-    const updated = (await db.query(
-      'SELECT * FROM bookings WHERE id = $1',
-      [booking.id]
-    )).rows[0];
+    const updated = (await db.query('SELECT * FROM bookings WHERE id = $1', [booking.id])).rows[0];
     res.json({ success: true, booking: updated });
   } catch (err) {
     console.error(err);
@@ -444,8 +473,6 @@ router.patch('/:id/confirm', authMiddleware, async (req, res) => {
   }
 });
 
-// ── PATCH /api/bookings/:id/cancel ───────────────────────────
-// ⚠️ DEBE ir ANTES de /:id
 router.patch('/:id/cancel', authMiddleware, async (req, res) => {
   try {
     const booking = (await db.query(
@@ -454,15 +481,9 @@ router.patch('/:id/cancel', authMiddleware, async (req, res) => {
     )).rows[0];
     if (!booking) return res.status(404).json({ error: 'Reserva no encontrada' });
 
-    await db.query(
-      "UPDATE bookings SET status = 'cancelled' WHERE id = $1",
-      [booking.id]
-    );
+    await db.query("UPDATE bookings SET status = 'cancelled' WHERE id = $1", [booking.id]);
 
-    const updated = (await db.query(
-      'SELECT * FROM bookings WHERE id = $1',
-      [booking.id]
-    )).rows[0];
+    const updated = (await db.query('SELECT * FROM bookings WHERE id = $1', [booking.id])).rows[0];
     res.json({ success: true, booking: updated });
   } catch (err) {
     console.error(err);
