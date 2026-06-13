@@ -164,6 +164,9 @@ async function initDB() {
         client_phone      TEXT,
         comment           TEXT,
         status            TEXT    DEFAULT 'pending',
+        booking_date      DATE,
+        start_time        TIME,
+        end_time          TIME,
         created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
@@ -180,6 +183,12 @@ async function initDB() {
       CREATE INDEX IF NOT EXISTS idx_bookings_professional
         ON bookings(professional_id);
     `);
+
+    // Agregar columnas nuevas si la tabla bookings ya existía sin ellas
+    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS booking_date DATE;`);
+    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS start_time TIME;`);
+    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS end_time TIME;`);
+
     console.log('✓ Base de datos PostgreSQL lista');
   } finally {
     client.release();

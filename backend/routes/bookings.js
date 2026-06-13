@@ -98,11 +98,12 @@ router.get('/public/:slug/available-days', async (req, res) => {
 });
 
 router.post('/public/:slug/book', async (req, res) => {
-  const { clientName, clientPhone, comment } = req.body;
+  const { clientName, clientPhone, comment, bookingDate, startTime, endTime } = req.body;
 
-  if (!clientName || !clientPhone) {
-    return res.status(400).json({ error: 'Nombre y teléfono son requeridos' });
-  }
+  if (!clientName) return res.status(400).json({ error: 'El nombre es requerido' });
+  if (!clientPhone) return res.status(400).json({ error: 'El teléfono es requerido' });
+  if (!bookingDate) return res.status(400).json({ error: 'La fecha es requerida' });
+  if (!startTime) return res.status(400).json({ error: 'El horario de inicio es requerido' });
 
   try {
     const prof = (await db.query(
@@ -115,9 +116,9 @@ router.post('/public/:slug/book', async (req, res) => {
     }
 
     const result = await db.query(
-      `INSERT INTO bookings (professional_id, client_name, client_phone, comment, status)
-       VALUES ($1, $2, $3, $4, 'pending') RETURNING id`,
-      [prof.id, clientName, clientPhone, comment || null]
+      `INSERT INTO bookings (professional_id, client_name, client_phone, comment, status, booking_date, start_time, end_time)
+       VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7) RETURNING id`,
+      [prof.id, clientName, clientPhone, comment || null, bookingDate, startTime, endTime || null]
     );
 
     res.status(201).json({ success: true, bookingId: result.rows[0].id });
@@ -399,9 +400,14 @@ router.get('/', authMiddleware, async (req, res) => {
 router.get('/me', authMiddleware, async (req, res) => {
   try {
     const bookings = (await db.query(
-      `SELECT * FROM bookings
+      `SELECT id, professional_id, client_name, client_phone, comment, status,
+              booking_date, start_time, end_time, created_at
+       FROM bookings
        WHERE professional_id = $1
-       ORDER BY created_at DESC
+       ORDER BY
+         booking_date ASC NULLS LAST,
+         start_time ASC NULLS LAST,
+         created_at DESC
        LIMIT 100`,
       [req.professional.id]
     )).rows;
@@ -542,10 +548,7 @@ router.post('/', authMiddleware, async (req, res) => {
     );
     const newId = result.rows[0].id;
 
-    const appointment = (await db.query(
-      'SELECT * FROM appointments WHERE id = $1',
-      [newId]
-    )).rows[0];
+    const appointment = (await db.query('SELECT * FROM appointments WHERE id = $1', [newId])).rows[0];
 
     await db.query(
       `INSERT INTO appointment_history (appointment_id, professional_id, action, new_status, performed_by)
