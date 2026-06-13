@@ -325,6 +325,46 @@ router.get('/me', authMiddleware, (req, res) => {
   }
 });
 
+// ── PATCH /api/bookings/:id/confirm ──────────────────────────
+router.patch('/:id/confirm', authMiddleware, (req, res) => {
+  try {
+    const booking = db.prepare(
+      'SELECT * FROM bookings WHERE id = ? AND professional_id = ?'
+    ).get(parseInt(req.params.id), req.professional.id);
+    if (!booking) return res.status(404).json({ error: 'Reserva no encontrada' });
+
+    db.prepare(
+      "UPDATE bookings SET status = 'confirmed' WHERE id = ?"
+    ).run(booking.id);
+
+    const updated = db.prepare('SELECT * FROM bookings WHERE id = ?').get(booking.id);
+    res.json({ success: true, booking: updated });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al confirmar la reserva' });
+  }
+});
+
+// ── PATCH /api/bookings/:id/cancel ───────────────────────────
+router.patch('/:id/cancel', authMiddleware, (req, res) => {
+  try {
+    const booking = db.prepare(
+      'SELECT * FROM bookings WHERE id = ? AND professional_id = ?'
+    ).get(parseInt(req.params.id), req.professional.id);
+    if (!booking) return res.status(404).json({ error: 'Reserva no encontrada' });
+
+    db.prepare(
+      "UPDATE bookings SET status = 'cancelled' WHERE id = ?"
+    ).run(booking.id);
+
+    const updated = db.prepare('SELECT * FROM bookings WHERE id = ?').get(booking.id);
+    res.json({ success: true, booking: updated });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al cancelar la reserva' });
+  }
+});
+
 router.get('/:id', authMiddleware, (req, res) => {
   const appointment = db.prepare(`
     SELECT a.*,
