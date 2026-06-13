@@ -20,11 +20,11 @@ function authMiddleware(req, res, next) {
   }
 }
 
-function defaultAvailability(professionalId) {
-  return [0, 1, 2, 3, 4, 5, 6].map(day => ({
+function buildDefault(professionalId) {
+  return [0, 1, 2, 3, 4, 5, 6].map(d => ({
     professional_id: professionalId,
-    day_of_week: day,
-    is_active: day >= 1 && day <= 5 ? 1 : 0,
+    day_of_week: d,
+    is_active: d >= 1 && d <= 5 ? 1 : 0,
     start_time: '09:00',
     end_time: '18:00',
     slot_duration_minutes: 30,
@@ -36,48 +36,75 @@ function normTime(t) {
   return String(t).slice(0, 5);
 }
 
-// ── GET /api/professionals/me/availability ────────────────────
+function normalizeRow(r) {
+  return {
+    ...r,
+    is_active: r.is_active === true || r.is_active === 1 ? 1 : 0,
+    start_time: normTime(r.start_time),
+    end_time: normTime(r.end_time),
+    slot_duration_minutes: parseInt(r.slot_duration_minutes) || 30,
+  };
+}
+
+function mergeWithDefaults(rows, professionalId) {
+  const defaults = buildDefault(professionalId);
+  return [0, 1, 2, 3, 4, 5, 6].map(d => {
+    const found = rows.find(r => Number(r.day_of_week) === d);
+    return found ? normalizeRow(found) : defaults[d];
+  });
+}
+
 router.get('/me/availability', authMiddleware, async (req, res) => {
   try {
+    const profId = req.professional.id;
     const rows = (await db.query(
-      'SELECT * FROM professional_availability WHERE professional_id = $1 ORDER BY day_of_week',
-      [req.professional.id]
+      `SELECT id, professional_id, day_of_week,
+              is_active,
+              start_time::text AS start_time,
+              end_time::text   AS end_time,
+              slot_duration_minutes
+       FROM professional_availability
+       WHERE professional_id = $1
+       ORDER BY day_of_week`,
+      [profId]
     )).rows;
-
-    if (rows.length === 0) {
-      return res.json({ availability: defaultAvailability(req.professional.id) });
-    }
-
-    const availability = rows.map(r => ({
-      ...r,
-      start_time: normTime(r.start_time),
-      end_time: normTime(r.end_time),
-    }));
-
+    const availability = mergeWithDefaults(rows, profId);
     res.json({ availability });
   } catch (err) {
-    console.error(err);
+    console.error('GET /me/availability error:', err);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 
-// ── PATCH /api/professionals/me/availability ─────────────────
 router.patch('/me/availability', authMiddleware, async (req, res) => {
-  const { availability } = req.body;
-
-  if (!Array.isArray(availability) || availability.length === 0) {
-    return res.status(400).json({ error: 'availability debe ser un array de 7 días' });
+  const profId = req.professional.id;
+  let list = req.body.availability;
+  if (!Array.isArray(list)) {
+    return res.status(400).json({ error: 'Body debe tener { availability: [...] }' });
   }
-
+  if (list.length === 0) {
+    return res.status(400).json({ error: 'availability no puede estar vacío' });
+  }
   try {
-    for (const day of availability) {
-      const dow = parseInt(day.day_of_week);
+    for (const item of list) {
+      const dow = parseInt(
+        item.day_of_week !== undefined ? item.day_of_week : item.dayOfWeek
+      );
       if (isNaN(dow) || dow < 0 || dow > 6) continue;
+
+      const isActive = (() => {
+        const v = item.is_active !== undefined ? item.is_active : item.isActive;
+        return (v === true || v === 1) ? 1 : 0;
+      })();
+
+      const startTime = item.start_time || item.startTime || '09:00';
+      const endTime   = item.end_time   || item.endTime   || '18:00';
+      const duration  = parseInt(item.slot_duration_minutes || item.slotDurationMinutes) || 30;
 
       await db.query(
         `INSERT INTO professional_availability
            (professional_id, day_of_week, is_active, start_time, end_time, slot_duration_minutes)
-         VALUES ($1, $2, $3, $4, $5, $6)
+         VALUES ($1, $2, $3, $4::time, $5::time, $6)
          ON CONFLICT (professional_id, day_of_week)
          DO UPDATE SET
            is_active             = EXCLUDED.is_active,
@@ -85,31 +112,24 @@ router.patch('/me/availability', authMiddleware, async (req, res) => {
            end_time              = EXCLUDED.end_time,
            slot_duration_minutes = EXCLUDED.slot_duration_minutes,
            updated_at            = CURRENT_TIMESTAMP`,
-        [
-          req.professional.id,
-          dow,
-          day.is_active ? 1 : 0,
-          day.start_time || '09:00',
-          day.end_time   || '18:00',
-          day.slot_duration_minutes || 30,
-        ]
+        [profId, dow, isActive, startTime, endTime, duration]
       );
     }
-
     const updated = (await db.query(
-      'SELECT * FROM professional_availability WHERE professional_id = $1 ORDER BY day_of_week',
-      [req.professional.id]
+      `SELECT id, professional_id, day_of_week,
+              is_active,
+              start_time::text AS start_time,
+              end_time::text   AS end_time,
+              slot_duration_minutes
+       FROM professional_availability
+       WHERE professional_id = $1
+       ORDER BY day_of_week`,
+      [profId]
     )).rows;
-
-    const availability_out = updated.map(r => ({
-      ...r,
-      start_time: normTime(r.start_time),
-      end_time: normTime(r.end_time),
-    }));
-
-    res.json({ availability: availability_out });
+    const availability = mergeWithDefaults(updated, profId);
+    res.json({ availability });
   } catch (err) {
-    console.error(err);
+    console.error('PATCH /me/availability error:', err);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
