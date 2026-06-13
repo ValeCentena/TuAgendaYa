@@ -309,6 +309,22 @@ router.get('/', authMiddleware, (req, res) => {
   res.json({ appointments, total, limit: parseInt(limit), offset: parseInt(offset) });
 });
 
+// ── GET /api/bookings/me — reservas del profesional autenticado ──
+router.get('/me', authMiddleware, (req, res) => {
+  try {
+    const bookings = db.prepare(`
+      SELECT * FROM bookings
+      WHERE professional_id = ?
+      ORDER BY created_at DESC
+      LIMIT 100
+    `).all(req.professional.id);
+    res.json({ bookings });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al obtener reservas' });
+  }
+});
+
 router.get('/:id', authMiddleware, (req, res) => {
   const appointment = db.prepare(`
     SELECT a.*,
@@ -469,22 +485,6 @@ router.put('/:id/reschedule', authMiddleware, (req, res) => {
 
   const updated = db.prepare('SELECT * FROM appointments WHERE id = ?').get(appointment.id);
   res.json({ appointment: updated });
-});
-
-// ── GET /api/bookings/me — reservas del profesional autenticado ──
-router.get('/me', authMiddleware, (req, res) => {
-  try {
-    const bookings = db.prepare(`
-      SELECT * FROM bookings
-      WHERE professional_id = ?
-      ORDER BY created_at DESC
-      LIMIT 100
-    `).all(req.professional.id);
-    res.json({ bookings });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Error al obtener reservas' });
-  }
 });
 
 module.exports = router;
