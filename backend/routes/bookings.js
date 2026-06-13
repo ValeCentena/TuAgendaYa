@@ -21,6 +21,7 @@ function authMiddleware(req, res, next) {
   }
 }
 
+// Genera slots de 09:00 a 17:30 cada 30 minutos
 function generateSlots() {
   const slots = [];
   for (let h = 9; h < 18; h++) {
@@ -30,7 +31,14 @@ function generateSlots() {
       );
     }
   }
-  return slots; // 09:00 … 17:30
+  return slots;
+}
+
+// Normaliza un valor TIME de Postgres a "HH:MM"
+// Postgres devuelve "09:00:00" — tomamos los primeros 5 caracteres
+function normalizeTime(t) {
+  if (!t) return '';
+  return String(t).slice(0, 5);
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -85,15 +93,19 @@ router.get('/public/:slug/slots', async (req, res) => {
       return res.status(403).json({ error: 'Este profesional no está disponible.', suspended: true });
     }
 
-    // Horarios ya reservados para ese profesional y fecha (excluyendo cancelados)
+    // Traer start_time de reservas no canceladas para ese profesional y fecha
+    // Castear a TEXT para que pg nos devuelva el string completo "HH:MM:SS"
     const booked = (await db.query(
-      `SELECT start_time FROM bookings
-       WHERE professional_id = $1 AND booking_date = $2 AND status != 'cancelled'`,
+      `SELECT start_time::text AS start_time
+       FROM bookings
+       WHERE professional_id = $1
+         AND booking_date = $2::date
+         AND status != 'cancelled'`,
       [prof.id, date]
     )).rows;
 
-    // pg devuelve TIME como "09:00:00" — normalizamos a "HH:MM"
-    const bookedSet = new Set(booked.map(r => String(r.start_time).slice(0, 5)));
+    // Construir Set de horarios ocupados normalizados a "HH:MM"
+    const bookedSet = new Set(booked.map(r => normalizeTime(r.start_time)));
 
     const slots = generateSlots().map(time => ({
       time,
@@ -117,7 +129,6 @@ router.get('/public/:slug/available-days', async (req, res) => {
     if (prof.status === 'suspended') {
       return res.status(403).json({ error: 'Este profesional no está disponible.', suspended: true });
     }
-
     res.json({ available_days: [] });
   } catch (err) {
     console.error(err);
@@ -125,13 +136,14 @@ router.get('/public/:slug/available-days', async (req, res) => {
   }
 });
 
+// POST /api/bookings/public/:slug/book
 router.post('/public/:slug/book', async (req, res) => {
   const { clientName, clientPhone, comment, bookingDate, startTime, endTime } = req.body;
 
   if (!clientName) return res.status(400).json({ error: 'El nombre es requerido' });
   if (!clientPhone) return res.status(400).json({ error: 'El teléfono es requerido' });
   if (!bookingDate) return res.status(400).json({ error: 'La fecha es requerida' });
-  if (!startTime) return res.status(400).json({ error: 'El horario de inicio es requerido' });
+  if (!startTime)   return res.status(400).json({ error: 'El horario de inicio es requerido' });
 
   try {
     const prof = (await db.query(
@@ -143,19 +155,24 @@ router.post('/public/:slug/book', async (req, res) => {
       return res.status(403).json({ error: 'Este profesional no está disponible.', suspended: true });
     }
 
-    // Verificar que el horario sigue disponible al momento de confirmar
+    // Verificar disponibilidad justo antes de insertar
     const conflict = (await db.query(
       `SELECT id FROM bookings
-       WHERE professional_id = $1 AND booking_date = $2 AND start_time = $3 AND status != 'cancelled'`,
+       WHERE professional_id = $1
+         AND booking_date = $2::date
+         AND start_time = $3::time
+         AND status != 'cancelled'`,
       [prof.id, bookingDate, startTime]
     )).rows[0];
+
     if (conflict) {
-      return res.status(409).json({ error: 'Ese horario ya fue reservado. Por favor elegí otro.' });
+      return res.status(409).json({ error: 'Horario no disponible. Por favor elegí otro.' });
     }
 
     const result = await db.query(
       `INSERT INTO bookings (professional_id, client_name, client_phone, comment, status, booking_date, start_time, end_time)
-       VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7) RETURNING id`,
+       VALUES ($1, $2, $3, $4, 'pending', $5::date, $6::time, $7)
+       RETURNING id`,
       [prof.id, clientName, clientPhone, comment || null, bookingDate, startTime, endTime || null]
     );
 
@@ -206,13 +223,11 @@ router.post('/token/:token/confirm', async (req, res) => {
       "UPDATE appointments SET status = 'confirmed', confirmed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1",
       [appointment.id]
     );
-
     await db.query(
       `INSERT INTO appointment_history (appointment_id, professional_id, action, old_status, new_status, performed_by)
        VALUES ($1, $2, 'confirmed', $3, 'confirmed', 'client')`,
       [appointment.id, appointment.professional_id, appointment.status]
     );
-
     res.json({ message: 'Asistencia confirmada' });
   } catch (err) {
     console.error(err);
@@ -263,13 +278,11 @@ router.post('/token/:token/cancel', async (req, res) => {
        WHERE id = $4`,
       [reason || null, feeApplied, feeAmount, appointment.id]
     );
-
     await db.query(
       `INSERT INTO appointment_history (appointment_id, professional_id, action, old_status, new_status, note, performed_by)
        VALUES ($1, $2, 'cancelled', $3, 'cancelled', $4, 'client')`,
       [appointment.id, appointment.professional_id, appointment.status, reason || null]
     );
-
     if (appointment.client_id) {
       await db.query(
         'UPDATE clients SET cancellation_count = cancellation_count + 1 WHERE id = $1',
@@ -285,7 +298,7 @@ router.post('/token/:token/cancel', async (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════════════
-// RUTAS PRIVADAS (requieren token JWT del profesional)
+// RUTAS PRIVADAS
 // ══════════════════════════════════════════════════════════════
 
 router.get('/slots', authMiddleware, (req, res) => {
@@ -358,7 +371,6 @@ router.get('/metrics/summary', authMiddleware, async (req, res) => {
     const totalThisMonth = parseInt(thisMonth.total) || 0;
     const noShows = parseInt(thisMonth.no_shows) || 0;
     const noShowRate = totalThisMonth > 0 ? Math.round((noShows / totalThisMonth) * 100) : 0;
-
     const revThis = parseFloat(thisMonth.revenue) || 0;
     const revLast = parseFloat(lastMonth.revenue) || 0;
     const revenueGrowth = revLast > 0 ? Math.round(((revThis - revLast) / revLast) * 100) : null;
@@ -395,7 +407,6 @@ router.get('/', authMiddleware, async (req, res) => {
     params.push(from, to);
     idx += 2;
   }
-
   if (status) {
     const statuses = status.split(',');
     where += ` AND a.status = ANY($${idx}::text[])`;
@@ -436,14 +447,18 @@ router.get('/', authMiddleware, async (req, res) => {
 router.get('/me', authMiddleware, async (req, res) => {
   try {
     const bookings = (await db.query(
-      `SELECT id, professional_id, client_name, client_phone, comment, status,
-              booking_date, start_time, end_time, created_at
+      `SELECT
+         id, professional_id, client_name, client_phone, comment, status,
+         booking_date,
+         start_time::text AS start_time,
+         end_time::text   AS end_time,
+         created_at
        FROM bookings
        WHERE professional_id = $1
        ORDER BY
          booking_date ASC NULLS LAST,
-         start_time ASC NULLS LAST,
-         created_at DESC
+         start_time   ASC NULLS LAST,
+         created_at   DESC
        LIMIT 100`,
       [req.professional.id]
     )).rows;
@@ -598,8 +613,8 @@ router.put('/:id/status', authMiddleware, async (req, res) => {
 
     const oldStatus = appointment.status;
     const now = new Date().toISOString();
-
     const updates = { status, updated_at: now };
+
     if (status === 'confirmed') updates.confirmed_at = now;
     if (status === 'completed') {
       updates.completed_at = now;
