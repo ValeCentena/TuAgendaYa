@@ -44,7 +44,10 @@ router.post('/register', async (req, res) => {
   const slugClean = slug.toLowerCase().replace(/[^a-z0-9-]/g, '-');
 
   try {
-    const existing = db.prepare('SELECT id FROM professionals WHERE email = ? OR slug = ?').get(email, slugClean);
+    const existing = (await db.query(
+      'SELECT id FROM professionals WHERE email = $1 OR slug = $2',
+      [email, slugClean]
+    )).rows[0];
     if (existing) {
       return res.status(409).json({ error: 'Email o slug ya en uso' });
     }
@@ -52,24 +55,31 @@ router.post('/register', async (req, res) => {
     const hash = await bcrypt.hash(password, 12);
     const initials = name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
 
-    const result = db.prepare(`
-      INSERT INTO professionals (email, password_hash, name, profession, slug, avatar_initials)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(email, hash, name, profession || null, slugClean, initials);
+    const result = await db.query(
+      `INSERT INTO professionals (email, password_hash, name, profession, slug, avatar_initials)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+      [email, hash, name, profession || null, slugClean, initials]
+    );
+    const newId = result.rows[0].id;
 
-    const insertAvail = db.prepare(`
-      INSERT INTO availability (professional_id, day_of_week, start_time, end_time)
-      VALUES (?, ?, '09:00', '18:00')
-    `);
-    db.transaction(() => {
-      [1, 2, 3, 4, 5].forEach(day => insertAvail.run(result.lastInsertRowid, day));
-    })();
+    for (const day of [1, 2, 3, 4, 5]) {
+      await db.query(
+        "INSERT INTO availability (professional_id, day_of_week, start_time, end_time) VALUES ($1, $2, '09:00', '18:00')",
+        [newId, day]
+      );
+    }
 
-    db.prepare('INSERT INTO cancellation_policies (professional_id) VALUES (?)').run(result.lastInsertRowid);
+    await db.query(
+      'INSERT INTO cancellation_policies (professional_id) VALUES ($1)',
+      [newId]
+    );
 
-    const professional = db.prepare('SELECT * FROM professionals WHERE id = ?').get(result.lastInsertRowid);
+    const professional = (await db.query(
+      'SELECT * FROM professionals WHERE id = $1',
+      [newId]
+    )).rows[0];
+
     const token = signToken({ id: professional.id, email: professional.email, slug: professional.slug });
-
     res.status(201).json({ token, professional: sanitizeProfessional(professional) });
   } catch (err) {
     console.error(err);
@@ -83,7 +93,10 @@ router.post('/login', async (req, res) => {
   if (!email || !password) return res.status(400).json({ error: 'Email y contraseña requeridos' });
 
   try {
-    const professional = db.prepare('SELECT * FROM professionals WHERE email = ?').get(email);
+    const professional = (await db.query(
+      'SELECT * FROM professionals WHERE email = $1',
+      [email]
+    )).rows[0];
     if (!professional) return res.status(401).json({ error: 'Credenciales inválidas' });
 
     const valid = await bcrypt.compare(password, professional.password_hash);
@@ -98,9 +111,12 @@ router.post('/login', async (req, res) => {
 });
 
 // ── GET /api/auth/me ──────────────────────────────────────────
-router.get('/me', authMiddleware, (req, res) => {
+router.get('/me', authMiddleware, async (req, res) => {
   try {
-    const professional = db.prepare('SELECT * FROM professionals WHERE id = ?').get(req.professional.id);
+    const professional = (await db.query(
+      'SELECT * FROM professionals WHERE id = $1',
+      [req.professional.id]
+    )).rows[0];
     if (!professional) return res.status(404).json({ error: 'No encontrado' });
     res.json(sanitizeProfessional(professional));
   } catch (err) {
@@ -117,47 +133,57 @@ router.put('/me', authMiddleware, async (req, res) => {
     notify_new_booking, notify_cancellation, notify_reminder, reminder_hours_before,
   } = req.body;
 
-  let slugClean = undefined;
+  let slugClean = null;
   if (slug !== undefined && slug !== null) {
     slugClean = slug.toLowerCase().replace(/[^a-z0-9-]/g, '-');
     if (slugClean.length < 3) return res.status(400).json({ error: 'El link debe tener al menos 3 caracteres' });
-    const existing = db.prepare('SELECT id FROM professionals WHERE slug = ? AND id != ?').get(slugClean, req.professional.id);
+    const existing = (await db.query(
+      'SELECT id FROM professionals WHERE slug = $1 AND id != $2',
+      [slugClean, req.professional.id]
+    )).rows[0];
     if (existing) return res.status(409).json({ error: 'Ese link ya está en uso por otro profesional' });
   }
 
   const initials = name
     ? name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
-    : undefined;
+    : null;
 
   try {
-    db.prepare(`
-      UPDATE professionals SET
-        name = COALESCE(?, name),
-        profession = COALESCE(?, profession),
-        phone = COALESCE(?, phone),
-        bio = COALESCE(?, bio),
-        slug = COALESCE(?, slug),
-        timezone = COALESCE(?, timezone),
-        slot_duration = COALESCE(?, slot_duration),
-        buffer_between = COALESCE(?, buffer_between),
-        max_advance_days = COALESCE(?, max_advance_days),
-        min_advance_hours = COALESCE(?, min_advance_hours),
-        notify_new_booking = COALESCE(?, notify_new_booking),
-        notify_cancellation = COALESCE(?, notify_cancellation),
-        notify_reminder = COALESCE(?, notify_reminder),
-        reminder_hours_before = COALESCE(?, reminder_hours_before),
-        avatar_initials = COALESCE(?, avatar_initials),
+    await db.query(
+      `UPDATE professionals SET
+        name = COALESCE($1, name),
+        profession = COALESCE($2, profession),
+        phone = COALESCE($3, phone),
+        bio = COALESCE($4, bio),
+        slug = COALESCE($5, slug),
+        timezone = COALESCE($6, timezone),
+        slot_duration = COALESCE($7, slot_duration),
+        buffer_between = COALESCE($8, buffer_between),
+        max_advance_days = COALESCE($9, max_advance_days),
+        min_advance_hours = COALESCE($10, min_advance_hours),
+        notify_new_booking = COALESCE($11, notify_new_booking),
+        notify_cancellation = COALESCE($12, notify_cancellation),
+        notify_reminder = COALESCE($13, notify_reminder),
+        reminder_hours_before = COALESCE($14, reminder_hours_before),
+        avatar_initials = COALESCE($15, avatar_initials),
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `).run(
-      name, profession, phone, bio, slugClean, timezone,
-      slot_duration, buffer_between, max_advance_days, min_advance_hours,
-      notify_new_booking, notify_cancellation, notify_reminder, reminder_hours_before,
-      initials,
-      req.professional.id
+      WHERE id = $16`,
+      [
+        name ?? null, profession ?? null, phone ?? null, bio ?? null,
+        slugClean, timezone ?? null,
+        slot_duration ?? null, buffer_between ?? null,
+        max_advance_days ?? null, min_advance_hours ?? null,
+        notify_new_booking ?? null, notify_cancellation ?? null,
+        notify_reminder ?? null, reminder_hours_before ?? null,
+        initials,
+        req.professional.id,
+      ]
     );
 
-    const updated = db.prepare('SELECT * FROM professionals WHERE id = ?').get(req.professional.id);
+    const updated = (await db.query(
+      'SELECT * FROM professionals WHERE id = $1',
+      [req.professional.id]
+    )).rows[0];
     res.json(sanitizeProfessional(updated));
   } catch (err) {
     console.error(err);
@@ -172,12 +198,18 @@ router.post('/change-password', authMiddleware, async (req, res) => {
   if (new_password.length < 8) return res.status(400).json({ error: 'Mínimo 8 caracteres' });
 
   try {
-    const prof = db.prepare('SELECT * FROM professionals WHERE id = ?').get(req.professional.id);
+    const prof = (await db.query(
+      'SELECT * FROM professionals WHERE id = $1',
+      [req.professional.id]
+    )).rows[0];
     const valid = await bcrypt.compare(current_password, prof.password_hash);
     if (!valid) return res.status(401).json({ error: 'Contraseña actual incorrecta' });
 
     const hash = await bcrypt.hash(new_password, 12);
-    db.prepare('UPDATE professionals SET password_hash = ? WHERE id = ?').run(hash, req.professional.id);
+    await db.query(
+      'UPDATE professionals SET password_hash = $1 WHERE id = $2',
+      [hash, req.professional.id]
+    );
     res.json({ message: 'Contraseña actualizada' });
   } catch (err) {
     console.error(err);
@@ -186,10 +218,13 @@ router.post('/change-password', authMiddleware, async (req, res) => {
 });
 
 // ── GET /api/auth/check-slug/:slug ────────────────────────────
-router.get('/check-slug/:slug', (req, res) => {
+router.get('/check-slug/:slug', async (req, res) => {
   try {
     const slug = req.params.slug.toLowerCase().replace(/[^a-z0-9-]/g, '-');
-    const exists = db.prepare('SELECT id FROM professionals WHERE slug = ?').get(slug);
+    const exists = (await db.query(
+      'SELECT id FROM professionals WHERE slug = $1',
+      [slug]
+    )).rows[0];
     res.json({ available: !exists, slug });
   } catch (err) {
     console.error(err);
@@ -203,17 +238,24 @@ router.post('/forgot-password', async (req, res) => {
   if (!email) return res.status(400).json({ error: 'Email requerido' });
 
   try {
-    const professional = db.prepare('SELECT * FROM professionals WHERE email = ?').get(email.toLowerCase().trim());
+    const professional = (await db.query(
+      'SELECT * FROM professionals WHERE email = $1',
+      [email.toLowerCase().trim()]
+    )).rows[0];
+
     if (professional) {
-      db.prepare('UPDATE password_reset_tokens SET used = 1 WHERE professional_id = ? AND used = 0').run(professional.id);
+      await db.query(
+        'UPDATE password_reset_tokens SET used = 1 WHERE professional_id = $1 AND used = 0',
+        [professional.id]
+      );
 
       const token = crypto.randomBytes(32).toString('hex');
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
 
-      db.prepare(`
-        INSERT INTO password_reset_tokens (professional_id, token, expires_at)
-        VALUES (?, ?, ?)
-      `).run(professional.id, token, expiresAt);
+      await db.query(
+        'INSERT INTO password_reset_tokens (professional_id, token, expires_at) VALUES ($1, $2, $3)',
+        [professional.id, token, expiresAt]
+      );
 
       console.log(`[forgot-password] token para ${email}: ${token}`);
     }
@@ -231,16 +273,22 @@ router.post('/reset-password', async (req, res) => {
   if (password.length < 8) return res.status(400).json({ error: 'Mínimo 8 caracteres' });
 
   try {
-    const resetToken = db.prepare(`
-      SELECT * FROM password_reset_tokens
-      WHERE token = ? AND used = 0 AND expires_at > datetime('now')
-    `).get(token);
+    const resetToken = (await db.query(
+      'SELECT * FROM password_reset_tokens WHERE token = $1 AND used = 0 AND expires_at > NOW()',
+      [token]
+    )).rows[0];
 
     if (!resetToken) return res.status(400).json({ error: 'El enlace es inválido o ya expiró.' });
 
     const hash = await bcrypt.hash(password, 12);
-    db.prepare('UPDATE professionals SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(hash, resetToken.professional_id);
-    db.prepare('UPDATE password_reset_tokens SET used = 1 WHERE id = ?').run(resetToken.id);
+    await db.query(
+      'UPDATE professionals SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      [hash, resetToken.professional_id]
+    );
+    await db.query(
+      'UPDATE password_reset_tokens SET used = 1 WHERE id = $1',
+      [resetToken.id]
+    );
 
     res.json({ message: 'Contraseña restablecida correctamente. Ya podés ingresar.' });
   } catch (err) {
