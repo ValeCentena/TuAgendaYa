@@ -77,73 +77,28 @@ router.get('/public/:slug/available-days', (req, res) => {
 });
 
 router.post('/public/:slug/book', (req, res) => {
-  const { service_id, date, time, client_name, client_email, client_phone, client_notes } = req.body;
+  const { clientName, clientPhone, comment } = req.body;
 
-  if (!service_id || !date || !time || !client_name) {
-    return res.status(400).json({ error: 'Faltan campos requeridos' });
+  if (!clientName || !clientPhone) {
+    return res.status(400).json({ error: 'Nombre y teléfono son requeridos' });
   }
-
-  const prof = db.prepare('SELECT * FROM professionals WHERE slug = ?').get(req.params.slug);
-  if (!prof) return res.status(404).json({ error: 'No encontrado' });
-  if (prof.status === 'suspended') {
-    return res.status(403).json({ error: 'Este profesional no está disponible.', suspended: true });
-  }
-
-  const service = db.prepare(
-    'SELECT * FROM services WHERE id = ? AND professional_id = ? AND active = 1'
-  ).get(parseInt(service_id), prof.id);
-  if (!service) return res.status(404).json({ error: 'Servicio no encontrado' });
-
-  const startTimeFmt = `${date} ${time}:00`;
-  const endDate = new Date(`${date}T${time}:00`);
-  endDate.setMinutes(endDate.getMinutes() + service.duration);
-  const endTimeFmt = endDate.toISOString().replace('T', ' ').slice(0, 19);
-  const publicToken = crypto.randomUUID();
 
   try {
-    let client = null;
-    if (client_email) {
-      client = db.prepare('SELECT * FROM clients WHERE professional_id = ? AND email = ?').get(prof.id, client_email);
-      if (!client) {
-        const cr = db.prepare(
-          'INSERT INTO clients (professional_id, name, email, phone) VALUES (?, ?, ?, ?)'
-        ).run(prof.id, client_name, client_email, client_phone || null);
-        client = db.prepare('SELECT * FROM clients WHERE id = ?').get(cr.lastInsertRowid);
-      }
+    const prof = db.prepare('SELECT id, status FROM professionals WHERE slug = ?').get(req.params.slug);
+    if (!prof) return res.status(404).json({ error: 'Profesional no encontrado' });
+    if (prof.status === 'suspended') {
+      return res.status(403).json({ error: 'Este profesional no está disponible.', suspended: true });
     }
 
     const result = db.prepare(`
-      INSERT INTO appointments
-        (professional_id, client_id, service_id, client_name, client_email, client_phone, client_notes,
-         start_time, end_time, status, public_token, source)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, 'web')
-    `).run(
-      prof.id, client ? client.id : null, service.id,
-      client_name, client_email || null, client_phone || null, client_notes || null,
-      startTimeFmt, endTimeFmt, publicToken
-    );
+      INSERT INTO bookings (professional_id, client_name, client_phone, comment, status)
+      VALUES (?, ?, ?, ?, 'pending')
+    `).run(prof.id, clientName, clientPhone, comment || null);
 
-    const appointment = db.prepare('SELECT * FROM appointments WHERE id = ?').get(result.lastInsertRowid);
-
-    db.prepare(`
-      INSERT INTO appointment_history (appointment_id, professional_id, action, new_status, performed_by)
-      VALUES (?, ?, 'created', 'pending', 'client')
-    `).run(appointment.id, prof.id);
-
-    res.status(201).json({
-      appointment: {
-        id: appointment.id,
-        public_token: appointment.public_token,
-        status: appointment.status,
-        start_time: appointment.start_time,
-        end_time: appointment.end_time,
-        client_name: appointment.client_name,
-        service: { name: service.name, duration: service.duration, price: service.price },
-      }
-    });
+    res.status(201).json({ success: true, bookingId: result.lastInsertRowid });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Error al crear el turno' });
+    res.status(500).json({ error: 'Error al crear la reserva' });
   }
 });
 
@@ -514,6 +469,22 @@ router.put('/:id/reschedule', authMiddleware, (req, res) => {
 
   const updated = db.prepare('SELECT * FROM appointments WHERE id = ?').get(appointment.id);
   res.json({ appointment: updated });
+});
+
+// ── GET /api/bookings/me — reservas del profesional autenticado ──
+router.get('/me', authMiddleware, (req, res) => {
+  try {
+    const bookings = db.prepare(`
+      SELECT * FROM bookings
+      WHERE professional_id = ?
+      ORDER BY created_at DESC
+      LIMIT 100
+    `).all(req.professional.id);
+    res.json({ bookings });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al obtener reservas' });
+  }
 });
 
 module.exports = router;

@@ -171,6 +171,17 @@ db.exec(`
     FOREIGN KEY (professional_id) REFERENCES professionals(id) ON DELETE CASCADE
   );
 
+  CREATE TABLE IF NOT EXISTS bookings (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    professional_id   INTEGER NOT NULL,
+    client_name       TEXT    NOT NULL,
+    client_phone      TEXT,
+    comment           TEXT,
+    status            TEXT    DEFAULT 'pending',
+    created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (professional_id) REFERENCES professionals(id) ON DELETE CASCADE
+  );
+
   CREATE INDEX IF NOT EXISTS idx_appointments_professional_time
     ON appointments(professional_id, start_time);
   CREATE INDEX IF NOT EXISTS idx_appointments_status
@@ -181,6 +192,8 @@ db.exec(`
     ON clients(professional_id);
   CREATE INDEX IF NOT EXISTS idx_availability_professional
     ON availability(professional_id, day_of_week);
+  CREATE INDEX IF NOT EXISTS idx_bookings_professional
+    ON bookings(professional_id);
 `);
 
 console.log('✓ Base de datos lista:', DB_PATH);
