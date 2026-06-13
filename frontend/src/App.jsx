@@ -4,11 +4,20 @@ const API_URL = 'https://tuagendaya-api.onrender.com/api';
 const PUBLIC_BOOKING_LINK = 'https://tuagendaya-web.onrender.com/reservar/valentino';
 
 export default function App() {
+  const currentPath = window.location.pathname;
+  const isPublicBookingPage = currentPath.startsWith('/reservar/');
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [mensaje, setMensaje] = useState('');
   const [loading, setLoading] = useState(false);
   const [copyMessage, setCopyMessage] = useState('');
+
+  const [clientName, setClientName] = useState('');
+  const [clientPhone, setClientPhone] = useState('');
+  const [clientComment, setClientComment] = useState('');
+  const [bookingMessage, setBookingMessage] = useState('');
+
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     return Boolean(localStorage.getItem('tuagendaya_token'));
   });
@@ -65,6 +74,7 @@ export default function App() {
     setPassword('');
     setMensaje('');
     setCopyMessage('');
+    window.history.pushState({}, '', '/profesional/login');
   };
 
   const handleCopyLink = async () => {
@@ -76,82 +86,110 @@ export default function App() {
     }
   };
 
-  if (isLoggedIn) {
+  const handleFakeBooking = (event) => {
+    event.preventDefault();
+
+    if (!clientName || !clientPhone) {
+      setBookingMessage('Ingresá nombre y teléfono para reservar.');
+      return;
+    }
+
+    setBookingMessage('Reserva cargada correctamente. Próximo paso: conectar agenda real.');
+  };
+
+  if (isPublicBookingPage) {
     return (
-      <main
-        style={{
-          minHeight: '100vh',
-          width: '100%',
-          background: '#f8fafc',
-          fontFamily:
-            'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-          padding: 24,
-          boxSizing: 'border-box',
-        }}
-      >
-        <section
-          style={{
-            maxWidth: 980,
-            margin: '0 auto',
-          }}
-        >
-          <header
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              gap: 16,
-              marginBottom: 28,
-            }}
-          >
+      <main style={styles.page}>
+        <section style={styles.publicCard}>
+          <div style={styles.publicBadge}>Reserva online</div>
+
+          <h1 style={styles.publicTitle}>Reservar con Valentino</h1>
+
+          <p style={styles.publicSubtitle}>
+            Completá tus datos y solicitá tu turno. Luego conectaremos horarios reales disponibles.
+          </p>
+
+          <div style={styles.profileBox}>
+            <div style={styles.avatar}>V</div>
             <div>
-              <h1
-                style={{
-                  margin: 0,
-                  fontSize: 34,
-                  letterSpacing: '-0.05em',
-                  color: '#0f172a',
-                }}
-              >
-                TuAgendaYa
-              </h1>
-
-              <p
-                style={{
-                  margin: '6px 0 0',
-                  color: '#64748b',
-                  fontSize: 16,
-                }}
-              >
-                Panel profesional
-              </p>
+              <h2 style={styles.profileName}>Valentino</h2>
+              <p style={styles.profileText}>Profesional disponible en TuAgendaYa</p>
             </div>
+          </div>
 
-            <button
-              onClick={handleLogout}
+          <form onSubmit={handleFakeBooking} style={styles.form}>
+            <label style={styles.label}>
+              Nombre
+              <input
+                type="text"
+                value={clientName}
+                onChange={(event) => setClientName(event.target.value)}
+                placeholder="Tu nombre"
+                style={styles.input}
+              />
+            </label>
+
+            <label style={styles.label}>
+              Teléfono
+              <input
+                type="tel"
+                value={clientPhone}
+                onChange={(event) => setClientPhone(event.target.value)}
+                placeholder="Tu teléfono"
+                style={styles.input}
+              />
+            </label>
+
+            <label style={styles.label}>
+              Comentario
+              <textarea
+                value={clientComment}
+                onChange={(event) => setClientComment(event.target.value)}
+                placeholder="Ej: quiero reservar para la tarde"
+                style={styles.textarea}
+              />
+            </label>
+
+            <button type="submit" style={styles.primaryButton}>
+              Confirmar reserva
+            </button>
+          </form>
+
+          {bookingMessage ? (
+            <div
               style={{
-                height: 44,
-                padding: '0 18px',
-                borderRadius: 14,
-                border: '1px solid #cbd5e1',
-                background: '#ffffff',
-                color: '#0f172a',
-                fontWeight: 700,
-                cursor: 'pointer',
+                ...styles.message,
+                background: bookingMessage.includes('correctamente') ? '#ecfdf5' : '#fef2f2',
+                color: bookingMessage.includes('correctamente') ? '#047857' : '#b91c1c',
+                border: bookingMessage.includes('correctamente')
+                  ? '1px solid #bbf7d0'
+                  : '1px solid #fecaca',
               }}
             >
+              {bookingMessage}
+            </div>
+          ) : null}
+        </section>
+      </main>
+    );
+  }
+
+  if (isLoggedIn) {
+    return (
+      <main style={styles.dashboardPage}>
+        <section style={styles.dashboardWrapper}>
+          <header style={styles.dashboardHeader}>
+            <div>
+              <h1 style={styles.logoTitle}>TuAgendaYa</h1>
+              <p style={styles.logoSubtitle}>Panel profesional</p>
+            </div>
+
+            <button onClick={handleLogout} style={styles.logoutButton}>
               Cerrar sesión
             </button>
           </header>
 
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-              gap: 18,
-              marginBottom: 24,
-            }}
-          >
+          <div style={styles.statsGrid}>
             <div style={styles.dashboardCard}>
               <p style={styles.cardLabel}>Estado</p>
               <h2 style={styles.cardTitle}>Sesión activa</h2>
@@ -171,112 +209,27 @@ export default function App() {
             </div>
           </div>
 
-          <section
-            style={{
-              background: '#ffffff',
-              borderRadius: 28,
-              padding: 28,
-              boxShadow: '0 24px 80px rgba(15, 23, 42, 0.10)',
-              border: '1px solid rgba(148, 163, 184, 0.25)',
-              marginBottom: 24,
-            }}
-          >
-            <h2
-              style={{
-                margin: '0 0 10px',
-                fontSize: 24,
-                color: '#0f172a',
-                letterSpacing: '-0.04em',
-              }}
-            >
-              Bienvenido, Valentino
-            </h2>
-
-            <p
-              style={{
-                margin: 0,
-                color: '#64748b',
-                fontSize: 16,
-                lineHeight: 1.6,
-              }}
-            >
-              Este es el primer dashboard estable. Desde acá vamos a agregar la
-              agenda, disponibilidad, turnos y configuración del profesional.
+          <section style={styles.bigCard}>
+            <h2 style={styles.sectionTitle}>Bienvenido, Valentino</h2>
+            <p style={styles.sectionText}>
+              Este es el primer dashboard estable. Desde acá vamos a agregar la agenda,
+              disponibilidad, turnos y configuración del profesional.
             </p>
           </section>
 
-          <section
-            style={{
-              background: '#ffffff',
-              borderRadius: 28,
-              padding: 28,
-              boxShadow: '0 24px 80px rgba(15, 23, 42, 0.10)',
-              border: '1px solid rgba(148, 163, 184, 0.25)',
-            }}
-          >
+          <section style={styles.bigCard}>
             <p style={styles.cardLabel}>Link público de reservas</p>
 
-            <h2
-              style={{
-                margin: '0 0 10px',
-                fontSize: 24,
-                color: '#0f172a',
-                letterSpacing: '-0.04em',
-              }}
-            >
-              Compartí este link con tus clientes
-            </h2>
+            <h2 style={styles.sectionTitle}>Compartí este link con tus clientes</h2>
 
-            <p
-              style={{
-                margin: '0 0 18px',
-                color: '#64748b',
-                fontSize: 15,
-                lineHeight: 1.6,
-              }}
-            >
+            <p style={styles.sectionText}>
               Cuando el cliente entre a este link, podrá reservar un turno contigo.
             </p>
 
-            <div
-              style={{
-                display: 'flex',
-                gap: 12,
-                alignItems: 'center',
-                flexWrap: 'wrap',
-              }}
-            >
-              <div
-                style={{
-                  flex: 1,
-                  minWidth: 260,
-                  background: '#f8fafc',
-                  border: '1px solid #cbd5e1',
-                  borderRadius: 16,
-                  padding: '14px 16px',
-                  color: '#0f172a',
-                  fontSize: 14,
-                  fontWeight: 700,
-                  overflowWrap: 'anywhere',
-                }}
-              >
-                {PUBLIC_BOOKING_LINK}
-              </div>
+            <div style={styles.linkRow}>
+              <div style={styles.linkBox}>{PUBLIC_BOOKING_LINK}</div>
 
-              <button
-                onClick={handleCopyLink}
-                style={{
-                  height: 48,
-                  padding: '0 18px',
-                  borderRadius: 16,
-                  border: 'none',
-                  background: '#111827',
-                  color: '#ffffff',
-                  fontSize: 14,
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                }}
-              >
+              <button onClick={handleCopyLink} style={styles.primarySmallButton}>
                 Copiar link
               </button>
 
@@ -284,20 +237,7 @@ export default function App() {
                 href={PUBLIC_BOOKING_LINK}
                 target="_blank"
                 rel="noreferrer"
-                style={{
-                  height: 48,
-                  padding: '0 18px',
-                  borderRadius: 16,
-                  border: '1px solid #cbd5e1',
-                  background: '#ffffff',
-                  color: '#0f172a',
-                  fontSize: 14,
-                  fontWeight: 800,
-                  textDecoration: 'none',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
+                style={styles.secondaryLinkButton}
               >
                 Abrir
               </a>
@@ -306,17 +246,10 @@ export default function App() {
             {copyMessage ? (
               <div
                 style={{
+                  ...styles.message,
                   marginTop: 14,
-                  padding: 12,
-                  borderRadius: 14,
-                  background: copyMessage.includes('correctamente')
-                    ? '#ecfdf5'
-                    : '#fef2f2',
-                  color: copyMessage.includes('correctamente')
-                    ? '#047857'
-                    : '#b91c1c',
-                  fontSize: 14,
-                  fontWeight: 700,
+                  background: copyMessage.includes('correctamente') ? '#ecfdf5' : '#fef2f2',
+                  color: copyMessage.includes('correctamente') ? '#047857' : '#b91c1c',
                   border: copyMessage.includes('correctamente')
                     ? '1px solid #bbf7d0'
                     : '1px solid #fecaca',
@@ -332,63 +265,13 @@ export default function App() {
   }
 
   return (
-    <main
-      style={{
-        minHeight: '100vh',
-        width: '100%',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: '#f8fafc',
-        fontFamily:
-          'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-        padding: 24,
-        boxSizing: 'border-box',
-      }}
-    >
-      <section
-        style={{
-          width: '100%',
-          maxWidth: 430,
-          background: '#ffffff',
-          borderRadius: 28,
-          padding: 36,
-          boxShadow: '0 24px 80px rgba(15, 23, 42, 0.14)',
-          border: '1px solid rgba(148, 163, 184, 0.25)',
-          boxSizing: 'border-box',
-        }}
-      >
-        <h1
-          style={{
-            margin: '0 0 10px',
-            fontSize: 34,
-            letterSpacing: '-0.05em',
-            color: '#0f172a',
-            textAlign: 'center',
-          }}
-        >
-          TuAgendaYa
-        </h1>
+    <main style={styles.page}>
+      <section style={styles.loginCard}>
+        <h1 style={styles.loginTitle}>TuAgendaYa</h1>
 
-        <p
-          style={{
-            margin: '0 0 28px',
-            color: '#64748b',
-            fontSize: 16,
-            textAlign: 'center',
-          }}
-        >
-          Ingresá a tu panel profesional
-        </p>
+        <p style={styles.loginSubtitle}>Ingresá a tu panel profesional</p>
 
-        <form
-          onSubmit={handleSubmit}
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 16,
-          }}
-        >
+        <form onSubmit={handleSubmit} style={styles.form}>
           <label style={styles.label}>
             Email
             <input
@@ -415,60 +298,80 @@ export default function App() {
             type="submit"
             disabled={loading}
             style={{
-              height: 50,
-              borderRadius: 16,
-              border: 'none',
+              ...styles.primaryButton,
               background: loading ? '#475569' : '#111827',
-              color: '#ffffff',
-              fontSize: 15,
-              fontWeight: 800,
               cursor: loading ? 'not-allowed' : 'pointer',
-              marginTop: 6,
             }}
           >
             {loading ? 'Ingresando...' : 'Ingresar'}
           </button>
         </form>
 
-        {mensaje ? (
-          <div
-            style={{
-              marginTop: 18,
-              padding: 12,
-              borderRadius: 14,
-              background: '#fef2f2',
-              color: '#b91c1c',
-              fontSize: 14,
-              textAlign: 'center',
-              fontWeight: 600,
-              border: '1px solid #fecaca',
-            }}
-          >
-            {mensaje}
-          </div>
-        ) : null}
+        {mensaje ? <div style={styles.errorMessage}>{mensaje}</div> : null}
       </section>
     </main>
   );
 }
 
 const styles = {
-  label: {
+  page: {
+    minHeight: '100vh',
+    width: '100%',
     display: 'flex',
-    flexDirection: 'column',
-    gap: 8,
-    color: '#334155',
-    fontSize: 14,
-    fontWeight: 700,
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: '#f8fafc',
+    fontFamily:
+      'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    padding: 24,
+    boxSizing: 'border-box',
   },
-  input: {
-    height: 48,
+  dashboardPage: {
+    minHeight: '100vh',
+    width: '100%',
+    background: '#f8fafc',
+    fontFamily:
+      'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    padding: 24,
+    boxSizing: 'border-box',
+  },
+  dashboardWrapper: {
+    maxWidth: 980,
+    margin: '0 auto',
+  },
+  dashboardHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 16,
+    marginBottom: 28,
+  },
+  logoTitle: {
+    margin: 0,
+    fontSize: 34,
+    letterSpacing: '-0.05em',
+    color: '#0f172a',
+  },
+  logoSubtitle: {
+    margin: '6px 0 0',
+    color: '#64748b',
+    fontSize: 16,
+  },
+  logoutButton: {
+    height: 44,
+    padding: '0 18px',
     borderRadius: 14,
     border: '1px solid #cbd5e1',
-    padding: '0 14px',
-    fontSize: 15,
-    outline: 'none',
-    boxSizing: 'border-box',
+    background: '#ffffff',
+    color: '#0f172a',
+    fontWeight: 700,
+    cursor: 'pointer',
+  },
+  statsGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+    gap: 18,
+    marginBottom: 24,
   },
   dashboardCard: {
     background: '#ffffff',
@@ -476,6 +379,14 @@ const styles = {
     padding: 22,
     boxShadow: '0 18px 50px rgba(15, 23, 42, 0.08)',
     border: '1px solid rgba(148, 163, 184, 0.22)',
+  },
+  bigCard: {
+    background: '#ffffff',
+    borderRadius: 28,
+    padding: 28,
+    boxShadow: '0 24px 80px rgba(15, 23, 42, 0.10)',
+    border: '1px solid rgba(148, 163, 184, 0.25)',
+    marginBottom: 24,
   },
   cardLabel: {
     margin: '0 0 8px',
@@ -496,5 +407,212 @@ const styles = {
     color: '#64748b',
     fontSize: 14,
     lineHeight: 1.5,
+  },
+  sectionTitle: {
+    margin: '0 0 10px',
+    fontSize: 24,
+    color: '#0f172a',
+    letterSpacing: '-0.04em',
+  },
+  sectionText: {
+    margin: '0 0 18px',
+    color: '#64748b',
+    fontSize: 15,
+    lineHeight: 1.6,
+  },
+  linkRow: {
+    display: 'flex',
+    gap: 12,
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  linkBox: {
+    flex: 1,
+    minWidth: 260,
+    background: '#f8fafc',
+    border: '1px solid #cbd5e1',
+    borderRadius: 16,
+    padding: '14px 16px',
+    color: '#0f172a',
+    fontSize: 14,
+    fontWeight: 700,
+    overflowWrap: 'anywhere',
+  },
+  primarySmallButton: {
+    height: 48,
+    padding: '0 18px',
+    borderRadius: 16,
+    border: 'none',
+    background: '#111827',
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: 800,
+    cursor: 'pointer',
+  },
+  secondaryLinkButton: {
+    height: 48,
+    padding: '0 18px',
+    borderRadius: 16,
+    border: '1px solid #cbd5e1',
+    background: '#ffffff',
+    color: '#0f172a',
+    fontSize: 14,
+    fontWeight: 800,
+    textDecoration: 'none',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loginCard: {
+    width: '100%',
+    maxWidth: 430,
+    background: '#ffffff',
+    borderRadius: 28,
+    padding: 36,
+    boxShadow: '0 24px 80px rgba(15, 23, 42, 0.14)',
+    border: '1px solid rgba(148, 163, 184, 0.25)',
+    boxSizing: 'border-box',
+  },
+  loginTitle: {
+    margin: '0 0 10px',
+    fontSize: 34,
+    letterSpacing: '-0.05em',
+    color: '#0f172a',
+    textAlign: 'center',
+  },
+  loginSubtitle: {
+    margin: '0 0 28px',
+    color: '#64748b',
+    fontSize: 16,
+    textAlign: 'center',
+  },
+  publicCard: {
+    width: '100%',
+    maxWidth: 480,
+    background: '#ffffff',
+    borderRadius: 30,
+    padding: 34,
+    boxShadow: '0 24px 80px rgba(15, 23, 42, 0.14)',
+    border: '1px solid rgba(148, 163, 184, 0.25)',
+    boxSizing: 'border-box',
+  },
+  publicBadge: {
+    display: 'inline-flex',
+    height: 34,
+    padding: '0 14px',
+    alignItems: 'center',
+    borderRadius: 999,
+    background: '#eef2ff',
+    color: '#3730a3',
+    fontSize: 13,
+    fontWeight: 800,
+    marginBottom: 18,
+  },
+  publicTitle: {
+    margin: '0 0 10px',
+    fontSize: 32,
+    letterSpacing: '-0.05em',
+    color: '#0f172a',
+  },
+  publicSubtitle: {
+    margin: '0 0 22px',
+    color: '#64748b',
+    fontSize: 15,
+    lineHeight: 1.6,
+  },
+  profileBox: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 14,
+    padding: 16,
+    borderRadius: 22,
+    background: '#f8fafc',
+    border: '1px solid #e2e8f0',
+    marginBottom: 22,
+  },
+  avatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    background: '#111827',
+    color: '#ffffff',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontWeight: 900,
+    fontSize: 22,
+  },
+  profileName: {
+    margin: 0,
+    color: '#0f172a',
+    fontSize: 18,
+  },
+  profileText: {
+    margin: '4px 0 0',
+    color: '#64748b',
+    fontSize: 14,
+  },
+  form: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 16,
+  },
+  label: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+    color: '#334155',
+    fontSize: 14,
+    fontWeight: 700,
+  },
+  input: {
+    height: 48,
+    borderRadius: 14,
+    border: '1px solid #cbd5e1',
+    padding: '0 14px',
+    fontSize: 15,
+    outline: 'none',
+    boxSizing: 'border-box',
+  },
+  textarea: {
+    minHeight: 92,
+    borderRadius: 14,
+    border: '1px solid #cbd5e1',
+    padding: '12px 14px',
+    fontSize: 15,
+    outline: 'none',
+    resize: 'vertical',
+    boxSizing: 'border-box',
+    fontFamily: 'inherit',
+  },
+  primaryButton: {
+    height: 50,
+    borderRadius: 16,
+    border: 'none',
+    background: '#111827',
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: 800,
+    cursor: 'pointer',
+    marginTop: 6,
+  },
+  message: {
+    marginTop: 18,
+    padding: 12,
+    borderRadius: 14,
+    fontSize: 14,
+    textAlign: 'center',
+    fontWeight: 700,
+  },
+  errorMessage: {
+    marginTop: 18,
+    padding: 12,
+    borderRadius: 14,
+    background: '#fef2f2',
+    color: '#b91c1c',
+    fontSize: 14,
+    textAlign: 'center',
+    fontWeight: 600,
+    border: '1px solid #fecaca',
   },
 };
