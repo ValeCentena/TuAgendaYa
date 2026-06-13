@@ -136,6 +136,7 @@ function Dashboard({ professional, onLogout }) {
 
   const pendingCount   = bookings.filter(b => b.status === 'pending').length;
   const confirmedCount = bookings.filter(b => b.status === 'confirmed').length;
+  const cancelledCount = bookings.filter(b => b.status === 'cancelled').length;
 
   return (
     <div style={{ minHeight: '100vh', background: '#f2f2f7', padding: '20px 16px' }}>
@@ -154,16 +155,20 @@ function Dashboard({ professional, onLogout }) {
 
         {/* Resumen rápido */}
         {!loadingBookings && bookings.length > 0 && (
-          <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-            <div style={{ flex: 1, background: '#fff8ee', borderRadius: 16, padding: '14px 16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
+            <div style={{ background: '#fff8ee', borderRadius: 16, padding: '14px 16px' }}>
               <div style={{ fontSize: 24, fontWeight: 700, color: '#ff9f0a' }}>{pendingCount}</div>
               <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2 }}>Pendientes</div>
             </div>
-            <div style={{ flex: 1, background: '#edfff3', borderRadius: 16, padding: '14px 16px' }}>
+            <div style={{ background: '#edfff3', borderRadius: 16, padding: '14px 16px' }}>
               <div style={{ fontSize: 24, fontWeight: 700, color: '#30d158' }}>{confirmedCount}</div>
               <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2 }}>Confirmadas</div>
             </div>
-            <div style={{ flex: 1, background: '#f2f2f7', borderRadius: 16, padding: '14px 16px', border: '0.5px solid #e8e8ed' }}>
+            <div style={{ background: '#fff2f2', borderRadius: 16, padding: '14px 16px' }}>
+              <div style={{ fontSize: 24, fontWeight: 700, color: '#ff453a' }}>{cancelledCount}</div>
+              <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2 }}>Canceladas</div>
+            </div>
+            <div style={{ background: '#f2f2f7', borderRadius: 16, padding: '14px 16px', border: '0.5px solid #e8e8ed' }}>
               <div style={{ fontSize: 24, fontWeight: 700, color: '#1a1a1a' }}>{bookings.length}</div>
               <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2 }}>Total</div>
             </div>
