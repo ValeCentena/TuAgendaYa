@@ -1,12 +1,14 @@
 import { useState } from 'react';
 
 const API_URL = 'https://tuagendaya-api.onrender.com/api';
+const PUBLIC_BOOKING_LINK = 'https://tuagendaya-web.onrender.com/reservar/valentino';
 
 export default function App() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [mensaje, setMensaje] = useState('');
   const [loading, setLoading] = useState(false);
+  const [copyMessage, setCopyMessage] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     return Boolean(localStorage.getItem('tuagendaya_token'));
   });
@@ -62,6 +64,16 @@ export default function App() {
     setEmail('');
     setPassword('');
     setMensaje('');
+    setCopyMessage('');
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(PUBLIC_BOOKING_LINK);
+      setCopyMessage('Link copiado correctamente.');
+    } catch (error) {
+      setCopyMessage('No se pudo copiar. Copialo manualmente.');
+    }
   };
 
   if (isLoggedIn) {
@@ -166,6 +178,7 @@ export default function App() {
               padding: 28,
               boxShadow: '0 24px 80px rgba(15, 23, 42, 0.10)',
               border: '1px solid rgba(148, 163, 184, 0.25)',
+              marginBottom: 24,
             }}
           >
             <h2
@@ -190,6 +203,128 @@ export default function App() {
               Este es el primer dashboard estable. Desde acá vamos a agregar la
               agenda, disponibilidad, turnos y configuración del profesional.
             </p>
+          </section>
+
+          <section
+            style={{
+              background: '#ffffff',
+              borderRadius: 28,
+              padding: 28,
+              boxShadow: '0 24px 80px rgba(15, 23, 42, 0.10)',
+              border: '1px solid rgba(148, 163, 184, 0.25)',
+            }}
+          >
+            <p style={styles.cardLabel}>Link público de reservas</p>
+
+            <h2
+              style={{
+                margin: '0 0 10px',
+                fontSize: 24,
+                color: '#0f172a',
+                letterSpacing: '-0.04em',
+              }}
+            >
+              Compartí este link con tus clientes
+            </h2>
+
+            <p
+              style={{
+                margin: '0 0 18px',
+                color: '#64748b',
+                fontSize: 15,
+                lineHeight: 1.6,
+              }}
+            >
+              Cuando el cliente entre a este link, podrá reservar un turno contigo.
+            </p>
+
+            <div
+              style={{
+                display: 'flex',
+                gap: 12,
+                alignItems: 'center',
+                flexWrap: 'wrap',
+              }}
+            >
+              <div
+                style={{
+                  flex: 1,
+                  minWidth: 260,
+                  background: '#f8fafc',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: 16,
+                  padding: '14px 16px',
+                  color: '#0f172a',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  overflowWrap: 'anywhere',
+                }}
+              >
+                {PUBLIC_BOOKING_LINK}
+              </div>
+
+              <button
+                onClick={handleCopyLink}
+                style={{
+                  height: 48,
+                  padding: '0 18px',
+                  borderRadius: 16,
+                  border: 'none',
+                  background: '#111827',
+                  color: '#ffffff',
+                  fontSize: 14,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                }}
+              >
+                Copiar link
+              </button>
+
+              <a
+                href={PUBLIC_BOOKING_LINK}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  height: 48,
+                  padding: '0 18px',
+                  borderRadius: 16,
+                  border: '1px solid #cbd5e1',
+                  background: '#ffffff',
+                  color: '#0f172a',
+                  fontSize: 14,
+                  fontWeight: 800,
+                  textDecoration: 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                Abrir
+              </a>
+            </div>
+
+            {copyMessage ? (
+              <div
+                style={{
+                  marginTop: 14,
+                  padding: 12,
+                  borderRadius: 14,
+                  background: copyMessage.includes('correctamente')
+                    ? '#ecfdf5'
+                    : '#fef2f2',
+                  color: copyMessage.includes('correctamente')
+                    ? '#047857'
+                    : '#b91c1c',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  border: copyMessage.includes('correctamente')
+                    ? '1px solid #bbf7d0'
+                    : '1px solid #fecaca',
+                }}
+              >
+                {copyMessage}
+              </div>
+            ) : null}
           </section>
         </section>
       </main>
