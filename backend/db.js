@@ -1,166 +1,188 @@
-const fs = require('fs');
-const path = require('path');
 const Database = require('better-sqlite3');
-const bcrypt = require('bcryptjs');
+const path = require('path');
+const fs = require('fs');
 
-function resolveDbPath() {
-  if (process.env.NODE_ENV === 'test') {
-    return ':memory:';
-  }
-  if (process.env.DATABASE_PATH) {
-    return process.env.DATABASE_PATH;
-  }
-  return path.join(__dirname, 'tuagendaya.db');
-}
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'tuagendaya.db');
 
-const dbPath = resolveDbPath();
+const dataDir = path.dirname(DB_PATH);
+if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 
-if (dbPath !== ':memory:') {
-  const dir = path.dirname(dbPath);
-  fs.mkdirSync(dir, { recursive: true });
-}
-
-const db = new Database(dbPath);
+const db = new Database(DB_PATH);
 
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
-db.pragma('busy_timeout = 5000');
 
-function initDb() {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS professionals (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      email TEXT UNIQUE NOT NULL,
-      password_hash TEXT NOT NULL,
-      specialty TEXT DEFAULT '',
-      slug TEXT UNIQUE NOT NULL,
-      phone TEXT DEFAULT '',
-      bio TEXT DEFAULT '',
-      duration_minutes INTEGER DEFAULT 30,
-      active INTEGER DEFAULT 1,
-      created_at TEXT DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS availability (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      professional_id INTEGER NOT NULL,
-      day_of_week INTEGER NOT NULL,
-      start_time TEXT NOT NULL,
-      end_time TEXT NOT NULL,
-      FOREIGN KEY (professional_id) REFERENCES professionals(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS bookings (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      professional_id INTEGER NOT NULL,
-      date TEXT NOT NULL,
-      time TEXT NOT NULL,
-      client_name TEXT NOT NULL,
-      client_phone TEXT NOT NULL,
-      client_email TEXT DEFAULT '',
-      status TEXT DEFAULT 'confirmed',
-      reminder_sent INTEGER DEFAULT 0,
-      created_at TEXT DEFAULT (datetime('now')),
-      FOREIGN KEY (professional_id) REFERENCES professionals(id) ON DELETE CASCADE,
-      UNIQUE(professional_id, date, time)
-    );
-
-    CREATE TABLE IF NOT EXISTS admins (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      password_hash TEXT NOT NULL,
-      name TEXT NOT NULL,
-      created_at TEXT DEFAULT (datetime('now'))
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_bookings_date ON bookings(date, status);
-    CREATE INDEX IF NOT EXISTS idx_availability_prof ON availability(professional_id);
-  `);
-
-  seedAdmin();
-  seedDemoProfessional();
-}
-
-function seedAdmin() {
-  if (process.env.NODE_ENV === 'test') return;
-
-  const isProd = process.env.NODE_ENV === 'production';
-  const email = process.env.ADMIN_EMAIL || (isProd ? null : 'admin@tuagendaya.com');
-  const password = process.env.ADMIN_PASSWORD || (isProd ? null : 'admin123');
-
-  if (!email || !password) return;
-
-  const exists = db.prepare('SELECT id FROM admins WHERE email = ?').get(email);
-  if (exists) return;
-
-  const hash = bcrypt.hashSync(password, 10);
-  db.prepare('INSERT INTO admins (email, password_hash, name) VALUES (?, ?, ?)').run(
-    email,
-    hash,
-    'Administrador',
-  );
-}
-
-function seedDemoProfessional() {
-  if (process.env.NODE_ENV === 'test') return;
-  if (process.env.NODE_ENV === 'production' && process.env.SEED_DEMO !== 'true') return;
-
-  const exists = db.prepare('SELECT id FROM professionals WHERE email = ?').get('maria@tuagendaya.com');
-  if (exists) return;
-
-  const hash = bcrypt.hashSync('demo123', 10);
-  const result = db.prepare(`
-    INSERT INTO professionals (name, email, password_hash, specialty, slug, phone, bio, duration_minutes)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    'Dra. María López',
-    'maria@tuagendaya.com',
-    hash,
-    'Odontología',
-    'maria-lopez',
-    '+5491112345678',
-    'Especialista en odontología general y estética dental.',
-    30,
+db.exec(`
+  CREATE TABLE IF NOT EXISTS professionals (
+    id                        INTEGER PRIMARY KEY AUTOINCREMENT,
+    email                     TEXT    UNIQUE NOT NULL,
+    password_hash             TEXT    NOT NULL,
+    name                      TEXT    NOT NULL,
+    profession                TEXT,
+    slug                      TEXT    UNIQUE NOT NULL,
+    phone                     TEXT,
+    bio                       TEXT,
+    avatar_initials           TEXT,
+    plan                      TEXT    DEFAULT 'free',
+    status                    TEXT    DEFAULT 'active',
+    google_access_token       TEXT,
+    google_refresh_token      TEXT,
+    google_token_expiry       INTEGER,
+    google_calendar_id        TEXT,
+    google_sync_enabled       INTEGER DEFAULT 0,
+    timezone                  TEXT    DEFAULT 'America/Argentina/Buenos_Aires',
+    slot_duration             INTEGER DEFAULT 30,
+    buffer_between            INTEGER DEFAULT 0,
+    max_advance_days          INTEGER DEFAULT 60,
+    min_advance_hours         INTEGER DEFAULT 2,
+    notify_new_booking        INTEGER DEFAULT 1,
+    notify_cancellation       INTEGER DEFAULT 1,
+    notify_reminder           INTEGER DEFAULT 1,
+    reminder_hours_before     INTEGER DEFAULT 24,
+    created_at                DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at                DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
-  const defaultAvailability = [
-    [1, '09:00', '18:00'],
-    [2, '09:00', '18:00'],
-    [3, '09:00', '18:00'],
-    [4, '09:00', '18:00'],
-    [5, '09:00', '17:00'],
-  ];
-
-  const insert = db.prepare(
-    'INSERT INTO availability (professional_id, day_of_week, start_time, end_time) VALUES (?, ?, ?, ?)',
+  CREATE TABLE IF NOT EXISTS services (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    professional_id   INTEGER NOT NULL,
+    name              TEXT    NOT NULL,
+    duration          INTEGER NOT NULL,
+    price             REAL    DEFAULT 0,
+    description       TEXT,
+    color             TEXT    DEFAULT '#0071e3',
+    active            INTEGER DEFAULT 1,
+    sort_order        INTEGER DEFAULT 0,
+    created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (professional_id) REFERENCES professionals(id) ON DELETE CASCADE
   );
-  for (const [day, start, end] of defaultAvailability) {
-    insert.run(result.lastInsertRowid, day, start, end);
-  }
-}
 
-function slugify(text) {
-  return text
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '');
-}
+  CREATE TABLE IF NOT EXISTS availability (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    professional_id   INTEGER NOT NULL,
+    day_of_week       INTEGER NOT NULL,
+    start_time        TEXT    NOT NULL,
+    end_time          TEXT    NOT NULL,
+    active            INTEGER DEFAULT 1,
+    FOREIGN KEY (professional_id) REFERENCES professionals(id) ON DELETE CASCADE
+  );
 
-function uniqueSlug(base) {
-  let slug = slugify(base);
-  let counter = 1;
-  while (db.prepare('SELECT id FROM professionals WHERE slug = ?').get(slug)) {
-    slug = `${slugify(base)}-${counter++}`;
-  }
-  return slug;
-}
+  CREATE TABLE IF NOT EXISTS availability_exceptions (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    professional_id   INTEGER NOT NULL,
+    date              TEXT    NOT NULL,
+    start_time        TEXT,
+    end_time          TEXT,
+    reason            TEXT,
+    FOREIGN KEY (professional_id) REFERENCES professionals(id) ON DELETE CASCADE
+  );
 
-function checkDbHealth() {
-  db.prepare('SELECT 1 AS ok').get();
-  return { connected: true, path: dbPath === ':memory:' ? 'memory' : dbPath };
-}
+  CREATE TABLE IF NOT EXISTS clients (
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    professional_id    INTEGER NOT NULL,
+    name               TEXT    NOT NULL,
+    email              TEXT,
+    phone              TEXT,
+    private_notes      TEXT,
+    no_show_count      INTEGER DEFAULT 0,
+    cancellation_count INTEGER DEFAULT 0,
+    total_visits       INTEGER DEFAULT 0,
+    total_spent        REAL    DEFAULT 0,
+    tags               TEXT,
+    created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (professional_id) REFERENCES professionals(id) ON DELETE CASCADE
+  );
 
-module.exports = { db, initDb, uniqueSlug, slugify, checkDbHealth, resolveDbPath };
+  CREATE TABLE IF NOT EXISTS appointments (
+    id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+    professional_id         INTEGER NOT NULL,
+    client_id               INTEGER,
+    service_id              INTEGER NOT NULL,
+    client_name             TEXT    NOT NULL,
+    client_email            TEXT,
+    client_phone            TEXT,
+    client_notes            TEXT,
+    start_time              DATETIME NOT NULL,
+    end_time                DATETIME NOT NULL,
+    status                  TEXT    DEFAULT 'pending',
+    cancellation_reason     TEXT,
+    cancelled_by            TEXT,
+    cancelled_at            DATETIME,
+    cancellation_fee_applied INTEGER DEFAULT 0,
+    cancellation_fee_amount  REAL DEFAULT 0,
+    confirmed_at            DATETIME,
+    completed_at            DATETIME,
+    no_show_at              DATETIME,
+    no_show_notified        INTEGER DEFAULT 0,
+    rescheduled_from_id     INTEGER,
+    rescheduled_at          DATETIME,
+    google_event_id         TEXT,
+    google_sync_at          DATETIME,
+    payment_status          TEXT    DEFAULT 'unpaid',
+    payment_amount          REAL    DEFAULT 0,
+    payment_method          TEXT,
+    payment_id              TEXT,
+    public_token            TEXT    UNIQUE,
+    source                  TEXT    DEFAULT 'web',
+    created_at              DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at              DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (professional_id) REFERENCES professionals(id) ON DELETE CASCADE,
+    FOREIGN KEY (client_id)       REFERENCES clients(id)       ON DELETE SET NULL,
+    FOREIGN KEY (service_id)      REFERENCES services(id)      ON DELETE RESTRICT
+  );
+
+  CREATE TABLE IF NOT EXISTS cancellation_policies (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    professional_id     INTEGER NOT NULL UNIQUE,
+    enabled             INTEGER DEFAULT 0,
+    hours_before        INTEGER DEFAULT 24,
+    fee_type            TEXT    DEFAULT 'none',
+    fee_fixed_amount    REAL    DEFAULT 0,
+    fee_percentage      INTEGER DEFAULT 0,
+    policy_text         TEXT,
+    show_on_booking     INTEGER DEFAULT 1,
+    updated_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (professional_id) REFERENCES professionals(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS appointment_history (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    appointment_id    INTEGER NOT NULL,
+    professional_id   INTEGER NOT NULL,
+    action            TEXT    NOT NULL,
+    old_status        TEXT,
+    new_status        TEXT,
+    old_start_time    DATETIME,
+    new_start_time    DATETIME,
+    note              TEXT,
+    performed_by      TEXT    DEFAULT 'professional',
+    created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    professional_id   INTEGER NOT NULL,
+    token             TEXT    UNIQUE NOT NULL,
+    expires_at        DATETIME NOT NULL,
+    used              INTEGER DEFAULT 0,
+    created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (professional_id) REFERENCES professionals(id) ON DELETE CASCADE
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_appointments_professional_time
+    ON appointments(professional_id, start_time);
+  CREATE INDEX IF NOT EXISTS idx_appointments_status
+    ON appointments(professional_id, status);
+  CREATE INDEX IF NOT EXISTS idx_appointments_public_token
+    ON appointments(public_token);
+  CREATE INDEX IF NOT EXISTS idx_clients_professional
+    ON clients(professional_id);
+  CREATE INDEX IF NOT EXISTS idx_availability_professional
+    ON availability(professional_id, day_of_week);
+`);
+
+console.log('✓ Base de datos lista:', DB_PATH);
+
+module.exports = db;
