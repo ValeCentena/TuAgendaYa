@@ -77,9 +77,11 @@ function LoginForm({ onLogin }) {
 function Dashboard({ professional, onLogout }) {
   const [bookings, setBookings] = useState([]);
   const [loadingBookings, setLoadingBookings] = useState(true);
+  const [actionLoading, setActionLoading] = useState(null);
 
-  useEffect(() => {
+  const fetchBookings = () => {
     const token = localStorage.getItem('tuagendaya_token');
+    setLoadingBookings(true);
     fetch(`${API_BASE}/bookings/me`, {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -87,7 +89,25 @@ function Dashboard({ professional, onLogout }) {
       .then(data => setBookings(data.bookings || []))
       .catch(() => setBookings([]))
       .finally(() => setLoadingBookings(false));
-  }, []);
+  };
+
+  useEffect(() => { fetchBookings(); }, []);
+
+  const handleAction = async (id, action) => {
+    setActionLoading(`${id}-${action}`);
+    const token = localStorage.getItem('tuagendaya_token');
+    try {
+      await fetch(`${API_BASE}/bookings/${id}/${action}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      fetchBookings();
+    } catch {
+      // silently ignore, list will refresh anyway
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('tuagendaya_token');
@@ -124,17 +144,35 @@ function Dashboard({ professional, onLogout }) {
           ) : (
             bookings.map(b => (
               <div key={b.id} style={{ border: '0.5px solid #e0e0e5', borderRadius: 14, padding: '14px 16px', marginBottom: 10 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                  <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 600, fontSize: 14, color: '#1a1a1a' }}>{b.client_name}</div>
                     <div style={{ fontSize: 12, color: '#6e6e73', marginTop: 2 }}>{b.client_phone}</div>
                     {b.comment && <div style={{ fontSize: 12, color: '#aeaeb2', marginTop: 4, fontStyle: 'italic' }}>"{b.comment}"</div>}
                   </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: statusColor[b.status] || '#6e6e73', background: (statusColor[b.status] || '#6e6e73') + '18', padding: '3px 10px', borderRadius: 20 }}>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: statusColor[b.status] || '#6e6e73', background: (statusColor[b.status] || '#6e6e73') + '18', padding: '3px 10px', borderRadius: 20, marginBottom: 8 }}>
                       {statusLabel[b.status] || b.status}
                     </div>
-                    <div style={{ fontSize: 11, color: '#aeaeb2', marginTop: 4 }}>{new Date(b.created_at).toLocaleDateString('es-AR')}</div>
+                    <div style={{ fontSize: 11, color: '#aeaeb2', marginBottom: 8 }}>{new Date(b.created_at).toLocaleDateString('es-AR')}</div>
+                    {b.status === 'pending' && (
+                      <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                        <button
+                          onClick={() => handleAction(b.id, 'confirm')}
+                          disabled={actionLoading === `${b.id}-confirm`}
+                          style={{ padding: '5px 12px', borderRadius: 8, border: 'none', background: '#30d158', color: '#fff', fontSize: 12, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', opacity: actionLoading === `${b.id}-confirm` ? 0.6 : 1 }}
+                        >
+                          {actionLoading === `${b.id}-confirm` ? '...' : 'Confirmar'}
+                        </button>
+                        <button
+                          onClick={() => handleAction(b.id, 'cancel')}
+                          disabled={actionLoading === `${b.id}-cancel`}
+                          style={{ padding: '5px 12px', borderRadius: 8, border: 'none', background: '#ff453a', color: '#fff', fontSize: 12, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', opacity: actionLoading === `${b.id}-cancel` ? 0.6 : 1 }}
+                        >
+                          {actionLoading === `${b.id}-cancel` ? '...' : 'Cancelar'}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
