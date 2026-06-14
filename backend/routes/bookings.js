@@ -1,976 +1,992 @@
-const express = require('express');
+const express = require("express");
+const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
+const db = require("../db");
+
 const router = express.Router();
-const crypto = require('crypto');
-const jwt = require('jsonwebtoken');
-const db = require('../db');
 
-function authMiddleware(req, res, next) {
-  const header = req.headers.authorization;
-  if (!header || !header.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Token requerido' });
+function getTokenFromHeader(req) {
+  const authHeader = req.headers.authorization || "";
+
+  if (!authHeader.startsWith("Bearer ")) {
+    return null;
   }
+
+  return authHeader.slice(7);
+}
+
+function getProfessionalIdFromRequest(req) {
+  const token = getTokenFromHeader(req);
+
+  if (!token) {
+    const error = new Error("Token requerido");
+    error.status = 401;
+    throw error;
+  }
+
   try {
-    const decoded = jwt.verify(
-      header.slice(7),
-      process.env.JWT_SECRET || 'tuagendaya-secret-dev-change-in-prod'
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    const id =
+      decoded.id ||
+      decoded.professionalId ||
+      decoded.professional_id ||
+      decoded.userId ||
+      decoded.user_id;
+
+    if (!id) {
+      const error = new Error("Token inválido");
+      error.status = 401;
+      throw error;
+    }
+
+    return Number(id);
+  } catch (error) {
+    error.status = error.status || 401;
+    error.message = "Token inválido";
+    throw error;
+  }
+}
+
+function getFrontendUrl() {
+  return process.env.FRONTEND_URL || "https://tuagendaya-web.onrender.com";
+}
+
+function createConfirmationToken() {
+  return crypto.randomBytes(32).toString("hex");
+}
+
+function normalizeDate(value) {
+  if (!value) return null;
+
+  return String(value).slice(0, 10);
+}
+
+function normalizeTime(value) {
+  if (!value) return null;
+
+  return String(value).slice(0, 5);
+}
+
+function timeToMinutes(value) {
+  const clean = normalizeTime(value);
+
+  if (!clean) return 0;
+
+  const [hours, minutes] = clean.split(":").map(Number);
+
+  return hours * 60 + minutes;
+}
+
+function minutesToTime(value) {
+  const hours = String(Math.floor(value / 60)).padStart(2, "0");
+  const minutes = String(value % 60).padStart(2, "0");
+
+  return `${hours}:${minutes}`;
+}
+
+function addMinutesToTime(value, minutesToAdd) {
+  return minutesToTime(timeToMinutes(value) + Number(minutesToAdd || 30));
+}
+
+function rangesOverlap(startA, endA, startB, endB) {
+  return startA < endB && endA > startB;
+}
+
+function normalizeBooking(row) {
+  if (!row) return null;
+
+  return {
+    id: row.id,
+
+    professionalId: row.professional_id,
+    professional_id: row.professional_id,
+
+    staffId: row.staff_id,
+    staff_id: row.staff_id,
+    staffName: row.staff_name,
+    staff_name: row.staff_name,
+    staffColor: row.staff_color,
+    staff_color: row.staff_color,
+
+    serviceId: row.service_id,
+    service_id: row.service_id,
+    serviceName: row.service_name,
+    service_name: row.service_name,
+    serviceDurationMinutes: row.service_duration_minutes,
+    service_duration_minutes: row.service_duration_minutes,
+    servicePrice: row.service_price,
+    service_price: row.service_price,
+
+    clientName: row.client_name,
+    client_name: row.client_name,
+    clientPhone: row.client_phone,
+    client_phone: row.client_phone,
+
+    comment: row.comment,
+    bookingDate: normalizeDate(row.booking_date),
+    booking_date: normalizeDate(row.booking_date),
+    startTime: normalizeTime(row.start_time),
+    start_time: normalizeTime(row.start_time),
+    endTime: normalizeTime(row.end_time),
+    end_time: normalizeTime(row.end_time),
+
+    status: row.status,
+
+    confirmationToken: row.confirmation_token,
+    confirmation_token: row.confirmation_token,
+
+    clientConfirmedAt: row.client_confirmed_at,
+    client_confirmed_at: row.client_confirmed_at,
+    clientCancelledAt: row.client_cancelled_at,
+    client_cancelled_at: row.client_cancelled_at,
+
+    createdAt: row.created_at,
+    created_at: row.created_at,
+    updatedAt: row.updated_at,
+    updated_at: row.updated_at,
+  };
+}
+
+async function getBusinessBySlug(slug) {
+  const result = await db.query(
+    `
+    SELECT
+      id,
+      name,
+      business_name,
+      email,
+      phone,
+      profession,
+      address,
+      slug,
+      logo_url,
+      status
+    FROM professionals
+    WHERE slug = $1
+    LIMIT 1
+    `,
+    [slug]
+  );
+
+  return result.rows[0] || null;
+}
+
+async function getServiceForBusiness(serviceId, professionalId) {
+  const result = await db.query(
+    `
+    SELECT
+      id,
+      professional_id,
+      name,
+      description,
+      duration_minutes,
+      price,
+      is_active
+    FROM professional_services
+    WHERE id = $1
+      AND professional_id = $2
+      AND is_active = true
+    LIMIT 1
+    `,
+    [serviceId, professionalId]
+  );
+
+  return result.rows[0] || null;
+}
+
+async function getStaffForBusiness(staffId, professionalId) {
+  const result = await db.query(
+    `
+    SELECT
+      id,
+      owner_professional_id,
+      name,
+      phone,
+      email,
+      color,
+      is_active
+    FROM staff_members
+    WHERE id = $1
+      AND owner_professional_id = $2
+      AND is_active = true
+    LIMIT 1
+    `,
+    [staffId, professionalId]
+  );
+
+  return result.rows[0] || null;
+}
+
+async function getStaffAvailabilityForDate(staffId, bookingDate) {
+  const date = new Date(`${bookingDate}T12:00:00`);
+  const dayOfWeek = date.getDay();
+
+  const result = await db.query(
+    `
+    SELECT
+      id,
+      staff_id,
+      day_of_week,
+      is_active,
+      start_time,
+      end_time,
+      slot_duration_minutes
+    FROM staff_availability
+    WHERE staff_id = $1
+      AND day_of_week = $2
+    LIMIT 1
+    `,
+    [staffId, dayOfWeek]
+  );
+
+  return result.rows[0] || null;
+}
+
+async function getOccupiedBookings({ professionalId, staffId, bookingDate }) {
+  const result = await db.query(
+    `
+    SELECT
+      id,
+      start_time,
+      end_time,
+      status
+    FROM bookings
+    WHERE professional_id = $1
+      AND staff_id = $2
+      AND booking_date = $3
+      AND status != 'cancelled'
+    ORDER BY start_time ASC
+    `,
+    [professionalId, staffId, bookingDate]
+  );
+
+  return result.rows;
+}
+
+async function checkSlotAvailable({
+  professionalId,
+  staffId,
+  bookingDate,
+  startTime,
+  endTime,
+}) {
+  const occupied = await getOccupiedBookings({
+    professionalId,
+    staffId,
+    bookingDate,
+  });
+
+  const requestedStart = timeToMinutes(startTime);
+  const requestedEnd = timeToMinutes(endTime);
+
+  return !occupied.some((booking) => {
+    const bookingStart = timeToMinutes(booking.start_time);
+    const bookingEnd = timeToMinutes(booking.end_time);
+
+    return rangesOverlap(requestedStart, requestedEnd, bookingStart, bookingEnd);
+  });
+}
+
+router.get("/public/:slug/staff", async (req, res) => {
+  try {
+    const slug = String(req.params.slug || "").trim().toLowerCase();
+
+    const business = await getBusinessBySlug(slug);
+
+    if (!business) {
+      return res.status(404).json({ error: "Negocio no encontrado" });
+    }
+
+    if (business.status !== "active") {
+      return res.status(403).json({ error: "Negocio no disponible" });
+    }
+
+    const staffResult = await db.query(
+      `
+      SELECT
+        id,
+        name,
+        phone,
+        email,
+        color,
+        is_active
+      FROM staff_members
+      WHERE owner_professional_id = $1
+        AND is_active = true
+      ORDER BY name ASC, id ASC
+      `,
+      [business.id]
     );
-    req.professional = decoded;
-    next();
-  } catch (e) {
-    return res.status(401).json({ error: 'Token inválido o expirado' });
-  }
-}
-
-// Normaliza TIME de Postgres ("09:00:00") a "HH:MM"
-function normalizeTime(t) {
-  if (!t) return '';
-  return String(t).slice(0, 5);
-}
-
-// Convierte "HH:MM" a minutos desde medianoche
-function toMinutes(timeStr) {
-  if (!timeStr) return 0;
-  const s = String(timeStr).slice(0, 5);
-  const [h, m] = s.split(':').map(Number);
-  return (h || 0) * 60 + (m || 0);
-}
-
-// Convierte minutos desde medianoche a "HH:MM"
-function fromMinutes(mins) {
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-}
-
-// Genera slots entre startTime y endTime con paso stepMinutes
-// Solo incluye slots cuyo bloque completo (duración) cabe antes del cierre
-function generateSlots(startTime, endTime, stepMinutes, durationMinutes) {
-  const slots = [];
-  const start = toMinutes(startTime);
-  const end   = toMinutes(endTime);
-  const dur   = durationMinutes || stepMinutes;
-  let cur = start;
-  while (cur + dur <= end) {
-    slots.push(fromMinutes(cur));
-    cur += stepMinutes;
-  }
-  return slots;
-}
-
-// ══════════════════════════════════════════════════════════════
-// RUTAS PÚBLICAS
-// ══════════════════════════════════════════════════════════════
-
-// GET /api/bookings/public/:slug
-// Datos del profesional/negocio + servicios
-router.get('/public/:slug', async (req, res) => {
-  try {
-    const prof = (await db.query(
-      `SELECT id, name, business_name, profession, slug, bio, avatar_initials, plan, status, address, logo_url
-       FROM professionals WHERE slug = $1`,
-      [req.params.slug]
-    )).rows[0];
-
-    if (!prof) return res.status(404).json({ error: 'Profesional no encontrado' });
-    if (prof.status === 'suspended') {
-      return res.status(403).json({ error: 'Este profesional no está disponible.', suspended: true });
-    }
-
-    const professionalServices = (await db.query(
-      `SELECT id, name, description, duration_minutes, price
-       FROM professional_services
-       WHERE professional_id = $1 AND is_active = 1
-       ORDER BY id ASC`,
-      [prof.id]
-    )).rows;
-
-    const services = (await db.query(
-      `SELECT id, name, duration, price, description, color
-       FROM services WHERE professional_id = $1 AND active = 1
-       ORDER BY sort_order, id`,
-      [prof.id]
-    )).rows;
-
-    const policy = (await db.query(
-      `SELECT enabled, hours_before, fee_type, fee_fixed_amount, fee_percentage, policy_text, show_on_booking
-       FROM cancellation_policies WHERE professional_id = $1`,
-      [prof.id]
-    )).rows[0];
-
-    res.json({ professional: prof, professional_services: professionalServices, services, cancellation_policy: policy });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Error interno del servidor' });
-  }
-});
-
-// GET /api/bookings/public/:slug/staff
-// Devuelve los profesionales internos activos del negocio + datos del negocio
-router.get('/public/:slug/staff', async (req, res) => {
-  try {
-    const prof = (await db.query(
-      `SELECT id, name, business_name, slug, status, address, logo_url
-       FROM professionals WHERE slug = $1`,
-      [req.params.slug]
-    )).rows[0];
-
-    if (!prof) return res.status(404).json({ error: 'Negocio no encontrado' });
-    if (prof.status === 'suspended') {
-      return res.status(403).json({ error: 'Este negocio no está disponible.', suspended: true });
-    }
-
-    const staff = (await db.query(
-      `SELECT id, name, specialty, avatar_initials
-       FROM staff_members
-       WHERE professional_id = $1 AND is_active = 1
-       ORDER BY name ASC`,
-      [prof.id]
-    )).rows;
 
     res.json({
       business: {
-        businessName: prof.business_name || prof.name,
-        address:      prof.address  || null,
-        slug:         prof.slug,
-        logoUrl:      prof.logo_url || null,
+        id: business.id,
+        name: business.name,
+        businessName: business.business_name,
+        business_name: business.business_name,
+        email: business.email,
+        phone: business.phone,
+        profession: business.profession,
+        address: business.address,
+        slug: business.slug,
+        logoUrl: business.logo_url,
+        logo_url: business.logo_url,
       },
-      staff,
+      staff: staffResult.rows.map((member) => ({
+        id: member.id,
+        name: member.name,
+        phone: member.phone,
+        email: member.email,
+        color: member.color || "#0071e3",
+        isActive: member.is_active,
+        is_active: member.is_active,
+      })),
     });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Error interno del servidor' });
+  } catch (error) {
+    console.error("Error public staff:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
   }
 });
 
-// GET /api/bookings/public/:slug/slots?date=YYYY-MM-DD&serviceId=ID&staffId=ID
-// Si viene staffId usa staff_availability y bloquea solo los turnos de ese staff.
-// Si no viene staffId usa professional_availability (comportamiento original).
-router.get('/public/:slug/slots', async (req, res) => {
-  const { date, serviceId, staffId } = req.query;
-  if (!date) return res.status(400).json({ error: 'date requerido (YYYY-MM-DD)' });
-
+router.get("/public/:slug/slots", async (req, res) => {
   try {
-    const prof = (await db.query(
-      'SELECT id, status FROM professionals WHERE slug = $1',
-      [req.params.slug]
-    )).rows[0];
-    if (!prof) return res.status(404).json({ error: 'Profesional no encontrado' });
-    if (prof.status === 'suspended') {
-      return res.status(403).json({ error: 'Este profesional no está disponible.', suspended: true });
+    const slug = String(req.params.slug || "").trim().toLowerCase();
+    const bookingDate = String(req.query.date || "").slice(0, 10);
+    const serviceId = Number(req.query.serviceId || req.query.service_id);
+    const staffId = Number(req.query.staffId || req.query.staff_id);
+
+    if (!bookingDate) {
+      return res.status(400).json({ error: "La fecha es obligatoria" });
     }
 
-    // Validar staffId si viene
-    let resolvedStaffId = null;
-    if (staffId) {
-      const staffRow = (await db.query(
-        `SELECT id FROM staff_members
-         WHERE id = $1 AND professional_id = $2 AND is_active = 1`,
-        [parseInt(staffId), prof.id]
-      )).rows[0];
-      if (!staffRow) {
-        return res.status(404).json({ error: 'Profesional interno no encontrado' });
-      }
-      resolvedStaffId = staffRow.id;
+    if (!serviceId) {
+      return res.status(400).json({ error: "El servicio es obligatorio" });
     }
 
-    // Día de la semana (0=domingo … 6=sábado)
-    const dayOfWeek = new Date(date + 'T12:00:00').getDay();
-
-    // Leer disponibilidad según si hay staffId o no
-    let availRow;
-    if (resolvedStaffId) {
-      availRow = (await db.query(
-        `SELECT is_active, start_time::text AS start_time, end_time::text AS end_time, slot_duration_minutes
-         FROM staff_availability
-         WHERE staff_member_id = $1 AND day_of_week = $2`,
-        [resolvedStaffId, dayOfWeek]
-      )).rows[0];
-    } else {
-      availRow = (await db.query(
-        `SELECT is_active, start_time::text AS start_time, end_time::text AS end_time, slot_duration_minutes
-         FROM professional_availability
-         WHERE professional_id = $1 AND day_of_week = $2`,
-        [prof.id, dayOfWeek]
-      )).rows[0];
+    if (!staffId) {
+      return res.status(400).json({ error: "El profesional es obligatorio" });
     }
 
-    let isActive, availStart, availEnd, slotStep;
-    if (!availRow) {
-      isActive   = dayOfWeek >= 1 && dayOfWeek <= 5;
-      availStart = '09:00';
-      availEnd   = '18:00';
-      slotStep   = 30;
-    } else {
-      isActive   = availRow.is_active === 1 || availRow.is_active === true;
-      availStart = normalizeTime(availRow.start_time);
-      availEnd   = normalizeTime(availRow.end_time);
-      slotStep   = availRow.slot_duration_minutes || 30;
+    const business = await getBusinessBySlug(slug);
+
+    if (!business) {
+      return res.status(404).json({ error: "Negocio no encontrado" });
     }
 
-    if (!isActive) {
-      return res.json({ date, slots: [] });
+    if (business.status !== "active") {
+      return res.status(403).json({ error: "Negocio no disponible" });
     }
 
-    // Duración del servicio (si viene serviceId, buscar en professional_services del negocio)
-    let serviceDuration = slotStep;
-    if (serviceId) {
-      const svc = (await db.query(
-        `SELECT duration_minutes FROM professional_services
-         WHERE id = $1 AND professional_id = $2 AND is_active = 1`,
-        [parseInt(serviceId), prof.id]
-      )).rows[0];
-      if (svc) {
-        serviceDuration = svc.duration_minutes;
-      }
+    const service = await getServiceForBusiness(serviceId, business.id);
+
+    if (!service) {
+      return res.status(404).json({ error: "Servicio no encontrado" });
     }
 
-    // Reservas activas para esa fecha — filtrar por staff_id si corresponde
-    let bookedRows;
-    if (resolvedStaffId) {
-      bookedRows = (await db.query(
-        `SELECT start_time::text AS start_time, end_time::text AS end_time
-         FROM bookings
-         WHERE professional_id = $1
-           AND staff_id = $2
-           AND booking_date = $3::date
-           AND status != 'cancelled'`,
-        [prof.id, resolvedStaffId, date]
-      )).rows;
-    } else {
-      // Sin staffId: bloquear reservas sin staff asignado (flujo original)
-      bookedRows = (await db.query(
-        `SELECT start_time::text AS start_time, end_time::text AS end_time
-         FROM bookings
-         WHERE professional_id = $1
-           AND staff_id IS NULL
-           AND booking_date = $2::date
-           AND status != 'cancelled'`,
-        [prof.id, date]
-      )).rows;
+    const staff = await getStaffForBusiness(staffId, business.id);
+
+    if (!staff) {
+      return res.status(404).json({ error: "Profesional no encontrado" });
     }
 
-    // Convertir reservas a intervalos en minutos
-    const bookedIntervals = bookedRows.map(r => {
-      const s = toMinutes(normalizeTime(r.start_time));
-      const e = r.end_time
-        ? toMinutes(normalizeTime(r.end_time))
-        : s + slotStep;
-      return { start: s, end: e };
+    const availability = await getStaffAvailabilityForDate(staff.id, bookingDate);
+
+    if (!availability || !availability.is_active) {
+      return res.json({
+        slots: [],
+        business: {
+          id: business.id,
+          businessName: business.business_name,
+          business_name: business.business_name,
+          address: business.address,
+          slug: business.slug,
+          logoUrl: business.logo_url,
+          logo_url: business.logo_url,
+        },
+        staff: {
+          id: staff.id,
+          name: staff.name,
+          color: staff.color || "#0071e3",
+        },
+        service: {
+          id: service.id,
+          name: service.name,
+          durationMinutes: service.duration_minutes,
+          duration_minutes: service.duration_minutes,
+        },
+      });
+    }
+
+    const durationMinutes = Number(service.duration_minutes || 30);
+    const intervalMinutes = Number(
+      availability.slot_duration_minutes || durationMinutes || 30
+    );
+
+    const startMinutes = timeToMinutes(availability.start_time);
+    const endMinutes = timeToMinutes(availability.end_time);
+
+    const occupied = await getOccupiedBookings({
+      professionalId: business.id,
+      staffId: staff.id,
+      bookingDate,
     });
 
-    // Generar slots y marcar disponibilidad con detección de overlap
-    const slotTimes = generateSlots(availStart, availEnd, slotStep, serviceDuration);
+    const slots = [];
 
-    const slots = slotTimes.map(time => {
-      const slotStart = toMinutes(time);
-      const slotEnd   = slotStart + serviceDuration;
-      const available = !bookedIntervals.some(b => slotStart < b.end && slotEnd > b.start);
-      return { time, available };
-    });
+    for (
+      let current = startMinutes;
+      current + durationMinutes <= endMinutes;
+      current += intervalMinutes
+    ) {
+      const slotStart = current;
+      const slotEnd = current + durationMinutes;
 
-    res.json({ date, slots, service_duration: serviceDuration });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Error interno del servidor' });
-  }
-});
+      const isOccupied = occupied.some((booking) => {
+        const bookingStart = timeToMinutes(booking.start_time);
+        const bookingEnd = timeToMinutes(booking.end_time);
 
-router.get('/public/:slug/available-days', async (req, res) => {
-  try {
-    const prof = (await db.query(
-      'SELECT id, status FROM professionals WHERE slug = $1',
-      [req.params.slug]
-    )).rows[0];
-    if (!prof) return res.status(404).json({ error: 'No encontrado' });
-    if (prof.status === 'suspended') {
-      return res.status(403).json({ error: 'Este profesional no está disponible.', suspended: true });
+        return rangesOverlap(slotStart, slotEnd, bookingStart, bookingEnd);
+      });
+
+      slots.push({
+        time: minutesToTime(slotStart),
+        startTime: minutesToTime(slotStart),
+        start_time: minutesToTime(slotStart),
+        endTime: minutesToTime(slotEnd),
+        end_time: minutesToTime(slotEnd),
+        available: !isOccupied,
+      });
     }
-    res.json({ available_days: [] });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Error interno del servidor' });
-  }
-});
-
-// POST /api/bookings/public/:slug/book
-// Acepta staffId opcional. Si viene, valida que pertenezca al negocio,
-// verifica conflictos solo para ese staff y guarda staff_id en la reserva.
-router.post('/public/:slug/book', async (req, res) => {
-  const { clientName, clientPhone, comment, bookingDate, startTime, endTime, serviceId, staffId } = req.body;
-
-  if (!clientName)   return res.status(400).json({ error: 'El nombre es requerido' });
-  if (!clientPhone)  return res.status(400).json({ error: 'El teléfono es requerido' });
-  if (!bookingDate)  return res.status(400).json({ error: 'La fecha es requerida' });
-  if (!startTime)    return res.status(400).json({ error: 'El horario de inicio es requerido' });
-
-  try {
-    const prof = (await db.query(
-      'SELECT id, status FROM professionals WHERE slug = $1',
-      [req.params.slug]
-    )).rows[0];
-    if (!prof) return res.status(404).json({ error: 'Profesional no encontrado' });
-    if (prof.status === 'suspended') {
-      return res.status(403).json({ error: 'Este profesional no está disponible.', suspended: true });
-    }
-
-    // Validar staffId — debe pertenecer a este negocio
-    let resolvedStaffId = null;
-    if (staffId) {
-      const staffRow = (await db.query(
-        `SELECT id FROM staff_members
-         WHERE id = $1 AND professional_id = $2 AND is_active = 1`,
-        [parseInt(staffId), prof.id]
-      )).rows[0];
-      if (!staffRow) {
-        return res.status(404).json({ error: 'Profesional interno no encontrado o inactivo' });
-      }
-      resolvedStaffId = staffRow.id;
-    }
-
-    // Resolver serviceId — debe pertenecer a este negocio
-    let resolvedServiceId = null;
-    let resolvedEndTime = endTime || null;
-
-    if (serviceId) {
-      const svc = (await db.query(
-        `SELECT id, duration_minutes FROM professional_services
-         WHERE id = $1 AND professional_id = $2 AND is_active = 1`,
-        [parseInt(serviceId), prof.id]
-      )).rows[0];
-
-      if (!svc) {
-        return res.status(404).json({ error: 'Servicio no encontrado o no disponible' });
-      }
-
-      resolvedServiceId = svc.id;
-      if (!resolvedEndTime) {
-        resolvedEndTime = fromMinutes(toMinutes(startTime) + svc.duration_minutes);
-      }
-    }
-
-    // Fallback de endTime si no vino ni del servicio ni del body
-    if (!resolvedEndTime) {
-      const dayOfWeek = new Date(bookingDate + 'T12:00:00').getDay();
-      let duration = 30;
-
-      if (resolvedStaffId) {
-        const availRow = (await db.query(
-          `SELECT slot_duration_minutes FROM staff_availability
-           WHERE staff_member_id = $1 AND day_of_week = $2`,
-          [resolvedStaffId, dayOfWeek]
-        )).rows[0];
-        if (availRow) duration = availRow.slot_duration_minutes || 30;
-      } else {
-        const availRow = (await db.query(
-          `SELECT slot_duration_minutes FROM professional_availability
-           WHERE professional_id = $1 AND day_of_week = $2`,
-          [prof.id, dayOfWeek]
-        )).rows[0];
-        if (availRow) duration = availRow.slot_duration_minutes || 30;
-      }
-
-      resolvedEndTime = fromMinutes(toMinutes(startTime) + duration);
-    }
-
-    // Verificar conflicto de horario — solo para el mismo staff (o sin staff si no hay staffId)
-    let conflict;
-    if (resolvedStaffId) {
-      conflict = (await db.query(
-        `SELECT id FROM bookings
-         WHERE professional_id = $1
-           AND staff_id = $2
-           AND booking_date = $3::date
-           AND status != 'cancelled'
-           AND start_time::time < $4::time
-           AND COALESCE(end_time, start_time + interval '30 minutes')::time > $5::time`,
-        [prof.id, resolvedStaffId, bookingDate, resolvedEndTime, startTime]
-      )).rows[0];
-    } else {
-      conflict = (await db.query(
-        `SELECT id FROM bookings
-         WHERE professional_id = $1
-           AND staff_id IS NULL
-           AND booking_date = $2::date
-           AND status != 'cancelled'
-           AND start_time::time < $3::time
-           AND COALESCE(end_time, start_time + interval '30 minutes')::time > $4::time`,
-        [prof.id, bookingDate, resolvedEndTime, startTime]
-      )).rows[0];
-    }
-
-    if (conflict) {
-      return res.status(409).json({ error: 'Horario no disponible. Por favor elegí otro.' });
-    }
-
-    const result = await db.query(
-      `INSERT INTO bookings
-         (professional_id, client_name, client_phone, comment, status,
-          booking_date, start_time, end_time, service_id, staff_id)
-       VALUES ($1, $2, $3, $4, 'pending', $5::date, $6::time, $7::time, $8, $9)
-       RETURNING id`,
-      [
-        prof.id,
-        clientName.trim(),
-        clientPhone.trim(),
-        comment ? comment.trim() : null,
-        bookingDate,
-        startTime,
-        resolvedEndTime,
-        resolvedServiceId,
-        resolvedStaffId,
-      ]
-    );
-
-    res.status(201).json({ success: true, bookingId: result.rows[0].id });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Error al crear la reserva' });
-  }
-});
-
-router.get('/token/:token', async (req, res) => {
-  try {
-    const appointment = (await db.query(
-      `SELECT a.*, s.name as service_name, s.duration as service_duration, s.price as service_price,
-              p.name as professional_name, p.profession, p.slug
-       FROM appointments a
-       JOIN services s ON a.service_id = s.id
-       JOIN professionals p ON a.professional_id = p.id
-       WHERE a.public_token = $1`,
-      [req.params.token]
-    )).rows[0];
-
-    if (!appointment) return res.status(404).json({ error: 'Turno no encontrado' });
-
-    const policy = (await db.query(
-      'SELECT * FROM cancellation_policies WHERE professional_id = $1',
-      [appointment.professional_id]
-    )).rows[0];
-
-    res.json({ appointment, cancellation_policy: policy });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Error interno del servidor' });
-  }
-});
-
-router.post('/token/:token/confirm', async (req, res) => {
-  try {
-    const appointment = (await db.query(
-      'SELECT * FROM appointments WHERE public_token = $1',
-      [req.params.token]
-    )).rows[0];
-    if (!appointment) return res.status(404).json({ error: 'Turno no encontrado' });
-    if (appointment.status === 'cancelled') return res.status(409).json({ error: 'El turno fue cancelado' });
-    if (appointment.status === 'confirmed') return res.json({ message: 'Ya confirmado', appointment });
-
-    await db.query(
-      "UPDATE appointments SET status = 'confirmed', confirmed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1",
-      [appointment.id]
-    );
-    await db.query(
-      `INSERT INTO appointment_history (appointment_id, professional_id, action, old_status, new_status, performed_by)
-       VALUES ($1, $2, 'confirmed', $3, 'confirmed', 'client')`,
-      [appointment.id, appointment.professional_id, appointment.status]
-    );
-    res.json({ message: 'Asistencia confirmada' });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Error interno del servidor' });
-  }
-});
-
-router.post('/token/:token/cancel', async (req, res) => {
-  const { reason } = req.body;
-  try {
-    const appointment = (await db.query(
-      'SELECT * FROM appointments WHERE public_token = $1',
-      [req.params.token]
-    )).rows[0];
-    if (!appointment) return res.status(404).json({ error: 'Turno no encontrado' });
-    if (['cancelled', 'completed', 'no_show'].includes(appointment.status)) {
-      return res.status(409).json({ error: 'El turno no puede ser cancelado' });
-    }
-
-    const policy = (await db.query(
-      'SELECT * FROM cancellation_policies WHERE professional_id = $1',
-      [appointment.professional_id]
-    )).rows[0];
-
-    let feeApplied = 0;
-    let feeAmount = 0;
-    if (policy && policy.enabled) {
-      const hoursUntil = (new Date(appointment.start_time) - new Date()) / (1000 * 60 * 60);
-      if (hoursUntil < policy.hours_before) {
-        feeApplied = 1;
-        const service = (await db.query(
-          'SELECT price FROM services WHERE id = $1',
-          [appointment.service_id]
-        )).rows[0];
-        if (policy.fee_type === 'fixed') {
-          feeAmount = policy.fee_fixed_amount;
-        } else if (policy.fee_type === 'percentage') {
-          feeAmount = ((service ? service.price : 0) || 0) * policy.fee_percentage / 100;
-        }
-      }
-    }
-
-    await db.query(
-      `UPDATE appointments SET
-        status = 'cancelled', cancellation_reason = $1, cancelled_by = 'client',
-        cancelled_at = CURRENT_TIMESTAMP, cancellation_fee_applied = $2, cancellation_fee_amount = $3,
-        updated_at = CURRENT_TIMESTAMP
-       WHERE id = $4`,
-      [reason || null, feeApplied, feeAmount, appointment.id]
-    );
-    await db.query(
-      `INSERT INTO appointment_history (appointment_id, professional_id, action, old_status, new_status, note, performed_by)
-       VALUES ($1, $2, 'cancelled', $3, 'cancelled', $4, 'client')`,
-      [appointment.id, appointment.professional_id, appointment.status, reason || null]
-    );
-    if (appointment.client_id) {
-      await db.query(
-        'UPDATE clients SET cancellation_count = cancellation_count + 1 WHERE id = $1',
-        [appointment.client_id]
-      );
-    }
-
-    res.json({ message: 'Turno cancelado', fee_applied: feeApplied, fee_amount: feeAmount });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Error interno del servidor' });
-  }
-});
-
-// ══════════════════════════════════════════════════════════════
-// RUTAS PRIVADAS
-// ══════════════════════════════════════════════════════════════
-
-router.get('/slots', authMiddleware, (req, res) => {
-  const { date } = req.query;
-  if (!date) return res.status(400).json({ error: 'date requerido' });
-  res.json({ date, slots: [] });
-});
-
-router.get('/metrics/summary', authMiddleware, async (req, res) => {
-  const profId = req.professional.id;
-  const today = new Date().toISOString().slice(0, 10);
-  const thisMonthStart = today.slice(0, 7) + '-01';
-  const lastMonthStart = new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toISOString().slice(0, 10);
-  const lastMonthEnd   = new Date(new Date().getFullYear(), new Date().getMonth(), 0).toISOString().slice(0, 10);
-
-  try {
-    const todayAppts = (await db.query(
-      `SELECT COUNT(*) as count,
-        SUM(CASE WHEN status = 'confirmed' THEN 1 ELSE 0 END) as confirmed,
-        SUM(CASE WHEN status = 'pending'   THEN 1 ELSE 0 END) as pending,
-        SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelled,
-        SUM(CASE WHEN status = 'no_show'   THEN 1 ELSE 0 END) as no_show
-       FROM appointments WHERE professional_id = $1 AND start_time::date = $2::date`,
-      [profId, today]
-    )).rows[0];
-
-    const thisMonth = (await db.query(
-      `SELECT COUNT(*) as total,
-        SUM(CASE WHEN status = 'confirmed'  THEN 1 ELSE 0 END) as confirmed,
-        SUM(CASE WHEN status = 'completed'  THEN 1 ELSE 0 END) as completed,
-        SUM(CASE WHEN status = 'no_show'    THEN 1 ELSE 0 END) as no_shows,
-        SUM(CASE WHEN status = 'cancelled'  THEN 1 ELSE 0 END) as cancelled,
-        SUM(CASE WHEN status = 'completed'  THEN s.price ELSE 0 END) as revenue,
-        SUM(CASE WHEN status = 'no_show'    THEN s.price ELSE 0 END) as lost_revenue
-       FROM appointments a
-       JOIN services s ON a.service_id = s.id
-       WHERE a.professional_id = $1 AND a.start_time::date >= $2::date`,
-      [profId, thisMonthStart]
-    )).rows[0];
-
-    const lastMonth = (await db.query(
-      `SELECT COUNT(*) as total,
-        SUM(CASE WHEN status = 'completed' THEN s.price ELSE 0 END) as revenue
-       FROM appointments a JOIN services s ON a.service_id = s.id
-       WHERE a.professional_id = $1 AND a.start_time::date BETWEEN $2::date AND $3::date`,
-      [profId, lastMonthStart, lastMonthEnd]
-    )).rows[0];
-
-    const clientsRow = (await db.query(
-      'SELECT COUNT(*) as total FROM clients WHERE professional_id = $1',
-      [profId]
-    )).rows[0];
-
-    const topServices = (await db.query(
-      `SELECT s.name, COUNT(*) as count,
-        SUM(CASE WHEN a.status = 'completed' THEN s.price ELSE 0 END) as revenue
-       FROM appointments a JOIN services s ON a.service_id = s.id
-       WHERE a.professional_id = $1 AND a.start_time::date >= $2::date
-       GROUP BY s.id, s.name ORDER BY count DESC LIMIT 5`,
-      [profId, thisMonthStart]
-    )).rows;
-
-    const peakHours = (await db.query(
-      `SELECT TO_CHAR(start_time, 'HH24') as hour, COUNT(*) as count
-       FROM appointments WHERE professional_id = $1 AND status IN ('confirmed','completed')
-       GROUP BY hour ORDER BY count DESC LIMIT 5`,
-      [profId]
-    )).rows;
-
-    const totalThisMonth = parseInt(thisMonth.total) || 0;
-    const noShows = parseInt(thisMonth.no_shows) || 0;
-    const noShowRate = totalThisMonth > 0 ? Math.round((noShows / totalThisMonth) * 100) : 0;
-    const revThis = parseFloat(thisMonth.revenue) || 0;
-    const revLast = parseFloat(lastMonth.revenue) || 0;
-    const revenueGrowth = revLast > 0 ? Math.round(((revThis - revLast) / revLast) * 100) : null;
 
     res.json({
-      today: todayAppts,
-      this_month: { ...thisMonth, no_show_rate: noShowRate },
-      last_month: lastMonth,
-      clients: parseInt(clientsRow.total) || 0,
-      revenue_growth: revenueGrowth,
-      top_services: topServices,
-      peak_hours: peakHours,
+      slots,
+      business: {
+        id: business.id,
+        businessName: business.business_name,
+        business_name: business.business_name,
+        address: business.address,
+        slug: business.slug,
+        logoUrl: business.logo_url,
+        logo_url: business.logo_url,
+      },
+      staff: {
+        id: staff.id,
+        name: staff.name,
+        color: staff.color || "#0071e3",
+      },
+      service: {
+        id: service.id,
+        name: service.name,
+        durationMinutes: service.duration_minutes,
+        duration_minutes: service.duration_minutes,
+      },
     });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Error interno del servidor' });
+  } catch (error) {
+    console.error("Error public slots:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
   }
 });
 
-router.get('/', authMiddleware, async (req, res) => {
-  const { date, from, to, status, limit = 50, offset = 0 } = req.query;
-  const profId = req.professional.id;
-
-  let where = 'WHERE a.professional_id = $1';
-  const params = [profId];
-  let idx = 2;
-
-  if (date) {
-    where += ` AND a.start_time::date = $${idx}::date`;
-    params.push(date);
-    idx++;
-  } else if (from && to) {
-    where += ` AND a.start_time::date BETWEEN $${idx}::date AND $${idx + 1}::date`;
-    params.push(from, to);
-    idx += 2;
-  }
-  if (status) {
-    const statuses = status.split(',');
-    where += ` AND a.status = ANY($${idx}::text[])`;
-    params.push(statuses);
-    idx++;
-  }
-
+router.post("/public/:slug/book", async (req, res) => {
   try {
-    const countParams = [...params];
-    params.push(parseInt(limit), parseInt(offset));
+    const slug = String(req.params.slug || "").trim().toLowerCase();
 
-    const appointments = (await db.query(
-      `SELECT a.*,
-        s.name as service_name, s.duration as service_duration, s.price as service_price, s.color as service_color,
-        c.name as client_full_name, c.no_show_count, c.total_visits, c.cancellation_count
-       FROM appointments a
-       JOIN services s ON a.service_id = s.id
-       LEFT JOIN clients c ON a.client_id = c.id
-       ${where}
-       ORDER BY a.start_time ASC
-       LIMIT $${idx} OFFSET $${idx + 1}`,
-      params
-    )).rows;
+    const clientName = String(req.body.clientName || req.body.client_name || "").trim();
+    const clientPhone = String(req.body.clientPhone || req.body.client_phone || "").trim();
+    const comment = String(req.body.comment || "").trim();
 
-    const totalRow = (await db.query(
-      `SELECT COUNT(*) as count FROM appointments a ${where}`,
-      countParams
-    )).rows[0];
+    const bookingDate = String(req.body.bookingDate || req.body.booking_date || "").slice(0, 10);
+    const startTime = normalizeTime(req.body.startTime || req.body.start_time);
 
-    res.json({ appointments, total: parseInt(totalRow.count), limit: parseInt(limit), offset: parseInt(offset) });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Error interno del servidor' });
-  }
-});
+    const serviceId = Number(req.body.serviceId || req.body.service_id);
+    const staffId = Number(req.body.staffId || req.body.staff_id);
 
-// ⚠️ /me DEBE ir ANTES de /:id
-router.get('/me', authMiddleware, async (req, res) => {
-  try {
-    const bookings = (await db.query(
-      `SELECT
-         b.id,
-         b.professional_id,
-         b.client_name,
-         b.client_phone,
-         b.comment,
-         b.status,
-         b.booking_date,
-         b.start_time::text  AS start_time,
-         b.end_time::text    AS end_time,
-         b.service_id,
-         b.staff_id,
-         b.created_at,
-         ps.name              AS service_name,
-         ps.duration_minutes  AS service_duration_minutes,
-         ps.price             AS service_price,
-         sm.name              AS staff_name,
-         sm.specialty         AS staff_specialty
-       FROM bookings b
-       LEFT JOIN professional_services ps ON b.service_id = ps.id
-       LEFT JOIN staff_members         sm ON b.staff_id   = sm.id
-       WHERE b.professional_id = $1
-       ORDER BY
-         b.booking_date ASC NULLS LAST,
-         b.start_time   ASC NULLS LAST,
-         b.created_at   DESC
-       LIMIT 100`,
-      [req.professional.id]
-    )).rows;
-    res.json({ bookings });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Error al obtener reservas' });
-  }
-});
-
-// ⚠️ PATCH /:id/confirm y /:id/cancel DEBEN ir ANTES de GET /:id
-router.patch('/:id/confirm', authMiddleware, async (req, res) => {
-  try {
-    const booking = (await db.query(
-      'SELECT * FROM bookings WHERE id = $1 AND professional_id = $2',
-      [parseInt(req.params.id), req.professional.id]
-    )).rows[0];
-    if (!booking) return res.status(404).json({ error: 'Reserva no encontrada' });
-
-    await db.query("UPDATE bookings SET status = 'confirmed' WHERE id = $1", [booking.id]);
-
-    const updated = (await db.query('SELECT * FROM bookings WHERE id = $1', [booking.id])).rows[0];
-    res.json({ success: true, booking: updated });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Error al confirmar la reserva' });
-  }
-});
-
-router.patch('/:id/cancel', authMiddleware, async (req, res) => {
-  try {
-    const booking = (await db.query(
-      'SELECT * FROM bookings WHERE id = $1 AND professional_id = $2',
-      [parseInt(req.params.id), req.professional.id]
-    )).rows[0];
-    if (!booking) return res.status(404).json({ error: 'Reserva no encontrada' });
-
-    await db.query("UPDATE bookings SET status = 'cancelled' WHERE id = $1", [booking.id]);
-
-    const updated = (await db.query('SELECT * FROM bookings WHERE id = $1', [booking.id])).rows[0];
-    res.json({ success: true, booking: updated });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Error al cancelar la reserva' });
-  }
-});
-
-router.get('/:id', authMiddleware, async (req, res) => {
-  try {
-    const appointment = (await db.query(
-      `SELECT a.*,
-        s.name as service_name, s.duration as service_duration, s.price as service_price,
-        c.name as client_full_name, c.no_show_count, c.private_notes as client_private_notes,
-        c.total_visits, c.cancellation_count, c.total_spent
-       FROM appointments a
-       JOIN services s ON a.service_id = s.id
-       LEFT JOIN clients c ON a.client_id = c.id
-       WHERE a.id = $1 AND a.professional_id = $2`,
-      [parseInt(req.params.id), req.professional.id]
-    )).rows[0];
-
-    if (!appointment) return res.status(404).json({ error: 'Turno no encontrado' });
-
-    const history = (await db.query(
-      'SELECT * FROM appointment_history WHERE appointment_id = $1 ORDER BY created_at DESC',
-      [appointment.id]
-    )).rows;
-
-    res.json({ appointment, history });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Error interno del servidor' });
-  }
-});
-
-router.post('/', authMiddleware, async (req, res) => {
-  const { service_id, date, time, client_name, client_email, client_phone, client_notes, status } = req.body;
-  if (!service_id || !date || !time || !client_name) {
-    return res.status(400).json({ error: 'Faltan campos' });
-  }
-
-  const profId = req.professional.id;
-
-  try {
-    const service = (await db.query(
-      'SELECT * FROM services WHERE id = $1 AND professional_id = $2',
-      [parseInt(service_id), profId]
-    )).rows[0];
-    if (!service) return res.status(404).json({ error: 'Servicio no encontrado' });
-
-    const startTimeFmt = `${date} ${time}:00`;
-    const endDate = new Date(`${date}T${time}:00`);
-    endDate.setMinutes(endDate.getMinutes() + service.duration);
-    const endTimeFmt = endDate.toISOString().replace('T', ' ').slice(0, 19);
-    const publicToken = crypto.randomUUID();
-
-    let client = null;
-    if (client_email) {
-      client = (await db.query(
-        'SELECT * FROM clients WHERE professional_id = $1 AND email = $2',
-        [profId, client_email]
-      )).rows[0];
-      if (!client) {
-        const cr = await db.query(
-          'INSERT INTO clients (professional_id, name, email, phone) VALUES ($1, $2, $3, $4) RETURNING id',
-          [profId, client_name, client_email, client_phone || null]
-        );
-        client = (await db.query('SELECT * FROM clients WHERE id = $1', [cr.rows[0].id])).rows[0];
-      }
+    if (!clientName) {
+      return res.status(400).json({ error: "El nombre es obligatorio" });
     }
 
-    const initialStatus = status || 'confirmed';
+    if (!clientPhone) {
+      return res.status(400).json({ error: "El teléfono es obligatorio" });
+    }
+
+    if (!bookingDate) {
+      return res.status(400).json({ error: "La fecha es obligatoria" });
+    }
+
+    if (!startTime) {
+      return res.status(400).json({ error: "El horario es obligatorio" });
+    }
+
+    if (!serviceId) {
+      return res.status(400).json({ error: "El servicio es obligatorio" });
+    }
+
+    if (!staffId) {
+      return res.status(400).json({ error: "El profesional es obligatorio" });
+    }
+
+    const business = await getBusinessBySlug(slug);
+
+    if (!business) {
+      return res.status(404).json({ error: "Negocio no encontrado" });
+    }
+
+    if (business.status !== "active") {
+      return res.status(403).json({ error: "Negocio no disponible" });
+    }
+
+    const service = await getServiceForBusiness(serviceId, business.id);
+
+    if (!service) {
+      return res.status(404).json({ error: "Servicio no encontrado" });
+    }
+
+    const staff = await getStaffForBusiness(staffId, business.id);
+
+    if (!staff) {
+      return res.status(404).json({ error: "Profesional no encontrado" });
+    }
+
+    const availability = await getStaffAvailabilityForDate(staff.id, bookingDate);
+
+    if (!availability || !availability.is_active) {
+      return res.status(409).json({
+        error: "El profesional no atiende en esa fecha",
+      });
+    }
+
+    const durationMinutes = Number(service.duration_minutes || 30);
+    const endTime = addMinutesToTime(startTime, durationMinutes);
+
+    const startMinutes = timeToMinutes(startTime);
+    const endMinutes = timeToMinutes(endTime);
+    const availableStart = timeToMinutes(availability.start_time);
+    const availableEnd = timeToMinutes(availability.end_time);
+
+    if (startMinutes < availableStart || endMinutes > availableEnd) {
+      return res.status(409).json({
+        error: "Ese horario está fuera de la disponibilidad del profesional",
+      });
+    }
+
+    const isAvailable = await checkSlotAvailable({
+      professionalId: business.id,
+      staffId: staff.id,
+      bookingDate,
+      startTime,
+      endTime,
+    });
+
+    if (!isAvailable) {
+      return res.status(409).json({
+        error: "Ese horario ya no está disponible",
+      });
+    }
+
+    const confirmationToken = createConfirmationToken();
+
     const result = await db.query(
-      `INSERT INTO appointments
-        (professional_id, client_id, service_id, client_name, client_email, client_phone, client_notes,
-         start_time, end_time, status, public_token, source)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'manual') RETURNING id`,
+      `
+      INSERT INTO bookings (
+        professional_id,
+        staff_id,
+        service_id,
+        client_name,
+        client_phone,
+        comment,
+        booking_date,
+        start_time,
+        end_time,
+        status,
+        confirmation_token,
+        created_at,
+        updated_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', $10, NOW(), NOW())
+      RETURNING *
+      `,
       [
-        profId, client ? client.id : null, service.id,
-        client_name, client_email || null, client_phone || null, client_notes || null,
-        startTimeFmt, endTimeFmt, initialStatus, publicToken,
+        business.id,
+        staff.id,
+        service.id,
+        clientName,
+        clientPhone,
+        comment || null,
+        bookingDate,
+        startTime,
+        endTime,
+        confirmationToken,
       ]
     );
-    const newId = result.rows[0].id;
 
-    const appointment = (await db.query('SELECT * FROM appointments WHERE id = $1', [newId])).rows[0];
+    const booking = result.rows[0];
 
-    await db.query(
-      `INSERT INTO appointment_history (appointment_id, professional_id, action, new_status, performed_by)
-       VALUES ($1, $2, 'created', $3, 'professional')`,
-      [appointment.id, profId, initialStatus]
-    );
-
-    res.status(201).json({ appointment });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(201).json({
+      success: true,
+      booking: normalizeBooking({
+        ...booking,
+        staff_name: staff.name,
+        staff_color: staff.color,
+        service_name: service.name,
+        service_duration_minutes: service.duration_minutes,
+        service_price: service.price,
+      }),
+      confirmationUrl: `${getFrontendUrl()}/confirmar-reserva/${confirmationToken}`,
+      confirmation_url: `${getFrontendUrl()}/confirmar-reserva/${confirmationToken}`,
+    });
+  } catch (error) {
+    console.error("Error public book:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
   }
 });
 
-router.put('/:id/status', authMiddleware, async (req, res) => {
-  const { status, reason } = req.body;
-  const validStatuses = ['pending', 'confirmed', 'cancelled', 'completed', 'no_show'];
-  if (!validStatuses.includes(status)) return res.status(400).json({ error: 'Estado inválido' });
-
+router.get("/me", async (req, res) => {
   try {
-    const appointment = (await db.query(
-      'SELECT * FROM appointments WHERE id = $1 AND professional_id = $2',
-      [parseInt(req.params.id), req.professional.id]
-    )).rows[0];
-    if (!appointment) return res.status(404).json({ error: 'Turno no encontrado' });
+    const professionalId = getProfessionalIdFromRequest(req);
 
-    const oldStatus = appointment.status;
-    const now = new Date().toISOString();
-    const updates = { status, updated_at: now };
-
-    if (status === 'confirmed') updates.confirmed_at = now;
-    if (status === 'completed') {
-      updates.completed_at = now;
-      if (appointment.client_id) {
-        const svc = (await db.query('SELECT price FROM services WHERE id = $1', [appointment.service_id])).rows[0];
-        await db.query(
-          'UPDATE clients SET total_visits = total_visits + 1, total_spent = total_spent + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-          [(svc ? svc.price : 0) || 0, appointment.client_id]
-        );
-      }
-    }
-    if (status === 'no_show') {
-      updates.no_show_at = now;
-      if (appointment.client_id) {
-        await db.query(
-          'UPDATE clients SET no_show_count = no_show_count + 1, updated_at = CURRENT_TIMESTAMP WHERE id = $1',
-          [appointment.client_id]
-        );
-      }
-    }
-    if (status === 'cancelled') {
-      updates.cancelled_at = now;
-      updates.cancelled_by = 'professional';
-      updates.cancellation_reason = reason || null;
-      if (appointment.client_id) {
-        await db.query(
-          'UPDATE clients SET cancellation_count = cancellation_count + 1 WHERE id = $1',
-          [appointment.client_id]
-        );
-      }
-    }
-
-    const updateEntries = Object.entries(updates);
-    const setClauses = updateEntries.map(([k], i) => `${k} = $${i + 1}`).join(', ');
-    const updateValues = updateEntries.map(([, v]) => v);
-    updateValues.push(appointment.id);
-    await db.query(
-      `UPDATE appointments SET ${setClauses} WHERE id = $${updateEntries.length + 1}`,
-      updateValues
+    const result = await db.query(
+      `
+      SELECT
+        b.*,
+        s.name AS staff_name,
+        s.color AS staff_color,
+        ps.name AS service_name,
+        ps.duration_minutes AS service_duration_minutes,
+        ps.price AS service_price
+      FROM bookings b
+      LEFT JOIN staff_members s ON s.id = b.staff_id
+      LEFT JOIN professional_services ps ON ps.id = b.service_id
+      WHERE b.professional_id = $1
+      ORDER BY b.booking_date DESC NULLS LAST, b.start_time DESC NULLS LAST, b.created_at DESC
+      `,
+      [professionalId]
     );
 
-    await db.query(
-      `INSERT INTO appointment_history (appointment_id, professional_id, action, old_status, new_status, note, performed_by)
-       VALUES ($1, $2, $3, $4, $5, $6, 'professional')`,
-      [appointment.id, req.professional.id, status, oldStatus, status, reason || null]
-    );
-
-    const updated = (await db.query('SELECT * FROM appointments WHERE id = $1', [appointment.id])).rows[0];
-    res.json({ appointment: updated });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.json({
+      bookings: result.rows.map(normalizeBooking),
+    });
+  } catch (error) {
+    console.error("Error bookings me:", error);
+    res.status(error.status || 500).json({
+      error: error.message || "Error obteniendo reservas",
+    });
   }
 });
 
-router.put('/:id/reschedule', authMiddleware, async (req, res) => {
-  const { date, time } = req.body;
-  if (!date || !time) return res.status(400).json({ error: 'date y time requeridos' });
-
+router.patch("/:id/confirm", async (req, res) => {
   try {
-    const appointment = (await db.query(
-      'SELECT * FROM appointments WHERE id = $1 AND professional_id = $2',
-      [parseInt(req.params.id), req.professional.id]
-    )).rows[0];
-    if (!appointment) return res.status(404).json({ error: 'Turno no encontrado' });
-    if (['cancelled', 'completed', 'no_show'].includes(appointment.status)) {
-      return res.status(409).json({ error: 'No se puede reprogramar este turno' });
+    const professionalId = getProfessionalIdFromRequest(req);
+    const bookingId = Number(req.params.id);
+
+    const result = await db.query(
+      `
+      UPDATE bookings
+      SET status = 'confirmed', updated_at = NOW()
+      WHERE id = $1
+        AND professional_id = $2
+      RETURNING *
+      `,
+      [bookingId, professionalId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Reserva no encontrada" });
     }
 
-    const service = (await db.query('SELECT * FROM services WHERE id = $1', [appointment.service_id])).rows[0];
-    const newStartStr = date + ' ' + time + ':00';
-    const endDate = new Date(date + 'T' + time + ':00');
-    endDate.setMinutes(endDate.getMinutes() + service.duration);
-    const newEndTime = endDate.toISOString().replace('T', ' ').slice(0, 19);
-    const oldStartTime = appointment.start_time;
+    res.json({
+      success: true,
+      booking: normalizeBooking(result.rows[0]),
+    });
+  } catch (error) {
+    console.error("Error confirm booking:", error);
+    res.status(error.status || 500).json({
+      error: error.message || "Error confirmando reserva",
+    });
+  }
+});
 
-    await db.query(
-      `UPDATE appointments SET
-        start_time = $1, end_time = $2,
-        rescheduled_from_id = COALESCE(rescheduled_from_id, $3),
-        rescheduled_at = CURRENT_TIMESTAMP, status = 'confirmed', updated_at = CURRENT_TIMESTAMP
-       WHERE id = $4`,
-      [newStartStr, newEndTime, appointment.id, appointment.id]
+router.patch("/:id/cancel", async (req, res) => {
+  try {
+    const professionalId = getProfessionalIdFromRequest(req);
+    const bookingId = Number(req.params.id);
+
+    const result = await db.query(
+      `
+      UPDATE bookings
+      SET status = 'cancelled', updated_at = NOW()
+      WHERE id = $1
+        AND professional_id = $2
+      RETURNING *
+      `,
+      [bookingId, professionalId]
     );
 
-    await db.query(
-      `INSERT INTO appointment_history
-        (appointment_id, professional_id, action, old_start_time, new_start_time, old_status, new_status, performed_by)
-       VALUES ($1, $2, 'rescheduled', $3, $4, $5, 'confirmed', 'professional')`,
-      [appointment.id, req.professional.id, oldStartTime, newStartStr, appointment.status]
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Reserva no encontrada" });
+    }
+
+    res.json({
+      success: true,
+      booking: normalizeBooking(result.rows[0]),
+    });
+  } catch (error) {
+    console.error("Error cancel booking:", error);
+    res.status(error.status || 500).json({
+      error: error.message || "Error cancelando reserva",
+    });
+  }
+});
+
+router.patch("/:id/complete", async (req, res) => {
+  try {
+    const professionalId = getProfessionalIdFromRequest(req);
+    const bookingId = Number(req.params.id);
+
+    const result = await db.query(
+      `
+      UPDATE bookings
+      SET status = 'completed', updated_at = NOW()
+      WHERE id = $1
+        AND professional_id = $2
+      RETURNING *
+      `,
+      [bookingId, professionalId]
     );
 
-    const updated = (await db.query('SELECT * FROM appointments WHERE id = $1', [appointment.id])).rows[0];
-    res.json({ appointment: updated });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Reserva no encontrada" });
+    }
+
+    res.json({
+      success: true,
+      booking: normalizeBooking(result.rows[0]),
+    });
+  } catch (error) {
+    console.error("Error complete booking:", error);
+    res.status(error.status || 500).json({
+      error: error.message || "Error completando reserva",
+    });
+  }
+});
+
+router.patch("/:id/no-show", async (req, res) => {
+  try {
+    const professionalId = getProfessionalIdFromRequest(req);
+    const bookingId = Number(req.params.id);
+
+    const result = await db.query(
+      `
+      UPDATE bookings
+      SET status = 'no_show', updated_at = NOW()
+      WHERE id = $1
+        AND professional_id = $2
+      RETURNING *
+      `,
+      [bookingId, professionalId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Reserva no encontrada" });
+    }
+
+    res.json({
+      success: true,
+      booking: normalizeBooking(result.rows[0]),
+    });
+  } catch (error) {
+    console.error("Error no-show booking:", error);
+    res.status(error.status || 500).json({
+      error: error.message || "Error marcando inasistencia",
+    });
+  }
+});
+
+router.patch("/:id/reschedule", async (req, res) => {
+  try {
+    const professionalId = getProfessionalIdFromRequest(req);
+    const bookingId = Number(req.params.id);
+
+    const bookingDate = String(req.body.bookingDate || req.body.booking_date || "").slice(0, 10);
+    const startTime = normalizeTime(req.body.startTime || req.body.start_time);
+
+    if (!bookingDate || !startTime) {
+      return res.status(400).json({ error: "Fecha y horario son obligatorios" });
+    }
+
+    const existingResult = await db.query(
+      `
+      SELECT
+        b.*,
+        ps.duration_minutes
+      FROM bookings b
+      LEFT JOIN professional_services ps ON ps.id = b.service_id
+      WHERE b.id = $1
+        AND b.professional_id = $2
+      LIMIT 1
+      `,
+      [bookingId, professionalId]
+    );
+
+    if (existingResult.rows.length === 0) {
+      return res.status(404).json({ error: "Reserva no encontrada" });
+    }
+
+    const existing = existingResult.rows[0];
+    const durationMinutes = Number(existing.duration_minutes || 30);
+    const endTime = addMinutesToTime(startTime, durationMinutes);
+
+    if (existing.staff_id) {
+      const isAvailable = await checkSlotAvailable({
+        professionalId,
+        staffId: existing.staff_id,
+        bookingDate,
+        startTime,
+        endTime,
+      });
+
+      if (!isAvailable) {
+        return res.status(409).json({ error: "Ese horario ya no está disponible" });
+      }
+    }
+
+    const result = await db.query(
+      `
+      UPDATE bookings
+      SET
+        booking_date = $1,
+        start_time = $2,
+        end_time = $3,
+        updated_at = NOW()
+      WHERE id = $4
+        AND professional_id = $5
+      RETURNING *
+      `,
+      [bookingDate, startTime, endTime, bookingId, professionalId]
+    );
+
+    res.json({
+      success: true,
+      booking: normalizeBooking(result.rows[0]),
+    });
+  } catch (error) {
+    console.error("Error reschedule booking:", error);
+    res.status(error.status || 500).json({
+      error: error.message || "Error reprogramando reserva",
+    });
+  }
+});
+
+router.get("/public/confirmation/:token", async (req, res) => {
+  try {
+    const token = String(req.params.token || "").trim();
+
+    const result = await db.query(
+      `
+      SELECT
+        b.*,
+        p.business_name,
+        p.address,
+        p.slug,
+        p.logo_url,
+        s.name AS staff_name,
+        s.color AS staff_color,
+        ps.name AS service_name,
+        ps.duration_minutes AS service_duration_minutes,
+        ps.price AS service_price
+      FROM bookings b
+      LEFT JOIN professionals p ON p.id = b.professional_id
+      LEFT JOIN staff_members s ON s.id = b.staff_id
+      LEFT JOIN professional_services ps ON ps.id = b.service_id
+      WHERE b.confirmation_token = $1
+      LIMIT 1
+      `,
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Reserva no encontrada" });
+    }
+
+    const row = result.rows[0];
+
+    res.json({
+      booking: normalizeBooking(row),
+      business: {
+        businessName: row.business_name,
+        business_name: row.business_name,
+        address: row.address,
+        slug: row.slug,
+        logoUrl: row.logo_url,
+        logo_url: row.logo_url,
+      },
+    });
+  } catch (error) {
+    console.error("Error confirmation booking:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+router.patch("/public/confirmation/:token/confirm", async (req, res) => {
+  try {
+    const token = String(req.params.token || "").trim();
+
+    const result = await db.query(
+      `
+      UPDATE bookings
+      SET
+        status = 'confirmed',
+        client_confirmed_at = NOW(),
+        updated_at = NOW()
+      WHERE confirmation_token = $1
+        AND status != 'cancelled'
+      RETURNING *
+      `,
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Reserva no encontrada" });
+    }
+
+    res.json({
+      success: true,
+      booking: normalizeBooking(result.rows[0]),
+    });
+  } catch (error) {
+    console.error("Error public confirmation confirm:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+router.patch("/public/confirmation/:token/cancel", async (req, res) => {
+  try {
+    const token = String(req.params.token || "").trim();
+
+    const result = await db.query(
+      `
+      UPDATE bookings
+      SET
+        status = 'cancelled',
+        client_cancelled_at = NOW(),
+        updated_at = NOW()
+      WHERE confirmation_token = $1
+      RETURNING *
+      `,
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Reserva no encontrada" });
+    }
+
+    res.json({
+      success: true,
+      booking: normalizeBooking(result.rows[0]),
+    });
+  } catch (error) {
+    console.error("Error public confirmation cancel:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
   }
 });
 
