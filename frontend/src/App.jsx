@@ -41,6 +41,17 @@ const PROFESSIONS = [
   'Otro',
 ];
 
+const STAFF_COLORS = [
+  '#0071e3',
+  '#30d158',
+  '#ff9f0a',
+  '#ff453a',
+  '#bf5af2',
+  '#64d2ff',
+  '#ffd60a',
+  '#8e8e93',
+];
+
 const inputStyle = {
   width: '100%',
   padding: '10px 12px',
@@ -120,6 +131,17 @@ function normalizeService(item) {
     description: item.description || '',
     durationMinutes: Number(item.durationMinutes ?? item.duration_minutes ?? 30),
     price: item.price === null || item.price === undefined || item.price === '' ? '' : String(item.price),
+    isActive: Boolean(item.isActive ?? item.is_active),
+  };
+}
+
+function normalizeStaff(item) {
+  return {
+    id: item.id,
+    name: item.name || '',
+    phone: item.phone || '',
+    email: item.email || '',
+    color: item.color || '#0071e3',
     isActive: Boolean(item.isActive ?? item.is_active),
   };
 }
@@ -685,6 +707,7 @@ function ReservationsSection() {
             const serviceName = b.serviceName ?? b.service_name;
             const serviceDuration = b.serviceDurationMinutes ?? b.service_duration_minutes;
             const servicePrice = b.servicePrice ?? b.service_price;
+            const staffName = b.staffName ?? b.staff_name;
 
             return (
               <div
@@ -711,6 +734,12 @@ function ReservationsSection() {
                         ✂️ {serviceName}
                         {serviceDuration ? ` · ${serviceDuration} min` : ''}
                         {servicePrice ? ` · $${servicePrice}` : ''}
+                      </div>
+                    )}
+
+                    {staffName && (
+                      <div style={{ fontSize: 12, color: '#6e6e73', marginTop: 4 }}>
+                        👤 Profesional: {staffName}
                       </div>
                     )}
                   </div>
@@ -812,6 +841,85 @@ function ReservationsSection() {
   );
 }
 
+function AvailabilityTable({ availability, onChange }) {
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 680 }}>
+        <thead>
+          <tr>
+            <th style={{ textAlign: 'left', fontSize: 11, color: '#8e8e93', padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>DÍA</th>
+            <th style={{ textAlign: 'left', fontSize: 11, color: '#8e8e93', padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>ESTADO</th>
+            <th style={{ textAlign: 'left', fontSize: 11, color: '#8e8e93', padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>INICIO</th>
+            <th style={{ textAlign: 'left', fontSize: 11, color: '#8e8e93', padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>CIERRE</th>
+            <th style={{ textAlign: 'left', fontSize: 11, color: '#8e8e93', padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>INTERVALO</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {DAYS.map((dayInfo) => {
+            const day = availability.find((d) => d.dayOfWeek === dayInfo.dayOfWeek) || getDefaultAvailability()[dayInfo.dayOfWeek];
+
+            return (
+              <tr key={dayInfo.dayOfWeek}>
+                <td style={{ padding: '12px 0', borderBottom: '1px solid #f5f5f5', fontSize: 14, fontWeight: 600 }}>
+                  {dayInfo.label}
+                </td>
+
+                <td style={{ padding: '12px 0', borderBottom: '1px solid #f5f5f5' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: day.isActive ? '#188038' : '#8e8e93', fontWeight: 600 }}>
+                    <input
+                      type="checkbox"
+                      checked={day.isActive}
+                      onChange={(e) => onChange(day.dayOfWeek, 'isActive', e.target.checked)}
+                    />
+                    {day.isActive ? 'Activo' : 'Inactivo'}
+                  </label>
+                </td>
+
+                <td style={{ padding: '12px 8px 12px 0', borderBottom: '1px solid #f5f5f5' }}>
+                  <input
+                    type="time"
+                    value={day.startTime}
+                    disabled={!day.isActive}
+                    onChange={(e) => onChange(day.dayOfWeek, 'startTime', e.target.value)}
+                    style={{ ...inputStyle, margin: 0, opacity: day.isActive ? 1 : 0.45 }}
+                  />
+                </td>
+
+                <td style={{ padding: '12px 8px 12px 0', borderBottom: '1px solid #f5f5f5' }}>
+                  <input
+                    type="time"
+                    value={day.endTime}
+                    disabled={!day.isActive}
+                    onChange={(e) => onChange(day.dayOfWeek, 'endTime', e.target.value)}
+                    style={{ ...inputStyle, margin: 0, opacity: day.isActive ? 1 : 0.45 }}
+                  />
+                </td>
+
+                <td style={{ padding: '12px 0', borderBottom: '1px solid #f5f5f5' }}>
+                  <select
+                    value={day.slotDurationMinutes}
+                    disabled={!day.isActive}
+                    onChange={(e) => onChange(day.dayOfWeek, 'slotDurationMinutes', Number(e.target.value))}
+                    style={{ ...inputStyle, margin: 0, opacity: day.isActive ? 1 : 0.45 }}
+                  >
+                    <option value={15}>15 min</option>
+                    <option value={30}>30 min</option>
+                    <option value={45}>45 min</option>
+                    <option value={60}>60 min</option>
+                    <option value={90}>90 min</option>
+                    <option value={120}>120 min</option>
+                  </select>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function AvailabilitySection() {
   const [availability, setAvailability] = useState(getDefaultAvailability());
   const [loading, setLoading] = useState(true);
@@ -880,7 +988,7 @@ function AvailabilitySection() {
         if (Array.isArray(data.availability)) {
           setAvailability(data.availability.map(normalizeAvailabilityItem));
         }
-        setMessage('✓ Disponibilidad guardada correctamente.');
+        setMessage('✓ Disponibilidad general guardada correctamente.');
       }
     } catch {
       setError('No se pudo conectar con el servidor.');
@@ -900,86 +1008,13 @@ function AvailabilitySection() {
   return (
     <div style={{ background: '#fff', borderRadius: 20, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
       <div style={{ marginBottom: 18 }}>
-        <div style={{ fontSize: 17, fontWeight: 700, color: '#1a1a1a' }}>Mi disponibilidad</div>
+        <div style={{ fontSize: 17, fontWeight: 700, color: '#1a1a1a' }}>Disponibilidad general</div>
         <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 4 }}>
-          Configurá los días y horarios que tus clientes pueden reservar.
+          Esta disponibilidad queda como base. Para varios profesionales, configurá horarios individuales en la pestaña Profesionales.
         </div>
       </div>
 
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 680 }}>
-          <thead>
-            <tr>
-              <th style={{ textAlign: 'left', fontSize: 11, color: '#8e8e93', padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>DÍA</th>
-              <th style={{ textAlign: 'left', fontSize: 11, color: '#8e8e93', padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>ESTADO</th>
-              <th style={{ textAlign: 'left', fontSize: 11, color: '#8e8e93', padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>INICIO</th>
-              <th style={{ textAlign: 'left', fontSize: 11, color: '#8e8e93', padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>CIERRE</th>
-              <th style={{ textAlign: 'left', fontSize: 11, color: '#8e8e93', padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>INTERVALO</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {DAYS.map((dayInfo) => {
-              const day = availability.find((d) => d.dayOfWeek === dayInfo.dayOfWeek) || getDefaultAvailability()[dayInfo.dayOfWeek];
-
-              return (
-                <tr key={dayInfo.dayOfWeek}>
-                  <td style={{ padding: '12px 0', borderBottom: '1px solid #f5f5f5', fontSize: 14, fontWeight: 600 }}>
-                    {dayInfo.label}
-                  </td>
-
-                  <td style={{ padding: '12px 0', borderBottom: '1px solid #f5f5f5' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: day.isActive ? '#188038' : '#8e8e93', fontWeight: 600 }}>
-                      <input
-                        type="checkbox"
-                        checked={day.isActive}
-                        onChange={(e) => updateDay(day.dayOfWeek, 'isActive', e.target.checked)}
-                      />
-                      {day.isActive ? 'Activo' : 'Inactivo'}
-                    </label>
-                  </td>
-
-                  <td style={{ padding: '12px 8px 12px 0', borderBottom: '1px solid #f5f5f5' }}>
-                    <input
-                      type="time"
-                      value={day.startTime}
-                      disabled={!day.isActive}
-                      onChange={(e) => updateDay(day.dayOfWeek, 'startTime', e.target.value)}
-                      style={{ ...inputStyle, margin: 0, opacity: day.isActive ? 1 : 0.45 }}
-                    />
-                  </td>
-
-                  <td style={{ padding: '12px 8px 12px 0', borderBottom: '1px solid #f5f5f5' }}>
-                    <input
-                      type="time"
-                      value={day.endTime}
-                      disabled={!day.isActive}
-                      onChange={(e) => updateDay(day.dayOfWeek, 'endTime', e.target.value)}
-                      style={{ ...inputStyle, margin: 0, opacity: day.isActive ? 1 : 0.45 }}
-                    />
-                  </td>
-
-                  <td style={{ padding: '12px 0', borderBottom: '1px solid #f5f5f5' }}>
-                    <select
-                      value={day.slotDurationMinutes}
-                      disabled={!day.isActive}
-                      onChange={(e) => updateDay(day.dayOfWeek, 'slotDurationMinutes', Number(e.target.value))}
-                      style={{ ...inputStyle, margin: 0, opacity: day.isActive ? 1 : 0.45 }}
-                    >
-                      <option value={15}>15 min</option>
-                      <option value={30}>30 min</option>
-                      <option value={45}>45 min</option>
-                      <option value={60}>60 min</option>
-                      <option value={90}>90 min</option>
-                      <option value={120}>120 min</option>
-                    </select>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <AvailabilityTable availability={availability} onChange={updateDay} />
 
       {message && (
         <div style={{ background: '#edfff3', border: '0.5px solid #b7f5c8', borderRadius: 10, padding: '10px 12px', fontSize: 13, color: '#188038', marginTop: 14 }}>
@@ -998,8 +1033,549 @@ function AvailabilitySection() {
         disabled={saving}
         style={{ width: '100%', marginTop: 16, padding: '13px', borderRadius: 12, border: 'none', background: saving ? '#aeaeb2' : '#0071e3', color: '#fff', fontSize: 15, fontWeight: 600, fontFamily: 'inherit', cursor: saving ? 'not-allowed' : 'pointer' }}
       >
-        {saving ? 'Guardando...' : 'Guardar disponibilidad'}
+        {saving ? 'Guardando...' : 'Guardar disponibilidad general'}
       </button>
+    </div>
+  );
+}
+
+function StaffSection() {
+  const [staff, setStaff] = useState([]);
+  const [selectedStaffId, setSelectedStaffId] = useState('');
+  const [availability, setAvailability] = useState(getDefaultAvailability());
+
+  const [form, setForm] = useState({
+    name: '',
+    phone: '',
+    email: '',
+    color: '#0071e3',
+  });
+
+  const [editingId, setEditingId] = useState(null);
+  const [editing, setEditing] = useState({});
+
+  const [loadingStaff, setLoadingStaff] = useState(true);
+  const [loadingAvailability, setLoadingAvailability] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+
+  const token = localStorage.getItem('tuagendaya_token');
+
+  const fetchStaff = () => {
+    setLoadingStaff(true);
+    setError('');
+
+    fetch(`${API_BASE}/staff`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        const normalized = (data.staff || []).map(normalizeStaff);
+        setStaff(normalized);
+
+        if (normalized.length > 0) {
+          setSelectedStaffId((current) => current || String(normalized[0].id));
+        }
+      })
+      .catch(() => {
+        setStaff([]);
+        setError('No se pudieron cargar los profesionales.');
+      })
+      .finally(() => setLoadingStaff(false));
+  };
+
+  const fetchStaffAvailability = (staffId) => {
+    if (!staffId) return;
+
+    setLoadingAvailability(true);
+    setError('');
+
+    fetch(`${API_BASE}/staff/${staffId}/availability`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data.availability) && data.availability.length > 0) {
+          setAvailability(data.availability.map(normalizeAvailabilityItem));
+        } else {
+          setAvailability(getDefaultAvailability());
+        }
+      })
+      .catch(() => {
+        setAvailability(getDefaultAvailability());
+        setError('No se pudo cargar la disponibilidad del profesional.');
+      })
+      .finally(() => setLoadingAvailability(false));
+  };
+
+  useEffect(() => {
+    fetchStaff();
+  }, []);
+
+  useEffect(() => {
+    if (selectedStaffId) {
+      fetchStaffAvailability(selectedStaffId);
+    }
+  }, [selectedStaffId]);
+
+  const resetForm = () => {
+    setForm({
+      name: '',
+      phone: '',
+      email: '',
+      color: '#0071e3',
+    });
+  };
+
+  const handleCreate = async (e) => {
+    e.preventDefault();
+    setError('');
+    setMessage('');
+
+    if (!form.name.trim()) {
+      setError('El nombre del profesional es obligatorio.');
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const res = await fetch(`${API_BASE}/staff`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: form.name.trim(),
+          phone: form.phone.trim(),
+          email: form.email.trim(),
+          color: form.color,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || 'No se pudo crear el profesional.');
+      } else {
+        setMessage('✓ Profesional agregado correctamente.');
+        resetForm();
+
+        const newStaff = normalizeStaff(data.staffMember || data.staff_member || {});
+        setSelectedStaffId(newStaff.id ? String(newStaff.id) : '');
+        fetchStaff();
+      }
+    } catch {
+      setError('No se pudo conectar con el servidor.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const startEditing = (member) => {
+    setEditingId(member.id);
+    setEditing({
+      name: member.name,
+      phone: member.phone || '',
+      email: member.email || '',
+      color: member.color || '#0071e3',
+      isActive: member.isActive,
+    });
+  };
+
+  const cancelEditing = () => {
+    setEditingId(null);
+    setEditing({});
+  };
+
+  const saveEditing = async (staffId) => {
+    setError('');
+    setMessage('');
+
+    if (!String(editing.name || '').trim()) {
+      setError('El nombre del profesional es obligatorio.');
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const res = await fetch(`${API_BASE}/staff/${staffId}`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: String(editing.name || '').trim(),
+          phone: String(editing.phone || '').trim(),
+          email: String(editing.email || '').trim(),
+          color: editing.color || '#0071e3',
+          isActive: Boolean(editing.isActive),
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || 'No se pudo actualizar el profesional.');
+      } else {
+        setMessage('✓ Profesional actualizado correctamente.');
+        cancelEditing();
+        fetchStaff();
+      }
+    } catch {
+      setError('No se pudo conectar con el servidor.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const disableStaff = async (staffId) => {
+    const confirmDisable = window.confirm('¿Querés desactivar este profesional? No se borran las reservas viejas.');
+    if (!confirmDisable) return;
+
+    setError('');
+    setMessage('');
+    setSaving(true);
+
+    try {
+      const res = await fetch(`${API_BASE}/staff/${staffId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || 'No se pudo desactivar el profesional.');
+      } else {
+        setMessage('✓ Profesional desactivado.');
+        fetchStaff();
+      }
+    } catch {
+      setError('No se pudo conectar con el servidor.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateDay = (dayOfWeek, field, value) => {
+    setAvailability((prev) =>
+      prev.map((day) =>
+        day.dayOfWeek === dayOfWeek ? { ...day, [field]: value } : day
+      )
+    );
+  };
+
+  const saveAvailability = async () => {
+    if (!selectedStaffId) return;
+
+    setError('');
+    setMessage('');
+    setSaving(true);
+
+    try {
+      const res = await fetch(`${API_BASE}/staff/${selectedStaffId}/availability`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ availability }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || 'No se pudo guardar la disponibilidad.');
+      } else {
+        if (Array.isArray(data.availability)) {
+          setAvailability(data.availability.map(normalizeAvailabilityItem));
+        }
+        setMessage('✓ Horarios del profesional guardados correctamente.');
+      }
+    } catch {
+      setError('No se pudo conectar con el servidor.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const selectedStaff = staff.find((member) => String(member.id) === String(selectedStaffId));
+
+  return (
+    <div style={{ display: 'grid', gap: 16 }}>
+      <div style={{ background: '#fff', borderRadius: 20, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
+        <div style={{ marginBottom: 18 }}>
+          <div style={{ fontSize: 17, fontWeight: 700, color: '#1a1a1a' }}>Profesionales del negocio</div>
+          <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 4 }}>
+            Agregá profesionales internos y configurá horarios independientes para cada uno.
+          </div>
+        </div>
+
+        <form onSubmit={handleCreate} style={{ background: '#f2f2f7', borderRadius: 16, padding: 16, marginBottom: 18 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>➕ Agregar profesional</div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1.2fr 0.7fr', gap: 10 }}>
+            <div>
+              <label style={smallLabelStyle}>Nombre *</label>
+              <input
+                style={inputStyle}
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="Ej: Juan Pérez"
+              />
+            </div>
+
+            <div>
+              <label style={smallLabelStyle}>Teléfono</label>
+              <input
+                style={inputStyle}
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                placeholder="099..."
+              />
+            </div>
+
+            <div>
+              <label style={smallLabelStyle}>Email</label>
+              <input
+                style={inputStyle}
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                placeholder="opcional"
+              />
+            </div>
+
+            <div>
+              <label style={smallLabelStyle}>Color</label>
+              <select
+                style={inputStyle}
+                value={form.color}
+                onChange={(e) => setForm({ ...form, color: e.target.value })}
+              >
+                {STAFF_COLORS.map((color) => (
+                  <option key={color} value={color}>{color}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={saving}
+            style={{ width: '100%', marginTop: 12, padding: '12px', borderRadius: 12, border: 'none', background: saving ? '#aeaeb2' : '#0071e3', color: '#fff', fontSize: 14, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}
+          >
+            {saving ? 'Guardando...' : 'Agregar profesional'}
+          </button>
+        </form>
+
+        {message && (
+          <div style={{ background: '#edfff3', border: '0.5px solid #b7f5c8', borderRadius: 10, padding: '10px 12px', fontSize: 13, color: '#188038', marginBottom: 12 }}>
+            {message}
+          </div>
+        )}
+
+        {error && (
+          <div style={{ background: '#fff2f2', border: '0.5px solid #ffcdd2', borderRadius: 10, padding: '10px 12px', fontSize: 13, color: '#c62828', marginBottom: 12 }}>
+            {error}
+          </div>
+        )}
+
+        {loadingStaff ? (
+          <div style={{ textAlign: 'center', color: '#aeaeb2', padding: 28 }}>Cargando profesionales...</div>
+        ) : staff.length === 0 ? (
+          <div style={{ textAlign: 'center', color: '#aeaeb2', padding: 28 }}>Todavía no hay profesionales cargados.</div>
+        ) : (
+          staff.map((member) => {
+            const isEditing = editingId === member.id;
+
+            return (
+              <div
+                key={member.id}
+                style={{
+                  border: String(selectedStaffId) === String(member.id) ? '2px solid #0071e3' : '1px solid #e8e8ed',
+                  borderRadius: 16,
+                  padding: 16,
+                  marginBottom: 10,
+                  background: member.isActive ? '#fafafa' : '#fffafa',
+                  opacity: member.isActive ? 1 : 0.65,
+                }}
+              >
+                {isEditing ? (
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1.2fr 0.7fr', gap: 10, marginBottom: 10 }}>
+                      <div>
+                        <label style={smallLabelStyle}>Nombre</label>
+                        <input
+                          style={inputStyle}
+                          value={editing.name}
+                          onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+                        />
+                      </div>
+
+                      <div>
+                        <label style={smallLabelStyle}>Teléfono</label>
+                        <input
+                          style={inputStyle}
+                          value={editing.phone}
+                          onChange={(e) => setEditing({ ...editing, phone: e.target.value })}
+                        />
+                      </div>
+
+                      <div>
+                        <label style={smallLabelStyle}>Email</label>
+                        <input
+                          style={inputStyle}
+                          type="email"
+                          value={editing.email}
+                          onChange={(e) => setEditing({ ...editing, email: e.target.value })}
+                        />
+                      </div>
+
+                      <div>
+                        <label style={smallLabelStyle}>Color</label>
+                        <select
+                          style={inputStyle}
+                          value={editing.color}
+                          onChange={(e) => setEditing({ ...editing, color: e.target.value })}
+                        >
+                          {STAFF_COLORS.map((color) => (
+                            <option key={color} value={color}>{color}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#1a1a1a', marginBottom: 12 }}>
+                      <input
+                        type="checkbox"
+                        checked={editing.isActive}
+                        onChange={(e) => setEditing({ ...editing, isActive: e.target.checked })}
+                      />
+                      Profesional activo
+                    </label>
+
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        type="button"
+                        onClick={() => saveEditing(member.id)}
+                        disabled={saving}
+                        style={{ flex: 1, padding: '10px', borderRadius: 10, border: 'none', background: '#0071e3', color: '#fff', fontWeight: 700, cursor: 'pointer' }}
+                      >
+                        Guardar
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={cancelEditing}
+                        style={{ flex: 1, padding: '10px', borderRadius: 10, border: '0.5px solid #d0d0d5', background: '#fff', color: '#6e6e73', fontWeight: 700, cursor: 'pointer' }}
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedStaffId(String(member.id))}
+                        style={{ flex: 1, border: 'none', background: 'transparent', padding: 0, textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit' }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ width: 12, height: 12, borderRadius: 99, background: member.color, display: 'inline-block' }} />
+                          <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>
+                            {member.name}
+                          </div>
+                        </div>
+
+                        {member.phone && (
+                          <div style={{ fontSize: 12, color: '#6e6e73', marginTop: 4 }}>📞 {member.phone}</div>
+                        )}
+
+                        {member.email && (
+                          <div style={{ fontSize: 12, color: '#6e6e73', marginTop: 2 }}>✉️ {member.email}</div>
+                        )}
+                      </button>
+
+                      <div style={{ fontSize: 11, fontWeight: 700, color: member.isActive ? '#188038' : '#ff453a', background: member.isActive ? '#edfff3' : '#fff2f2', padding: '5px 10px', borderRadius: 20, height: 18 }}>
+                        {member.isActive ? 'Activo' : 'Inactivo'}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedStaffId(String(member.id))}
+                        style={{ flex: 1, padding: '9px', borderRadius: 10, border: '0.5px solid #d0d0d5', background: String(selectedStaffId) === String(member.id) ? '#eef6ff' : '#fff', color: '#0071e3', fontWeight: 700, cursor: 'pointer' }}
+                      >
+                        Ver horarios
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => startEditing(member)}
+                        style={{ flex: 1, padding: '9px', borderRadius: 10, border: '0.5px solid #d0d0d5', background: '#fff', color: '#1a1a1a', fontWeight: 700, cursor: 'pointer' }}
+                      >
+                        Editar
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => disableStaff(member.id)}
+                        disabled={!member.isActive || saving}
+                        style={{ flex: 1, padding: '9px', borderRadius: 10, border: 'none', background: member.isActive ? '#ff453a' : '#aeaeb2', color: '#fff', fontWeight: 700, cursor: member.isActive ? 'pointer' : 'not-allowed' }}
+                      >
+                        Desactivar
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      <div style={{ background: '#fff', borderRadius: 20, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
+        <div style={{ marginBottom: 18 }}>
+          <div style={{ fontSize: 17, fontWeight: 700, color: '#1a1a1a' }}>
+            Horarios del profesional
+          </div>
+          <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 4 }}>
+            {selectedStaff
+              ? `Configurando disponibilidad de ${selectedStaff.name}.`
+              : 'Seleccioná un profesional para configurar sus horarios.'}
+          </div>
+        </div>
+
+        {!selectedStaffId ? (
+          <div style={{ textAlign: 'center', color: '#aeaeb2', padding: 28 }}>
+            Seleccioná o agregá un profesional.
+          </div>
+        ) : loadingAvailability ? (
+          <div style={{ textAlign: 'center', color: '#aeaeb2', padding: 28 }}>
+            Cargando horarios...
+          </div>
+        ) : (
+          <>
+            <AvailabilityTable availability={availability} onChange={updateDay} />
+
+            <button
+              onClick={saveAvailability}
+              disabled={saving}
+              style={{ width: '100%', marginTop: 16, padding: '13px', borderRadius: 12, border: 'none', background: saving ? '#aeaeb2' : '#0071e3', color: '#fff', fontSize: 15, fontWeight: 600, fontFamily: 'inherit', cursor: saving ? 'not-allowed' : 'pointer' }}
+            >
+              {saving ? 'Guardando...' : 'Guardar horarios del profesional'}
+            </button>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -1458,15 +2034,17 @@ function Dashboard({ professional, onLogout }) {
           </button>
         </div>
 
-        <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+        <div style={{ display: 'flex', gap: 10, marginBottom: 16, overflowX: 'auto' }}>
           <button style={tabStyle('reservas')} onClick={() => setActiveTab('reservas')}>📋 Reservas</button>
           <button style={tabStyle('disponibilidad')} onClick={() => setActiveTab('disponibilidad')}>🗓 Disponibilidad</button>
           <button style={tabStyle('servicios')} onClick={() => setActiveTab('servicios')}>✂️ Servicios</button>
+          <button style={tabStyle('profesionales')} onClick={() => setActiveTab('profesionales')}>👥 Profesionales</button>
         </div>
 
         {activeTab === 'reservas' && <ReservationsSection />}
         {activeTab === 'disponibilidad' && <AvailabilitySection />}
         {activeTab === 'servicios' && <ServicesSection />}
+        {activeTab === 'profesionales' && <StaffSection />}
       </div>
     </div>
   );
