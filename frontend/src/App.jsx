@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import BookPage from './pages/BookPage.jsx';
 
 const API_BASE = 'https://tuagendaya-api.onrender.com/api';
@@ -14,6 +14,27 @@ const DAYS = [
   { dayOfWeek: 6, label: 'Sábado' },
 ];
 
+const inputStyle = {
+  width: '100%',
+  padding: '10px 12px',
+  borderRadius: 10,
+  border: '0.5px solid #d0d0d5',
+  fontSize: 14,
+  fontFamily: 'inherit',
+  outline: 'none',
+  boxSizing: 'border-box',
+  background: '#fff',
+  color: '#1a1a1a',
+};
+
+const smallLabelStyle = {
+  fontSize: 11,
+  color: '#6e6e73',
+  marginBottom: 4,
+  display: 'block',
+  fontWeight: 600,
+};
+
 function formatDate(d) {
   if (!d) return 'Sin fecha';
   const str = String(d).slice(0, 10);
@@ -25,6 +46,16 @@ function formatDate(d) {
 function formatTime(t) {
   if (!t) return null;
   return String(t).slice(0, 5);
+}
+
+function normalizeSlug(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
 }
 
 function getDefaultAvailability() {
@@ -139,28 +170,20 @@ function getProfessionExamples() {
   };
 }
 
-const inputStyle = {
-  width: '100%',
-  padding: '10px 12px',
-  borderRadius: 10,
-  border: '0.5px solid #d0d0d5',
-  fontSize: 14,
-  fontFamily: 'inherit',
-  outline: 'none',
-  boxSizing: 'border-box',
-  background: '#fff',
-  color: '#1a1a1a',
-};
+function AuthLayout({ children }) {
+  return (
+    <div style={{ minHeight: '100vh', background: '#f2f2f7', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <style>{`@keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}`}</style>
 
-const smallLabelStyle = {
-  fontSize: 11,
-  color: '#6e6e73',
-  marginBottom: 4,
-  display: 'block',
-  fontWeight: 600,
-};
+      <div style={{ background: '#fff', borderRadius: 24, padding: '36px 32px', border: '0.5px solid #e0e0e5', width: '100%', maxWidth: 460, animation: 'slideUp 250ms cubic-bezier(0.16,1,0.3,1) both', boxShadow: '0 2px 40px rgba(0,0,0,0.06)' }}>
+        {children}
+      </div>
+    </div>
+  );
+}
 
 function LoginForm({ onLogin }) {
+  const navigate = useNavigate();
   const [email, setEmail] = useState('nuevo@tuagendaya.com');
   const [password, setPassword] = useState('12345678');
   const [loading, setLoading] = useState(false);
@@ -197,58 +220,250 @@ function LoginForm({ onLogin }) {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f2f2f7', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <style>{`@keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}`}</style>
-
-      <div style={{ background: '#fff', borderRadius: 24, padding: '36px 32px', border: '0.5px solid #e0e0e5', width: '100%', maxWidth: 400, animation: 'slideUp 250ms cubic-bezier(0.16,1,0.3,1) both', boxShadow: '0 2px 40px rgba(0,0,0,0.06)' }}>
-        <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: '#0071e3', marginBottom: 4 }}>TuAgendaYa</div>
-          <div style={{ fontSize: 14, color: '#6e6e73' }}>Accedé a tu panel profesional</div>
-        </div>
-
-        <form onSubmit={handleSubmit}>
-          <label style={smallLabelStyle}>Email</label>
-          <input
-            style={{ ...inputStyle, marginBottom: 12 }}
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="tu@email.com"
-            required
-            autoComplete="email"
-          />
-
-          <label style={smallLabelStyle}>Contraseña</label>
-          <input
-            style={{ ...inputStyle, marginBottom: 12 }}
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••"
-            required
-            autoComplete="current-password"
-          />
-
-          {error && (
-            <div style={{ background: '#fff2f2', border: '0.5px solid #ffcdd2', borderRadius: 10, padding: '10px 12px', fontSize: 13, color: '#c62828', marginBottom: 12 }}>
-              {error}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            style={{ width: '100%', padding: '13px', borderRadius: 12, border: 'none', background: loading ? '#aeaeb2' : '#0071e3', color: '#fff', fontSize: 15, fontWeight: 600, fontFamily: 'inherit', cursor: loading ? 'not-allowed' : 'pointer', marginTop: 4 }}
-          >
-            {loading ? 'Ingresando...' : 'Ingresar'}
-          </button>
-        </form>
-
-        <div style={{ textAlign: 'center', fontSize: 11, color: '#aeaeb2', marginTop: 16 }}>
-          🔒 Tus datos están cifrados y protegidos
-        </div>
+    <AuthLayout>
+      <div style={{ textAlign: 'center', marginBottom: 24 }}>
+        <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: '#0071e3', marginBottom: 4 }}>TuAgendaYa</div>
+        <div style={{ fontSize: 14, color: '#6e6e73' }}>Accedé a tu panel profesional</div>
       </div>
-    </div>
+
+      <form onSubmit={handleSubmit}>
+        <label style={smallLabelStyle}>Email</label>
+        <input
+          style={{ ...inputStyle, marginBottom: 12 }}
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="tu@email.com"
+          required
+          autoComplete="email"
+        />
+
+        <label style={smallLabelStyle}>Contraseña</label>
+        <input
+          style={{ ...inputStyle, marginBottom: 12 }}
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="••••••••"
+          required
+          autoComplete="current-password"
+        />
+
+        {error && (
+          <div style={{ background: '#fff2f2', border: '0.5px solid #ffcdd2', borderRadius: 10, padding: '10px 12px', fontSize: 13, color: '#c62828', marginBottom: 12 }}>
+            {error}
+          </div>
+        )}
+
+        <button
+          type="submit"
+          disabled={loading}
+          style={{ width: '100%', padding: '13px', borderRadius: 12, border: 'none', background: loading ? '#aeaeb2' : '#0071e3', color: '#fff', fontSize: 15, fontWeight: 600, fontFamily: 'inherit', cursor: loading ? 'not-allowed' : 'pointer', marginTop: 4 }}
+        >
+          {loading ? 'Ingresando...' : 'Ingresar'}
+        </button>
+      </form>
+
+      <button
+        type="button"
+        onClick={() => navigate('/profesional/register')}
+        style={{ width: '100%', marginTop: 12, padding: '12px', borderRadius: 12, border: '0.5px solid #d0d0d5', background: '#fff', color: '#0071e3', fontSize: 14, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer' }}
+      >
+        Crear cuenta profesional
+      </button>
+
+      <div style={{ textAlign: 'center', fontSize: 11, color: '#aeaeb2', marginTop: 16 }}>
+        🔒 Tus datos están cifrados y protegidos
+      </div>
+    </AuthLayout>
+  );
+}
+
+function RegisterPage() {
+  const navigate = useNavigate();
+
+  const [form, setForm] = useState({
+    name: '',
+    businessName: '',
+    email: '',
+    password: '',
+    phone: '',
+    profession: '',
+    address: '',
+    slug: '',
+  });
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const updateForm = (field, value) => {
+    const next = { ...form, [field]: value };
+
+    if (field === 'businessName' && !form.slug) {
+      next.slug = normalizeSlug(value);
+    }
+
+    if (field === 'slug') {
+      next.slug = normalizeSlug(value);
+    }
+
+    setForm(next);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    if (!form.name.trim()) return setError('El nombre es obligatorio.');
+    if (!form.businessName.trim()) return setError('El nombre del negocio es obligatorio.');
+    if (!form.email.trim()) return setError('El email es obligatorio.');
+    if (form.password.length < 8) return setError('La contraseña debe tener mínimo 8 caracteres.');
+    if (!form.profession.trim()) return setError('El rubro o profesión es obligatorio.');
+    if (!form.address.trim()) return setError('La dirección es obligatoria.');
+    if (!form.slug.trim()) return setError('El link público es obligatorio.');
+
+    setLoading(true);
+
+    try {
+      const res = await fetch(`${API_BASE}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: form.name.trim(),
+          businessName: form.businessName.trim(),
+          email: form.email.trim(),
+          password: form.password,
+          phone: form.phone.trim(),
+          profession: form.profession.trim(),
+          address: form.address.trim(),
+          slug: normalizeSlug(form.slug),
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || 'No se pudo crear la cuenta.');
+      } else {
+        localStorage.setItem('tuagendaya_token', data.token);
+        localStorage.setItem('tuagendaya_professional', JSON.stringify(data.professional || {}));
+        navigate('/profesional/dashboard');
+      }
+    } catch {
+      setError('No se pudo conectar con el servidor.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <AuthLayout>
+      <div style={{ textAlign: 'center', marginBottom: 22 }}>
+        <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: '#0071e3', marginBottom: 4 }}>TuAgendaYa</div>
+        <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>Crear cuenta profesional</div>
+        <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 4 }}>Configurá tu negocio en minutos</div>
+      </div>
+
+      <form onSubmit={handleSubmit}>
+        <label style={smallLabelStyle}>Nombre del profesional *</label>
+        <input
+          style={{ ...inputStyle, marginBottom: 10 }}
+          value={form.name}
+          onChange={(e) => updateForm('name', e.target.value)}
+          placeholder="Ej: Valentino"
+          required
+        />
+
+        <label style={smallLabelStyle}>Nombre del negocio *</label>
+        <input
+          style={{ ...inputStyle, marginBottom: 10 }}
+          value={form.businessName}
+          onChange={(e) => updateForm('businessName', e.target.value)}
+          placeholder="Ej: Barbería Centro"
+          required
+        />
+
+        <label style={smallLabelStyle}>Email *</label>
+        <input
+          style={{ ...inputStyle, marginBottom: 10 }}
+          type="email"
+          value={form.email}
+          onChange={(e) => updateForm('email', e.target.value)}
+          placeholder="negocio@email.com"
+          required
+        />
+
+        <label style={smallLabelStyle}>Contraseña *</label>
+        <input
+          style={{ ...inputStyle, marginBottom: 10 }}
+          type="password"
+          value={form.password}
+          onChange={(e) => updateForm('password', e.target.value)}
+          placeholder="Mínimo 8 caracteres"
+          required
+        />
+
+        <label style={smallLabelStyle}>Teléfono</label>
+        <input
+          style={{ ...inputStyle, marginBottom: 10 }}
+          value={form.phone}
+          onChange={(e) => updateForm('phone', e.target.value)}
+          placeholder="099 123 456"
+        />
+
+        <label style={smallLabelStyle}>Rubro / profesión *</label>
+        <input
+          style={{ ...inputStyle, marginBottom: 10 }}
+          value={form.profession}
+          onChange={(e) => updateForm('profession', e.target.value)}
+          placeholder="Ej: Barbería, Dentista, Psicólogo, Uñas..."
+          required
+        />
+
+        <label style={smallLabelStyle}>Dirección del negocio *</label>
+        <input
+          style={{ ...inputStyle, marginBottom: 10 }}
+          value={form.address}
+          onChange={(e) => updateForm('address', e.target.value)}
+          placeholder="Ej: Av. Italia 1234, Montevideo"
+          required
+        />
+
+        <label style={smallLabelStyle}>Link público *</label>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
+          <span style={{ fontSize: 12, color: '#8e8e93', whiteSpace: 'nowrap' }}>/reservar/</span>
+          <input
+            style={{ ...inputStyle, marginBottom: 0 }}
+            value={form.slug}
+            onChange={(e) => updateForm('slug', e.target.value)}
+            placeholder="barberia-centro"
+            required
+          />
+        </div>
+
+        {error && (
+          <div style={{ background: '#fff2f2', border: '0.5px solid #ffcdd2', borderRadius: 10, padding: '10px 12px', fontSize: 13, color: '#c62828', marginBottom: 12 }}>
+            {error}
+          </div>
+        )}
+
+        <button
+          type="submit"
+          disabled={loading}
+          style={{ width: '100%', padding: '13px', borderRadius: 12, border: 'none', background: loading ? '#aeaeb2' : '#0071e3', color: '#fff', fontSize: 15, fontWeight: 700, fontFamily: 'inherit', cursor: loading ? 'not-allowed' : 'pointer', marginTop: 4 }}
+        >
+          {loading ? 'Creando cuenta...' : 'Crear cuenta'}
+        </button>
+      </form>
+
+      <button
+        type="button"
+        onClick={() => navigate('/profesional/login')}
+        style={{ width: '100%', marginTop: 12, padding: '12px', borderRadius: 12, border: '0.5px solid #d0d0d5', background: '#fff', color: '#0071e3', fontSize: 14, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer' }}
+      >
+        Ya tengo cuenta
+      </button>
+    </AuthLayout>
   );
 }
 
@@ -287,7 +502,7 @@ function ReservationsSection() {
 
       fetchBookings();
     } catch {
-      // ignorar
+      // no-op
     } finally {
       setActionLoading(null);
     }
@@ -514,9 +729,7 @@ function AvailabilitySection() {
   const updateDay = (dayOfWeek, field, value) => {
     setAvailability((prev) =>
       prev.map((day) =>
-        day.dayOfWeek === dayOfWeek
-          ? { ...day, [field]: value }
-          : day
+        day.dayOfWeek === dayOfWeek ? { ...day, [field]: value } : day
       )
     );
   };
@@ -1097,6 +1310,18 @@ function Dashboard({ professional, onLogout }) {
               Hola, {professional?.name || 'profesional'} 👋
             </div>
 
+            {professional?.businessName && (
+              <div style={{ fontSize: 12, color: '#3a3a3c', marginTop: 4 }}>
+                {professional.businessName}
+              </div>
+            )}
+
+            {professional?.address && (
+              <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 4 }}>
+                📍 {professional.address}
+              </div>
+            )}
+
             {professional?.slug && (
               <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 4 }}>
                 Link público: <strong>tuagendaya-web.onrender.com/reservar/{professional.slug}</strong>
@@ -1150,6 +1375,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Navigate to="/profesional/login" replace />} />
       <Route path="/profesional/login" element={<ProfesionalPage />} />
+      <Route path="/profesional/register" element={<RegisterPage />} />
       <Route path="/profesional/dashboard" element={<ProfesionalPage />} />
       <Route path="/reservar/:slug" element={<BookPage />} />
       <Route path="/:slug" element={<BookPage />} />

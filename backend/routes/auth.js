@@ -1,300 +1,361 @@
-const express = require('express');
-const bcrypt = require('bcryptjs');
-const crypto = require('crypto');
-const jwt = require('jsonwebtoken');
+const express = require("express");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const db = require("../db");
+
 const router = express.Router();
-const db = require('../db');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'tuagendaya-secret-dev-change-in-prod';
-
-function signToken(payload) {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '30d' });
+function createToken(professional) {
+  return jwt.sign(
+    {
+      id: professional.id,
+      professionalId: professional.id,
+      email: professional.email,
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: "30d" }
+  );
 }
 
-function authMiddleware(req, res, next) {
-  const header = req.headers.authorization;
-  if (!header || !header.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Token requerido' });
+function getTokenFromHeader(req) {
+  const authHeader = req.headers.authorization || "";
+
+  if (!authHeader.startsWith("Bearer ")) {
+    return null;
   }
+
+  return authHeader.slice(7);
+}
+
+function normalizeSlug(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function normalizeProfessional(row) {
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    name: row.name,
+    businessName: row.business_name,
+    business_name: row.business_name,
+    email: row.email,
+    phone: row.phone,
+    profession: row.profession,
+    address: row.address,
+    slug: row.slug,
+    status: row.status,
+    createdAt: row.created_at,
+    created_at: row.created_at,
+  };
+}
+
+async function authMiddleware(req, res, next) {
   try {
-    const decoded = jwt.verify(header.slice(7), JWT_SECRET);
-    req.professional = decoded;
-    next();
-  } catch (e) {
-    return res.status(401).json({ error: 'Token inválido o expirado' });
-  }
-}
+    const token = getTokenFromHeader(req);
 
-function sanitizeProfessional(p) {
-  const { password_hash, google_access_token, google_refresh_token, ...safe } = p;
-  return safe;
-}
-
-// ── POST /api/auth/register ───────────────────────────────────
-router.post('/register', async (req, res) => {
-  const { email, password, name, profession, slug } = req.body;
-
-  if (!email || !password || !name || !slug) {
-    return res.status(400).json({ error: 'Faltan campos requeridos' });
-  }
-  if (password.length < 8) {
-    return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres' });
-  }
-
-  const slugClean = slug.toLowerCase().replace(/[^a-z0-9-]/g, '-');
-
-  try {
-    const existing = (await db.query(
-      'SELECT id FROM professionals WHERE email = $1 OR slug = $2',
-      [email, slugClean]
-    )).rows[0];
-    if (existing) {
-      return res.status(409).json({ error: 'Email o slug ya en uso' });
+    if (!token) {
+      return res.status(401).json({ error: "Token requerido" });
     }
 
-    const hash = await bcrypt.hash(password, 12);
-    const initials = name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const professionalId =
+      decoded.id ||
+      decoded.professionalId ||
+      decoded.professional_id ||
+      decoded.userId ||
+      decoded.user_id;
+
+    if (!professionalId) {
+      return res.status(401).json({ error: "Token inválido" });
+    }
 
     const result = await db.query(
-      `INSERT INTO professionals (email, password_hash, name, profession, slug, avatar_initials)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-      [email, hash, name, profession || null, slugClean, initials]
+      `
+      SELECT id, name, business_name, email, phone, profession, address, slug, status, created_at
+      FROM professionals
+      WHERE id = $1
+      LIMIT 1
+      `,
+      [professionalId]
     );
-    const newId = result.rows[0].id;
 
-    for (const day of [1, 2, 3, 4, 5]) {
-      await db.query(
-        "INSERT INTO availability (professional_id, day_of_week, start_time, end_time) VALUES ($1, $2, '09:00', '18:00')",
-        [newId, day]
-      );
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: "Profesional no encontrado" });
     }
 
-    await db.query(
-      'INSERT INTO cancellation_policies (professional_id) VALUES ($1)',
-      [newId]
+    req.professional = result.rows[0];
+    next();
+  } catch (error) {
+    return res.status(401).json({ error: "Token inválido" });
+  }
+}
+
+router.post("/register", async (req, res) => {
+  try {
+    const {
+      name,
+      businessName,
+      business_name,
+      email,
+      password,
+      phone,
+      profession,
+      address,
+      slug,
+    } = req.body;
+
+    const cleanName = String(name || "").trim();
+    const cleanBusinessName = String(businessName || business_name || "").trim();
+    const cleanEmail = String(email || "").trim().toLowerCase();
+    const cleanPassword = String(password || "");
+    const cleanPhone = String(phone || "").trim();
+    const cleanProfession = String(profession || "").trim();
+    const cleanAddress = String(address || "").trim();
+    const cleanSlug = normalizeSlug(slug || cleanBusinessName || cleanName);
+
+    if (!cleanName) {
+      return res.status(400).json({ error: "El nombre es obligatorio" });
+    }
+
+    if (!cleanBusinessName) {
+      return res.status(400).json({ error: "El nombre del negocio es obligatorio" });
+    }
+
+    if (!cleanEmail) {
+      return res.status(400).json({ error: "El email es obligatorio" });
+    }
+
+    if (!cleanPassword || cleanPassword.length < 8) {
+      return res.status(400).json({ error: "La contraseña debe tener mínimo 8 caracteres" });
+    }
+
+    if (!cleanProfession) {
+      return res.status(400).json({ error: "El rubro o profesión es obligatorio" });
+    }
+
+    if (!cleanAddress) {
+      return res.status(400).json({ error: "La dirección es obligatoria" });
+    }
+
+    if (!cleanSlug || cleanSlug.length < 3) {
+      return res.status(400).json({ error: "El link público debe tener mínimo 3 caracteres" });
+    }
+
+    const existingEmail = await db.query(
+      `
+      SELECT id
+      FROM professionals
+      WHERE email = $1
+      LIMIT 1
+      `,
+      [cleanEmail]
     );
 
-    const professional = (await db.query(
-      'SELECT * FROM professionals WHERE id = $1',
-      [newId]
-    )).rows[0];
+    if (existingEmail.rows.length > 0) {
+      return res.status(409).json({ error: "Ese email ya está registrado" });
+    }
 
-    const token = signToken({ id: professional.id, email: professional.email, slug: professional.slug });
-    res.status(201).json({ token, professional: sanitizeProfessional(professional) });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Error interno del servidor' });
-  }
-});
+    const existingSlug = await db.query(
+      `
+      SELECT id
+      FROM professionals
+      WHERE slug = $1
+      LIMIT 1
+      `,
+      [cleanSlug]
+    );
 
-// ── POST /api/auth/login ──────────────────────────────────────
-router.post('/login', async (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ error: 'Email y contraseña requeridos' });
+    if (existingSlug.rows.length > 0) {
+      return res.status(409).json({ error: "Ese link público ya está en uso" });
+    }
 
-  try {
-    const professional = (await db.query(
-      'SELECT * FROM professionals WHERE email = $1',
-      [email]
-    )).rows[0];
-    if (!professional) return res.status(401).json({ error: 'Credenciales inválidas' });
+    const passwordHash = await bcrypt.hash(cleanPassword, 12);
 
-    const valid = await bcrypt.compare(password, professional.password_hash);
-    if (!valid) return res.status(401).json({ error: 'Credenciales inválidas' });
-
-    const token = signToken({ id: professional.id, email: professional.email, slug: professional.slug });
-    res.json({ token, professional: sanitizeProfessional(professional) });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Error interno del servidor' });
-  }
-});
-
-// ── GET /api/auth/me ──────────────────────────────────────────
-router.get('/me', authMiddleware, async (req, res) => {
-  try {
-    const professional = (await db.query(
-      'SELECT * FROM professionals WHERE id = $1',
-      [req.professional.id]
-    )).rows[0];
-    if (!professional) return res.status(404).json({ error: 'No encontrado' });
-    res.json(sanitizeProfessional(professional));
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Error interno del servidor' });
-  }
-});
-
-// ── PUT /api/auth/me ──────────────────────────────────────────
-router.put('/me', authMiddleware, async (req, res) => {
-  const {
-    name, profession, phone, bio, slug, timezone,
-    slot_duration, buffer_between, max_advance_days, min_advance_hours,
-    notify_new_booking, notify_cancellation, notify_reminder, reminder_hours_before,
-  } = req.body;
-
-  let slugClean = null;
-  if (slug !== undefined && slug !== null) {
-    slugClean = slug.toLowerCase().replace(/[^a-z0-9-]/g, '-');
-    if (slugClean.length < 3) return res.status(400).json({ error: 'El link debe tener al menos 3 caracteres' });
-    const existing = (await db.query(
-      'SELECT id FROM professionals WHERE slug = $1 AND id != $2',
-      [slugClean, req.professional.id]
-    )).rows[0];
-    if (existing) return res.status(409).json({ error: 'Ese link ya está en uso por otro profesional' });
-  }
-
-  const initials = name
-    ? name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
-    : null;
-
-  try {
-    await db.query(
-      `UPDATE professionals SET
-        name = COALESCE($1, name),
-        profession = COALESCE($2, profession),
-        phone = COALESCE($3, phone),
-        bio = COALESCE($4, bio),
-        slug = COALESCE($5, slug),
-        timezone = COALESCE($6, timezone),
-        slot_duration = COALESCE($7, slot_duration),
-        buffer_between = COALESCE($8, buffer_between),
-        max_advance_days = COALESCE($9, max_advance_days),
-        min_advance_hours = COALESCE($10, min_advance_hours),
-        notify_new_booking = COALESCE($11, notify_new_booking),
-        notify_cancellation = COALESCE($12, notify_cancellation),
-        notify_reminder = COALESCE($13, notify_reminder),
-        reminder_hours_before = COALESCE($14, reminder_hours_before),
-        avatar_initials = COALESCE($15, avatar_initials),
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = $16`,
+    const result = await db.query(
+      `
+      INSERT INTO professionals (
+        name,
+        business_name,
+        email,
+        password_hash,
+        phone,
+        profession,
+        address,
+        slug,
+        status,
+        created_at,
+        updated_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active', NOW(), NOW())
+      RETURNING id, name, business_name, email, phone, profession, address, slug, status, created_at
+      `,
       [
-        name ?? null, profession ?? null, phone ?? null, bio ?? null,
-        slugClean, timezone ?? null,
-        slot_duration ?? null, buffer_between ?? null,
-        max_advance_days ?? null, min_advance_hours ?? null,
-        notify_new_booking ?? null, notify_cancellation ?? null,
-        notify_reminder ?? null, reminder_hours_before ?? null,
-        initials,
-        req.professional.id,
+        cleanName,
+        cleanBusinessName,
+        cleanEmail,
+        passwordHash,
+        cleanPhone || null,
+        cleanProfession,
+        cleanAddress,
+        cleanSlug,
       ]
     );
 
-    const updated = (await db.query(
-      'SELECT * FROM professionals WHERE id = $1',
-      [req.professional.id]
-    )).rows[0];
-    res.json(sanitizeProfessional(updated));
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    const professional = normalizeProfessional(result.rows[0]);
+    const token = createToken(result.rows[0]);
+
+    res.status(201).json({
+      success: true,
+      token,
+      professional,
+    });
+  } catch (error) {
+    console.error("Error register:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
   }
 });
 
-// ── POST /api/auth/change-password ───────────────────────────
-router.post('/change-password', authMiddleware, async (req, res) => {
-  const { current_password, new_password } = req.body;
-  if (!current_password || !new_password) return res.status(400).json({ error: 'Faltan campos' });
-  if (new_password.length < 8) return res.status(400).json({ error: 'Mínimo 8 caracteres' });
-
+router.post("/login", async (req, res) => {
   try {
-    const prof = (await db.query(
-      'SELECT * FROM professionals WHERE id = $1',
-      [req.professional.id]
-    )).rows[0];
-    const valid = await bcrypt.compare(current_password, prof.password_hash);
-    if (!valid) return res.status(401).json({ error: 'Contraseña actual incorrecta' });
+    const email = String(req.body.email || "").trim().toLowerCase();
+    const password = String(req.body.password || "");
 
-    const hash = await bcrypt.hash(new_password, 12);
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email y contraseña son obligatorios" });
+    }
+
+    const result = await db.query(
+      `
+      SELECT *
+      FROM professionals
+      WHERE email = $1
+      LIMIT 1
+      `,
+      [email]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: "Credenciales inválidas" });
+    }
+
+    const professionalRow = result.rows[0];
+
+    if (professionalRow.status !== "active") {
+      return res.status(403).json({ error: "Cuenta inactiva" });
+    }
+
+    const validPassword = await bcrypt.compare(password, professionalRow.password_hash);
+
+    if (!validPassword) {
+      return res.status(401).json({ error: "Credenciales inválidas" });
+    }
+
+    const token = createToken(professionalRow);
+
+    res.json({
+      success: true,
+      token,
+      professional: normalizeProfessional(professionalRow),
+    });
+  } catch (error) {
+    console.error("Error login:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+router.get("/me", authMiddleware, async (req, res) => {
+  res.json({
+    professional: normalizeProfessional(req.professional),
+  });
+});
+
+router.post("/change-password", authMiddleware, async (req, res) => {
+  try {
+    const currentPassword = req.body.currentPassword || req.body.current_password;
+    const newPassword = req.body.newPassword || req.body.new_password;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: "Faltan campos" });
+    }
+
+    if (String(newPassword).length < 8) {
+      return res.status(400).json({ error: "La nueva contraseña debe tener mínimo 8 caracteres" });
+    }
+
+    const result = await db.query(
+      `
+      SELECT *
+      FROM professionals
+      WHERE id = $1
+      LIMIT 1
+      `,
+      [req.professional.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Profesional no encontrado" });
+    }
+
+    const validPassword = await bcrypt.compare(currentPassword, result.rows[0].password_hash);
+
+    if (!validPassword) {
+      return res.status(401).json({ error: "Contraseña actual incorrecta" });
+    }
+
+    const hash = await bcrypt.hash(newPassword, 12);
+
     await db.query(
-      'UPDATE professionals SET password_hash = $1 WHERE id = $2',
+      `
+      UPDATE professionals
+      SET password_hash = $1, updated_at = NOW()
+      WHERE id = $2
+      `,
       [hash, req.professional.id]
     );
-    res.json({ message: 'Contraseña actualizada' });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Error interno del servidor' });
+
+    res.json({ success: true, message: "Contraseña actualizada" });
+  } catch (error) {
+    console.error("Error change-password:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
   }
 });
 
-// ── GET /api/auth/check-slug/:slug ────────────────────────────
-router.get('/check-slug/:slug', async (req, res) => {
+router.get("/check-slug/:slug", async (req, res) => {
   try {
-    const slug = req.params.slug.toLowerCase().replace(/[^a-z0-9-]/g, '-');
-    const exists = (await db.query(
-      'SELECT id FROM professionals WHERE slug = $1',
+    const slug = normalizeSlug(req.params.slug);
+
+    const result = await db.query(
+      `
+      SELECT id
+      FROM professionals
+      WHERE slug = $1
+      LIMIT 1
+      `,
       [slug]
-    )).rows[0];
-    res.json({ available: !exists, slug });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    );
+
+    res.json({
+      available: result.rows.length === 0,
+      slug,
+    });
+  } catch (error) {
+    console.error("Error check-slug:", error);
+    res.status(500).json({ error: "Error interno del servidor" });
   }
 });
 
-// ── POST /api/auth/forgot-password ───────────────────────────
-router.post('/forgot-password', async (req, res) => {
-  const { email } = req.body;
-  if (!email) return res.status(400).json({ error: 'Email requerido' });
-
-  try {
-    const professional = (await db.query(
-      'SELECT * FROM professionals WHERE email = $1',
-      [email.toLowerCase().trim()]
-    )).rows[0];
-
-    if (professional) {
-      await db.query(
-        'UPDATE password_reset_tokens SET used = 1 WHERE professional_id = $1 AND used = 0',
-        [professional.id]
-      );
-
-      const token = crypto.randomBytes(32).toString('hex');
-      const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
-
-      await db.query(
-        'INSERT INTO password_reset_tokens (professional_id, token, expires_at) VALUES ($1, $2, $3)',
-        [professional.id, token, expiresAt]
-      );
-
-      console.log(`[forgot-password] token para ${email}: ${token}`);
-    }
-    res.json({ message: 'Si el email existe, recibirás un enlace para restablecer tu contraseña.' });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Error interno del servidor' });
-  }
-});
-
-// ── POST /api/auth/reset-password ────────────────────────────
-router.post('/reset-password', async (req, res) => {
-  const { token, password } = req.body;
-  if (!token || !password) return res.status(400).json({ error: 'Token y contraseña requeridos' });
-  if (password.length < 8) return res.status(400).json({ error: 'Mínimo 8 caracteres' });
-
-  try {
-    const resetToken = (await db.query(
-      'SELECT * FROM password_reset_tokens WHERE token = $1 AND used = 0 AND expires_at > NOW()',
-      [token]
-    )).rows[0];
-
-    if (!resetToken) return res.status(400).json({ error: 'El enlace es inválido o ya expiró.' });
-
-    const hash = await bcrypt.hash(password, 12);
-    await db.query(
-      'UPDATE professionals SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-      [hash, resetToken.professional_id]
-    );
-    await db.query(
-      'UPDATE password_reset_tokens SET used = 1 WHERE id = $1',
-      [resetToken.id]
-    );
-
-    res.json({ message: 'Contraseña restablecida correctamente. Ya podés ingresar.' });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Error interno del servidor' });
-  }
+router.post("/forgot-password", async (req, res) => {
+  res.json({
+    success: true,
+    message: "Si el email existe, se enviarán instrucciones para recuperar la contraseña.",
+  });
 });
 
 module.exports = router;

@@ -25,11 +25,17 @@ async function initDb() {
         password_hash TEXT NOT NULL,
         phone TEXT,
         profession TEXT,
+        address TEXT,
         slug TEXT UNIQUE NOT NULL,
         status TEXT DEFAULT 'active',
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       );
+    `);
+
+    await pool.query(`
+      ALTER TABLE professionals
+      ADD COLUMN IF NOT EXISTS address TEXT;
     `);
 
     await pool.query(`
