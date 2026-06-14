@@ -1983,13 +1983,240 @@ function ServicesSection() {
   );
 }
 
-function Dashboard({ professional, onLogout }) {
+
+function normalizeProfessionalFromApi(item) {
+  if (!item) return {};
+
+  return {
+    id: item.id,
+    name: item.name || '',
+    businessName: item.businessName ?? item.business_name ?? '',
+    business_name: item.business_name ?? item.businessName ?? '',
+    email: item.email || '',
+    phone: item.phone || '',
+    profession: item.profession || '',
+    address: item.address || '',
+    slug: item.slug || '',
+    logoUrl: item.logoUrl ?? item.logo_url ?? '',
+    logo_url: item.logo_url ?? item.logoUrl ?? '',
+    status: item.status || '',
+    createdAt: item.createdAt ?? item.created_at,
+    created_at: item.created_at ?? item.createdAt,
+    updatedAt: item.updatedAt ?? item.updated_at,
+    updated_at: item.updated_at ?? item.updatedAt,
+  };
+}
+
+function BusinessProfileSection({ professional, onProfileUpdated }) {
+  const [form, setForm] = useState({
+    businessName: professional?.businessName || professional?.business_name || '',
+    phone: professional?.phone || '',
+    address: professional?.address || '',
+    logoUrl: professional?.logoUrl || professional?.logo_url || '',
+  });
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+
+  const token = localStorage.getItem('tuagendaya_token');
+
+  const fetchProfile = () => {
+    setLoading(true);
+    setError('');
+
+    fetch(`${API_BASE}/professionals/me/profile`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.professional) {
+          const normalized = normalizeProfessionalFromApi(data.professional);
+
+          setForm({
+            businessName: normalized.businessName || '',
+            phone: normalized.phone || '',
+            address: normalized.address || '',
+            logoUrl: normalized.logoUrl || '',
+          });
+
+          onProfileUpdated(normalized);
+        }
+      })
+      .catch(() => {
+        setError('No se pudo cargar el perfil del negocio.');
+      })
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchProfile();
+  }, []);
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    setMessage('');
+    setError('');
+
+    if (!form.businessName.trim()) {
+      setError('El nombre del negocio es obligatorio.');
+      return;
+    }
+
+    if (
+      form.logoUrl.trim() &&
+      !form.logoUrl.trim().startsWith('http://') &&
+      !form.logoUrl.trim().startsWith('https://')
+    ) {
+      setError('La URL del logo debe empezar con http:// o https://');
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const res = await fetch(`${API_BASE}/professionals/me/profile`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          businessName: form.businessName.trim(),
+          phone: form.phone.trim(),
+          address: form.address.trim(),
+          logoUrl: form.logoUrl.trim(),
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || 'No se pudo guardar el perfil.');
+      } else {
+        const normalized = normalizeProfessionalFromApi(data.professional);
+        localStorage.setItem('tuagendaya_professional', JSON.stringify(normalized));
+        onProfileUpdated(normalized);
+        setMessage('Perfil del negocio guardado correctamente.');
+      }
+    } catch {
+      setError('No se pudo conectar con el servidor.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div style={{ background: '#fff', borderRadius: 20, padding: 24, textAlign: 'center', color: '#aeaeb2' }}>
+        Cargando perfil del negocio...
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'grid', gap: 16 }}>
+      <div style={{ background: '#fff', borderRadius: 20, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
+        <div style={{ marginBottom: 18 }}>
+          <div style={{ fontSize: 17, fontWeight: 700, color: '#1a1a1a' }}>Perfil del negocio</div>
+          <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 4 }}>
+            Configurá los datos que aparecen en tu panel y en la página pública de reservas.
+          </div>
+        </div>
+
+        <form onSubmit={handleSave}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+            <div>
+              <label style={smallLabelStyle}>Nombre del negocio *</label>
+              <input
+                style={inputStyle}
+                value={form.businessName}
+                onChange={(e) => setForm({ ...form, businessName: e.target.value })}
+                placeholder="Nombre comercial"
+              />
+            </div>
+
+            <div>
+              <label style={smallLabelStyle}>Teléfono</label>
+              <input
+                style={inputStyle}
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                placeholder="099 123 456"
+              />
+            </div>
+          </div>
+
+          <label style={smallLabelStyle}>Dirección</label>
+          <input
+            style={{ ...inputStyle, marginBottom: 12 }}
+            value={form.address}
+            onChange={(e) => setForm({ ...form, address: e.target.value })}
+            placeholder="Dirección del negocio"
+          />
+
+          <label style={smallLabelStyle}>URL del logo del negocio</label>
+          <input
+            style={{ ...inputStyle, marginBottom: 12 }}
+            value={form.logoUrl}
+            onChange={(e) => setForm({ ...form, logoUrl: e.target.value })}
+            placeholder="https://..."
+          />
+
+          {form.logoUrl ? (
+            <div style={{ background: '#f2f2f7', borderRadius: 16, padding: 16, marginBottom: 12 }}>
+              <div style={{ fontSize: 12, color: '#6e6e73', marginBottom: 10 }}>Vista previa del logo</div>
+              <img
+                src={form.logoUrl}
+                alt="Logo del negocio"
+                style={{ maxWidth: 180, maxHeight: 80, objectFit: 'contain', display: 'block' }}
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+            </div>
+          ) : (
+            <div style={{ background: '#f2f2f7', borderRadius: 16, padding: 16, marginBottom: 12, color: '#8e8e93', fontSize: 13 }}>
+              Cuando cargues una URL de logo, se va a mostrar acá y en la página pública de reservas.
+            </div>
+          )}
+
+          {message && (
+            <div style={{ background: '#edfff3', border: '0.5px solid #b7f5c8', borderRadius: 10, padding: '10px 12px', fontSize: 13, color: '#188038', marginBottom: 12 }}>
+              {message}
+            </div>
+          )}
+
+          {error && (
+            <div style={{ background: '#fff2f2', border: '0.5px solid #ffcdd2', borderRadius: 10, padding: '10px 12px', fontSize: 13, color: '#c62828', marginBottom: 12 }}>
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={saving}
+            style={{ width: '100%', padding: '13px', borderRadius: 12, border: 'none', background: saving ? '#aeaeb2' : '#0071e3', color: '#fff', fontSize: 15, fontWeight: 700, fontFamily: 'inherit', cursor: saving ? 'not-allowed' : 'pointer' }}
+          >
+            {saving ? 'Guardando...' : 'Guardar perfil del negocio'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function Dashboard({ professional, onLogout, onProfileUpdated }) {
   const [activeTab, setActiveTab] = useState('reservas');
   const [copiedPublicLink, setCopiedPublicLink] = useState(false);
 
   const publicBookingUrl = professional?.slug
     ? `https://tuagendaya-web.onrender.com/reservar/${professional.slug}`
     : '';
+
+  const businessLogoUrl = professional?.logoUrl || professional?.logo_url || '';
+  const businessName = professional?.businessName || professional?.business_name || '';
 
   const handleCopyPublicLink = async () => {
     if (!publicBookingUrl) return;
@@ -2026,22 +2253,64 @@ function Dashboard({ professional, onLogout }) {
     fontSize: 14,
     fontWeight: 700,
     cursor: 'pointer',
+    fontFamily: 'inherit',
     boxShadow: activeTab === key ? '0 1px 8px rgba(0,113,227,0.25)' : '0 1px 8px rgba(0,0,0,0.04)',
   });
 
   return (
     <div style={{ minHeight: '100vh', background: '#f2f2f7', padding: '20px 16px', fontFamily: APP_FONT }}>
+      <style>{`
+        button, input, select, textarea {
+          font-family: inherit;
+        }
+
+        @media (max-width: 720px) {
+          .dashboard-header-card {
+            flex-direction: column;
+            align-items: stretch !important;
+            gap: 18px;
+          }
+
+          .dashboard-logo-area {
+            justify-content: space-between !important;
+            width: 100%;
+          }
+
+          .dashboard-tabs {
+            display: grid !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+
+          .dashboard-public-link {
+            align-items: flex-start !important;
+          }
+        }
+      `}</style>
+
       <div style={{ maxWidth: 900, margin: '0 auto' }}>
-        <div style={{ background: '#fff', borderRadius: 20, padding: '18px 24px', marginBottom: 16, boxShadow: '0 1px 8px rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <div style={{ ...brandTextStyle, fontSize: 20 }}>TuAgendaYa</div>
+        <div className="dashboard-header-card" style={{ background: '#fff', borderRadius: 20, padding: '18px 24px', marginBottom: 16, boxShadow: '0 1px 8px rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ minWidth: 0 }}>
+            <div className="dashboard-logo-area" style={{ display: 'flex', alignItems: 'center', gap: 18, marginBottom: 8 }}>
+              <div style={{ ...brandTextStyle, fontSize: 20, flexShrink: 0 }}>TuAgendaYa</div>
+
+              {businessLogoUrl && (
+                <div style={{ marginLeft: 'auto', background: '#fff', border: '0.5px solid #e8e8ed', borderRadius: 14, padding: '8px 12px', minWidth: 120, display: 'flex', justifyContent: 'center' }}>
+                  <img
+                    src={businessLogoUrl}
+                    alt={businessName || 'Logo del negocio'}
+                    style={{ maxWidth: 150, maxHeight: 48, objectFit: 'contain', display: 'block' }}
+                  />
+                </div>
+              )}
+            </div>
+
             <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 2 }}>
               Hola, {professional?.name || 'profesional'}
             </div>
 
-            {professional?.businessName && (
+            {businessName && (
               <div style={{ fontSize: 12, color: '#3a3a3c', marginTop: 4 }}>
-                {professional.businessName}
+                {businessName}
               </div>
             )}
 
@@ -2052,8 +2321,8 @@ function Dashboard({ professional, onLogout }) {
             )}
 
             {professional?.slug && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
-                <div style={{ fontSize: 12, color: '#8e8e93' }}>
+              <div className="dashboard-public-link" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                <div style={{ fontSize: 12, color: '#8e8e93', wordBreak: 'break-word' }}>
                   Link público: <strong>{publicBookingUrl}</strong>
                 </div>
 
@@ -2080,27 +2349,35 @@ function Dashboard({ professional, onLogout }) {
 
           <button
             onClick={handleLogout}
-            style={{ padding: '8px 16px', borderRadius: 10, border: '0.5px solid #e0e0e5', background: 'transparent', fontSize: 13, color: '#6e6e73', cursor: 'pointer', fontFamily: 'inherit' }}
+            style={{ padding: '8px 16px', borderRadius: 10, border: '0.5px solid #e0e0e5', background: 'transparent', fontSize: 13, color: '#6e6e73', cursor: 'pointer', fontFamily: 'inherit', alignSelf: 'flex-start' }}
           >
             Cerrar sesión
           </button>
         </div>
 
-        <div style={{ display: 'flex', gap: 10, marginBottom: 16, overflowX: 'auto' }}>
+        <div className="dashboard-tabs" style={{ display: 'flex', gap: 10, marginBottom: 16, overflowX: 'auto' }}>
           <button style={tabStyle('reservas')} onClick={() => setActiveTab('reservas')}>Reservas</button>
           <button style={tabStyle('disponibilidad')} onClick={() => setActiveTab('disponibilidad')}>Disponibilidad</button>
           <button style={tabStyle('servicios')} onClick={() => setActiveTab('servicios')}>Servicios</button>
           <button style={tabStyle('profesionales')} onClick={() => setActiveTab('profesionales')}>Profesionales</button>
+          <button style={tabStyle('perfil')} onClick={() => setActiveTab('perfil')}>Perfil</button>
         </div>
 
         {activeTab === 'reservas' && <ReservationsSection />}
         {activeTab === 'disponibilidad' && <AvailabilitySection />}
         {activeTab === 'servicios' && <ServicesSection />}
         {activeTab === 'profesionales' && <StaffSection />}
+        {activeTab === 'perfil' && (
+          <BusinessProfileSection
+            professional={professional}
+            onProfileUpdated={onProfileUpdated}
+          />
+        )}
       </div>
     </div>
   );
 }
+
 
 function ProfesionalPage() {
   const [professional, setProfessional] = useState(() => {
@@ -2114,11 +2391,27 @@ function ProfesionalPage() {
     }
   });
 
+  const handleProfessionalUpdate = (updatedProfessional) => {
+    const normalized = normalizeProfessionalFromApi({
+      ...(professional || {}),
+      ...(updatedProfessional || {}),
+    });
+
+    setProfessional(normalized);
+    localStorage.setItem('tuagendaya_professional', JSON.stringify(normalized));
+  };
+
   if (!professional) {
-    return <LoginForm onLogin={(prof) => setProfessional(prof || {})} />;
+    return <LoginForm onLogin={(prof) => setProfessional(normalizeProfessionalFromApi(prof || {}))} />;
   }
 
-  return <Dashboard professional={professional} onLogout={() => setProfessional(null)} />;
+  return (
+    <Dashboard
+      professional={professional}
+      onLogout={() => setProfessional(null)}
+      onProfileUpdated={handleProfessionalUpdate}
+    />
+  );
 }
 
 export default function App() {
