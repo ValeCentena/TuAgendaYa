@@ -58,6 +58,87 @@ function normalizeService(item) {
   };
 }
 
+function getProfessionExamples() {
+  let profession = '';
+
+  try {
+    const stored = JSON.parse(localStorage.getItem('tuagendaya_professional')) || {};
+    profession = String(stored.profession || '').toLowerCase();
+  } catch {
+    profession = '';
+  }
+
+  if (profession.includes('dent') || profession.includes('odont')) {
+    return {
+      serviceExample: 'Ej: Limpieza dental',
+      descriptionExample: 'Ej: Profilaxis, control, urgencia dental...',
+    };
+  }
+
+  if (profession.includes('psic') || profession.includes('terap')) {
+    return {
+      serviceExample: 'Ej: Consulta individual',
+      descriptionExample: 'Ej: Sesión individual, primera entrevista, consulta online...',
+    };
+  }
+
+  if (profession.includes('veterin')) {
+    return {
+      serviceExample: 'Ej: Consulta general',
+      descriptionExample: 'Ej: Consulta, vacunación, control post tratamiento...',
+    };
+  }
+
+  if (
+    profession.includes('uña') ||
+    profession.includes('una') ||
+    profession.includes('manicur') ||
+    profession.includes('nail')
+  ) {
+    return {
+      serviceExample: 'Ej: Kapping',
+      descriptionExample: 'Ej: Kapping, esmaltado semi, esculpidas...',
+    };
+  }
+
+  if (profession.includes('fisi') || profession.includes('kines') || profession.includes('masaj')) {
+    return {
+      serviceExample: 'Ej: Sesión de fisioterapia',
+      descriptionExample: 'Ej: Evaluación, fisioterapia, masaje terapéutico...',
+    };
+  }
+
+  if (
+    profession.includes('entren') ||
+    profession.includes('gym') ||
+    profession.includes('fitness')
+  ) {
+    return {
+      serviceExample: 'Ej: Clase personal',
+      descriptionExample: 'Ej: Entrenamiento personalizado, evaluación física...',
+    };
+  }
+
+  if (profession.includes('maquill') || profession.includes('makeup')) {
+    return {
+      serviceExample: 'Ej: Maquillaje social',
+      descriptionExample: 'Ej: Social, novia, prueba de maquillaje...',
+    };
+  }
+
+  if (profession.includes('foto')) {
+    return {
+      serviceExample: 'Ej: Sesión completa',
+      descriptionExample: 'Ej: Sesión básica, completa, reunión previa...',
+    };
+  }
+
+  return {
+    serviceExample: 'Ej: Corte + barba',
+    descriptionExample: 'Ej: Corte clásico, degradado, arreglo de barba...',
+  };
+}
+
 const inputStyle = {
   width: '100%',
   padding: '10px 12px',
@@ -604,6 +685,7 @@ function ServicesSection() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
+  const { serviceExample, descriptionExample } = getProfessionExamples();
   const token = localStorage.getItem('tuagendaya_token');
 
   const fetchServices = () => {
@@ -779,7 +861,7 @@ function ServicesSection() {
               style={inputStyle}
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
-              placeholder="Ej: Corte + barba"
+              placeholder={serviceExample}
             />
           </div>
 
@@ -814,7 +896,7 @@ function ServicesSection() {
           style={{ ...inputStyle, marginBottom: 12 }}
           value={form.description}
           onChange={(e) => setForm({ ...form, description: e.target.value })}
-          placeholder="Ej: Corte clásico, degradado, arreglo de barba..."
+          placeholder={descriptionExample}
         />
 
         <button

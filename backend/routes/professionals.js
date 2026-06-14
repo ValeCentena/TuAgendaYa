@@ -65,33 +65,27 @@ function getDefaultServicesByProfession(profession) {
     p.includes("salon")
   ) {
     return [
-      { name: "Corte", description: "Corte de pelo", duration_minutes: 30, price: null },
-      { name: "Barba", description: "Arreglo de barba", duration_minutes: 20, price: null },
-      { name: "Corte + barba", description: "Corte de pelo y arreglo de barba", duration_minutes: 60, price: null },
-      { name: "Color", description: "Servicio de coloración", duration_minutes: 90, price: null },
+      { name: "Corte", description: "Corte de pelo", duration_minutes: 30, price: 500 },
+      { name: "Barba", description: "Arreglo de barba", duration_minutes: 20, price: 300 },
+      { name: "Corte + barba", description: "Corte de pelo y arreglo de barba", duration_minutes: 60, price: 800 },
+      { name: "Color", description: "Servicio de coloración", duration_minutes: 90, price: 1200 },
     ];
   }
 
-  if (
-    p.includes("dent") ||
-    p.includes("odont")
-  ) {
+  if (p.includes("dent") || p.includes("odont")) {
     return [
-      { name: "Consulta inicial", description: "Evaluación general", duration_minutes: 30, price: null },
-      { name: "Limpieza dental", description: "Profilaxis y limpieza", duration_minutes: 45, price: null },
-      { name: "Control", description: "Control odontológico", duration_minutes: 20, price: null },
-      { name: "Urgencia dental", description: "Atención por dolor o urgencia", duration_minutes: 30, price: null },
+      { name: "Consulta inicial", description: "Evaluación general", duration_minutes: 30, price: 1500 },
+      { name: "Limpieza dental", description: "Profilaxis y limpieza", duration_minutes: 45, price: 2500 },
+      { name: "Control", description: "Control odontológico", duration_minutes: 20, price: 1000 },
+      { name: "Urgencia dental", description: "Atención por dolor o urgencia", duration_minutes: 30, price: 2000 },
     ];
   }
 
-  if (
-    p.includes("psic") ||
-    p.includes("terap")
-  ) {
+  if (p.includes("psic") || p.includes("terap")) {
     return [
-      { name: "Primera entrevista", description: "Primera consulta de evaluación", duration_minutes: 60, price: null },
-      { name: "Consulta individual", description: "Sesión individual", duration_minutes: 50, price: null },
-      { name: "Consulta online", description: "Sesión por videollamada", duration_minutes: 50, price: null },
+      { name: "Primera entrevista", description: "Primera consulta de evaluación", duration_minutes: 60, price: 1800 },
+      { name: "Consulta individual", description: "Sesión individual", duration_minutes: 50, price: 1600 },
+      { name: "Consulta online", description: "Sesión por videollamada", duration_minutes: 50, price: 1500 },
     ];
   }
 
@@ -102,22 +96,19 @@ function getDefaultServicesByProfession(profession) {
     p.includes("nail")
   ) {
     return [
-      { name: "Manicura", description: "Servicio de manicura", duration_minutes: 45, price: null },
-      { name: "Kapping", description: "Kapping gel", duration_minutes: 60, price: null },
-      { name: "Esmaltado semipermanente", description: "Esmaltado semi", duration_minutes: 60, price: null },
-      { name: "Esculpidas", description: "Uñas esculpidas", duration_minutes: 90, price: null },
-      { name: "Retiro", description: "Retiro de producto", duration_minutes: 30, price: null },
+      { name: "Manicura", description: "Servicio de manicura", duration_minutes: 45, price: 900 },
+      { name: "Kapping", description: "Kapping gel", duration_minutes: 60, price: 1200 },
+      { name: "Esmaltado semipermanente", description: "Esmaltado semi", duration_minutes: 60, price: 1000 },
+      { name: "Esculpidas", description: "Uñas esculpidas", duration_minutes: 90, price: 1800 },
     ];
   }
 
-  if (
-    p.includes("veterin")
-  ) {
+  if (p.includes("veterin")) {
     return [
-      { name: "Consulta general", description: "Consulta veterinaria", duration_minutes: 30, price: null },
-      { name: "Vacunación", description: "Aplicación de vacuna", duration_minutes: 20, price: null },
-      { name: "Control", description: "Control post tratamiento", duration_minutes: 20, price: null },
-      { name: "Baño y corte", description: "Higiene y estética", duration_minutes: 60, price: null },
+      { name: "Consulta general", description: "Consulta veterinaria", duration_minutes: 30, price: 1200 },
+      { name: "Vacunación", description: "Aplicación de vacuna", duration_minutes: 20, price: 900 },
+      { name: "Control", description: "Control post tratamiento", duration_minutes: 20, price: 800 },
+      { name: "Baño y corte", description: "Higiene y estética", duration_minutes: 60, price: 1800 },
     ];
   }
 
@@ -128,9 +119,9 @@ function getDefaultServicesByProfession(profession) {
     p.includes("salud")
   ) {
     return [
-      { name: "Consulta médica", description: "Consulta general", duration_minutes: 30, price: null },
-      { name: "Control", description: "Control médico", duration_minutes: 20, price: null },
-      { name: "Primera consulta", description: "Primera evaluación", duration_minutes: 40, price: null },
+      { name: "Consulta médica", description: "Consulta general", duration_minutes: 30, price: 1500 },
+      { name: "Control", description: "Control médico", duration_minutes: 20, price: 1000 },
+      { name: "Primera consulta", description: "Primera evaluación", duration_minutes: 40, price: 1800 },
     ];
   }
 
@@ -140,9 +131,9 @@ function getDefaultServicesByProfession(profession) {
     p.includes("masaj")
   ) {
     return [
-      { name: "Evaluación inicial", description: "Primera evaluación", duration_minutes: 45, price: null },
-      { name: "Sesión de fisioterapia", description: "Tratamiento fisioterapéutico", duration_minutes: 45, price: null },
-      { name: "Masaje terapéutico", description: "Masaje o descarga muscular", duration_minutes: 60, price: null },
+      { name: "Evaluación inicial", description: "Primera evaluación", duration_minutes: 45, price: 1500 },
+      { name: "Sesión de fisioterapia", description: "Tratamiento fisioterapéutico", duration_minutes: 45, price: 1400 },
+      { name: "Masaje terapéutico", description: "Masaje o descarga muscular", duration_minutes: 60, price: 1800 },
     ];
   }
 
@@ -153,37 +144,32 @@ function getDefaultServicesByProfession(profession) {
     p.includes("fitness")
   ) {
     return [
-      { name: "Clase personal", description: "Entrenamiento personalizado", duration_minutes: 60, price: null },
-      { name: "Evaluación física", description: "Evaluación inicial", duration_minutes: 45, price: null },
-      { name: "Planificación", description: "Armado de rutina", duration_minutes: 30, price: null },
+      { name: "Clase personal", description: "Entrenamiento personalizado", duration_minutes: 60, price: 1200 },
+      { name: "Evaluación física", description: "Evaluación inicial", duration_minutes: 45, price: 1000 },
+      { name: "Planificación", description: "Armado de rutina", duration_minutes: 30, price: 800 },
     ];
   }
 
-  if (
-    p.includes("maquill") ||
-    p.includes("makeup")
-  ) {
+  if (p.includes("maquill") || p.includes("makeup")) {
     return [
-      { name: "Maquillaje social", description: "Maquillaje para evento", duration_minutes: 60, price: null },
-      { name: "Maquillaje novia", description: "Servicio especial novia", duration_minutes: 120, price: null },
-      { name: "Prueba de maquillaje", description: "Prueba previa", duration_minutes: 60, price: null },
+      { name: "Maquillaje social", description: "Maquillaje para evento", duration_minutes: 60, price: 1800 },
+      { name: "Maquillaje novia", description: "Servicio especial novia", duration_minutes: 120, price: 4500 },
+      { name: "Prueba de maquillaje", description: "Prueba previa", duration_minutes: 60, price: 1500 },
     ];
   }
 
-  if (
-    p.includes("fotograf") ||
-    p.includes("foto")
-  ) {
+  if (p.includes("fotograf") || p.includes("foto")) {
     return [
-      { name: "Sesión básica", description: "Sesión fotográfica corta", duration_minutes: 60, price: null },
-      { name: "Sesión completa", description: "Sesión fotográfica completa", duration_minutes: 120, price: null },
-      { name: "Reunión previa", description: "Coordinación de sesión", duration_minutes: 30, price: null },
+      { name: "Sesión básica", description: "Sesión fotográfica corta", duration_minutes: 60, price: 2500 },
+      { name: "Sesión completa", description: "Sesión fotográfica completa", duration_minutes: 120, price: 5000 },
+      { name: "Reunión previa", description: "Coordinación de sesión", duration_minutes: 30, price: 0 },
     ];
   }
 
   return [
-    { name: "Consulta", description: "Servicio general", duration_minutes: 30, price: null },
-    { name: "Servicio estándar", description: "Servicio principal", duration_minutes: 30, price: null },
+    { name: "Consulta", description: "Servicio general", duration_minutes: 30, price: 1000 },
+    { name: "Servicio estándar", description: "Servicio principal", duration_minutes: 30, price: 1000 },
+    { name: "Servicio extendido", description: "Servicio de mayor duración", duration_minutes: 60, price: 1800 },
   ];
 }
 
