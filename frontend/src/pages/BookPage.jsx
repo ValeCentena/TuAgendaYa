@@ -3,6 +3,8 @@ import { useParams } from 'react-router-dom';
 
 const API_BASE = 'https://tuagendaya-api.onrender.com/api';
 
+const FONT_STACK = '"SF Pro Display", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif';
+
 function addMinutes(timeStr, minutes) {
   const [h, m] = timeStr.split(':').map(Number);
   const total = h * 60 + m + Number(minutes || 30);
@@ -268,7 +270,7 @@ export default function BookPage() {
   const canChooseDate = Boolean(selectedServiceId && selectedStaffId);
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f2f2f7', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+    <div style={{ minHeight: '100vh', background: '#f2f2f7', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, fontFamily: FONT_STACK }}>
       <style>{`
         @keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
         .slot-btn { transition: background 0.12s, color 0.12s, transform 0.1s; }
@@ -286,7 +288,7 @@ export default function BookPage() {
               style={{ maxWidth: 150, maxHeight: 64, objectFit: 'contain', marginBottom: 10 }}
             />
           ) : (
-            <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: '#0071e3', marginBottom: 4 }}>
+            <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.035em', color: '#0071e3', marginBottom: 4, fontFamily: FONT_STACK }}>
               {businessName}
             </div>
           )}
@@ -294,7 +296,7 @@ export default function BookPage() {
           <div style={{ fontSize: 15, fontWeight: 600, color: '#1a1a1a' }}>Reservar turno</div>
 
           {business?.address && (
-            <div style={{ fontSize: 12, color: '#6e6e73', marginTop: 4 }}>📍 {business.address}</div>
+            <div style={{ fontSize: 12, color: '#6e6e73', marginTop: 4 }}>{business.address}</div>
           )}
 
           <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 4 }}>@{slug}</div>
@@ -302,8 +304,6 @@ export default function BookPage() {
 
         {success ? (
           <div style={{ textAlign: 'center', padding: '24px 0' }}>
-            <div style={{ fontSize: 44, marginBottom: 12 }}>✅</div>
-
             <div style={{ fontSize: 16, fontWeight: 600, color: '#30d158', marginBottom: 12 }}>
               Reserva recibida
             </div>
@@ -328,7 +328,7 @@ export default function BookPage() {
               )}
 
               <div style={{ fontSize: 13, color: '#3a3a3c' }}>
-                📅 {formatDate(bookingDate)} · ⏰ {selectedTime} a {selectedEndTime}
+                {formatDate(bookingDate)} · {selectedTime} a {selectedEndTime}
               </div>
             </div>
 
@@ -348,7 +348,7 @@ export default function BookPage() {
           <form onSubmit={handleSubmit}>
             <div style={{ background: '#f2f2f7', borderRadius: 14, padding: '14px 16px', marginBottom: 14 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#1a1a1a', marginBottom: 10 }}>
-                ✂️ Elegí un servicio
+                Elegí un servicio
               </div>
 
               {loadingServices ? (
@@ -419,7 +419,7 @@ export default function BookPage() {
             {staff.length > 1 && (
               <div style={{ background: '#f2f2f7', borderRadius: 14, padding: '14px 16px', marginBottom: 14 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: '#1a1a1a', marginBottom: 10 }}>
-                  👤 Elegí un profesional
+                  Elegí un profesional
                 </div>
 
                 {loadingStaff ? (
@@ -481,7 +481,7 @@ export default function BookPage() {
 
             <div style={{ background: '#f2f2f7', borderRadius: 14, padding: '14px 16px', marginBottom: 14 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#1a1a1a', marginBottom: 10 }}>
-                📅 Elegí una fecha
+                Elegí una fecha
               </div>
 
               <label style={labelStyle}>Fecha del turno *</label>
@@ -500,7 +500,7 @@ export default function BookPage() {
             {bookingDate && canChooseDate && (
               <div style={{ background: '#f2f2f7', borderRadius: 14, padding: '14px 16px', marginBottom: 14 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: '#1a1a1a', marginBottom: 10 }}>
-                  ⏰ Elegí un horario
+                  Elegí un horario
                   {selectedTime && (
                     <span style={{ marginLeft: 8, fontWeight: 400, color: '#0071e3' }}>
                       — {selectedTime} a {selectedEndTime}
@@ -577,7 +577,7 @@ export default function BookPage() {
 
             <div style={{ background: '#f2f2f7', borderRadius: 14, padding: '14px 16px', marginBottom: 14 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#1a1a1a', marginBottom: 10 }}>
-                👤 Tus datos
+                Tus datos
               </div>
 
               <label style={labelStyle}>Nombre completo *</label>
