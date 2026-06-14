@@ -22,12 +22,27 @@ function normalizeService(item) {
   };
 }
 
+function normalizeStaff(item) {
+  return {
+    id: item.id,
+    name: item.name || '',
+    color: item.color || '#0071e3',
+    isActive: Boolean(item.isActive ?? item.is_active ?? true),
+  };
+}
+
 export default function BookPage() {
   const { slug } = useParams();
+
+  const [business, setBusiness] = useState(null);
 
   const [services, setServices] = useState([]);
   const [selectedServiceId, setSelectedServiceId] = useState('');
   const [loadingServices, setLoadingServices] = useState(true);
+
+  const [staff, setStaff] = useState([]);
+  const [selectedStaffId, setSelectedStaffId] = useState('');
+  const [loadingStaff, setLoadingStaff] = useState(true);
 
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
@@ -44,6 +59,8 @@ export default function BookPage() {
   const today = new Date().toISOString().slice(0, 10);
 
   const selectedService = services.find((service) => String(service.id) === String(selectedServiceId));
+  const selectedStaff = staff.find((member) => String(member.id) === String(selectedStaffId));
+
   const selectedDuration = selectedService?.durationMinutes || 30;
   const selectedEndTime = selectedTime ? addMinutes(selectedTime, selectedDuration) : '';
 
@@ -72,7 +89,33 @@ export default function BookPage() {
   }, [slug]);
 
   useEffect(() => {
-    if (!bookingDate || !selectedServiceId) {
+    setLoadingStaff(true);
+    setError('');
+
+    fetch(`${API_BASE}/bookings/public/${slug}/staff`)
+      .then((r) => r.json())
+      .then((data) => {
+        const activeStaff = (data.staff || [])
+          .map(normalizeStaff)
+          .filter((member) => member.isActive);
+
+        setBusiness(data.business || null);
+        setStaff(activeStaff);
+
+        if (activeStaff.length > 0) {
+          setSelectedStaffId(String(activeStaff[0].id));
+        }
+      })
+      .catch(() => {
+        setStaff([]);
+        setBusiness(null);
+        setError('No se pudieron cargar los profesionales.');
+      })
+      .finally(() => setLoadingStaff(false));
+  }, [slug]);
+
+  useEffect(() => {
+    if (!bookingDate || !selectedServiceId || !selectedStaffId) {
       setSlots([]);
       setSelectedTime('');
       return;
@@ -82,12 +125,12 @@ export default function BookPage() {
     setSlots([]);
     setLoadingSlots(true);
 
-    fetch(`${API_BASE}/bookings/public/${slug}/slots?date=${bookingDate}&serviceId=${selectedServiceId}`)
+    fetch(`${API_BASE}/bookings/public/${slug}/slots?date=${bookingDate}&serviceId=${selectedServiceId}&staffId=${selectedStaffId}`)
       .then((r) => r.json())
       .then((data) => setSlots(data.slots || []))
       .catch(() => setSlots([]))
       .finally(() => setLoadingSlots(false));
-  }, [bookingDate, selectedServiceId, slug]);
+  }, [bookingDate, selectedServiceId, selectedStaffId, slug]);
 
   const inputStyle = {
     width: '100%',
@@ -112,12 +155,12 @@ export default function BookPage() {
   };
 
   const refreshSlots = () => {
-    if (!bookingDate || !selectedServiceId) return;
+    if (!bookingDate || !selectedServiceId || !selectedStaffId) return;
 
     setSelectedTime('');
     setLoadingSlots(true);
 
-    fetch(`${API_BASE}/bookings/public/${slug}/slots?date=${bookingDate}&serviceId=${selectedServiceId}`)
+    fetch(`${API_BASE}/bookings/public/${slug}/slots?date=${bookingDate}&serviceId=${selectedServiceId}&staffId=${selectedStaffId}`)
       .then((r) => r.json())
       .then((data) => setSlots(data.slots || []))
       .catch(() => {})
@@ -130,6 +173,11 @@ export default function BookPage() {
 
     if (!selectedServiceId) {
       setError('Seleccioná un servicio.');
+      return;
+    }
+
+    if (!selectedStaffId) {
+      setError('Seleccioná un profesional.');
       return;
     }
 
@@ -166,6 +214,7 @@ export default function BookPage() {
           bookingDate,
           startTime: selectedTime,
           serviceId: Number(selectedServiceId),
+          staffId: Number(selectedStaffId),
         }),
       });
 
@@ -200,6 +249,10 @@ export default function BookPage() {
     if (services.length > 0) {
       setSelectedServiceId(String(services[0].id));
     }
+
+    if (staff.length > 0) {
+      setSelectedStaffId(String(staff[0].id));
+    }
   };
 
   const formatDate = (d) => {
@@ -210,6 +263,9 @@ export default function BookPage() {
 
   const availableSlots = slots.filter((slot) => slot.available);
   const hasSlots = slots.length > 0;
+  const businessName = business?.businessName || business?.name || 'TuAgendaYa';
+
+  const canChooseDate = Boolean(selectedServiceId && selectedStaffId);
 
   return (
     <div style={{ minHeight: '100vh', background: '#f2f2f7', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
@@ -221,10 +277,26 @@ export default function BookPage() {
         .service-card:active { transform: scale(0.98); }
       `}</style>
 
-      <div style={{ background: '#fff', borderRadius: 24, padding: '36px 32px', border: '0.5px solid #e0e0e5', width: '100%', maxWidth: 480, animation: 'slideUp 250ms cubic-bezier(0.16,1,0.3,1) both', boxShadow: '0 2px 40px rgba(0,0,0,0.06)' }}>
+      <div style={{ background: '#fff', borderRadius: 24, padding: '36px 32px', border: '0.5px solid #e0e0e5', width: '100%', maxWidth: 500, animation: 'slideUp 250ms cubic-bezier(0.16,1,0.3,1) both', boxShadow: '0 2px 40px rgba(0,0,0,0.06)' }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: '#0071e3', marginBottom: 4 }}>TuAgendaYa</div>
+          {business?.logoUrl ? (
+            <img
+              src={business.logoUrl}
+              alt={businessName}
+              style={{ maxWidth: 150, maxHeight: 64, objectFit: 'contain', marginBottom: 10 }}
+            />
+          ) : (
+            <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: '#0071e3', marginBottom: 4 }}>
+              {businessName}
+            </div>
+          )}
+
           <div style={{ fontSize: 15, fontWeight: 600, color: '#1a1a1a' }}>Reservar turno</div>
+
+          {business?.address && (
+            <div style={{ fontSize: 12, color: '#6e6e73', marginTop: 4 }}>📍 {business.address}</div>
+          )}
+
           <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 4 }}>@{slug}</div>
         </div>
 
@@ -245,23 +317,29 @@ export default function BookPage() {
 
               {selectedService && (
                 <div style={{ fontSize: 13, color: '#0071e3', marginBottom: 4 }}>
-                  ✂️ {selectedService.name} · {selectedService.durationMinutes} min
-                  {selectedService.price ? ` · $${selectedService.price}` : ''}
+                  Servicio: <strong>{selectedService.name}</strong> · {selectedService.durationMinutes} min
                 </div>
               )}
 
-              <div style={{ fontSize: 13, color: '#6e6e73' }}>
-                📅 {formatDate(bookingDate)} · ⏰ {selectedTime} → {selectedEndTime}
+              {selectedStaff && (
+                <div style={{ fontSize: 13, color: '#3a3a3c', marginBottom: 4 }}>
+                  Profesional: <strong>{selectedStaff.name}</strong>
+                </div>
+              )}
+
+              <div style={{ fontSize: 13, color: '#3a3a3c' }}>
+                📅 {formatDate(bookingDate)} · ⏰ {selectedTime} a {selectedEndTime}
               </div>
             </div>
 
-            <div style={{ fontSize: 13, color: '#6e6e73', marginBottom: 20 }}>
-              El profesional se pondrá en contacto con vos para confirmar.
+            <div style={{ fontSize: 13, color: '#6e6e73', lineHeight: 1.45, marginBottom: 16 }}>
+              Tu reserva fue enviada al negocio. Cuando activen WhatsApp o email, vas a recibir la confirmación por ese medio.
             </div>
 
             <button
+              type="button"
               onClick={handleReset}
-              style={{ padding: '10px 24px', borderRadius: 12, border: 'none', background: '#0071e3', color: '#fff', fontSize: 14, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}
+              style={{ width: '100%', padding: '13px', borderRadius: 12, border: 'none', background: '#0071e3', color: '#fff', fontSize: 15, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}
             >
               Hacer otra reserva
             </button>
@@ -278,8 +356,8 @@ export default function BookPage() {
                   Cargando servicios...
                 </div>
               ) : services.length === 0 ? (
-                <div style={{ textAlign: 'center', color: '#ff453a', fontSize: 13, padding: '12px 0' }}>
-                  Este profesional todavía no tiene servicios activos.
+                <div style={{ textAlign: 'center', color: '#aeaeb2', fontSize: 13, padding: '12px 0' }}>
+                  Este negocio todavía no tiene servicios activos.
                 </div>
               ) : (
                 <div style={{ display: 'grid', gap: 8 }}>
@@ -307,7 +385,7 @@ export default function BookPage() {
                         }}
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                          <div>
+                          <div style={{ flex: 1 }}>
                             <div style={{ fontSize: 14, fontWeight: 700, color: '#1a1a1a' }}>
                               {service.name}
                             </div>
@@ -338,6 +416,69 @@ export default function BookPage() {
               )}
             </div>
 
+            {staff.length > 1 && (
+              <div style={{ background: '#f2f2f7', borderRadius: 14, padding: '14px 16px', marginBottom: 14 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#1a1a1a', marginBottom: 10 }}>
+                  👤 Elegí un profesional
+                </div>
+
+                {loadingStaff ? (
+                  <div style={{ textAlign: 'center', color: '#aeaeb2', fontSize: 13, padding: '12px 0' }}>
+                    Cargando profesionales...
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    {staff.map((member) => {
+                      const isSelected = String(selectedStaffId) === String(member.id);
+
+                      return (
+                        <button
+                          key={member.id}
+                          type="button"
+                          className="service-card"
+                          onClick={() => {
+                            setSelectedStaffId(String(member.id));
+                            setSelectedTime('');
+                            setSlots([]);
+                          }}
+                          style={{
+                            textAlign: 'left',
+                            padding: '12px 14px',
+                            borderRadius: 12,
+                            border: isSelected ? '2px solid #0071e3' : '1px solid #d0d0d5',
+                            background: isSelected ? '#eef6ff' : '#fff',
+                            cursor: 'pointer',
+                            fontFamily: 'inherit',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <span style={{ width: 12, height: 12, borderRadius: 99, background: member.color, display: 'inline-block' }} />
+                            <div style={{ fontSize: 14, fontWeight: 700, color: '#1a1a1a' }}>
+                              {member.name}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {staff.length === 1 && selectedStaff && (
+              <div style={{ background: '#f2f2f7', borderRadius: 14, padding: '12px 16px', marginBottom: 14 }}>
+                <div style={{ fontSize: 12, color: '#6e6e73' }}>
+                  Profesional: <strong style={{ color: '#1a1a1a' }}>{selectedStaff.name}</strong>
+                </div>
+              </div>
+            )}
+
+            {staff.length === 0 && !loadingStaff && (
+              <div style={{ background: '#fff2f2', border: '0.5px solid #ffcdd2', borderRadius: 12, padding: '10px 12px', fontSize: 13, color: '#c62828', marginBottom: 14 }}>
+                Este negocio todavía no tiene profesionales activos para reservar.
+              </div>
+            )}
+
             <div style={{ background: '#f2f2f7', borderRadius: 14, padding: '14px 16px', marginBottom: 14 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#1a1a1a', marginBottom: 10 }}>
                 📅 Elegí una fecha
@@ -352,11 +493,11 @@ export default function BookPage() {
                 min={today}
                 onChange={(e) => setBookingDate(e.target.value)}
                 required
-                disabled={!selectedServiceId}
+                disabled={!canChooseDate}
               />
             </div>
 
-            {bookingDate && selectedServiceId && (
+            {bookingDate && canChooseDate && (
               <div style={{ background: '#f2f2f7', borderRadius: 14, padding: '14px 16px', marginBottom: 14 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: '#1a1a1a', marginBottom: 10 }}>
                   ⏰ Elegí un horario
@@ -367,9 +508,9 @@ export default function BookPage() {
                   )}
                 </div>
 
-                {selectedService && (
+                {selectedService && selectedStaff && (
                   <div style={{ fontSize: 12, color: '#6e6e73', marginBottom: 10 }}>
-                    Servicio: <strong>{selectedService.name}</strong> · Duración: <strong>{selectedService.durationMinutes} min</strong>
+                    Servicio: <strong>{selectedService.name}</strong> · Profesional: <strong>{selectedStaff.name}</strong> · Duración: <strong>{selectedService.durationMinutes} min</strong>
                   </div>
                 )}
 
@@ -477,15 +618,22 @@ export default function BookPage() {
 
             <button
               type="submit"
-              disabled={loading || !selectedServiceId}
-              style={{ width: '100%', padding: '13px', borderRadius: 12, border: 'none', background: loading || !selectedServiceId ? '#aeaeb2' : '#0071e3', color: '#fff', fontSize: 15, fontWeight: 600, fontFamily: 'inherit', cursor: loading || !selectedServiceId ? 'not-allowed' : 'pointer' }}
+              disabled={loading || !selectedServiceId || !selectedStaffId || !selectedTime}
+              style={{
+                width: '100%',
+                padding: '13px',
+                borderRadius: 12,
+                border: 'none',
+                background: loading || !selectedServiceId || !selectedStaffId || !selectedTime ? '#aeaeb2' : '#0071e3',
+                color: '#fff',
+                fontSize: 15,
+                fontWeight: 600,
+                fontFamily: 'inherit',
+                cursor: loading || !selectedServiceId || !selectedStaffId || !selectedTime ? 'not-allowed' : 'pointer',
+              }}
             >
-              {loading ? 'Enviando reserva...' : 'Confirmar reserva'}
+              {loading ? 'Reservando...' : 'Confirmar reserva'}
             </button>
-
-            <div style={{ textAlign: 'center', fontSize: 11, color: '#aeaeb2', marginTop: 14 }}>
-              🔒 Tus datos están protegidos
-            </div>
           </form>
         )}
       </div>
