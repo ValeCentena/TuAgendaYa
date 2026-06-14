@@ -4,6 +4,15 @@ import BookPage from './pages/BookPage.jsx';
 
 const API_BASE = 'https://tuagendaya-api.onrender.com/api';
 
+const APP_FONT = 'Georgia, "Times New Roman", serif';
+
+const brandTextStyle = {
+  fontFamily: APP_FONT,
+  fontWeight: 700,
+  letterSpacing: '-0.03em',
+  color: '#0071e3',
+};
+
 const DAYS = [
   { dayOfWeek: 0, label: 'Domingo' },
   { dayOfWeek: 1, label: 'Lunes' },
@@ -229,7 +238,7 @@ function getProfessionExamples() {
 
 function AuthLayout({ children }) {
   return (
-    <div style={{ minHeight: '100vh', background: '#f2f2f7', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+    <div style={{ minHeight: '100vh', background: '#f2f2f7', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, fontFamily: APP_FONT }}>
       <style>{`@keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}`}</style>
 
       <div style={{ background: '#fff', borderRadius: 24, padding: '36px 32px', border: '0.5px solid #e0e0e5', width: '100%', maxWidth: 460, animation: 'slideUp 250ms cubic-bezier(0.16,1,0.3,1) both', boxShadow: '0 2px 40px rgba(0,0,0,0.06)' }}>
@@ -368,7 +377,7 @@ function LoginForm({ onLogin }) {
   return (
     <AuthLayout>
       <div style={{ textAlign: 'center', marginBottom: 24 }}>
-        <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: '#0071e3', marginBottom: 4 }}>TuAgendaYa</div>
+        <div style={{ ...brandTextStyle, fontSize: 28, marginBottom: 4 }}>TuAgendaYa</div>
         <div style={{ fontSize: 14, color: '#6e6e73' }}>Accedé a tu panel profesional</div>
       </div>
 
@@ -419,7 +428,7 @@ function LoginForm({ onLogin }) {
       </button>
 
       <div style={{ textAlign: 'center', fontSize: 11, color: '#aeaeb2', marginTop: 16 }}>
-        🔒 Tus datos están cifrados y protegidos
+        Tus datos están cifrados y protegidos
       </div>
     </AuthLayout>
   );
@@ -505,7 +514,7 @@ function RegisterPage() {
   return (
     <AuthLayout>
       <div style={{ textAlign: 'center', marginBottom: 22 }}>
-        <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: '#0071e3', marginBottom: 4 }}>TuAgendaYa</div>
+        <div style={{ ...brandTextStyle, fontSize: 28, marginBottom: 4 }}>TuAgendaYa</div>
         <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>Crear cuenta profesional</div>
         <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 4 }}>Configurá tu negocio en minutos</div>
       </div>
@@ -692,7 +701,6 @@ function ReservationsSection() {
           <div style={{ textAlign: 'center', color: '#aeaeb2', padding: 32 }}>Cargando reservas...</div>
         ) : bookings.length === 0 ? (
           <div style={{ textAlign: 'center', color: '#aeaeb2', padding: 32 }}>
-            <div style={{ fontSize: 32, marginBottom: 8 }}>📭</div>
             <div style={{ fontWeight: 500 }}>No tenés reservas todavía.</div>
           </div>
         ) : (
@@ -726,12 +734,12 @@ function ReservationsSection() {
                     <div style={{ fontWeight: 600, fontSize: 14, color: '#1a1a1a' }}>{clientName}</div>
 
                     {clientPhone && (
-                      <div style={{ fontSize: 12, color: '#6e6e73', marginTop: 2 }}>📞 {clientPhone}</div>
+                      <div style={{ fontSize: 12, color: '#6e6e73', marginTop: 2 }}>Teléfono: {clientPhone}</div>
                     )}
 
                     {serviceName && (
                       <div style={{ fontSize: 12, color: '#0071e3', marginTop: 4 }}>
-                        ✂️ {serviceName}
+                        Servicio: {serviceName}
                         {serviceDuration ? ` · ${serviceDuration} min` : ''}
                         {servicePrice ? ` · $${servicePrice}` : ''}
                       </div>
@@ -739,7 +747,7 @@ function ReservationsSection() {
 
                     {staffName && (
                       <div style={{ fontSize: 12, color: '#6e6e73', marginTop: 4 }}>
-                        👤 Profesional: {staffName}
+                        Profesional: {staffName}
                       </div>
                     )}
                   </div>
@@ -773,11 +781,11 @@ function ReservationsSection() {
                     fontSize: 13,
                   }}
                 >
-                  <span>📅 <strong>{dateStr}</strong></span>
+                  <span>Fecha: <strong>{dateStr}</strong></span>
 
                   {timeStr && (
                     <span style={{ color: '#3a3a3c' }}>
-                      ⏰ <strong>{timeStr}</strong>
+                      Hora: <strong>{timeStr}</strong>
                       {endStr && <span style={{ color: '#aeaeb2', fontWeight: 400 }}> → {endStr}</span>}
                     </span>
                   )}
@@ -808,7 +816,7 @@ function ReservationsSection() {
                         opacity: actionLoading === `${b.id}-confirm` ? 0.6 : 1,
                       }}
                     >
-                      {actionLoading === `${b.id}-confirm` ? '...' : '✓ Confirmar'}
+                      {actionLoading === `${b.id}-confirm` ? '...' : 'Confirmar'}
                     </button>
 
                     <button
@@ -828,7 +836,7 @@ function ReservationsSection() {
                         opacity: actionLoading === `${b.id}-cancel` ? 0.6 : 1,
                       }}
                     >
-                      {actionLoading === `${b.id}-cancel` ? '...' : '✕ Cancelar'}
+                      {actionLoading === `${b.id}-cancel` ? '...' : 'Cancelar'}
                     </button>
                   </div>
                 )}
@@ -988,7 +996,7 @@ function AvailabilitySection() {
         if (Array.isArray(data.availability)) {
           setAvailability(data.availability.map(normalizeAvailabilityItem));
         }
-        setMessage('✓ Disponibilidad general guardada correctamente.');
+        setMessage('Disponibilidad general guardada correctamente.');
       }
     } catch {
       setError('No se pudo conectar con el servidor.');
@@ -1160,7 +1168,7 @@ function StaffSection() {
       if (!res.ok) {
         setError(data.error || 'No se pudo crear el profesional.');
       } else {
-        setMessage('✓ Profesional agregado correctamente.');
+        setMessage('Profesional agregado correctamente.');
         resetForm();
 
         const newStaff = normalizeStaff(data.staffMember || data.staff_member || {});
@@ -1222,7 +1230,7 @@ function StaffSection() {
       if (!res.ok) {
         setError(data.error || 'No se pudo actualizar el profesional.');
       } else {
-        setMessage('✓ Profesional actualizado correctamente.');
+        setMessage('Profesional actualizado correctamente.');
         cancelEditing();
         fetchStaff();
       }
@@ -1252,7 +1260,7 @@ function StaffSection() {
       if (!res.ok) {
         setError(data.error || 'No se pudo desactivar el profesional.');
       } else {
-        setMessage('✓ Profesional desactivado.');
+        setMessage('Profesional desactivado.');
         fetchStaff();
       }
     } catch {
@@ -1295,7 +1303,7 @@ function StaffSection() {
         if (Array.isArray(data.availability)) {
           setAvailability(data.availability.map(normalizeAvailabilityItem));
         }
-        setMessage('✓ Horarios del profesional guardados correctamente.');
+        setMessage('Horarios del profesional guardados correctamente.');
       }
     } catch {
       setError('No se pudo conectar con el servidor.');
@@ -1317,7 +1325,7 @@ function StaffSection() {
         </div>
 
         <form onSubmit={handleCreate} style={{ background: '#f2f2f7', borderRadius: 16, padding: 16, marginBottom: 18 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>➕ Agregar profesional</div>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>Agregar profesional</div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1.2fr 0.7fr', gap: 10 }}>
             <div>
@@ -1495,11 +1503,11 @@ function StaffSection() {
                         </div>
 
                         {member.phone && (
-                          <div style={{ fontSize: 12, color: '#6e6e73', marginTop: 4 }}>📞 {member.phone}</div>
+                          <div style={{ fontSize: 12, color: '#6e6e73', marginTop: 4 }}>Teléfono: {member.phone}</div>
                         )}
 
                         {member.email && (
-                          <div style={{ fontSize: 12, color: '#6e6e73', marginTop: 2 }}>✉️ {member.email}</div>
+                          <div style={{ fontSize: 12, color: '#6e6e73', marginTop: 2 }}>Email: {member.email}</div>
                         )}
                       </button>
 
@@ -1659,7 +1667,7 @@ function ServicesSection() {
       if (!res.ok) {
         setError(data.error || 'No se pudo crear el servicio.');
       } else {
-        setMessage('✓ Servicio creado correctamente.');
+        setMessage('Servicio creado correctamente.');
         resetForm();
         fetchServices();
       }
@@ -1712,7 +1720,7 @@ function ServicesSection() {
       if (!res.ok) {
         setError(data.error || 'No se pudo actualizar el servicio.');
       } else {
-        setMessage('✓ Servicio actualizado correctamente.');
+        setMessage('Servicio actualizado correctamente.');
         cancelEditing();
         fetchServices();
       }
@@ -1742,7 +1750,7 @@ function ServicesSection() {
       if (!res.ok) {
         setError(data.error || 'No se pudo desactivar el servicio.');
       } else {
-        setMessage('✓ Servicio desactivado.');
+        setMessage('Servicio desactivado.');
         fetchServices();
       }
     } catch {
@@ -1762,7 +1770,7 @@ function ServicesSection() {
       </div>
 
       <form onSubmit={handleCreate} style={{ background: '#f2f2f7', borderRadius: 16, padding: 16, marginBottom: 18 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>➕ Agregar servicio</div>
+        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>Agregar servicio</div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
           <div>
@@ -1937,7 +1945,7 @@ function ServicesSection() {
                       )}
 
                       <div style={{ fontSize: 12, color: '#0071e3', marginTop: 6 }}>
-                        ⏱ {service.durationMinutes} min
+                        Duración: {service.durationMinutes} min
                         {service.price !== '' && service.price !== null && service.price !== undefined ? ` · $${service.price}` : ''}
                       </div>
                     </div>
@@ -1977,6 +1985,30 @@ function ServicesSection() {
 
 function Dashboard({ professional, onLogout }) {
   const [activeTab, setActiveTab] = useState('reservas');
+  const [copiedPublicLink, setCopiedPublicLink] = useState(false);
+
+  const publicBookingUrl = professional?.slug
+    ? `https://tuagendaya-web.onrender.com/reservar/${professional.slug}`
+    : '';
+
+  const handleCopyPublicLink = async () => {
+    if (!publicBookingUrl) return;
+
+    try {
+      await navigator.clipboard.writeText(publicBookingUrl);
+      setCopiedPublicLink(true);
+      setTimeout(() => setCopiedPublicLink(false), 2000);
+    } catch {
+      const textarea = document.createElement('textarea');
+      textarea.value = publicBookingUrl;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      setCopiedPublicLink(true);
+      setTimeout(() => setCopiedPublicLink(false), 2000);
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('tuagendaya_token');
@@ -1998,13 +2030,13 @@ function Dashboard({ professional, onLogout }) {
   });
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f2f2f7', padding: '20px 16px' }}>
+    <div style={{ minHeight: '100vh', background: '#f2f2f7', padding: '20px 16px', fontFamily: APP_FONT }}>
       <div style={{ maxWidth: 900, margin: '0 auto' }}>
         <div style={{ background: '#fff', borderRadius: 20, padding: '18px 24px', marginBottom: 16, boxShadow: '0 1px 8px rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: '#0071e3' }}>TuAgendaYa</div>
+            <div style={{ ...brandTextStyle, fontSize: 20 }}>TuAgendaYa</div>
             <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 2 }}>
-              Hola, {professional?.name || 'profesional'} 👋
+              Hola, {professional?.name || 'profesional'}
             </div>
 
             {professional?.businessName && (
@@ -2015,13 +2047,33 @@ function Dashboard({ professional, onLogout }) {
 
             {professional?.address && (
               <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 4 }}>
-                📍 {professional.address}
+                Dirección: {professional.address}
               </div>
             )}
 
             {professional?.slug && (
-              <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 4 }}>
-                Link público: <strong>tuagendaya-web.onrender.com/reservar/{professional.slug}</strong>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                <div style={{ fontSize: 12, color: '#8e8e93' }}>
+                  Link público: <strong>{publicBookingUrl}</strong>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleCopyPublicLink}
+                  style={{
+                    padding: '5px 10px',
+                    borderRadius: 9,
+                    border: '0.5px solid #d0d0d5',
+                    background: copiedPublicLink ? '#edfff3' : '#fff',
+                    color: copiedPublicLink ? '#188038' : '#0071e3',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    fontFamily: 'inherit',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {copiedPublicLink ? 'Copiado' : 'Copiar'}
+                </button>
               </div>
             )}
           </div>
@@ -2035,10 +2087,10 @@ function Dashboard({ professional, onLogout }) {
         </div>
 
         <div style={{ display: 'flex', gap: 10, marginBottom: 16, overflowX: 'auto' }}>
-          <button style={tabStyle('reservas')} onClick={() => setActiveTab('reservas')}>📋 Reservas</button>
-          <button style={tabStyle('disponibilidad')} onClick={() => setActiveTab('disponibilidad')}>🗓 Disponibilidad</button>
-          <button style={tabStyle('servicios')} onClick={() => setActiveTab('servicios')}>✂️ Servicios</button>
-          <button style={tabStyle('profesionales')} onClick={() => setActiveTab('profesionales')}>👥 Profesionales</button>
+          <button style={tabStyle('reservas')} onClick={() => setActiveTab('reservas')}>Reservas</button>
+          <button style={tabStyle('disponibilidad')} onClick={() => setActiveTab('disponibilidad')}>Disponibilidad</button>
+          <button style={tabStyle('servicios')} onClick={() => setActiveTab('servicios')}>Servicios</button>
+          <button style={tabStyle('profesionales')} onClick={() => setActiveTab('profesionales')}>Profesionales</button>
         </div>
 
         {activeTab === 'reservas' && <ReservationsSection />}
