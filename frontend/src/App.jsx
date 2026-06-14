@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import BookPage from './pages/BookPage.jsx';
 
@@ -12,6 +12,33 @@ const DAYS = [
   { dayOfWeek: 4, label: 'Jueves' },
   { dayOfWeek: 5, label: 'Viernes' },
   { dayOfWeek: 6, label: 'Sábado' },
+];
+
+const PROFESSIONS = [
+  'Barbería',
+  'Peluquería',
+  'Odontología',
+  'Psicología',
+  'Uñas / Manicura',
+  'Veterinaria',
+  'Medicina',
+  'Fisioterapia',
+  'Kinesiología',
+  'Masajes',
+  'Entrenador personal',
+  'Gimnasio / Fitness',
+  'Maquillaje',
+  'Fotografía',
+  'Estética',
+  'Cosmetología',
+  'Depilación',
+  'Cejas y pestañas',
+  'Nutrición',
+  'Tatuajes',
+  'Piercing',
+  'Consultoría',
+  'Clases particulares',
+  'Otro',
 ];
 
 const inputStyle = {
@@ -56,6 +83,14 @@ function normalizeSlug(value) {
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
+}
+
+function normalizeSearchText(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
 }
 
 function getDefaultAvailability() {
@@ -178,6 +213,95 @@ function AuthLayout({ children }) {
       <div style={{ background: '#fff', borderRadius: 24, padding: '36px 32px', border: '0.5px solid #e0e0e5', width: '100%', maxWidth: 460, animation: 'slideUp 250ms cubic-bezier(0.16,1,0.3,1) both', boxShadow: '0 2px 40px rgba(0,0,0,0.06)' }}>
         {children}
       </div>
+    </div>
+  );
+}
+
+function ProfessionCombobox({ value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef(null);
+
+  const filteredProfessions = PROFESSIONS.filter((profession) =>
+    normalizeSearchText(profession).includes(normalizeSearchText(value))
+  );
+
+  const visibleOptions = filteredProfessions.length > 0 ? filteredProfessions : ['Otro'];
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (!containerRef.current) return;
+
+      if (!containerRef.current.contains(event.target)) {
+        setOpen(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative', marginBottom: 10 }}>
+      <input
+        style={{ ...inputStyle, marginBottom: 0 }}
+        value={value}
+        onFocus={() => setOpen(true)}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setOpen(true);
+        }}
+        placeholder="Ej: Barbería, Odontología, Psicología..."
+        required
+        autoComplete="off"
+      />
+
+      {open && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 6px)',
+            left: 0,
+            right: 0,
+            background: '#fff',
+            border: '0.5px solid #d0d0d5',
+            borderRadius: 12,
+            boxShadow: '0 10px 30px rgba(0,0,0,0.12)',
+            maxHeight: 126,
+            overflowY: 'auto',
+            zIndex: 50,
+            padding: 4,
+          }}
+        >
+          {visibleOptions.map((profession) => (
+            <button
+              key={profession}
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                onChange(profession);
+                setOpen(false);
+              }}
+              style={{
+                width: '100%',
+                textAlign: 'left',
+                padding: '10px 12px',
+                border: 'none',
+                background: normalizeSearchText(value) === normalizeSearchText(profession) ? '#eef6ff' : '#fff',
+                color: '#1a1a1a',
+                borderRadius: 9,
+                fontSize: 14,
+                fontFamily: 'inherit',
+                cursor: 'pointer',
+              }}
+            >
+              {profession}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -412,12 +536,9 @@ function RegisterPage() {
         />
 
         <label style={smallLabelStyle}>Rubro / profesión *</label>
-        <input
-          style={{ ...inputStyle, marginBottom: 10 }}
+        <ProfessionCombobox
           value={form.profession}
-          onChange={(e) => updateForm('profession', e.target.value)}
-          placeholder="Ej: Barbería, Dentista, Psicólogo, Uñas..."
-          required
+          onChange={(value) => updateForm('profession', value)}
         />
 
         <label style={smallLabelStyle}>Dirección del negocio *</label>
