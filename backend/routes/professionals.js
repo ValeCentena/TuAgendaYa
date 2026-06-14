@@ -1,12 +1,16 @@
-const express = require('express');
-const jwt = require('jsonwebtoken');
-const db = require('../db');
+const express = require("express");
+const jwt = require("jsonwebtoken");
+const db = require("../db");
 
 const router = express.Router();
 
 function getTokenFromHeader(req) {
-  const authHeader = req.headers.authorization || '';
-  if (!authHeader.startsWith('Bearer '')) return null;
+  const authHeader = req.headers.authorization || "";
+
+  if (!authHeader.startsWith("Bearer ")) {
+    return null;
+  }
+
   return authHeader.slice(7);
 }
 
@@ -14,13 +18,14 @@ function getProfessionalIdFromRequest(req) {
   const token = getTokenFromHeader(req);
 
   if (!token) {
-    const error = new Error('Token requerido');
+    const error = new Error("Token requerido");
     error.status = 401;
     throw error;
   }
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
     const id =
       decoded.id ||
       decoded.professionalId ||
@@ -29,7 +34,7 @@ function getProfessionalIdFromRequest(req) {
       decoded.user_id;
 
     if (!id) {
-      const error = new Error('Token inválido');
+      const error = new Error("Token inválido");
       error.status = 401;
       throw error;
     }
@@ -37,7 +42,7 @@ function getProfessionalIdFromRequest(req) {
     return Number(id);
   } catch (error) {
     error.status = error.status || 401;
-    error.message = error.message || 'Token inválido';
+    error.message = error.message || "Token inválido";
     throw error;
   }
 }
@@ -48,56 +53,56 @@ function defaultAvailability(professionalId) {
       professional_id: professionalId,
       day_of_week: 0,
       is_active: false,
-      start_time: '09:00',
-      end_time: '18:00',
+      start_time: "09:00",
+      end_time: "18:00",
       slot_duration_minutes: 30,
     },
     {
       professional_id: professionalId,
       day_of_week: 1,
       is_active: true,
-      start_time: '09:00',
-      end_time: '18:00',
+      start_time: "09:00",
+      end_time: "18:00",
       slot_duration_minutes: 30,
     },
     {
       professional_id: professionalId,
       day_of_week: 2,
       is_active: true,
-      start_time: '09:00',
-      end_time: '18:00',
+      start_time: "09:00",
+      end_time: "18:00",
       slot_duration_minutes: 30,
     },
     {
       professional_id: professionalId,
       day_of_week: 3,
       is_active: true,
-      start_time: '09:00',
-      end_time: '18:00',
+      start_time: "09:00",
+      end_time: "18:00",
       slot_duration_minutes: 30,
     },
     {
       professional_id: professionalId,
       day_of_week: 4,
       is_active: true,
-      start_time: '09:00',
-      end_time: '18:00',
+      start_time: "09:00",
+      end_time: "18:00",
       slot_duration_minutes: 30,
     },
     {
       professional_id: professionalId,
       day_of_week: 5,
       is_active: true,
-      start_time: '09:00',
-      end_time: '18:00',
+      start_time: "09:00",
+      end_time: "18:00",
       slot_duration_minutes: 30,
     },
     {
       professional_id: professionalId,
       day_of_week: 6,
       is_active: false,
-      start_time: '09:00',
-      end_time: '18:00',
+      start_time: "09:00",
+      end_time: "18:00",
       slot_duration_minutes: 30,
     },
   ];
@@ -109,9 +114,23 @@ function normalizeAvailabilityRow(row) {
     professionalId: row.professional_id,
     dayOfWeek: row.day_of_week,
     isActive: row.is_active,
-    startTime: String(row.start_time || '09:00').slice(0, 5),
-    endTime: String(row.end_time || '18:00').slice(0, 5),
+    startTime: String(row.start_time || "09:00").slice(0, 5),
+    endTime: String(row.end_time || "18:00").slice(0, 5),
     slotDurationMinutes: row.slot_duration_minutes || 30,
+  };
+}
+
+function normalizeService(row) {
+  return {
+    id: row.id,
+    professionalId: row.professional_id,
+    name: row.name,
+    description: row.description,
+    durationMinutes: row.duration_minutes,
+    price: row.price === null || row.price === undefined ? null : Number(row.price),
+    isActive: row.is_active,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }
 
@@ -184,18 +203,20 @@ async function ensureDefaultServices(professionalId) {
     [professionalId]
   );
 
-  if (existing.rows.length > 0) return existing.rows;
+  if (existing.rows.length > 0) {
+    return existing.rows;
+  }
 
   const defaults = [
     {
-      name: 'Corte',
-      description: 'Servicio estándar',
+      name: "Corte",
+      description: "Servicio estándar",
       duration_minutes: 30,
       price: null,
     },
     {
-      name: 'Consulta',
-      description: 'Servicio general',
+      name: "Consulta",
+      description: "Servicio general",
       duration_minutes: 30,
       price: null,
     },
@@ -239,21 +260,7 @@ async function ensureDefaultServices(professionalId) {
   return result.rows;
 }
 
-function normalizeService(row) {
-  return {
-    id: row.id,
-    professionalId: row.professional_id,
-    name: row.name,
-    description: row.description,
-    durationMinutes: row.duration_minutes,
-    price: row.price === null ? null : Number(row.price),
-    isActive: row.is_active,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-}
-
-router.get('/me/availability', async (req, res) => {
+router.get("/me/availability", async (req, res) => {
   try {
     const professionalId = getProfessionalIdFromRequest(req);
     const availability = await ensureDefaultAvailability(professionalId);
@@ -261,27 +268,27 @@ router.get('/me/availability', async (req, res) => {
     res.json({ availability });
   } catch (error) {
     res.status(error.status || 500).json({
-      error: error.message || 'Error obteniendo disponibilidad',
+      error: error.message || "Error obteniendo disponibilidad",
     });
   }
 });
 
-router.patch('/me/availability', async (req, res) => {
+router.patch("/me/availability", async (req, res) => {
   try {
     const professionalId = getProfessionalIdFromRequest(req);
     const incoming = Array.isArray(req.body) ? req.body : req.body.availability;
 
     if (!Array.isArray(incoming)) {
       return res.status(400).json({
-        error: 'Disponibilidad inválida',
+        error: "Disponibilidad inválida",
       });
     }
 
     for (const item of incoming) {
       const dayOfWeek = Number(item.dayOfWeek ?? item.day_of_week);
       const isActive = Boolean(item.isActive ?? item.is_active);
-      const startTime = String(item.startTime ?? item.start_time ?? '09:00').slice(0, 5);
-      const endTime = String(item.endTime ?? item.end_time ?? '18:00').slice(0, 5);
+      const startTime = String(item.startTime ?? item.start_time ?? "09:00").slice(0, 5);
+      const endTime = String(item.endTime ?? item.end_time ?? "18:00").slice(0, 5);
       const slotDurationMinutes = Number(
         item.slotDurationMinutes ?? item.slot_duration_minutes ?? 30
       );
@@ -338,12 +345,12 @@ router.patch('/me/availability', async (req, res) => {
     });
   } catch (error) {
     res.status(error.status || 500).json({
-      error: error.message || 'Error guardando disponibilidad',
+      error: error.message || "Error guardando disponibilidad",
     });
   }
 });
 
-router.get('/me/services', async (req, res) => {
+router.get("/me/services", async (req, res) => {
   try {
     const professionalId = getProfessionalIdFromRequest(req);
     const services = await ensureDefaultServices(professionalId);
@@ -353,25 +360,31 @@ router.get('/me/services', async (req, res) => {
     });
   } catch (error) {
     res.status(error.status || 500).json({
-      error: error.message || 'Error obteniendo servicios',
+      error: error.message || "Error obteniendo servicios",
     });
   }
 });
 
-router.post('/me/services', async (req, res) => {
+router.post("/me/services", async (req, res) => {
   try {
     const professionalId = getProfessionalIdFromRequest(req);
-    const { name, description, durationMinutes, duration_minutes, price } = req.body;
 
-    const serviceName = String(name || '').trim();
-    const duration = Number(durationMinutes ?? duration_minutes ?? 30);
+    const serviceName = String(req.body.name || "").trim();
+    const description = req.body.description || null;
+    const duration = Number(req.body.durationMinutes ?? req.body.duration_minutes ?? 30);
+    const price =
+      req.body.price === undefined || req.body.price === "" ? null : Number(req.body.price);
 
     if (!serviceName) {
-      return res.status(400).json({ error: 'El nombre del servicio es obligatorio' });
+      return res.status(400).json({
+        error: "El nombre del servicio es obligatorio",
+      });
     }
 
     if (!duration || duration <= 0) {
-      return res.status(400).json({ error: 'La duración del servicio es inválida' });
+      return res.status(400).json({
+        error: "La duración del servicio es inválida",
+      });
     }
 
     const result = await db.query(
@@ -389,13 +402,7 @@ router.post('/me/services', async (req, res) => {
       VALUES ($1, $2, $3, $4, $5, true, NOW(), NOW())
       RETURNING *
       `,
-      [
-        professionalId,
-        serviceName,
-        description || null,
-        duration,
-        price === undefined || price === '' ? null : Number(price),
-      ]
+      [professionalId, serviceName, description, duration, price]
     );
 
     res.status(201).json({
@@ -404,12 +411,12 @@ router.post('/me/services', async (req, res) => {
     });
   } catch (error) {
     res.status(error.status || 500).json({
-      error: error.message || 'Error creando servicio',
+      error: error.message || "Error creando servicio",
     });
   }
 });
 
-router.patch('/me/services/:id', async (req, res) => {
+router.patch("/me/services/:id", async (req, res) => {
   try {
     const professionalId = getProfessionalIdFromRequest(req);
     const serviceId = Number(req.params.id);
@@ -424,16 +431,22 @@ router.patch('/me/services/:id', async (req, res) => {
     );
 
     if (current.rows.length === 0) {
-      return res.status(404).json({ error: 'Servicio no encontrado' });
+      return res.status(404).json({
+        error: "Servicio no encontrado",
+      });
     }
 
     const existing = current.rows[0];
 
     const name = req.body.name ?? existing.name;
     const description = req.body.description ?? existing.description;
-    const durationMinutes =
-      req.body.durationMinutes ?? req.body.duration_minutes ?? existing.duration_minutes;
-    const price = req.body.price === undefined ? existing.price : req.body.price;
+    const durationMinutes = Number(
+      req.body.durationMinutes ?? req.body.duration_minutes ?? existing.duration_minutes
+    );
+    const price =
+      req.body.price === undefined || req.body.price === ""
+        ? existing.price
+        : Number(req.body.price);
     const isActive =
       req.body.isActive === undefined && req.body.is_active === undefined
         ? existing.is_active
@@ -455,8 +468,8 @@ router.patch('/me/services/:id', async (req, res) => {
       [
         name,
         description || null,
-        Number(durationMinutes),
-        price === '' ? null : price,
+        durationMinutes,
+        price,
         isActive,
         serviceId,
         professionalId,
@@ -469,12 +482,12 @@ router.patch('/me/services/:id', async (req, res) => {
     });
   } catch (error) {
     res.status(error.status || 500).json({
-      error: error.message || 'Error actualizando servicio',
+      error: error.message || "Error actualizando servicio",
     });
   }
 });
 
-router.delete('/me/services/:id', async (req, res) => {
+router.delete("/me/services/:id", async (req, res) => {
   try {
     const professionalId = getProfessionalIdFromRequest(req);
     const serviceId = Number(req.params.id);
@@ -490,7 +503,9 @@ router.delete('/me/services/:id', async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Servicio no encontrado' });
+      return res.status(404).json({
+        error: "Servicio no encontrado",
+      });
     }
 
     res.json({
@@ -499,12 +514,12 @@ router.delete('/me/services/:id', async (req, res) => {
     });
   } catch (error) {
     res.status(error.status || 500).json({
-      error: error.message || 'Error eliminando servicio',
+      error: error.message || "Error eliminando servicio",
     });
   }
 });
 
-router.get('/public/:slug/services', async (req, res) => {
+router.get("/public/:slug/services", async (req, res) => {
   try {
     const { slug } = req.params;
 
@@ -518,23 +533,25 @@ router.get('/public/:slug/services', async (req, res) => {
     );
 
     if (professionalResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Profesional no encontrado' });
+      return res.status(404).json({
+        error: "Profesional no encontrado",
+      });
     }
 
     const professionalId = professionalResult.rows[0].id;
     const services = await ensureDefaultServices(professionalId);
 
     res.json({
-      services: services.filter((s) => s.is_active).map(normalizeService),
+      services: services.filter((service) => service.is_active).map(normalizeService),
     });
   } catch (error) {
     res.status(500).json({
-      error: error.message || 'Error obteniendo servicios públicos',
+      error: error.message || "Error obteniendo servicios públicos",
     });
   }
 });
 
-router.get('/', async (req, res) => {
+router.get("/", async (req, res) => {
   try {
     const result = await db.query(
       `
@@ -549,12 +566,12 @@ router.get('/', async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({
-      error: 'Error obteniendo profesionales',
+      error: "Error obteniendo profesionales",
     });
   }
 });
 
-router.get('/:id', async (req, res) => {
+router.get("/:id", async (req, res) => {
   try {
     const result = await db.query(
       `
@@ -566,7 +583,9 @@ router.get('/:id', async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Profesional no encontrado' });
+      return res.status(404).json({
+        error: "Profesional no encontrado",
+      });
     }
 
     res.json({
@@ -574,7 +593,7 @@ router.get('/:id', async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({
-      error: 'Error obteniendo profesional',
+      error: "Error obteniendo profesional",
     });
   }
 });
