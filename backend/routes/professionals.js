@@ -55,6 +55,29 @@ function normalizeText(value) {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
+function normalizeProfessionalProfile(row) {
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    name: row.name,
+    businessName: row.business_name,
+    business_name: row.business_name,
+    email: row.email,
+    phone: row.phone,
+    profession: row.profession,
+    address: row.address,
+    slug: row.slug,
+    logoUrl: row.logo_url,
+    logo_url: row.logo_url,
+    status: row.status,
+    createdAt: row.created_at,
+    created_at: row.created_at,
+    updatedAt: row.updated_at,
+    updated_at: row.updated_at,
+  };
+}
+
 function getDefaultServicesByProfession(profession) {
   const p = normalizeText(profession);
 
@@ -384,6 +407,146 @@ async function ensureDefaultServices(professionalId) {
   return result.rows;
 }
 
+router.get("/me/profile", async (req, res) => {
+  try {
+    const professionalId = getProfessionalIdFromRequest(req);
+
+    const result = await db.query(
+      `
+      SELECT
+        id,
+        name,
+        business_name,
+        email,
+        phone,
+        profession,
+        address,
+        slug,
+        logo_url,
+        status,
+        created_at,
+        updated_at
+      FROM professionals
+      WHERE id = $1
+      LIMIT 1
+      `,
+      [professionalId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: "Profesional no encontrado",
+      });
+    }
+
+    res.json({
+      professional: normalizeProfessionalProfile(result.rows[0]),
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({
+      error: error.message || "Error obteniendo perfil",
+    });
+  }
+});
+
+router.patch("/me/profile", async (req, res) => {
+  try {
+    const professionalId = getProfessionalIdFromRequest(req);
+
+    const currentResult = await db.query(
+      `
+      SELECT *
+      FROM professionals
+      WHERE id = $1
+      LIMIT 1
+      `,
+      [professionalId]
+    );
+
+    if (currentResult.rows.length === 0) {
+      return res.status(404).json({
+        error: "Profesional no encontrado",
+      });
+    }
+
+    const current = currentResult.rows[0];
+
+    const businessName =
+      req.body.businessName === undefined && req.body.business_name === undefined
+        ? current.business_name
+        : String(req.body.businessName ?? req.body.business_name ?? "").trim();
+
+    const phone =
+      req.body.phone === undefined
+        ? current.phone
+        : String(req.body.phone || "").trim();
+
+    const address =
+      req.body.address === undefined
+        ? current.address
+        : String(req.body.address || "").trim();
+
+    const logoUrl =
+      req.body.logoUrl === undefined && req.body.logo_url === undefined
+        ? current.logo_url
+        : String(req.body.logoUrl ?? req.body.logo_url ?? "").trim();
+
+    if (!businessName) {
+      return res.status(400).json({
+        error: "El nombre del negocio es obligatorio",
+      });
+    }
+
+    if (logoUrl && !logoUrl.startsWith("http://") && !logoUrl.startsWith("https://")) {
+      return res.status(400).json({
+        error: "El logo debe ser una URL válida que empiece con http:// o https://",
+      });
+    }
+
+    const result = await db.query(
+      `
+      UPDATE professionals
+      SET
+        business_name = $1,
+        phone = $2,
+        address = $3,
+        logo_url = $4,
+        updated_at = NOW()
+      WHERE id = $5
+      RETURNING
+        id,
+        name,
+        business_name,
+        email,
+        phone,
+        profession,
+        address,
+        slug,
+        logo_url,
+        status,
+        created_at,
+        updated_at
+      `,
+      [
+        businessName,
+        phone || null,
+        address || null,
+        logoUrl || null,
+        professionalId,
+      ]
+    );
+
+    res.json({
+      success: true,
+      professional: normalizeProfessionalProfile(result.rows[0]),
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({
+      error: error.message || "Error actualizando perfil",
+    });
+  }
+});
+
 router.get("/me/availability", async (req, res) => {
   try {
     const professionalId = getProfessionalIdFromRequest(req);
@@ -679,14 +842,26 @@ router.get("/", async (req, res) => {
   try {
     const result = await db.query(
       `
-      SELECT id, name, business_name, email, phone, profession, slug, status, created_at
+      SELECT
+        id,
+        name,
+        business_name,
+        email,
+        phone,
+        profession,
+        address,
+        slug,
+        logo_url,
+        status,
+        created_at,
+        updated_at
       FROM professionals
       ORDER BY created_at DESC
       `
     );
 
     res.json({
-      professionals: result.rows,
+      professionals: result.rows.map(normalizeProfessionalProfile),
     });
   } catch (error) {
     res.status(500).json({
@@ -699,7 +874,19 @@ router.get("/:id", async (req, res) => {
   try {
     const result = await db.query(
       `
-      SELECT id, name, business_name, email, phone, profession, slug, status, created_at
+      SELECT
+        id,
+        name,
+        business_name,
+        email,
+        phone,
+        profession,
+        address,
+        slug,
+        logo_url,
+        status,
+        created_at,
+        updated_at
       FROM professionals
       WHERE id = $1
       `,
@@ -713,7 +900,7 @@ router.get("/:id", async (req, res) => {
     }
 
     res.json({
-      professional: result.rows[0],
+      professional: normalizeProfessionalProfile(result.rows[0]),
     });
   } catch (error) {
     res.status(500).json({
