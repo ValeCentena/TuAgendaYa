@@ -1,269 +1,242 @@
-const { Pool } = require('pg');
+const { Pool } = require("pg");
+require("dotenv").config();
+
+if (!process.env.DATABASE_URL) {
+  console.error("❌ DATABASE_URL no está configurada.");
+  process.exit(1);
+}
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false,
+  ssl:
+    process.env.NODE_ENV === "production"
+      ? { rejectUnauthorized: false }
+      : false,
 });
 
-async function initDB() {
-  const client = await pool.connect();
+async function initDb() {
   try {
-    await client.query(`
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS professionals (
-        id                        SERIAL PRIMARY KEY,
-        email                     TEXT    UNIQUE NOT NULL,
-        password_hash             TEXT    NOT NULL,
-        name                      TEXT    NOT NULL,
-        profession                TEXT,
-        slug                      TEXT    UNIQUE NOT NULL,
-        phone                     TEXT,
-        bio                       TEXT,
-        avatar_initials           TEXT,
-        plan                      TEXT    DEFAULT 'free',
-        status                    TEXT    DEFAULT 'active',
-        google_access_token       TEXT,
-        google_refresh_token      TEXT,
-        google_token_expiry       INTEGER,
-        google_calendar_id        TEXT,
-        google_sync_enabled       INTEGER DEFAULT 0,
-        timezone                  TEXT    DEFAULT 'America/Argentina/Buenos_Aires',
-        slot_duration             INTEGER DEFAULT 30,
-        buffer_between            INTEGER DEFAULT 0,
-        max_advance_days          INTEGER DEFAULT 60,
-        min_advance_hours         INTEGER DEFAULT 2,
-        notify_new_booking        INTEGER DEFAULT 1,
-        notify_cancellation       INTEGER DEFAULT 1,
-        notify_reminder           INTEGER DEFAULT 1,
-        reminder_hours_before     INTEGER DEFAULT 24,
-        created_at                TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at                TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        business_name TEXT,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        phone TEXT,
+        profession TEXT,
+        address TEXT,
+        slug TEXT UNIQUE NOT NULL,
+        logo_url TEXT,
+        status TEXT DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
       );
-
-      CREATE TABLE IF NOT EXISTS services (
-        id                SERIAL PRIMARY KEY,
-        professional_id   INTEGER NOT NULL REFERENCES professionals(id) ON DELETE CASCADE,
-        name              TEXT    NOT NULL,
-        duration          INTEGER NOT NULL,
-        price             NUMERIC DEFAULT 0,
-        description       TEXT,
-        color             TEXT    DEFAULT '#0071e3',
-        active            INTEGER DEFAULT 1,
-        sort_order        INTEGER DEFAULT 0,
-        created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS availability (
-        id                SERIAL PRIMARY KEY,
-        professional_id   INTEGER NOT NULL REFERENCES professionals(id) ON DELETE CASCADE,
-        day_of_week       INTEGER NOT NULL,
-        start_time        TEXT    NOT NULL,
-        end_time          TEXT    NOT NULL,
-        active            INTEGER DEFAULT 1
-      );
-
-      CREATE TABLE IF NOT EXISTS availability_exceptions (
-        id                SERIAL PRIMARY KEY,
-        professional_id   INTEGER NOT NULL REFERENCES professionals(id) ON DELETE CASCADE,
-        date              TEXT    NOT NULL,
-        start_time        TEXT,
-        end_time          TEXT,
-        reason            TEXT
-      );
-
-      CREATE TABLE IF NOT EXISTS clients (
-        id                 SERIAL PRIMARY KEY,
-        professional_id    INTEGER NOT NULL REFERENCES professionals(id) ON DELETE CASCADE,
-        name               TEXT    NOT NULL,
-        email              TEXT,
-        phone              TEXT,
-        private_notes      TEXT,
-        no_show_count      INTEGER DEFAULT 0,
-        cancellation_count INTEGER DEFAULT 0,
-        total_visits       INTEGER DEFAULT 0,
-        total_spent        NUMERIC DEFAULT 0,
-        tags               TEXT,
-        created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS appointments (
-        id                       SERIAL PRIMARY KEY,
-        professional_id          INTEGER NOT NULL REFERENCES professionals(id) ON DELETE CASCADE,
-        client_id                INTEGER REFERENCES clients(id) ON DELETE SET NULL,
-        service_id               INTEGER NOT NULL REFERENCES services(id) ON DELETE RESTRICT,
-        client_name              TEXT    NOT NULL,
-        client_email             TEXT,
-        client_phone             TEXT,
-        client_notes             TEXT,
-        start_time               TIMESTAMP NOT NULL,
-        end_time                 TIMESTAMP NOT NULL,
-        status                   TEXT    DEFAULT 'pending',
-        cancellation_reason      TEXT,
-        cancelled_by             TEXT,
-        cancelled_at             TIMESTAMP,
-        cancellation_fee_applied INTEGER DEFAULT 0,
-        cancellation_fee_amount  NUMERIC DEFAULT 0,
-        confirmed_at             TIMESTAMP,
-        completed_at             TIMESTAMP,
-        no_show_at               TIMESTAMP,
-        no_show_notified         INTEGER DEFAULT 0,
-        rescheduled_from_id      INTEGER,
-        rescheduled_at           TIMESTAMP,
-        google_event_id          TEXT,
-        google_sync_at           TIMESTAMP,
-        payment_status           TEXT    DEFAULT 'unpaid',
-        payment_amount           NUMERIC DEFAULT 0,
-        payment_method           TEXT,
-        payment_id               TEXT,
-        public_token             TEXT    UNIQUE,
-        source                   TEXT    DEFAULT 'web',
-        created_at               TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at               TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS cancellation_policies (
-        id                  SERIAL PRIMARY KEY,
-        professional_id     INTEGER NOT NULL UNIQUE REFERENCES professionals(id) ON DELETE CASCADE,
-        enabled             INTEGER DEFAULT 0,
-        hours_before        INTEGER DEFAULT 24,
-        fee_type            TEXT    DEFAULT 'none',
-        fee_fixed_amount    NUMERIC DEFAULT 0,
-        fee_percentage      INTEGER DEFAULT 0,
-        policy_text         TEXT,
-        show_on_booking     INTEGER DEFAULT 1,
-        updated_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS appointment_history (
-        id                SERIAL PRIMARY KEY,
-        appointment_id    INTEGER NOT NULL REFERENCES appointments(id) ON DELETE CASCADE,
-        professional_id   INTEGER NOT NULL,
-        action            TEXT    NOT NULL,
-        old_status        TEXT,
-        new_status        TEXT,
-        old_start_time    TIMESTAMP,
-        new_start_time    TIMESTAMP,
-        note              TEXT,
-        performed_by      TEXT    DEFAULT 'professional',
-        created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS password_reset_tokens (
-        id                SERIAL PRIMARY KEY,
-        professional_id   INTEGER NOT NULL REFERENCES professionals(id) ON DELETE CASCADE,
-        token             TEXT    UNIQUE NOT NULL,
-        expires_at        TIMESTAMP NOT NULL,
-        used              INTEGER DEFAULT 0,
-        created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS bookings (
-        id                SERIAL PRIMARY KEY,
-        professional_id   INTEGER NOT NULL REFERENCES professionals(id) ON DELETE CASCADE,
-        client_name       TEXT    NOT NULL,
-        client_phone      TEXT,
-        comment           TEXT,
-        status            TEXT    DEFAULT 'pending',
-        booking_date      DATE,
-        start_time        TIME,
-        end_time          TIME,
-        service_id        INTEGER,
-        staff_id          INTEGER,
-        created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS professional_availability (
-        id                     SERIAL PRIMARY KEY,
-        professional_id        INTEGER NOT NULL REFERENCES professionals(id) ON DELETE CASCADE,
-        day_of_week            INTEGER NOT NULL CHECK (day_of_week BETWEEN 0 AND 6),
-        is_active              INTEGER NOT NULL DEFAULT 1,
-        start_time             TIME    NOT NULL DEFAULT '09:00',
-        end_time               TIME    NOT NULL DEFAULT '18:00',
-        slot_duration_minutes  INTEGER NOT NULL DEFAULT 30,
-        created_at             TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at             TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE (professional_id, day_of_week)
-      );
-
-      CREATE TABLE IF NOT EXISTS professional_services (
-        id                SERIAL PRIMARY KEY,
-        professional_id   INTEGER NOT NULL REFERENCES professionals(id) ON DELETE CASCADE,
-        name              TEXT    NOT NULL,
-        description       TEXT,
-        duration_minutes  INTEGER NOT NULL DEFAULT 30,
-        price             NUMERIC DEFAULT 0,
-        is_active         INTEGER NOT NULL DEFAULT 1,
-        created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS staff_members (
-        id                SERIAL PRIMARY KEY,
-        professional_id   INTEGER NOT NULL REFERENCES professionals(id) ON DELETE CASCADE,
-        name              TEXT    NOT NULL,
-        specialty         TEXT,
-        avatar_initials   TEXT,
-        is_active         INTEGER NOT NULL DEFAULT 1,
-        created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS staff_availability (
-        id                    SERIAL PRIMARY KEY,
-        staff_member_id       INTEGER NOT NULL REFERENCES staff_members(id) ON DELETE CASCADE,
-        day_of_week           INTEGER NOT NULL CHECK (day_of_week BETWEEN 0 AND 6),
-        is_active             INTEGER NOT NULL DEFAULT 1,
-        start_time            TIME    NOT NULL DEFAULT '09:00',
-        end_time              TIME    NOT NULL DEFAULT '18:00',
-        slot_duration_minutes INTEGER NOT NULL DEFAULT 30,
-        created_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE (staff_member_id, day_of_week)
-      );
-
-      CREATE INDEX IF NOT EXISTS idx_prof_availability_professional
-        ON professional_availability(professional_id);
-      CREATE INDEX IF NOT EXISTS idx_prof_services_professional
-        ON professional_services(professional_id);
-      CREATE INDEX IF NOT EXISTS idx_appointments_professional_time
-        ON appointments(professional_id, start_time);
-      CREATE INDEX IF NOT EXISTS idx_appointments_status
-        ON appointments(professional_id, status);
-      CREATE INDEX IF NOT EXISTS idx_appointments_public_token
-        ON appointments(public_token);
-      CREATE INDEX IF NOT EXISTS idx_clients_professional
-        ON clients(professional_id);
-      CREATE INDEX IF NOT EXISTS idx_availability_professional
-        ON availability(professional_id, day_of_week);
-      CREATE INDEX IF NOT EXISTS idx_bookings_professional
-        ON bookings(professional_id);
-      CREATE INDEX IF NOT EXISTS idx_staff_members_professional
-        ON staff_members(professional_id);
-      CREATE INDEX IF NOT EXISTS idx_staff_availability_member
-        ON staff_availability(staff_member_id);
     `);
 
-    // Columnas añadidas después del despliegue inicial — siempre seguras con IF NOT EXISTS
-    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS booking_date DATE;`);
-    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS start_time TIME;`);
-    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS end_time TIME;`);
-    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS service_id INTEGER;`);
-    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS staff_id INTEGER;`);
+    await pool.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS name TEXT;`);
+    await pool.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS business_name TEXT;`);
+    await pool.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS email TEXT;`);
+    await pool.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS password_hash TEXT;`);
+    await pool.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS phone TEXT;`);
+    await pool.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS profession TEXT;`);
+    await pool.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS address TEXT;`);
+    await pool.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS slug TEXT;`);
+    await pool.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS logo_url TEXT;`);
+    await pool.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';`);
+    await pool.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();`);
+    await pool.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();`);
 
-    // Columnas de negocio en professionals
-    await client.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS business_name TEXT;`);
-    await client.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS address TEXT;`);
-    await client.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS logo_url TEXT;`);
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_professionals_email_unique
+      ON professionals (email);
+    `);
 
-    console.log('✓ Base de datos PostgreSQL lista');
-  } finally {
-    client.release();
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_professionals_slug_unique
+      ON professionals (slug);
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS professional_services (
+        id SERIAL PRIMARY KEY,
+        professional_id INTEGER NOT NULL REFERENCES professionals(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        description TEXT,
+        duration_minutes INTEGER NOT NULL DEFAULT 30,
+        price NUMERIC(10, 2),
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    await pool.query(`ALTER TABLE professional_services ADD COLUMN IF NOT EXISTS professional_id INTEGER;`);
+    await pool.query(`ALTER TABLE professional_services ADD COLUMN IF NOT EXISTS name TEXT;`);
+    await pool.query(`ALTER TABLE professional_services ADD COLUMN IF NOT EXISTS description TEXT;`);
+    await pool.query(`ALTER TABLE professional_services ADD COLUMN IF NOT EXISTS duration_minutes INTEGER DEFAULT 30;`);
+    await pool.query(`ALTER TABLE professional_services ADD COLUMN IF NOT EXISTS price NUMERIC(10, 2);`);
+    await pool.query(`ALTER TABLE professional_services ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;`);
+    await pool.query(`ALTER TABLE professional_services ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();`);
+    await pool.query(`ALTER TABLE professional_services ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();`);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_professional_services_professional
+      ON professional_services (professional_id);
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS professional_availability (
+        id SERIAL PRIMARY KEY,
+        professional_id INTEGER NOT NULL REFERENCES professionals(id) ON DELETE CASCADE,
+        day_of_week INTEGER NOT NULL,
+        is_active BOOLEAN DEFAULT false,
+        start_time TIME DEFAULT '09:00',
+        end_time TIME DEFAULT '18:00',
+        slot_duration_minutes INTEGER DEFAULT 30,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    await pool.query(`ALTER TABLE professional_availability ADD COLUMN IF NOT EXISTS professional_id INTEGER;`);
+    await pool.query(`ALTER TABLE professional_availability ADD COLUMN IF NOT EXISTS day_of_week INTEGER;`);
+    await pool.query(`ALTER TABLE professional_availability ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT false;`);
+    await pool.query(`ALTER TABLE professional_availability ADD COLUMN IF NOT EXISTS start_time TIME DEFAULT '09:00';`);
+    await pool.query(`ALTER TABLE professional_availability ADD COLUMN IF NOT EXISTS end_time TIME DEFAULT '18:00';`);
+    await pool.query(`ALTER TABLE professional_availability ADD COLUMN IF NOT EXISTS slot_duration_minutes INTEGER DEFAULT 30;`);
+    await pool.query(`ALTER TABLE professional_availability ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();`);
+    await pool.query(`ALTER TABLE professional_availability ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();`);
+
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_professional_availability_unique
+      ON professional_availability (professional_id, day_of_week);
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS staff_members (
+        id SERIAL PRIMARY KEY,
+        owner_professional_id INTEGER NOT NULL REFERENCES professionals(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        phone TEXT,
+        email TEXT,
+        color TEXT DEFAULT '#0071e3',
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    await pool.query(`ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS owner_professional_id INTEGER;`);
+    await pool.query(`ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS name TEXT;`);
+    await pool.query(`ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS phone TEXT;`);
+    await pool.query(`ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS email TEXT;`);
+    await pool.query(`ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS color TEXT DEFAULT '#0071e3';`);
+    await pool.query(`ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;`);
+    await pool.query(`ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();`);
+    await pool.query(`ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();`);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_staff_members_owner
+      ON staff_members (owner_professional_id);
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS staff_availability (
+        id SERIAL PRIMARY KEY,
+        staff_id INTEGER NOT NULL REFERENCES staff_members(id) ON DELETE CASCADE,
+        day_of_week INTEGER NOT NULL,
+        is_active BOOLEAN DEFAULT false,
+        start_time TIME DEFAULT '09:00',
+        end_time TIME DEFAULT '18:00',
+        slot_duration_minutes INTEGER DEFAULT 30,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    await pool.query(`ALTER TABLE staff_availability ADD COLUMN IF NOT EXISTS staff_id INTEGER;`);
+    await pool.query(`ALTER TABLE staff_availability ADD COLUMN IF NOT EXISTS day_of_week INTEGER;`);
+    await pool.query(`ALTER TABLE staff_availability ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT false;`);
+    await pool.query(`ALTER TABLE staff_availability ADD COLUMN IF NOT EXISTS start_time TIME DEFAULT '09:00';`);
+    await pool.query(`ALTER TABLE staff_availability ADD COLUMN IF NOT EXISTS end_time TIME DEFAULT '18:00';`);
+    await pool.query(`ALTER TABLE staff_availability ADD COLUMN IF NOT EXISTS slot_duration_minutes INTEGER DEFAULT 30;`);
+    await pool.query(`ALTER TABLE staff_availability ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();`);
+    await pool.query(`ALTER TABLE staff_availability ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();`);
+
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_staff_availability_unique
+      ON staff_availability (staff_id, day_of_week);
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS bookings (
+        id SERIAL PRIMARY KEY,
+        professional_id INTEGER NOT NULL REFERENCES professionals(id) ON DELETE CASCADE,
+        staff_id INTEGER,
+        service_id INTEGER,
+        client_name TEXT NOT NULL,
+        client_phone TEXT NOT NULL,
+        comment TEXT,
+        booking_date DATE,
+        start_time TIME,
+        end_time TIME,
+        status TEXT DEFAULT 'pending',
+        confirmation_token TEXT,
+        client_confirmed_at TIMESTAMP,
+        client_cancelled_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS professional_id INTEGER;`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS staff_id INTEGER;`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS service_id INTEGER;`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS client_name TEXT;`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS client_phone TEXT;`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS comment TEXT;`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS booking_date DATE;`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS start_time TIME;`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS end_time TIME;`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS confirmation_token TEXT;`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS client_confirmed_at TIMESTAMP;`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS client_cancelled_at TIMESTAMP;`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();`);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_bookings_professional
+      ON bookings (professional_id);
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_bookings_staff
+      ON bookings (staff_id);
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_bookings_date
+      ON bookings (booking_date);
+    `);
+
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_bookings_confirmation_token_unique
+      ON bookings (confirmation_token)
+      WHERE confirmation_token IS NOT NULL;
+    `);
+
+    console.log("✅ Base de datos Postgres inicializada correctamente.");
+  } catch (error) {
+    console.error("❌ Error inicializando la base de datos:", error);
+    process.exit(1);
   }
 }
 
-initDB().catch(err => {
-  console.error('Error inicializando la base de datos:', err);
-  process.exit(1);
-});
+initDb();
 
-module.exports = pool;
+module.exports = {
+  query: (text, params) => pool.query(text, params),
+  pool,
+};
