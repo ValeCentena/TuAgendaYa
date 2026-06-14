@@ -1,12 +1,17 @@
-const express = require('express');
-const jwt = require('jsonwebtoken');
-const db = require('../db');
+const express = require("express");
+const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
+const db = require("../db");
 
 const router = express.Router();
 
 function getTokenFromHeader(req) {
-  const authHeader = req.headers.authorization || '';
-  if (!authHeader.startsWith('Bearer ')) return null;
+  const authHeader = req.headers.authorization || "";
+
+  if (!authHeader.startsWith("Bearer ")) {
+    return null;
+  }
+
   return authHeader.slice(7);
 }
 
@@ -14,13 +19,14 @@ function getProfessionalIdFromRequest(req) {
   const token = getTokenFromHeader(req);
 
   if (!token) {
-    const error = new Error('Token requerido');
+    const error = new Error("Token requerido");
     error.status = 401;
     throw error;
   }
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
     const id =
       decoded.id ||
       decoded.professionalId ||
@@ -29,7 +35,7 @@ function getProfessionalIdFromRequest(req) {
       decoded.user_id;
 
     if (!id) {
-      const error = new Error('Token inválido');
+      const error = new Error("Token inválido");
       error.status = 401;
       throw error;
     }
@@ -37,24 +43,38 @@ function getProfessionalIdFromRequest(req) {
     return Number(id);
   } catch (error) {
     error.status = error.status || 401;
-    error.message = error.message || 'Token inválido';
+    error.message = error.message || "Token inválido";
     throw error;
   }
 }
 
+function createConfirmationToken() {
+  if (crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+
+  return crypto.randomBytes(32).toString("hex");
+}
+
+function getFrontendUrl() {
+  return process.env.FRONTEND_URL || "https://tuagendaya-web.onrender.com";
+}
+
 function normalizeDate(date) {
-  return String(date || '').slice(0, 10);
+  return String(date || "").slice(0, 10);
 }
 
 function normalizeTime(time) {
-  return String(time || '').slice(0, 5);
+  return String(time || "").slice(0, 5);
 }
 
 function timeToMinutes(time) {
   const clean = normalizeTime(time);
-  const [hours, minutes] = clean.split(':').map(Number);
+  const [hours, minutes] = clean.split(":").map(Number);
 
-  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) {
+    return null;
+  }
 
   return hours * 60 + minutes;
 }
@@ -63,20 +83,26 @@ function minutesToTime(minutes) {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
 
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
 function addMinutesToTime(time, minutesToAdd) {
   const base = timeToMinutes(time);
-  if (base === null) return null;
-  return minutesToTime(base + minutesToAdd);
+
+  if (base === null) {
+    return null;
+  }
+
+  return minutesToTime(base + Number(minutesToAdd || 30));
 }
 
 function getDayOfWeekFromDateString(dateString) {
   const clean = normalizeDate(dateString);
-  const [year, month, day] = clean.split('-').map(Number);
+  const [year, month, day] = clean.split("-").map(Number);
 
-  if (!year || !month || !day) return null;
+  if (!year || !month || !day) {
+    return null;
+  }
 
   const utcDate = new Date(Date.UTC(year, month - 1, day));
   return utcDate.getUTCDay();
@@ -88,7 +114,9 @@ function generateSlotsFromConfig(startTime, endTime, stepMinutes, serviceDuratio
   const step = Number(stepMinutes || 30);
   const duration = Number(serviceDurationMinutes || step || 30);
 
-  if (start === null || end === null || end <= start) return [];
+  if (start === null || end === null || end <= start) {
+    return [];
+  }
 
   const slots = [];
 
@@ -106,30 +134,71 @@ function rangesOverlap(startA, endA, startB, endB) {
 function normalizeBooking(row) {
   return {
     id: row.id,
+
     professional_id: row.professional_id,
     professionalId: row.professional_id,
+
     service_id: row.service_id,
     serviceId: row.service_id,
+
     service_name: row.service_name,
     serviceName: row.service_name,
+
     service_duration_minutes: row.service_duration_minutes,
     serviceDurationMinutes: row.service_duration_minutes,
+
     service_price: row.service_price,
     servicePrice: row.service_price,
+
     client_name: row.client_name,
     clientName: row.client_name,
+
     client_phone: row.client_phone,
     clientPhone: row.client_phone,
+
     comment: row.comment,
+
     booking_date: row.booking_date,
     bookingDate: row.booking_date,
+
     start_time: row.start_time,
     startTime: row.start_time,
+
     end_time: row.end_time,
     endTime: row.end_time,
+
     status: row.status,
+
+    confirmation_token: row.confirmation_token,
+    confirmationToken: row.confirmation_token,
+
+    client_confirmed_at: row.client_confirmed_at,
+    clientConfirmedAt: row.client_confirmed_at,
+
+    client_cancelled_at: row.client_cancelled_at,
+    clientCancelledAt: row.client_cancelled_at,
+
     created_at: row.created_at,
     createdAt: row.created_at,
+
+    updated_at: row.updated_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function normalizePublicBooking(row) {
+  return {
+    id: row.id,
+    clientName: row.client_name,
+    bookingDate: row.booking_date,
+    startTime: row.start_time,
+    endTime: row.end_time,
+    status: row.status,
+    serviceName: row.service_name,
+    serviceDurationMinutes: row.service_duration_minutes,
+    servicePrice: row.service_price,
+    professionalName: row.professional_name,
+    businessName: row.business_name,
   };
 }
 
@@ -147,7 +216,9 @@ async function getProfessionalBySlug(slug) {
 }
 
 async function getServiceForProfessional(professionalId, serviceId) {
-  if (!serviceId) return null;
+  if (!serviceId) {
+    return null;
+  }
 
   const result = await db.query(
     `
@@ -166,7 +237,9 @@ async function getServiceForProfessional(professionalId, serviceId) {
 async function getAvailabilityForDate(professionalId, bookingDate) {
   const dayOfWeek = getDayOfWeekFromDateString(bookingDate);
 
-  if (dayOfWeek === null) return null;
+  if (dayOfWeek === null) {
+    return null;
+  }
 
   const result = await db.query(
     `
@@ -179,7 +252,9 @@ async function getAvailabilityForDate(professionalId, bookingDate) {
     [professionalId, dayOfWeek]
   );
 
-  if (result.rows.length > 0) return result.rows[0];
+  if (result.rows.length > 0) {
+    return result.rows[0];
+  }
 
   const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
 
@@ -187,8 +262,8 @@ async function getAvailabilityForDate(professionalId, bookingDate) {
     professional_id: professionalId,
     day_of_week: dayOfWeek,
     is_active: isWeekday,
-    start_time: '09:00',
-    end_time: '18:00',
+    start_time: "09:00",
+    end_time: "18:00",
     slot_duration_minutes: 30,
   };
 }
@@ -213,22 +288,20 @@ async function isTimeRangeAvailable(professionalId, bookingDate, startTime, endT
   const start = timeToMinutes(startTime);
   const end = timeToMinutes(endTime);
 
-  if (start === null || end === null || end <= start) return false;
+  if (start === null || end === null || end <= start) {
+    return false;
+  }
 
   const busy = await getBusyBookings(professionalId, bookingDate);
 
   for (const booking of busy) {
     const busyStart = timeToMinutes(booking.start_time);
-    const busyEnd =
-      timeToMinutes(booking.end_time) || addMinutesToTime(booking.start_time, 30);
-
-    const busyEndMinutes =
-      typeof busyEnd === 'number' ? busyEnd : timeToMinutes(busyEnd);
+    const busyEnd = timeToMinutes(booking.end_time) || busyStart + 30;
 
     if (
       busyStart !== null &&
-      busyEndMinutes !== null &&
-      rangesOverlap(start, end, busyStart, busyEndMinutes)
+      busyEnd !== null &&
+      rangesOverlap(start, end, busyStart, busyEnd)
     ) {
       return false;
     }
@@ -237,20 +310,24 @@ async function isTimeRangeAvailable(professionalId, bookingDate, startTime, endT
   return true;
 }
 
-router.get('/public/:slug/slots', async (req, res) => {
+router.get("/public/:slug/slots", async (req, res) => {
   try {
     const { slug } = req.params;
     const bookingDate = normalizeDate(req.query.date);
     const serviceId = req.query.serviceId || req.query.service_id || null;
 
     if (!bookingDate) {
-      return res.status(400).json({ error: 'La fecha es obligatoria' });
+      return res.status(400).json({
+        error: "La fecha es obligatoria",
+      });
     }
 
     const professional = await getProfessionalBySlug(slug);
 
     if (!professional) {
-      return res.status(404).json({ error: 'Profesional no encontrado' });
+      return res.status(404).json({
+        error: "Profesional no encontrado",
+      });
     }
 
     const availability = await getAvailabilityForDate(professional.id, bookingDate);
@@ -265,7 +342,9 @@ router.get('/public/:slug/slots', async (req, res) => {
       const service = await getServiceForProfessional(professional.id, serviceId);
 
       if (!service) {
-        return res.status(404).json({ error: 'Servicio no encontrado' });
+        return res.status(404).json({
+          error: "Servicio no encontrado",
+        });
       }
 
       serviceDuration = Number(service.duration_minutes || serviceDuration);
@@ -309,12 +388,12 @@ router.get('/public/:slug/slots', async (req, res) => {
     res.json({ slots });
   } catch (error) {
     res.status(500).json({
-      error: error.message || 'Error obteniendo horarios',
+      error: error.message || "Error obteniendo horarios",
     });
   }
 });
 
-router.post('/public/:slug/book', async (req, res) => {
+router.post("/public/:slug/book", async (req, res) => {
   try {
     const { slug } = req.params;
 
@@ -331,20 +410,22 @@ router.post('/public/:slug/book', async (req, res) => {
 
     if (!clientName || !clientPhone) {
       return res.status(400).json({
-        error: 'Nombre y teléfono son obligatorios',
+        error: "Nombre y teléfono son obligatorios",
       });
     }
 
     if (!bookingDate || !startTime) {
       return res.status(400).json({
-        error: 'Fecha y horario son obligatorios',
+        error: "Fecha y horario son obligatorios",
       });
     }
 
     const professional = await getProfessionalBySlug(slug);
 
     if (!professional) {
-      return res.status(404).json({ error: 'Profesional no encontrado' });
+      return res.status(404).json({
+        error: "Profesional no encontrado",
+      });
     }
 
     const finalServiceId = serviceId || service_id || null;
@@ -354,7 +435,9 @@ router.post('/public/:slug/book', async (req, res) => {
       service = await getServiceForProfessional(professional.id, finalServiceId);
 
       if (!service) {
-        return res.status(404).json({ error: 'Servicio no encontrado' });
+        return res.status(404).json({
+          error: "Servicio no encontrado",
+        });
       }
     }
 
@@ -370,9 +453,11 @@ router.post('/public/:slug/book', async (req, res) => {
 
     if (!available) {
       return res.status(409).json({
-        error: 'Horario no disponible',
+        error: "Horario no disponible",
       });
     }
+
+    const confirmationToken = createConfirmationToken();
 
     const result = await db.query(
       `
@@ -386,10 +471,11 @@ router.post('/public/:slug/book', async (req, res) => {
         start_time,
         end_time,
         status,
+        confirmation_token,
         created_at,
         updated_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending', NOW(), NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending', $9, NOW(), NOW())
       RETURNING *
       `,
       [
@@ -401,22 +487,134 @@ router.post('/public/:slug/book', async (req, res) => {
         normalizeDate(bookingDate),
         normalizeTime(startTime),
         normalizeTime(finalEndTime),
+        confirmationToken,
       ]
     );
+
+    const confirmationUrl = `${getFrontendUrl()}/confirmar-reserva/${confirmationToken}`;
 
     res.status(201).json({
       success: true,
       bookingId: result.rows[0].id,
+      confirmationToken,
+      confirmationUrl,
       booking: normalizeBooking(result.rows[0]),
     });
   } catch (error) {
     res.status(500).json({
-      error: error.message || 'Error creando reserva',
+      error: error.message || "Error creando reserva",
     });
   }
 });
 
-router.get('/me', async (req, res) => {
+router.get("/public/confirmation/:token", async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    const result = await db.query(
+      `
+      SELECT
+        b.*,
+        s.name AS service_name,
+        s.duration_minutes AS service_duration_minutes,
+        s.price AS service_price,
+        p.name AS professional_name,
+        p.business_name AS business_name
+      FROM bookings b
+      LEFT JOIN professional_services s ON s.id = b.service_id
+      INNER JOIN professionals p ON p.id = b.professional_id
+      WHERE b.confirmation_token = $1
+      LIMIT 1
+      `,
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: "Reserva no encontrada",
+      });
+    }
+
+    res.json({
+      booking: normalizePublicBooking(result.rows[0]),
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: error.message || "Error obteniendo reserva",
+    });
+  }
+});
+
+router.patch("/public/confirmation/:token/confirm", async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    const result = await db.query(
+      `
+      UPDATE bookings
+      SET
+        status = 'confirmed',
+        client_confirmed_at = NOW(),
+        client_cancelled_at = NULL,
+        updated_at = NOW()
+      WHERE confirmation_token = $1
+      RETURNING *
+      `,
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: "Reserva no encontrada",
+      });
+    }
+
+    res.json({
+      success: true,
+      booking: normalizeBooking(result.rows[0]),
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: error.message || "Error confirmando reserva",
+    });
+  }
+});
+
+router.patch("/public/confirmation/:token/cancel", async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    const result = await db.query(
+      `
+      UPDATE bookings
+      SET
+        status = 'cancelled',
+        client_cancelled_at = NOW(),
+        updated_at = NOW()
+      WHERE confirmation_token = $1
+      RETURNING *
+      `,
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: "Reserva no encontrada",
+      });
+    }
+
+    res.json({
+      success: true,
+      booking: normalizeBooking(result.rows[0]),
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: error.message || "Error cancelando reserva",
+    });
+  }
+});
+
+router.get("/me", async (req, res) => {
   try {
     const professionalId = getProfessionalIdFromRequest(req);
 
@@ -443,12 +641,12 @@ router.get('/me', async (req, res) => {
     });
   } catch (error) {
     res.status(error.status || 500).json({
-      error: error.message || 'Error obteniendo reservas',
+      error: error.message || "Error obteniendo reservas",
     });
   }
 });
 
-router.patch('/:id/confirm', async (req, res) => {
+router.patch("/:id/confirm", async (req, res) => {
   try {
     const professionalId = getProfessionalIdFromRequest(req);
     const bookingId = Number(req.params.id);
@@ -456,7 +654,9 @@ router.patch('/:id/confirm', async (req, res) => {
     const result = await db.query(
       `
       UPDATE bookings
-      SET status = 'confirmed', updated_at = NOW()
+      SET
+        status = 'confirmed',
+        updated_at = NOW()
       WHERE id = $1 AND professional_id = $2
       RETURNING *
       `,
@@ -464,7 +664,9 @@ router.patch('/:id/confirm', async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Reserva no encontrada' });
+      return res.status(404).json({
+        error: "Reserva no encontrada",
+      });
     }
 
     res.json({
@@ -473,12 +675,12 @@ router.patch('/:id/confirm', async (req, res) => {
     });
   } catch (error) {
     res.status(error.status || 500).json({
-      error: error.message || 'Error confirmando reserva',
+      error: error.message || "Error confirmando reserva",
     });
   }
 });
 
-router.patch('/:id/cancel', async (req, res) => {
+router.patch("/:id/cancel", async (req, res) => {
   try {
     const professionalId = getProfessionalIdFromRequest(req);
     const bookingId = Number(req.params.id);
@@ -486,7 +688,10 @@ router.patch('/:id/cancel', async (req, res) => {
     const result = await db.query(
       `
       UPDATE bookings
-      SET status = 'cancelled', updated_at = NOW()
+      SET
+        status = 'cancelled',
+        client_cancelled_at = NOW(),
+        updated_at = NOW()
       WHERE id = $1 AND professional_id = $2
       RETURNING *
       `,
@@ -494,7 +699,9 @@ router.patch('/:id/cancel', async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Reserva no encontrada' });
+      return res.status(404).json({
+        error: "Reserva no encontrada",
+      });
     }
 
     res.json({
@@ -503,12 +710,12 @@ router.patch('/:id/cancel', async (req, res) => {
     });
   } catch (error) {
     res.status(error.status || 500).json({
-      error: error.message || 'Error cancelando reserva',
+      error: error.message || "Error cancelando reserva",
     });
   }
 });
 
-router.get('/:id', async (req, res) => {
+router.get("/:id", async (req, res) => {
   try {
     const professionalId = getProfessionalIdFromRequest(req);
     const bookingId = Number(req.params.id);
@@ -528,7 +735,9 @@ router.get('/:id', async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Reserva no encontrada' });
+      return res.status(404).json({
+        error: "Reserva no encontrada",
+      });
     }
 
     res.json({
@@ -536,7 +745,7 @@ router.get('/:id', async (req, res) => {
     });
   } catch (error) {
     res.status(error.status || 500).json({
-      error: error.message || 'Error obteniendo reserva',
+      error: error.message || "Error obteniendo reserva",
     });
   }
 });

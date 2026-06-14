@@ -1,15 +1,15 @@
-const { Pool } = require('pg');
-require('dotenv').config();
+const { Pool } = require("pg");
+require("dotenv").config();
 
 if (!process.env.DATABASE_URL) {
-  console.error('❌ DATABASE_URL no está configurada.');
+  console.error("❌ DATABASE_URL no está configurada.");
   process.exit(1);
 }
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl:
-    process.env.NODE_ENV === 'production'
+    process.env.NODE_ENV === "production"
       ? { rejectUnauthorized: false }
       : false,
 });
@@ -44,6 +44,9 @@ async function initDb() {
         start_time TIME,
         end_time TIME,
         status TEXT DEFAULT 'pending',
+        confirmation_token TEXT,
+        client_confirmed_at TIMESTAMP,
+        client_cancelled_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       );
@@ -108,6 +111,27 @@ async function initDb() {
     `);
 
     await pool.query(`
+      ALTER TABLE bookings
+      ADD COLUMN IF NOT EXISTS confirmation_token TEXT;
+    `);
+
+    await pool.query(`
+      ALTER TABLE bookings
+      ADD COLUMN IF NOT EXISTS client_confirmed_at TIMESTAMP;
+    `);
+
+    await pool.query(`
+      ALTER TABLE bookings
+      ADD COLUMN IF NOT EXISTS client_cancelled_at TIMESTAMP;
+    `);
+
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_bookings_confirmation_token_unique
+      ON bookings (confirmation_token)
+      WHERE confirmation_token IS NOT NULL;
+    `);
+
+    await pool.query(`
       ALTER TABLE professional_services
       ADD COLUMN IF NOT EXISTS description TEXT;
     `);
@@ -132,9 +156,9 @@ async function initDb() {
       ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();
     `);
 
-    console.log('✅ Base de datos Postgres inicializada correctamente.');
+    console.log("✅ Base de datos Postgres inicializada correctamente.");
   } catch (error) {
-    console.error('❌ Error inicializando Postgres:', error);
+    console.error("❌ Error inicializando Postgres:", error);
     process.exit(1);
   }
 }
