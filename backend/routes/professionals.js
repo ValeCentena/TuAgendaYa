@@ -261,11 +261,17 @@ function normalizeAvailabilityRow(row) {
   return {
     id: row.id,
     professionalId: row.professional_id,
+    professional_id: row.professional_id,
     dayOfWeek: row.day_of_week,
+    day_of_week: row.day_of_week,
     isActive: row.is_active,
+    is_active: row.is_active,
     startTime: String(row.start_time || "09:00").slice(0, 5),
+    start_time: String(row.start_time || "09:00").slice(0, 5),
     endTime: String(row.end_time || "18:00").slice(0, 5),
+    end_time: String(row.end_time || "18:00").slice(0, 5),
     slotDurationMinutes: row.slot_duration_minutes || 30,
+    slot_duration_minutes: row.slot_duration_minutes || 30,
   };
 }
 
@@ -273,13 +279,18 @@ function normalizeService(row) {
   return {
     id: row.id,
     professionalId: row.professional_id,
+    professional_id: row.professional_id,
     name: row.name,
     description: row.description,
     durationMinutes: row.duration_minutes,
+    duration_minutes: row.duration_minutes,
     price: row.price === null || row.price === undefined ? null : Number(row.price),
     isActive: row.is_active,
+    is_active: row.is_active,
     createdAt: row.created_at,
+    created_at: row.created_at,
     updatedAt: row.updated_at,
+    updated_at: row.updated_at,
   };
 }
 
@@ -497,9 +508,23 @@ router.patch("/me/profile", async (req, res) => {
       });
     }
 
-    if (logoUrl && !logoUrl.startsWith("http://") && !logoUrl.startsWith("https://")) {
+    const isValidLogo =
+      !logoUrl ||
+      logoUrl.startsWith("http://") ||
+      logoUrl.startsWith("https://") ||
+      logoUrl.startsWith("data:image/png;base64,") ||
+      logoUrl.startsWith("data:image/jpeg;base64,") ||
+      logoUrl.startsWith("data:image/webp;base64,");
+
+    if (!isValidLogo) {
       return res.status(400).json({
-        error: "El logo debe ser una URL válida que empiece con http:// o https://",
+        error: "El logo debe ser una URL válida o una imagen cargada desde archivo",
+      });
+    }
+
+    if (logoUrl && logoUrl.length > 1500000) {
+      return res.status(400).json({
+        error: "El logo es demasiado pesado. Usá una imagen menor a 1 MB.",
       });
     }
 
