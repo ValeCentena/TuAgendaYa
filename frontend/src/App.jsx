@@ -2025,6 +2025,8 @@ function normalizeProfessionalFromApi(item) {
 }
 
 function BusinessProfileSection({ professional, onProfileUpdated }) {
+  const fileInputRef = useRef(null);
+
   const [form, setForm] = useState({
     businessName: professional?.businessName || professional?.business_name || '',
     phone: professional?.phone || '',
@@ -2071,6 +2073,69 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
     fetchProfile();
   }, []);
 
+  const isValidLogoValue = (value) => {
+    const cleanValue = String(value || '').trim();
+
+    if (!cleanValue) return true;
+
+    return (
+      cleanValue.startsWith('http://') ||
+      cleanValue.startsWith('https://') ||
+      cleanValue.startsWith('data:image/png;base64,') ||
+      cleanValue.startsWith('data:image/jpeg;base64,') ||
+      cleanValue.startsWith('data:image/webp;base64,')
+    );
+  };
+
+  const handleLogoFileChange = (event) => {
+    const file = event.target.files?.[0];
+
+    if (!file) return;
+
+    setMessage('');
+    setError('');
+
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/webp'];
+
+    if (!allowedTypes.includes(file.type)) {
+      setError('El logo debe ser una imagen PNG, JPG o WebP.');
+      event.target.value = '';
+      return;
+    }
+
+    const maxSizeMb = 1;
+    const maxSizeBytes = maxSizeMb * 1024 * 1024;
+
+    if (file.size > maxSizeBytes) {
+      setError('El logo no puede pesar más de 1 MB. Exportalo más liviano y volvé a cargarlo.');
+      event.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const dataUrl = String(reader.result || '');
+      setForm((current) => ({ ...current, logoUrl: dataUrl }));
+      setMessage('Logo cargado. Guardá el perfil para aplicar el cambio.');
+    };
+
+    reader.onerror = () => {
+      setError('No se pudo leer el archivo del logo.');
+    };
+
+    reader.readAsDataURL(file);
+  };
+
+  const clearLogo = () => {
+    setForm((current) => ({ ...current, logoUrl: '' }));
+    setMessage('Logo quitado. Guardá el perfil para aplicar el cambio.');
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   const handleSave = async (e) => {
     e.preventDefault();
     setMessage('');
@@ -2081,12 +2146,8 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
       return;
     }
 
-    if (
-      form.logoUrl.trim() &&
-      !form.logoUrl.trim().startsWith('http://') &&
-      !form.logoUrl.trim().startsWith('https://')
-    ) {
-      setError('La URL del logo debe empezar con http:// o https://');
+    if (!isValidLogoValue(form.logoUrl)) {
+      setError('El logo debe ser una URL válida o una imagen cargada desde archivo.');
       return;
     }
 
@@ -2173,21 +2234,105 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
             placeholder="Dirección del negocio"
           />
 
-          <label style={smallLabelStyle}>URL del logo del negocio</label>
-          <input
-            style={{ ...inputStyle, marginBottom: 12 }}
-            value={form.logoUrl}
-            onChange={(e) => setForm({ ...form, logoUrl: e.target.value })}
-            placeholder="https://..."
-          />
+          <label style={smallLabelStyle}>Logo del negocio</label>
+
+          <div
+            style={{
+              background: '#f2f2f7',
+              borderRadius: 18,
+              padding: 16,
+              marginBottom: 12,
+              border: '0.5px solid #e8e8ed',
+            }}
+          >
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(0, 1fr) auto',
+                gap: 14,
+                alignItems: 'center',
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a', marginBottom: 4 }}>
+                  Cargar logo desde archivo
+                </div>
+
+                <div style={{ fontSize: 12, color: '#6e6e73', lineHeight: 1.45 }}>
+                  Dimensiones recomendadas: 800 × 300 px. Formato recomendado: PNG con fondo transparente. Peso máximo: 1 MB.
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={handleLogoFileChange}
+                  style={{ display: 'none' }}
+                />
+
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{
+                    padding: '10px 14px',
+                    borderRadius: 12,
+                    border: 'none',
+                    background: '#0071e3',
+                    color: '#fff',
+                    fontSize: 13,
+                    fontWeight: 800,
+                    fontFamily: 'inherit',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Seleccionar archivo
+                </button>
+
+                {form.logoUrl && (
+                  <button
+                    type="button"
+                    onClick={clearLogo}
+                    style={{
+                      padding: '10px 14px',
+                      borderRadius: 12,
+                      border: '0.5px solid #d0d0d5',
+                      background: '#fff',
+                      color: '#ff453a',
+                      fontSize: 13,
+                      fontWeight: 800,
+                      fontFamily: 'inherit',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    Quitar logo
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div style={{ marginTop: 14 }}>
+              <label style={smallLabelStyle}>O pegar URL del logo</label>
+              <input
+                style={{ ...inputStyle, marginBottom: 0 }}
+                value={form.logoUrl.startsWith('data:image/') ? 'Logo cargado desde archivo' : form.logoUrl}
+                onChange={(e) => setForm({ ...form, logoUrl: e.target.value })}
+                placeholder="https://..."
+                disabled={form.logoUrl.startsWith('data:image/')}
+              />
+            </div>
+          </div>
 
           {form.logoUrl ? (
-            <div style={{ background: '#f2f2f7', borderRadius: 16, padding: 16, marginBottom: 12 }}>
-              <div style={{ fontSize: 12, color: '#6e6e73', marginBottom: 10 }}>Vista previa del logo</div>
+            <div style={{ background: '#fff', border: '0.5px solid #e8e8ed', borderRadius: 16, padding: 16, marginBottom: 12 }}>
+              <div style={{ fontSize: 12, color: '#6e6e73', marginBottom: 10, fontWeight: 700 }}>Vista previa del logo</div>
               <img
                 src={form.logoUrl}
                 alt="Logo del negocio"
-                style={{ maxWidth: 180, maxHeight: 80, objectFit: 'contain', display: 'block' }}
+                style={{ maxWidth: 220, maxHeight: 90, objectFit: 'contain', display: 'block' }}
                 onError={(e) => {
                   e.currentTarget.style.display = 'none';
                 }}
@@ -2195,7 +2340,7 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
             </div>
           ) : (
             <div style={{ background: '#f2f2f7', borderRadius: 16, padding: 16, marginBottom: 12, color: '#8e8e93', fontSize: 13 }}>
-              Cuando cargues una URL de logo, se va a mostrar acá y en la página pública de reservas.
+              Cuando cargues un logo, se va a mostrar acá, en el recuadro superior del panel y en la página pública de reservas.
             </div>
           )}
 
@@ -2214,7 +2359,7 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
           <button
             type="submit"
             disabled={saving}
-            style={{ width: '100%', padding: '13px', borderRadius: 12, border: 'none', background: saving ? '#aeaeb2' : '#0071e3', color: '#fff', fontSize: 15, fontWeight: 700, fontFamily: 'inherit', cursor: saving ? 'not-allowed' : 'pointer' }}
+            style={{ width: '100%', padding: '13px', borderRadius: 12, border: 'none', background: saving ? '#aeaeb2' : '#0071e3', color: '#fff', fontSize: 15, fontWeight: 800, fontFamily: 'inherit', cursor: saving ? 'not-allowed' : 'pointer' }}
           >
             {saving ? 'Guardando...' : 'Guardar perfil del negocio'}
           </button>
