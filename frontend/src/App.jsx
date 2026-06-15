@@ -4,7 +4,7 @@ import BookPage from './pages/BookPage.jsx';
 
 const API_BASE = 'https://tuagendaya-api.onrender.com/api';
 
-const APP_FONT = 'Georgia, "Times New Roman", serif';
+const APP_FONT = '"Nunito", "Arial Rounded MT Bold", "Avenir Next", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
 
 const brandTextStyle = {
   fontFamily: APP_FONT,
@@ -256,7 +256,7 @@ function getProfessionExamples() {
 function AuthLayout({ children }) {
   return (
     <div style={{ minHeight: '100vh', background: '#f2f2f7', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, fontFamily: APP_FONT }}>
-      <style>{`@keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}`}</style>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap');@keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}`}</style>
 
       <div style={{ background: '#fff', borderRadius: 24, padding: '36px 32px', border: '0.5px solid #e0e0e5', width: '100%', maxWidth: 460, animation: 'slideUp 250ms cubic-bezier(0.16,1,0.3,1) both', boxShadow: '0 2px 40px rgba(0,0,0,0.06)' }}>
         {children}
@@ -2268,7 +2268,7 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
     background: activeTab === key ? '#0071e3' : '#fff',
     color: activeTab === key ? '#fff' : '#1a1a1a',
     fontSize: 14,
-    fontWeight: 700,
+    fontWeight: 800,
     cursor: 'pointer',
     fontFamily: 'inherit',
     boxShadow: activeTab === key ? '0 1px 8px rgba(0,113,227,0.25)' : '0 1px 8px rgba(0,0,0,0.04)',
@@ -2277,6 +2277,8 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
   return (
     <div className="dashboard-panel" style={{ minHeight: '100vh', background: '#f2f2f7', padding: '20px 16px', fontFamily: APP_FONT }}>
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap');
+
         .dashboard-panel,
         .dashboard-panel * {
           font-family: ${APP_FONT} !important;
@@ -2314,29 +2316,31 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
       `}</style>
 
       <div style={{ maxWidth: 900, margin: '0 auto' }}>
-        <div className="dashboard-header-card" style={{ background: '#fff', borderRadius: 20, padding: '18px 24px', marginBottom: 16, boxShadow: '0 1px 8px rgba(0,0,0,0.06)', display: 'flex', alignItems: 'stretch', justifyContent: 'space-between', gap: 24 }}>
+        <div className="dashboard-header-card" style={{ background: '#fff', borderRadius: 24, padding: '24px 28px', marginBottom: 18, boxShadow: '0 1px 10px rgba(0,0,0,0.06)', display: 'flex', alignItems: 'stretch', justifyContent: 'space-between', gap: 28 }}>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <TuAgendaLogo height={40} />
+            <div style={{ marginBottom: 14 }}>
+              <TuAgendaLogo height={46} />
+            </div>
 
-            <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 2 }}>
+            <div style={{ fontSize: 14, color: '#6e6e73', marginTop: 0, lineHeight: 1.35, fontWeight: 500 }}>
               Hola, {professional?.name || 'profesional'}
             </div>
 
             {businessName && (
-              <div style={{ fontSize: 12, color: '#3a3a3c', marginTop: 4 }}>
+              <div style={{ fontSize: 13, color: '#3a3a3c', marginTop: 5, lineHeight: 1.35, fontWeight: 600 }}>
                 {businessName}
               </div>
             )}
 
             {professional?.address && (
-              <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 4 }}>
+              <div style={{ fontSize: 13, color: '#8e8e93', marginTop: 5, lineHeight: 1.35, fontWeight: 500 }}>
                 Dirección: {professional.address}
               </div>
             )}
 
             {professional?.slug && (
-              <div className="dashboard-public-link" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
-                <div style={{ fontSize: 12, color: '#8e8e93', wordBreak: 'break-word' }}>
+              <div className="dashboard-public-link" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+                <div style={{ fontSize: 13, color: '#8e8e93', wordBreak: 'break-word', lineHeight: 1.35, fontWeight: 500 }}>
                   Link público: <strong>{publicBookingUrl}</strong>
                 </div>
 
@@ -2362,12 +2366,12 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
           </div>
 
           <div className="dashboard-header-side" style={{ minWidth: 190, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'space-between', gap: 14 }}>
-            <div className="dashboard-business-logo-box" style={{ background: '#fff', border: '0.5px solid #e8e8ed', borderRadius: 14, padding: '10px 14px', minWidth: 150, minHeight: 54, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div className="dashboard-business-logo-box" style={{ background: '#fff', border: '0.5px solid #e8e8ed', borderRadius: 14, padding: '10px 14px', minWidth: 170, minHeight: 66, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               {businessLogoUrl ? (
                 <img
                   src={businessLogoUrl}
                   alt={businessName || 'Logo del negocio'}
-                  style={{ maxWidth: 160, maxHeight: 52, objectFit: 'contain', display: 'block' }}
+                  style={{ maxWidth: 170, maxHeight: 58, objectFit: 'contain', display: 'block' }}
                 />
               ) : (
                 <div style={{ fontSize: 12, color: '#aeaeb2', fontWeight: 700, textAlign: 'center' }}>
