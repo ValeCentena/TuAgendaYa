@@ -2258,10 +2258,35 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
   });
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f2f2f7', padding: '20px 16px', fontFamily: APP_FONT }}>
+    <div className="dashboard-panel" style={{ minHeight: '100vh', background: '#f2f2f7', padding: '20px 16px', fontFamily: APP_FONT }}>
       <style>{`
-        button, input, select, textarea {
-          font-family: inherit;
+        .dashboard-panel {
+          font-family: ${APP_FONT} !important;
+        }
+
+        .dashboard-panel div,
+        .dashboard-panel span,
+        .dashboard-panel strong,
+        .dashboard-panel small,
+        .dashboard-panel label,
+        .dashboard-panel button,
+        .dashboard-panel input,
+        .dashboard-panel select,
+        .dashboard-panel textarea,
+        .dashboard-panel table,
+        .dashboard-panel thead,
+        .dashboard-panel tbody,
+        .dashboard-panel tr,
+        .dashboard-panel th,
+        .dashboard-panel td,
+        .dashboard-panel form,
+        .dashboard-panel option {
+          font-family: ${APP_FONT} !important;
+        }
+
+        .dashboard-panel input::placeholder,
+        .dashboard-panel textarea::placeholder {
+          font-family: ${APP_FONT} !important;
         }
 
         @media (max-width: 720px) {
@@ -2271,9 +2296,13 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
             gap: 18px;
           }
 
-          .dashboard-logo-area {
-            justify-content: space-between !important;
+          .dashboard-header-side {
             width: 100%;
+            align-items: stretch !important;
+          }
+
+          .dashboard-business-logo-box {
+            align-self: stretch !important;
           }
 
           .dashboard-tabs {
@@ -2288,21 +2317,9 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
       `}</style>
 
       <div style={{ maxWidth: 900, margin: '0 auto' }}>
-        <div className="dashboard-header-card" style={{ background: '#fff', borderRadius: 20, padding: '18px 24px', marginBottom: 16, boxShadow: '0 1px 8px rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ minWidth: 0 }}>
-            <div className="dashboard-logo-area" style={{ display: 'flex', alignItems: 'center', gap: 18, marginBottom: 8 }}>
-              <div style={{ ...brandTextStyle, fontSize: 20, flexShrink: 0 }}>TuAgendaYa</div>
-
-              {businessLogoUrl && (
-                <div style={{ marginLeft: 'auto', background: '#fff', border: '0.5px solid #e8e8ed', borderRadius: 14, padding: '8px 12px', minWidth: 120, display: 'flex', justifyContent: 'center' }}>
-                  <img
-                    src={businessLogoUrl}
-                    alt={businessName || 'Logo del negocio'}
-                    style={{ maxWidth: 150, maxHeight: 48, objectFit: 'contain', display: 'block' }}
-                  />
-                </div>
-              )}
-            </div>
+        <div className="dashboard-header-card" style={{ background: '#fff', borderRadius: 20, padding: '18px 24px', marginBottom: 16, boxShadow: '0 1px 8px rgba(0,0,0,0.06)', display: 'flex', alignItems: 'stretch', justifyContent: 'space-between', gap: 24 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ ...brandTextStyle, fontSize: 20, marginBottom: 8 }}>TuAgendaYa</div>
 
             <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 2 }}>
               Hola, {professional?.name || 'profesional'}
@@ -2347,12 +2364,28 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
             )}
           </div>
 
-          <button
-            onClick={handleLogout}
-            style={{ padding: '8px 16px', borderRadius: 10, border: '0.5px solid #e0e0e5', background: 'transparent', fontSize: 13, color: '#6e6e73', cursor: 'pointer', fontFamily: 'inherit', alignSelf: 'flex-start' }}
-          >
-            Cerrar sesión
-          </button>
+          <div className="dashboard-header-side" style={{ minWidth: 190, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'space-between', gap: 14 }}>
+            <div className="dashboard-business-logo-box" style={{ background: '#fff', border: '0.5px solid #e8e8ed', borderRadius: 14, padding: '10px 14px', minWidth: 150, minHeight: 54, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {businessLogoUrl ? (
+                <img
+                  src={businessLogoUrl}
+                  alt={businessName || 'Logo del negocio'}
+                  style={{ maxWidth: 160, maxHeight: 52, objectFit: 'contain', display: 'block' }}
+                />
+              ) : (
+                <div style={{ fontSize: 12, color: '#aeaeb2', fontWeight: 700, textAlign: 'center' }}>
+                  Logo del negocio
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={handleLogout}
+              style={{ padding: '8px 16px', borderRadius: 10, border: '0.5px solid #e0e0e5', background: 'transparent', fontSize: 13, color: '#6e6e73', cursor: 'pointer', fontFamily: 'inherit', alignSelf: 'flex-end' }}
+            >
+              Cerrar sesión
+            </button>
+          </div>
         </div>
 
         <div className="dashboard-tabs" style={{ display: 'flex', gap: 10, marginBottom: 16, overflowX: 'auto' }}>
