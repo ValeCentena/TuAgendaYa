@@ -13,6 +13,23 @@ const brandTextStyle = {
   color: '#0071e3',
 };
 
+function TuAgendaLogo({ height = 38, centered = false }) {
+  return (
+    <img
+      src="/tuagendaya-logo.png"
+      alt="Tu Agenda Ya"
+      style={{
+        height,
+        width: 'auto',
+        maxWidth: '100%',
+        objectFit: 'contain',
+        display: 'block',
+        margin: centered ? '0 auto' : 0,
+      }}
+    />
+  );
+}
+
 const DAYS = [
   { dayOfWeek: 0, label: 'Domingo' },
   { dayOfWeek: 1, label: 'Lunes' },
@@ -377,7 +394,7 @@ function LoginForm({ onLogin }) {
   return (
     <AuthLayout>
       <div style={{ textAlign: 'center', marginBottom: 24 }}>
-        <div style={{ ...brandTextStyle, fontSize: 28, marginBottom: 4 }}>TuAgendaYa</div>
+        <TuAgendaLogo height={52} centered />
         <div style={{ fontSize: 14, color: '#6e6e73' }}>Accedé a tu panel profesional</div>
       </div>
 
@@ -514,7 +531,7 @@ function RegisterPage() {
   return (
     <AuthLayout>
       <div style={{ textAlign: 'center', marginBottom: 22 }}>
-        <div style={{ ...brandTextStyle, fontSize: 28, marginBottom: 4 }}>TuAgendaYa</div>
+        <TuAgendaLogo height={52} centered />
         <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>Crear cuenta profesional</div>
         <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 4 }}>Configurá tu negocio en minutos</div>
       </div>
@@ -2260,33 +2277,13 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
   return (
     <div className="dashboard-panel" style={{ minHeight: '100vh', background: '#f2f2f7', padding: '20px 16px', fontFamily: APP_FONT }}>
       <style>{`
-        .dashboard-panel {
+        .dashboard-panel,
+        .dashboard-panel * {
           font-family: ${APP_FONT} !important;
         }
 
-        .dashboard-panel div,
-        .dashboard-panel span,
-        .dashboard-panel strong,
-        .dashboard-panel small,
-        .dashboard-panel label,
-        .dashboard-panel button,
-        .dashboard-panel input,
-        .dashboard-panel select,
-        .dashboard-panel textarea,
-        .dashboard-panel table,
-        .dashboard-panel thead,
-        .dashboard-panel tbody,
-        .dashboard-panel tr,
-        .dashboard-panel th,
-        .dashboard-panel td,
-        .dashboard-panel form,
-        .dashboard-panel option {
-          font-family: ${APP_FONT} !important;
-        }
-
-        .dashboard-panel input::placeholder,
-        .dashboard-panel textarea::placeholder {
-          font-family: ${APP_FONT} !important;
+        button, input, select, textarea {
+          font-family: inherit;
         }
 
         @media (max-width: 720px) {
@@ -2319,7 +2316,7 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
       <div style={{ maxWidth: 900, margin: '0 auto' }}>
         <div className="dashboard-header-card" style={{ background: '#fff', borderRadius: 20, padding: '18px 24px', marginBottom: 16, boxShadow: '0 1px 8px rgba(0,0,0,0.06)', display: 'flex', alignItems: 'stretch', justifyContent: 'space-between', gap: 24 }}>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ ...brandTextStyle, fontSize: 20, marginBottom: 8 }}>TuAgendaYa</div>
+            <TuAgendaLogo height={40} />
 
             <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 2 }}>
               Hola, {professional?.name || 'profesional'}
