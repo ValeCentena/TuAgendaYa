@@ -1556,7 +1556,7 @@ function StaffSection() {
                         disabled={!member.isActive || saving}
                         style={{ flex: 1, padding: '9px', borderRadius: 10, border: 'none', background: member.isActive ? '#ff453a' : '#aeaeb2', color: '#fff', fontWeight: 700, cursor: member.isActive ? 'pointer' : 'not-allowed' }}
                       >
-                        Desactivar
+                        Eliminar
                       </button>
                     </div>
                   </>
@@ -1748,8 +1748,8 @@ function ServicesSection() {
     }
   };
 
-  const disableService = async (serviceId) => {
-    const confirmDelete = window.confirm('¿Querés desactivar este servicio? No se borra de las reservas viejas.');
+  const deleteService = async (serviceId) => {
+    const confirmDelete = window.confirm('¿Querés eliminar este servicio? Esta acción lo quita de la lista de servicios. Las reservas ya creadas se mantienen.');
     if (!confirmDelete) return;
 
     setError('');
@@ -1765,9 +1765,9 @@ function ServicesSection() {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || 'No se pudo desactivar el servicio.');
+        setError(data.error || 'No se pudo eliminar el servicio.');
       } else {
-        setMessage('Servicio desactivado.');
+        setMessage('Servicio eliminado correctamente.');
         fetchServices();
       }
     } catch {
@@ -1782,7 +1782,7 @@ function ServicesSection() {
       <div style={{ marginBottom: 18 }}>
         <div style={{ fontSize: 17, fontWeight: 700, color: '#1a1a1a' }}>Mis servicios</div>
         <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 4 }}>
-          Agregá, modificá o desactivá servicios. La duración cambia automáticamente los horarios disponibles.
+          Agregá, modificá o eliminá servicios. La duración cambia automáticamente los horarios disponibles.
         </div>
       </div>
 
@@ -1983,11 +1983,11 @@ function ServicesSection() {
 
                     <button
                       type="button"
-                      onClick={() => disableService(service.id)}
-                      disabled={!service.isActive || saving}
-                      style={{ flex: 1, padding: '9px', borderRadius: 10, border: 'none', background: service.isActive ? '#ff453a' : '#aeaeb2', color: '#fff', fontWeight: 700, cursor: service.isActive ? 'pointer' : 'not-allowed' }}
+                      onClick={() => deleteService(service.id)}
+                      disabled={saving}
+                      style={{ flex: 1, padding: '9px', borderRadius: 10, border: 'none', background: '#ff453a', color: '#fff', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}
                     >
-                      Desactivar
+                      Eliminar
                     </button>
                   </div>
                 </>

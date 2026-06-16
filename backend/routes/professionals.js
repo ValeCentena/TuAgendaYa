@@ -799,7 +799,43 @@ router.patch("/me/services/:id", async (req, res) => {
   }
 });
 
-router.delete("/me/services/:id", async (req, res) => {
+router.router.delete("/me/services/:id", async (req, res) => {
+  try {
+    const professionalId = getProfessionalIdFromRequest(req);
+    const serviceId = Number(req.params.id);
+
+    if (!serviceId || Number.isNaN(serviceId)) {
+      return res.status(400).json({
+        error: "Servicio inválido",
+      });
+    }
+
+    const result = await db.query(
+      `
+      DELETE FROM professional_services
+      WHERE id = $1 AND professional_id = $2
+      RETURNING *
+      `,
+      [serviceId, professionalId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: "Servicio no encontrado",
+      });
+    }
+
+    res.json({
+      success: true,
+      message: "Servicio eliminado correctamente",
+      service: normalizeService(result.rows[0]),
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({
+      error: error.message || "Error eliminando servicio",
+    });
+  }
+});
   try {
     const professionalId = getProfessionalIdFromRequest(req);
     const serviceId = Number(req.params.id);
