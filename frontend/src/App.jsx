@@ -2024,6 +2024,152 @@ function normalizeProfessionalFromApi(item) {
   };
 }
 
+
+function getLogoVisualModeFromImage(event, setter) {
+  const image = event.currentTarget || event.target;
+  const naturalWidth = image?.naturalWidth || 0;
+  const naturalHeight = image?.naturalHeight || 0;
+
+  if (!naturalWidth || !naturalHeight) {
+    setter('square');
+    return;
+  }
+
+  const ratio = naturalWidth / naturalHeight;
+
+  if (ratio >= 2.1) {
+    setter('wide');
+    return;
+  }
+
+  if (ratio <= 0.78) {
+    setter('tall');
+    return;
+  }
+
+  setter('square');
+}
+
+function getDashboardBusinessLogoBoxStyle(mode) {
+  const base = {
+    background: '#fff',
+    border: '0.5px solid #e8e8ed',
+    borderRadius: 16,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    alignSelf: 'flex-end',
+  };
+
+  if (mode === 'wide') {
+    return {
+      ...base,
+      width: 230,
+      minWidth: 230,
+      height: 86,
+      padding: '10px 18px',
+    };
+  }
+
+  if (mode === 'tall') {
+    return {
+      ...base,
+      width: 152,
+      minWidth: 152,
+      height: 106,
+      padding: 12,
+    };
+  }
+
+  return {
+    ...base,
+    width: 178,
+    minWidth: 178,
+    height: 98,
+    padding: 12,
+  };
+}
+
+function getDashboardBusinessLogoImageStyle(mode) {
+  if (mode === 'wide') {
+    return {
+      width: '100%',
+      height: 'auto',
+      maxHeight: 62,
+      objectFit: 'contain',
+      display: 'block',
+    };
+  }
+
+  if (mode === 'tall') {
+    return {
+      width: 'auto',
+      height: '100%',
+      maxWidth: '72%',
+      objectFit: 'contain',
+      display: 'block',
+    };
+  }
+
+  return {
+    width: '82%',
+    height: '82%',
+    objectFit: 'contain',
+    display: 'block',
+  };
+}
+
+function getProfilePreviewLogoBoxStyle(mode) {
+  const base = {
+    background: '#fff',
+    border: '0.5px solid #e8e8ed',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+  };
+
+  if (mode === 'wide') {
+    return { ...base, minHeight: 128 };
+  }
+
+  if (mode === 'tall') {
+    return { ...base, minHeight: 170 };
+  }
+
+  return { ...base, minHeight: 150 };
+}
+
+function getProfilePreviewLogoImageStyle(mode) {
+  if (mode === 'wide') {
+    return {
+      width: '100%',
+      maxWidth: 380,
+      height: 'auto',
+      maxHeight: 90,
+      objectFit: 'contain',
+      display: 'block',
+    };
+  }
+
+  if (mode === 'tall') {
+    return {
+      width: 'auto',
+      height: 122,
+      maxWidth: 180,
+      objectFit: 'contain',
+      display: 'block',
+    };
+  }
+
+  return {
+    width: 122,
+    height: 122,
+    objectFit: 'contain',
+    display: 'block',
+  };
+}
+
 function BusinessProfileSection({ professional, onProfileUpdated }) {
   const fileInputRef = useRef(null);
 
@@ -2038,6 +2184,7 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [previewLogoMode, setPreviewLogoMode] = useState('square');
 
   const token = localStorage.getItem('tuagendaya_token');
 
@@ -2072,6 +2219,10 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
   useEffect(() => {
     fetchProfile();
   }, []);
+
+  useEffect(() => {
+    setPreviewLogoMode('square');
+  }, [form.logoUrl]);
 
   const isValidLogoValue = (value) => {
     const cleanValue = String(value || '').trim();
@@ -2327,12 +2478,13 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
           </div>
 
           {form.logoUrl ? (
-            <div style={{ background: '#fff', border: '0.5px solid #e8e8ed', borderRadius: 16, padding: 16, marginBottom: 12 }}>
-              <div style={{ fontSize: 12, color: '#6e6e73', marginBottom: 10, fontWeight: 700 }}>Vista previa del logo</div>
+            <div style={getProfilePreviewLogoBoxStyle(previewLogoMode)}>
+              <div style={{ fontSize: 12, color: '#6e6e73', marginBottom: 10, fontWeight: 700 }}>Vista previa adaptable del logo</div>
               <img
                 src={form.logoUrl}
                 alt="Logo del negocio"
-                style={{ maxWidth: 220, maxHeight: 90, objectFit: 'contain', display: 'block' }}
+                onLoad={(event) => getLogoVisualModeFromImage(event, setPreviewLogoMode)}
+                style={getProfilePreviewLogoImageStyle(previewLogoMode)}
                 onError={(e) => {
                   e.currentTarget.style.display = 'none';
                 }}
@@ -2372,6 +2524,7 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
 function Dashboard({ professional, onLogout, onProfileUpdated }) {
   const [activeTab, setActiveTab] = useState('reservas');
   const [copiedPublicLink, setCopiedPublicLink] = useState(false);
+  const [businessLogoMode, setBusinessLogoMode] = useState('square');
 
   const publicBookingUrl = professional?.slug
     ? `https://tuagendaya-web.onrender.com/reservar/${professional.slug}`
@@ -2379,6 +2532,10 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
 
   const businessLogoUrl = professional?.logoUrl || professional?.logo_url || '';
   const businessName = professional?.businessName || professional?.business_name || '';
+
+  useEffect(() => {
+    setBusinessLogoMode('square');
+  }, [businessLogoUrl]);
 
   const handleCopyPublicLink = async () => {
     if (!publicBookingUrl) return;
@@ -2446,6 +2603,8 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
           }
 
           .dashboard-business-logo-box {
+            width: 100% !important;
+            min-width: 0 !important;
             align-self: stretch !important;
           }
 
@@ -2511,12 +2670,13 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
           </div>
 
           <div className="dashboard-header-side" style={{ minWidth: 190, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'space-between', gap: 14 }}>
-            <div className="dashboard-business-logo-box" style={{ background: '#fff', border: '0.5px solid #e8e8ed', borderRadius: 14, padding: '10px 14px', minWidth: 170, minHeight: 66, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div className="dashboard-business-logo-box" style={getDashboardBusinessLogoBoxStyle(businessLogoMode)}>
               {businessLogoUrl ? (
                 <img
                   src={businessLogoUrl}
                   alt={businessName || 'Logo del negocio'}
-                  style={{ maxWidth: 170, maxHeight: 58, objectFit: 'contain', display: 'block' }}
+                  onLoad={(event) => getLogoVisualModeFromImage(event, setBusinessLogoMode)}
+                  style={getDashboardBusinessLogoImageStyle(businessLogoMode)}
                 />
               ) : (
                 <div style={{ fontSize: 12, color: '#aeaeb2', fontWeight: 700, textAlign: 'center' }}>
