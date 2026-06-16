@@ -649,7 +649,17 @@ export default function BookPage() {
                   Este profesional todavía no tiene servicios activos.
                 </div>
               ) : (
-                <div style={{ display: 'grid', gap: 9 }}>
+                <div
+                  style={{
+                    display: 'grid',
+                    gap: 9,
+                    maxHeight: 252,
+                    overflowY: services.length > 3 ? 'auto' : 'visible',
+                    paddingRight: services.length > 3 ? 6 : 0,
+                    WebkitOverflowScrolling: 'touch',
+                    scrollbarWidth: 'thin',
+                  }}
+                >
                   {services.map((service) => {
                     const isSelected = String(selectedServiceId) === String(service.id);
 
