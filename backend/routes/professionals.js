@@ -78,6 +78,18 @@ function normalizeProfessionalProfile(row) {
   };
 }
 
+function isValidLogoValue(logoUrl) {
+  if (!logoUrl) return true;
+
+  return (
+    logoUrl.startsWith("http://") ||
+    logoUrl.startsWith("https://") ||
+    logoUrl.startsWith("data:image/png;base64,") ||
+    logoUrl.startsWith("data:image/jpeg;base64,") ||
+    logoUrl.startsWith("data:image/webp;base64,")
+  );
+}
+
 function getDefaultServicesByProfession(profession) {
   const p = normalizeText(profession);
 
@@ -112,12 +124,7 @@ function getDefaultServicesByProfession(profession) {
     ];
   }
 
-  if (
-    p.includes("una") ||
-    p.includes("uñas") ||
-    p.includes("manicur") ||
-    p.includes("nail")
-  ) {
+  if (p.includes("una") || p.includes("uñas") || p.includes("manicur") || p.includes("nail")) {
     return [
       { name: "Manicura", description: "Servicio de manicura", duration_minutes: 45, price: 900 },
       { name: "Kapping", description: "Kapping gel", duration_minutes: 60, price: 1200 },
@@ -135,12 +142,7 @@ function getDefaultServicesByProfession(profession) {
     ];
   }
 
-  if (
-    p.includes("medic") ||
-    p.includes("doctor") ||
-    p.includes("clinica") ||
-    p.includes("salud")
-  ) {
+  if (p.includes("medic") || p.includes("doctor") || p.includes("clinica") || p.includes("salud")) {
     return [
       { name: "Consulta médica", description: "Consulta general", duration_minutes: 30, price: 1500 },
       { name: "Control", description: "Control médico", duration_minutes: 20, price: 1000 },
@@ -148,11 +150,7 @@ function getDefaultServicesByProfession(profession) {
     ];
   }
 
-  if (
-    p.includes("fisi") ||
-    p.includes("kines") ||
-    p.includes("masaj")
-  ) {
+  if (p.includes("fisi") || p.includes("kines") || p.includes("masaj")) {
     return [
       { name: "Evaluación inicial", description: "Primera evaluación", duration_minutes: 45, price: 1500 },
       { name: "Sesión de fisioterapia", description: "Tratamiento fisioterapéutico", duration_minutes: 45, price: 1400 },
@@ -160,12 +158,7 @@ function getDefaultServicesByProfession(profession) {
     ];
   }
 
-  if (
-    p.includes("entren") ||
-    p.includes("personal trainer") ||
-    p.includes("gym") ||
-    p.includes("fitness")
-  ) {
+  if (p.includes("entren") || p.includes("personal trainer") || p.includes("gym") || p.includes("fitness")) {
     return [
       { name: "Clase personal", description: "Entrenamiento personalizado", duration_minutes: 60, price: 1200 },
       { name: "Evaluación física", description: "Evaluación inicial", duration_minutes: 45, price: 1000 },
@@ -197,64 +190,14 @@ function getDefaultServicesByProfession(profession) {
 }
 
 function defaultAvailability(professionalId) {
-  return [
-    {
-      professional_id: professionalId,
-      day_of_week: 0,
-      is_active: false,
-      start_time: "09:00",
-      end_time: "18:00",
-      slot_duration_minutes: 30,
-    },
-    {
-      professional_id: professionalId,
-      day_of_week: 1,
-      is_active: true,
-      start_time: "09:00",
-      end_time: "18:00",
-      slot_duration_minutes: 30,
-    },
-    {
-      professional_id: professionalId,
-      day_of_week: 2,
-      is_active: true,
-      start_time: "09:00",
-      end_time: "18:00",
-      slot_duration_minutes: 30,
-    },
-    {
-      professional_id: professionalId,
-      day_of_week: 3,
-      is_active: true,
-      start_time: "09:00",
-      end_time: "18:00",
-      slot_duration_minutes: 30,
-    },
-    {
-      professional_id: professionalId,
-      day_of_week: 4,
-      is_active: true,
-      start_time: "09:00",
-      end_time: "18:00",
-      slot_duration_minutes: 30,
-    },
-    {
-      professional_id: professionalId,
-      day_of_week: 5,
-      is_active: true,
-      start_time: "09:00",
-      end_time: "18:00",
-      slot_duration_minutes: 30,
-    },
-    {
-      professional_id: professionalId,
-      day_of_week: 6,
-      is_active: false,
-      start_time: "09:00",
-      end_time: "18:00",
-      slot_duration_minutes: 30,
-    },
-  ];
+  return [0, 1, 2, 3, 4, 5, 6].map((day) => ({
+    professional_id: professionalId,
+    day_of_week: day,
+    is_active: day >= 1 && day <= 5,
+    start_time: "09:00",
+    end_time: "18:00",
+    slot_duration_minutes: 30,
+  }));
 }
 
 function normalizeAvailabilityRow(row) {
@@ -395,13 +338,7 @@ async function ensureDefaultServices(professionalId) {
       )
       VALUES ($1, $2, $3, $4, $5, true, NOW(), NOW())
       `,
-      [
-        professionalId,
-        service.name,
-        service.description,
-        service.duration_minutes,
-        service.price,
-      ]
+      [professionalId, service.name, service.description, service.duration_minutes, service.price]
     );
   }
 
@@ -445,18 +382,12 @@ router.get("/me/profile", async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({
-        error: "Profesional no encontrado",
-      });
+      return res.status(404).json({ error: "Profesional no encontrado" });
     }
 
-    res.json({
-      professional: normalizeProfessionalProfile(result.rows[0]),
-    });
+    res.json({ professional: normalizeProfessionalProfile(result.rows[0]) });
   } catch (error) {
-    res.status(error.status || 500).json({
-      error: error.message || "Error obteniendo perfil",
-    });
+    res.status(error.status || 500).json({ error: error.message || "Error obteniendo perfil" });
   }
 });
 
@@ -475,9 +406,7 @@ router.patch("/me/profile", async (req, res) => {
     );
 
     if (currentResult.rows.length === 0) {
-      return res.status(404).json({
-        error: "Profesional no encontrado",
-      });
+      return res.status(404).json({ error: "Profesional no encontrado" });
     }
 
     const current = currentResult.rows[0];
@@ -488,14 +417,10 @@ router.patch("/me/profile", async (req, res) => {
         : String(req.body.businessName ?? req.body.business_name ?? "").trim();
 
     const phone =
-      req.body.phone === undefined
-        ? current.phone
-        : String(req.body.phone || "").trim();
+      req.body.phone === undefined ? current.phone : String(req.body.phone || "").trim();
 
     const address =
-      req.body.address === undefined
-        ? current.address
-        : String(req.body.address || "").trim();
+      req.body.address === undefined ? current.address : String(req.body.address || "").trim();
 
     const logoUrl =
       req.body.logoUrl === undefined && req.body.logo_url === undefined
@@ -503,20 +428,10 @@ router.patch("/me/profile", async (req, res) => {
         : String(req.body.logoUrl ?? req.body.logo_url ?? "").trim();
 
     if (!businessName) {
-      return res.status(400).json({
-        error: "El nombre del negocio es obligatorio",
-      });
+      return res.status(400).json({ error: "El nombre del negocio es obligatorio" });
     }
 
-    const isValidLogo =
-      !logoUrl ||
-      logoUrl.startsWith("http://") ||
-      logoUrl.startsWith("https://") ||
-      logoUrl.startsWith("data:image/png;base64,") ||
-      logoUrl.startsWith("data:image/jpeg;base64,") ||
-      logoUrl.startsWith("data:image/webp;base64,");
-
-    if (!isValidLogo) {
+    if (!isValidLogoValue(logoUrl)) {
       return res.status(400).json({
         error: "El logo debe ser una URL válida o una imagen cargada desde archivo",
       });
@@ -552,23 +467,12 @@ router.patch("/me/profile", async (req, res) => {
         created_at,
         updated_at
       `,
-      [
-        businessName,
-        phone || null,
-        address || null,
-        logoUrl || null,
-        professionalId,
-      ]
+      [businessName, phone || null, address || null, logoUrl || null, professionalId]
     );
 
-    res.json({
-      success: true,
-      professional: normalizeProfessionalProfile(result.rows[0]),
-    });
+    res.json({ success: true, professional: normalizeProfessionalProfile(result.rows[0]) });
   } catch (error) {
-    res.status(error.status || 500).json({
-      error: error.message || "Error actualizando perfil",
-    });
+    res.status(error.status || 500).json({ error: error.message || "Error actualizando perfil" });
   }
 });
 
@@ -576,12 +480,9 @@ router.get("/me/availability", async (req, res) => {
   try {
     const professionalId = getProfessionalIdFromRequest(req);
     const availability = await ensureDefaultAvailability(professionalId);
-
     res.json({ availability });
   } catch (error) {
-    res.status(error.status || 500).json({
-      error: error.message || "Error obteniendo disponibilidad",
-    });
+    res.status(error.status || 500).json({ error: error.message || "Error obteniendo disponibilidad" });
   }
 });
 
@@ -591,9 +492,7 @@ router.patch("/me/availability", async (req, res) => {
     const incoming = Array.isArray(req.body) ? req.body : req.body.availability;
 
     if (!Array.isArray(incoming)) {
-      return res.status(400).json({
-        error: "Disponibilidad inválida",
-      });
+      return res.status(400).json({ error: "Disponibilidad inválida" });
     }
 
     for (const item of incoming) {
@@ -601,13 +500,9 @@ router.patch("/me/availability", async (req, res) => {
       const isActive = Boolean(item.isActive ?? item.is_active);
       const startTime = String(item.startTime ?? item.start_time ?? "09:00").slice(0, 5);
       const endTime = String(item.endTime ?? item.end_time ?? "18:00").slice(0, 5);
-      const slotDurationMinutes = Number(
-        item.slotDurationMinutes ?? item.slot_duration_minutes ?? 30
-      );
+      const slotDurationMinutes = Number(item.slotDurationMinutes ?? item.slot_duration_minutes ?? 30);
 
-      if (Number.isNaN(dayOfWeek) || dayOfWeek < 0 || dayOfWeek > 6) {
-        continue;
-      }
+      if (Number.isNaN(dayOfWeek) || dayOfWeek < 0 || dayOfWeek > 6) continue;
 
       await db.query(
         `
@@ -630,14 +525,7 @@ router.patch("/me/availability", async (req, res) => {
           slot_duration_minutes = EXCLUDED.slot_duration_minutes,
           updated_at = NOW()
         `,
-        [
-          professionalId,
-          dayOfWeek,
-          isActive,
-          startTime,
-          endTime,
-          slotDurationMinutes,
-        ]
+        [professionalId, dayOfWeek, isActive, startTime, endTime, slotDurationMinutes]
       );
     }
 
@@ -651,14 +539,9 @@ router.patch("/me/availability", async (req, res) => {
       [professionalId]
     );
 
-    res.json({
-      success: true,
-      availability: result.rows.map(normalizeAvailabilityRow),
-    });
+    res.json({ success: true, availability: result.rows.map(normalizeAvailabilityRow) });
   } catch (error) {
-    res.status(error.status || 500).json({
-      error: error.message || "Error guardando disponibilidad",
-    });
+    res.status(error.status || 500).json({ error: error.message || "Error guardando disponibilidad" });
   }
 });
 
@@ -666,38 +549,22 @@ router.get("/me/services", async (req, res) => {
   try {
     const professionalId = getProfessionalIdFromRequest(req);
     const services = await ensureDefaultServices(professionalId);
-
-    res.json({
-      services: services.map(normalizeService),
-    });
+    res.json({ services: services.map(normalizeService) });
   } catch (error) {
-    res.status(error.status || 500).json({
-      error: error.message || "Error obteniendo servicios",
-    });
+    res.status(error.status || 500).json({ error: error.message || "Error obteniendo servicios" });
   }
 });
 
 router.post("/me/services", async (req, res) => {
   try {
     const professionalId = getProfessionalIdFromRequest(req);
-
     const serviceName = String(req.body.name || "").trim();
     const description = req.body.description || null;
     const duration = Number(req.body.durationMinutes ?? req.body.duration_minutes ?? 30);
-    const price =
-      req.body.price === undefined || req.body.price === "" ? null : Number(req.body.price);
+    const price = req.body.price === undefined || req.body.price === "" ? null : Number(req.body.price);
 
-    if (!serviceName) {
-      return res.status(400).json({
-        error: "El nombre del servicio es obligatorio",
-      });
-    }
-
-    if (!duration || duration <= 0) {
-      return res.status(400).json({
-        error: "La duración del servicio es inválida",
-      });
-    }
+    if (!serviceName) return res.status(400).json({ error: "El nombre del servicio es obligatorio" });
+    if (!duration || duration <= 0) return res.status(400).json({ error: "La duración del servicio es inválida" });
 
     const result = await db.query(
       `
@@ -717,14 +584,9 @@ router.post("/me/services", async (req, res) => {
       [professionalId, serviceName, description, duration, price]
     );
 
-    res.status(201).json({
-      success: true,
-      service: normalizeService(result.rows[0]),
-    });
+    res.status(201).json({ success: true, service: normalizeService(result.rows[0]) });
   } catch (error) {
-    res.status(error.status || 500).json({
-      error: error.message || "Error creando servicio",
-    });
+    res.status(error.status || 500).json({ error: error.message || "Error creando servicio" });
   }
 });
 
@@ -742,23 +604,13 @@ router.patch("/me/services/:id", async (req, res) => {
       [serviceId, professionalId]
     );
 
-    if (current.rows.length === 0) {
-      return res.status(404).json({
-        error: "Servicio no encontrado",
-      });
-    }
+    if (current.rows.length === 0) return res.status(404).json({ error: "Servicio no encontrado" });
 
     const existing = current.rows[0];
-
     const name = req.body.name ?? existing.name;
     const description = req.body.description ?? existing.description;
-    const durationMinutes = Number(
-      req.body.durationMinutes ?? req.body.duration_minutes ?? existing.duration_minutes
-    );
-    const price =
-      req.body.price === undefined || req.body.price === ""
-        ? existing.price
-        : Number(req.body.price);
+    const durationMinutes = Number(req.body.durationMinutes ?? req.body.duration_minutes ?? existing.duration_minutes);
+    const price = req.body.price === undefined || req.body.price === "" ? existing.price : Number(req.body.price);
     const isActive =
       req.body.isActive === undefined && req.body.is_active === undefined
         ? existing.is_active
@@ -777,29 +629,16 @@ router.patch("/me/services/:id", async (req, res) => {
       WHERE id = $6 AND professional_id = $7
       RETURNING *
       `,
-      [
-        name,
-        description || null,
-        durationMinutes,
-        price,
-        isActive,
-        serviceId,
-        professionalId,
-      ]
+      [name, description || null, durationMinutes, price, isActive, serviceId, professionalId]
     );
 
-    res.json({
-      success: true,
-      service: normalizeService(result.rows[0]),
-    });
+    res.json({ success: true, service: normalizeService(result.rows[0]) });
   } catch (error) {
-    res.status(error.status || 500).json({
-      error: error.message || "Error actualizando servicio",
-    });
+    res.status(error.status || 500).json({ error: error.message || "Error actualizando servicio" });
   }
 });
 
-router.router.delete("/me/services/:id", async (req, res) => {
+router.delete("/me/services/:id", async (req, res) => {
   try {
     const professionalId = getProfessionalIdFromRequest(req);
     const serviceId = Number(req.params.id);
@@ -814,7 +653,7 @@ router.router.delete("/me/services/:id", async (req, res) => {
       `
       DELETE FROM professional_services
       WHERE id = $1 AND professional_id = $2
-      RETURNING *
+      RETURNING id, name
       `,
       [serviceId, professionalId]
     );
@@ -827,38 +666,7 @@ router.router.delete("/me/services/:id", async (req, res) => {
 
     res.json({
       success: true,
-      message: "Servicio eliminado correctamente",
-      service: normalizeService(result.rows[0]),
-    });
-  } catch (error) {
-    res.status(error.status || 500).json({
-      error: error.message || "Error eliminando servicio",
-    });
-  }
-});
-  try {
-    const professionalId = getProfessionalIdFromRequest(req);
-    const serviceId = Number(req.params.id);
-
-    const result = await db.query(
-      `
-      UPDATE professional_services
-      SET is_active = false, updated_at = NOW()
-      WHERE id = $1 AND professional_id = $2
-      RETURNING *
-      `,
-      [serviceId, professionalId]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        error: "Servicio no encontrado",
-      });
-    }
-
-    res.json({
-      success: true,
-      service: normalizeService(result.rows[0]),
+      deletedService: result.rows[0],
     });
   } catch (error) {
     res.status(error.status || 500).json({
@@ -881,21 +689,15 @@ router.get("/public/:slug/services", async (req, res) => {
     );
 
     if (professionalResult.rows.length === 0) {
-      return res.status(404).json({
-        error: "Profesional no encontrado",
-      });
+      return res.status(404).json({ error: "Profesional no encontrado" });
     }
 
     const professionalId = professionalResult.rows[0].id;
     const services = await ensureDefaultServices(professionalId);
 
-    res.json({
-      services: services.filter((service) => service.is_active).map(normalizeService),
-    });
+    res.json({ services: services.filter((service) => service.is_active).map(normalizeService) });
   } catch (error) {
-    res.status(500).json({
-      error: error.message || "Error obteniendo servicios públicos",
-    });
+    res.status(500).json({ error: error.message || "Error obteniendo servicios públicos" });
   }
 });
 
@@ -921,13 +723,9 @@ router.get("/", async (req, res) => {
       `
     );
 
-    res.json({
-      professionals: result.rows.map(normalizeProfessionalProfile),
-    });
+    res.json({ professionals: result.rows.map(normalizeProfessionalProfile) });
   } catch (error) {
-    res.status(500).json({
-      error: "Error obteniendo profesionales",
-    });
+    res.status(500).json({ error: "Error obteniendo profesionales" });
   }
 });
 
@@ -954,19 +752,11 @@ router.get("/:id", async (req, res) => {
       [req.params.id]
     );
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        error: "Profesional no encontrado",
-      });
-    }
+    if (result.rows.length === 0) return res.status(404).json({ error: "Profesional no encontrado" });
 
-    res.json({
-      professional: normalizeProfessionalProfile(result.rows[0]),
-    });
+    res.json({ professional: normalizeProfessionalProfile(result.rows[0]) });
   } catch (error) {
-    res.status(500).json({
-      error: "Error obteniendo profesional",
-    });
+    res.status(500).json({ error: "Error obteniendo profesional" });
   }
 });
 
