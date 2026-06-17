@@ -794,9 +794,9 @@ function ReservationsSection() {
     }
   };
 
-  const statusColor = { pending: '#ff9f0a', confirmed: '#30d158', cancelled: '#ff453a' };
-  const statusLabel = { pending: 'Pendiente', confirmed: 'Confirmada', cancelled: 'Cancelada' };
-  const statusBg = { pending: '#fff8ee', confirmed: '#edfff3', cancelled: '#fff2f2' };
+  const statusColor = { pending: '#ff9f0a', confirmed: '#30d158', completed: '#5e5ce6', cancelled: '#ff453a' };
+  const statusLabel = { pending: 'Pendiente', confirmed: 'Confirmada', completed: 'Completada', cancelled: 'Cancelada' };
+  const statusBg = { pending: '#fff8ee', confirmed: '#edfff3', completed: '#f1f0ff', cancelled: '#fff2f2' };
 
   const getLocalDateKey = (date = new Date()) => {
     const y = date.getFullYear();
@@ -953,7 +953,14 @@ function ReservationsSection() {
         ) : (
           visibleBookings.map((b) => {
             const isPending = b.status === 'pending';
+            const isConfirmed = b.status === 'confirmed';
+            const isCompleted = b.status === 'completed';
             const isCancelled = b.status === 'cancelled';
+            const isArchivedView = reservationView === 'archived';
+            const canSendWhatsApp = Boolean(clientPhone && whatsappUrl && !isCancelled);
+            const canConfirm = !isArchivedView && isPending;
+            const canComplete = !isArchivedView && (isPending || isConfirmed);
+            const canCancel = !isArchivedView && !isCancelled && !isCompleted;
             const dateStr = formatDate(getBookingDateValue(b));
             const timeStr = formatTime(b.startTime ?? b.start_time);
             const endStr = formatTime(b.endTime ?? b.end_time);
@@ -982,7 +989,7 @@ function ReservationsSection() {
                   borderRadius: 16,
                   padding: 16,
                   marginBottom: 10,
-                  background: isCancelled ? '#fffafa' : '#fafafa',
+                  background: isCancelled ? '#fffafa' : isCompleted ? '#fbfbff' : '#fafafa',
                   opacity: isCancelled ? 0.72 : 1,
                 }}
               >
@@ -1054,7 +1061,7 @@ function ReservationsSection() {
                   </div>
                 )}
 
-                {clientPhone && !isCancelled && whatsappUrl && (
+                {canSendWhatsApp && (
                   <a
                     href={whatsappUrl}
                     target="_blank"
@@ -1082,47 +1089,83 @@ function ReservationsSection() {
                   </a>
                 )}
 
-                {isPending && reservationView !== 'archived' && (
-                  <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-                    <button
-                      onClick={() => handleAction(b.id, 'confirm')}
-                      disabled={actionLoading === `${b.id}-confirm`}
-                      style={{
-                        flex: 1,
-                        padding: '9px 0',
-                        borderRadius: 10,
-                        border: 'none',
-                        background: '#30d158',
-                        color: '#fff',
-                        fontSize: 13,
-                        fontWeight: 600,
-                        fontFamily: 'inherit',
-                        cursor: 'pointer',
-                        opacity: actionLoading === `${b.id}-confirm` ? 0.6 : 1,
-                      }}
-                    >
-                      {actionLoading === `${b.id}-confirm` ? '...' : 'Confirmar'}
-                    </button>
+                {!isArchivedView && (canConfirm || canComplete || canCancel) && (
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: `repeat(${[canConfirm, canComplete, canCancel].filter(Boolean).length}, minmax(0, 1fr))`,
+                      gap: 8,
+                      marginTop: 6,
+                    }}
+                  >
+                    {canConfirm && (
+                      <button
+                        onClick={() => handleAction(b.id, 'confirm')}
+                        disabled={actionLoading === `${b.id}-confirm`}
+                        style={{
+                          padding: '9px 0',
+                          borderRadius: 10,
+                          border: 'none',
+                          background: '#30d158',
+                          color: '#fff',
+                          fontSize: 13,
+                          fontWeight: 700,
+                          fontFamily: 'inherit',
+                          cursor: 'pointer',
+                          opacity: actionLoading === `${b.id}-confirm` ? 0.6 : 1,
+                        }}
+                      >
+                        {actionLoading === `${b.id}-confirm` ? '...' : 'Confirmar'}
+                      </button>
+                    )}
 
-                    <button
-                      onClick={() => handleAction(b.id, 'cancel')}
-                      disabled={actionLoading === `${b.id}-cancel`}
-                      style={{
-                        flex: 1,
-                        padding: '9px 0',
-                        borderRadius: 10,
-                        border: 'none',
-                        background: '#ff453a',
-                        color: '#fff',
-                        fontSize: 13,
-                        fontWeight: 600,
-                        fontFamily: 'inherit',
-                        cursor: 'pointer',
-                        opacity: actionLoading === `${b.id}-cancel` ? 0.6 : 1,
-                      }}
-                    >
-                      {actionLoading === `${b.id}-cancel` ? '...' : 'Cancelar'}
-                    </button>
+                    {canComplete && (
+                      <button
+                        onClick={() => handleAction(b.id, 'complete')}
+                        disabled={actionLoading === `${b.id}-complete`}
+                        style={{
+                          padding: '9px 0',
+                          borderRadius: 10,
+                          border: 'none',
+                          background: '#5e5ce6',
+                          color: '#fff',
+                          fontSize: 13,
+                          fontWeight: 700,
+                          fontFamily: 'inherit',
+                          cursor: 'pointer',
+                          opacity: actionLoading === `${b.id}-complete` ? 0.6 : 1,
+                        }}
+                      >
+                        {actionLoading === `${b.id}-complete` ? '...' : 'Completar'}
+                      </button>
+                    )}
+
+                    {canCancel && (
+                      <button
+                        onClick={() => handleAction(b.id, 'cancel')}
+                        disabled={actionLoading === `${b.id}-cancel`}
+                        style={{
+                          padding: '9px 0',
+                          borderRadius: 10,
+                          border: 'none',
+                          background: '#ff453a',
+                          color: '#fff',
+                          fontSize: 13,
+                          fontWeight: 700,
+                          fontFamily: 'inherit',
+                          cursor: 'pointer',
+                          opacity: actionLoading === `${b.id}-cancel` ? 0.6 : 1,
+                        }}
+                      >
+                        {actionLoading === `${b.id}-cancel` ? '...' : 'Cancelar'}
+                      </button>
+                    )}
+                  </div>
+                )} 
+
+                {isArchivedView && (
+                  <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 600, marginTop: 8 }}>
+                    Registro archivado. No se muestra como turno activo del día.
                   </div>
                 )}
               </div>
