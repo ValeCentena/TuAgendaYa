@@ -2709,6 +2709,65 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
   );
 }
 
+
+function ConfigurationSection() {
+  const quickCardStyle = {
+    background: '#fff',
+    border: '0.5px solid #e8e8ed',
+    borderRadius: 18,
+    padding: 16,
+    boxShadow: '0 1px 8px rgba(0,0,0,0.04)',
+  };
+
+  const quickTitleStyle = {
+    fontSize: 15,
+    fontWeight: 900,
+    color: '#1a1a1a',
+    marginBottom: 5,
+  };
+
+  const quickTextStyle = {
+    fontSize: 13,
+    color: '#6e6e73',
+    lineHeight: 1.45,
+    margin: 0,
+  };
+
+  return (
+    <div style={{ display: 'grid', gap: 16 }}>
+      <div style={{ background: '#fff', borderRadius: 22, padding: '22px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
+        <div style={{ fontSize: 19, fontWeight: 900, color: '#1a1a1a', marginBottom: 6 }}>
+          Configuración de agenda
+        </div>
+        <div style={{ fontSize: 13, color: '#6e6e73', lineHeight: 1.45 }}>
+          En esta sección administrás todo lo necesario para que tu agenda pública funcione: servicios, profesionales y horarios disponibles.
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12, marginTop: 18 }} className="config-summary-grid">
+          <div style={quickCardStyle}>
+            <div style={quickTitleStyle}>Servicios</div>
+            <p style={quickTextStyle}>Creá, editá y eliminá los servicios que ve el cliente al reservar.</p>
+          </div>
+
+          <div style={quickCardStyle}>
+            <div style={quickTitleStyle}>Profesionales</div>
+            <p style={quickTextStyle}>Agregá integrantes del negocio y configurá su disponibilidad individual.</p>
+          </div>
+
+          <div style={quickCardStyle}>
+            <div style={quickTitleStyle}>Disponibilidad</div>
+            <p style={quickTextStyle}>Definí días, horarios y duración base de los turnos.</p>
+          </div>
+        </div>
+      </div>
+
+      <ServicesSection />
+      <StaffSection />
+      <AvailabilitySection />
+    </div>
+  );
+}
+
 function Dashboard({ professional, onLogout, onProfileUpdated }) {
   const [activeTab, setActiveTab] = useState('reservas');
   const [copiedPublicLink, setCopiedPublicLink] = useState(false);
@@ -2804,6 +2863,10 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
           .dashboard-public-link {
             align-items: flex-start !important;
           }
+
+          .config-summary-grid {
+            grid-template-columns: 1fr !important;
+          }
         }
       `}</style>
 
@@ -2884,16 +2947,12 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
 
         <div className="dashboard-tabs" style={{ display: 'flex', gap: 10, marginBottom: 16, overflowX: 'auto' }}>
           <button style={tabStyle('reservas')} onClick={() => setActiveTab('reservas')}>Reservas</button>
-          <button style={tabStyle('disponibilidad')} onClick={() => setActiveTab('disponibilidad')}>Disponibilidad</button>
-          <button style={tabStyle('servicios')} onClick={() => setActiveTab('servicios')}>Servicios</button>
-          <button style={tabStyle('profesionales')} onClick={() => setActiveTab('profesionales')}>Profesionales</button>
+          <button style={tabStyle('configuracion')} onClick={() => setActiveTab('configuracion')}>Configuración</button>
           <button style={tabStyle('perfil')} onClick={() => setActiveTab('perfil')}>Perfil</button>
         </div>
 
         {activeTab === 'reservas' && <ReservationsSection />}
-        {activeTab === 'disponibilidad' && <AvailabilitySection />}
-        {activeTab === 'servicios' && <ServicesSection />}
-        {activeTab === 'profesionales' && <StaffSection />}
+        {activeTab === 'configuracion' && <ConfigurationSection />}
         {activeTab === 'perfil' && (
           <BusinessProfileSection
             professional={professional}
