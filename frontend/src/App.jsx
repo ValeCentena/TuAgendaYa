@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import BookPage from './pages/BookPage.jsx';
 
@@ -101,10 +101,47 @@ const smallLabelStyle = {
 
 function formatDate(d) {
   if (!d) return 'Sin fecha';
-  const str = String(d).slice(0, 10);
-  const [y, m, day] = str.split('-');
-  if (!y || !m || !day) return 'Sin fecha';
-  return `${day}/${m}/${y}`;
+
+  const raw = String(d).trim();
+
+  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) {
+    const [, y, m, day] = isoMatch;
+    return `${day}/${m}/${y}`;
+  }
+
+  const slashMatch = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (slashMatch) {
+    const [, day, m, y] = slashMatch;
+    return `${String(day).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
+  }
+
+  const parsed = new Date(raw);
+  if (!Number.isNaN(parsed.getTime())) {
+    const day = String(parsed.getDate()).padStart(2, '0');
+    const m = String(parsed.getMonth() + 1).padStart(2, '0');
+    const y = parsed.getFullYear();
+    return `${day}/${m}/${y}`;
+  }
+
+  return 'Sin fecha';
+}
+
+function getBookingDateValue(booking) {
+  return (
+    booking?.bookingDate ??
+    booking?.booking_date ??
+    booking?.date ??
+    booking?.fecha ??
+    booking?.day ??
+    booking?.appointmentDate ??
+    booking?.appointment_date ??
+    booking?.startDate ??
+    booking?.start_date ??
+    booking?.createdDate ??
+    booking?.created_date ??
+    null
+  );
 }
 
 function formatTime(t) {
@@ -701,23 +738,42 @@ function ReservationsSection() {
 
   const businessName = storedProfessional.businessName || storedProfessional.business_name || storedProfessional.name || '';
 
-  const fetchBookings = () => {
+  const fetchBookings = useCallback((showLoading = false) => {
     const token = localStorage.getItem('tuagendaya_token');
 
-    setLoadingBookings(true);
+    if (showLoading) {
+      setLoadingBookings(true);
+    }
 
-    fetch(`${API_BASE}/bookings/me`, {
+    return fetch(`${API_BASE}/bookings/me`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.json())
-      .then((data) => setBookings(data.bookings || []))
-      .catch(() => setBookings([]))
-      .finally(() => setLoadingBookings(false));
-  };
+      .then((data) => {
+        const nextBookings = Array.isArray(data.bookings) ? data.bookings : [];
+        setBookings(nextBookings);
+      })
+      .catch(() => {
+        if (showLoading) {
+          setBookings([]);
+        }
+      })
+      .finally(() => {
+        if (showLoading) {
+          setLoadingBookings(false);
+        }
+      });
+  }, []);
 
   useEffect(() => {
-    fetchBookings();
-  }, []);
+    fetchBookings(true);
+
+    const intervalId = window.setInterval(() => {
+      fetchBookings(false);
+    }, 5000);
+
+    return () => window.clearInterval(intervalId);
+  }, [fetchBookings]);
 
   const handleAction = async (id, action) => {
     setActionLoading(`${id}-${action}`);
@@ -729,7 +785,7 @@ function ReservationsSection() {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      fetchBookings();
+      fetchBookings(false);
     } catch {
       // no-op
     } finally {
@@ -772,7 +828,10 @@ function ReservationsSection() {
       )}
 
       <div style={{ background: '#fff', borderRadius: 20, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
-        <div style={{ fontSize: 15, fontWeight: 600, color: '#1a1a1a', marginBottom: 16 }}>Reservas recibidas</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: '#1a1a1a' }}>Reservas recibidas</div>
+          <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 600 }}>Actualización automática cada 5 s</div>
+        </div>
 
         {loadingBookings ? (
           <div style={{ textAlign: 'center', color: '#aeaeb2', padding: 32 }}>Cargando reservas...</div>
@@ -784,7 +843,7 @@ function ReservationsSection() {
           bookings.map((b) => {
             const isPending = b.status === 'pending';
             const isCancelled = b.status === 'cancelled';
-            const dateStr = formatDate(b.bookingDate ?? b.booking_date);
+            const dateStr = formatDate(getBookingDateValue(b));
             const timeStr = formatTime(b.startTime ?? b.start_time);
             const endStr = formatTime(b.endTime ?? b.end_time);
             const clientName = b.clientName ?? b.client_name;
