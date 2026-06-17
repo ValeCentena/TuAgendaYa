@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 
 const API_BASE = 'https://tuagendaya-api.onrender.com/api';
@@ -89,6 +89,7 @@ function normalizeStaff(item) {
 
 export default function BookPage() {
   const { slug } = useParams();
+  const pageTopRef = useRef(null);
 
   const now = new Date();
   const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -204,7 +205,7 @@ export default function BookPage() {
     fontFamily: 'inherit',
     outline: 'none',
     boxSizing: 'border-box',
-    marginBottom: 12,
+    marginBottom: 8,
     background: '#fff',
     color: '#1a1a1a',
     boxShadow: '0 1px 0 rgba(0,0,0,0.02)',
@@ -326,28 +327,28 @@ export default function BookPage() {
     return (
       <div
         style={{
-          marginTop: 12,
+          marginTop: 10,
           background: '#fff',
-          borderRadius: 24,
-          padding: 14,
+          borderRadius: 20,
+          padding: 10,
           border: '1px solid #e5e5ea',
-          boxShadow: '0 18px 45px rgba(0,0,0,0.08)',
+          boxShadow: '0 12px 28px rgba(0,0,0,0.07)',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <button
             type="button"
             onClick={goToPreviousMonth}
             disabled={!canGoPrevious}
             aria-label="Mes anterior"
             style={{
-              width: 38,
-              height: 38,
-              borderRadius: 14,
+              width: 30,
+              height: 30,
+              borderRadius: 12,
               border: 'none',
               background: canGoPrevious ? '#f2f2f7' : '#fafafa',
               color: canGoPrevious ? '#1a1a1a' : '#c7c7cc',
-              fontSize: 20,
+              fontSize: 17,
               cursor: canGoPrevious ? 'pointer' : 'not-allowed',
               fontFamily: 'inherit',
             }}
@@ -356,10 +357,10 @@ export default function BookPage() {
           </button>
 
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 16, fontWeight: 800, color: '#111827', letterSpacing: '-0.03em' }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: '#111827', letterSpacing: '-0.03em' }}>
               {MONTH_NAMES[calendarMonth.getMonth()]} {calendarMonth.getFullYear()}
             </div>
-            <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2 }}>
+            <div style={{ fontSize: 11, color: '#8e8e93', marginTop: 1 }}>
               Solo fechas disponibles desde hoy
             </div>
           </div>
@@ -369,13 +370,13 @@ export default function BookPage() {
             onClick={goToNextMonth}
             aria-label="Mes siguiente"
             style={{
-              width: 38,
-              height: 38,
-              borderRadius: 14,
+              width: 30,
+              height: 30,
+              borderRadius: 12,
               border: 'none',
               background: '#f2f2f7',
               color: '#1a1a1a',
-              fontSize: 20,
+              fontSize: 17,
               cursor: 'pointer',
               fontFamily: 'inherit',
             }}
@@ -384,16 +385,16 @@ export default function BookPage() {
           </button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6, marginBottom: 6 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5, marginBottom: 4 }}>
           {WEEK_DAYS.map((day, index) => (
             <div
               key={`${day}-${index}`}
               style={{
                 textAlign: 'center',
-                fontSize: 11,
+                fontSize: 10,
                 fontWeight: 800,
                 color: '#8e8e93',
-                padding: '6px 0',
+                padding: '4px 0',
               }}
             >
               {day}
@@ -401,10 +402,10 @@ export default function BookPage() {
           ))}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5 }}>
           {days.map((date, index) => {
             if (!date) {
-              return <div key={`empty-${index}`} style={{ height: 42 }} />;
+              return <div key={`empty-${index}`} style={{ height: 34 }} />;
             }
 
             const isPast = date < todayDate;
@@ -418,12 +419,12 @@ export default function BookPage() {
                 disabled={isPast}
                 onClick={() => selectCalendarDate(date)}
                 style={{
-                  height: 42,
-                  borderRadius: 15,
+                  height: 34,
+                  borderRadius: 12,
                   border: isSelected ? 'none' : isToday ? '1px solid #0071e3' : '1px solid transparent',
                   background: isSelected ? '#0071e3' : isPast ? '#fafafa' : '#f8f8fb',
                   color: isSelected ? '#fff' : isPast ? '#c7c7cc' : '#1a1a1a',
-                  fontSize: 14,
+                  fontSize: 13,
                   fontWeight: isSelected || isToday ? 800 : 650,
                   fontFamily: 'inherit',
                   cursor: isPast ? 'not-allowed' : 'pointer',
@@ -500,6 +501,10 @@ export default function BookPage() {
         }
       } else {
         setSuccess(true);
+        setCalendarOpen(false);
+        window.setTimeout(() => {
+          pageTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 80);
       }
     } catch {
       setError('No se pudo conectar con el servidor.');
@@ -519,6 +524,10 @@ export default function BookPage() {
     setError('');
     setCalendarOpen(false);
     setCalendarMonth(currentMonthStart);
+
+    window.setTimeout(() => {
+      pageTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 80);
 
     if (services.length > 0) {
       setSelectedServiceId(String(services[0].id));
@@ -543,7 +552,7 @@ export default function BookPage() {
         display: 'flex',
         alignItems: 'flex-start',
         justifyContent: 'center',
-        padding: '28px 18px',
+        padding: '22px 14px',
         fontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif',
       }}
     >
@@ -558,6 +567,7 @@ export default function BookPage() {
       `}</style>
 
       <div
+        ref={pageTopRef}
         style={{
           background: '#fff',
           borderRadius: 30,
@@ -574,7 +584,7 @@ export default function BookPage() {
             <img
               src={business.logoUrl}
               alt={businessName}
-              style={{ maxWidth: 180, maxHeight: 78, objectFit: 'contain', marginBottom: 12 }}
+              style={{ maxWidth: 180, maxHeight: 78, objectFit: 'contain', marginBottom: 8 }}
             />
           ) : (
             <div style={{ fontSize: 30, fontWeight: 850, letterSpacing: '-0.05em', color: '#0071e3', marginBottom: 4 }}>
@@ -582,7 +592,7 @@ export default function BookPage() {
             </div>
           )}
 
-          <div style={{ fontSize: 16, fontWeight: 800, color: '#1a1a1a', letterSpacing: '-0.02em' }}>Reservar turno</div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: '#1a1a1a', letterSpacing: '-0.02em' }}>Reservar turno</div>
 
           {business?.address && (
             <div style={{ fontSize: 12, color: '#6e6e73', marginTop: 6 }}>{business.address}</div>
@@ -593,9 +603,9 @@ export default function BookPage() {
 
         {success ? (
           <div style={{ textAlign: 'center', padding: '24px 0' }}>
-            <div style={{ fontSize: 44, marginBottom: 12 }}>✓</div>
+            <div style={{ fontSize: 44, marginBottom: 8 }}>✓</div>
 
-            <div style={{ fontSize: 17, fontWeight: 800, color: '#30d158', marginBottom: 12 }}>
+            <div style={{ fontSize: 17, fontWeight: 800, color: '#30d158', marginBottom: 8 }}>
               Reserva recibida
             </div>
 
@@ -785,7 +795,7 @@ export default function BookPage() {
                   border: calendarOpen ? '2px solid #0071e3' : '1px solid #e1e1e6',
                   background: canChooseDate ? '#fff' : '#f7f7f9',
                   borderRadius: 18,
-                  padding: '14px 15px',
+                  padding: '12px 14px',
                   fontFamily: 'inherit',
                   cursor: canChooseDate ? 'pointer' : 'not-allowed',
                   textAlign: 'left',
@@ -806,15 +816,15 @@ export default function BookPage() {
 
                 <div
                   style={{
-                    width: 34,
-                    height: 34,
-                    borderRadius: 13,
+                    width: 30,
+                    height: 30,
+                    borderRadius: 12,
                     background: calendarOpen ? '#0071e3' : '#f2f2f7',
                     color: calendarOpen ? '#fff' : '#0071e3',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    fontSize: 18,
+                    fontSize: 16,
                     fontWeight: 800,
                   }}
                 >
@@ -825,7 +835,7 @@ export default function BookPage() {
               {calendarOpen && renderCalendar()}
 
               {bookingDate && canChooseDate && (
-                <div style={{ marginTop: 16 }}>
+                <div style={{ marginTop: 12 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 10 }}>
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 800, color: '#1a1a1a' }}>Horarios disponibles</div>
@@ -852,7 +862,7 @@ export default function BookPage() {
                       No hay horarios disponibles para esta fecha.
                     </div>
                   ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 7, maxHeight: 150, overflowY: slots.length > 12 ? 'auto' : 'visible', paddingRight: slots.length > 12 ? 4 : 0, WebkitOverflowScrolling: 'touch' }}>
                       {slots.map((slot) => {
                         const isSelected = selectedTime === slot.time;
                         const isAvailable = slot.available;
@@ -865,8 +875,8 @@ export default function BookPage() {
                             disabled={!isAvailable}
                             onClick={() => isAvailable && setSelectedTime(slot.time)}
                             style={{
-                              padding: '12px 8px',
-                              borderRadius: 16,
+                              padding: '9px 6px',
+                              borderRadius: 13,
                               border: isSelected
                                 ? '2px solid #0071e3'
                                 : isAvailable
@@ -882,7 +892,7 @@ export default function BookPage() {
                                 : isAvailable
                                   ? '#1a1a1a'
                                   : '#c7c7cc',
-                              fontSize: 14,
+                              fontSize: 13,
                               fontWeight: 800,
                               fontFamily: 'inherit',
                               cursor: isAvailable ? 'pointer' : 'not-allowed',
@@ -940,7 +950,7 @@ export default function BookPage() {
             </div>
 
             {error && (
-              <div style={{ background: '#fff2f2', border: '1px solid #ffcdd2', borderRadius: 16, padding: '12px 14px', fontSize: 13, color: '#c62828', marginBottom: 12 }}>
+              <div style={{ background: '#fff2f2', border: '1px solid #ffcdd2', borderRadius: 16, padding: '12px 14px', fontSize: 13, color: '#c62828', marginBottom: 8 }}>
                 {error}
               </div>
             )}
