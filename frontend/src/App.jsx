@@ -112,6 +112,56 @@ function formatTime(t) {
   return String(t).slice(0, 5);
 }
 
+function normalizePhoneForWhatsApp(phone) {
+  const onlyNumbers = String(phone || '').replace(/\D/g, '');
+
+  if (!onlyNumbers) return '';
+
+  if (onlyNumbers.startsWith('598')) {
+    return onlyNumbers;
+  }
+
+  if (onlyNumbers.startsWith('09') && onlyNumbers.length >= 8) {
+    return `598${onlyNumbers.slice(1)}`;
+  }
+
+  if (onlyNumbers.startsWith('9') && onlyNumbers.length >= 8) {
+    return `598${onlyNumbers}`;
+  }
+
+  if (onlyNumbers.startsWith('0') && onlyNumbers.length > 6) {
+    return `598${onlyNumbers.slice(1)}`;
+  }
+
+  return onlyNumbers;
+}
+
+function buildClientWhatsAppMessage({ clientName, businessName, serviceName, staffName, dateStr, timeStr, endStr }) {
+  const safeClientName = String(clientName || '').trim() || 'te';
+  const safeBusinessName = String(businessName || '').trim() || 'el negocio';
+
+  const lines = [
+    `Hola ${safeClientName}, tu reserva en ${safeBusinessName} quedó confirmada.`,
+    '',
+    serviceName ? `Servicio: ${serviceName}` : null,
+    staffName ? `Profesional: ${staffName}` : null,
+    dateStr ? `Fecha: ${dateStr}` : null,
+    timeStr ? `Hora: ${timeStr}${endStr ? ` a ${endStr}` : ''}` : null,
+    '',
+    'Te esperamos. Gracias por reservar.',
+  ];
+
+  return lines.filter((line) => line !== null).join('\n');
+}
+
+function buildWhatsAppUrl(phone, message) {
+  const normalizedPhone = normalizePhoneForWhatsApp(phone);
+
+  if (!normalizedPhone) return '';
+
+  return `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(message)}`;
+}
+
 function normalizeSlug(value) {
   return String(value || '')
     .trim()
@@ -641,6 +691,16 @@ function ReservationsSection() {
   const [loadingBookings, setLoadingBookings] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
 
+  let storedProfessional = {};
+
+  try {
+    storedProfessional = JSON.parse(localStorage.getItem('tuagendaya_professional')) || {};
+  } catch {
+    storedProfessional = {};
+  }
+
+  const businessName = storedProfessional.businessName || storedProfessional.business_name || storedProfessional.name || '';
+
   const fetchBookings = () => {
     const token = localStorage.getItem('tuagendaya_token');
 
@@ -733,6 +793,16 @@ function ReservationsSection() {
             const serviceDuration = b.serviceDurationMinutes ?? b.service_duration_minutes;
             const servicePrice = b.servicePrice ?? b.service_price;
             const staffName = b.staffName ?? b.staff_name;
+            const whatsappMessage = buildClientWhatsAppMessage({
+              clientName,
+              businessName,
+              serviceName,
+              staffName,
+              dateStr,
+              timeStr,
+              endStr,
+            });
+            const whatsappUrl = buildWhatsAppUrl(clientPhone, whatsappMessage);
 
             return (
               <div
@@ -812,6 +882,34 @@ function ReservationsSection() {
                   <div style={{ fontSize: 12, color: '#8e8e93', fontStyle: 'italic', marginBottom: 10, paddingLeft: 2 }}>
                     "{b.comment}"
                   </div>
+                )}
+
+                {clientPhone && !isCancelled && whatsappUrl && (
+                  <a
+                    href={whatsappUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      textDecoration: 'none',
+                      width: '100%',
+                      padding: '10px 12px',
+                      borderRadius: 12,
+                      border: '0.5px solid #c8f2d3',
+                      background: '#edfff3',
+                      color: '#188038',
+                      fontSize: 13,
+                      fontWeight: 800,
+                      fontFamily: 'inherit',
+                      boxSizing: 'border-box',
+                      marginTop: 6,
+                      marginBottom: isPending ? 8 : 0,
+                    }}
+                  >
+                    Enviar WhatsApp al cliente
+                  </a>
                 )}
 
                 {isPending && (
@@ -2516,6 +2614,37 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
             {saving ? 'Guardando...' : 'Guardar perfil del negocio'}
           </button>
         </form>
+      </div>
+
+      <div style={{ background: '#fff', borderRadius: 20, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 16, alignItems: 'center' }}>
+          <div>
+            <div style={{ fontSize: 17, fontWeight: 800, color: '#1a1a1a' }}>WhatsApp Business</div>
+            <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 5, lineHeight: 1.45 }}>
+              Si contás con WhatsApp Business, más adelante vas a poder enlazar tu cuenta para enviar confirmaciones automáticas.
+              Por ahora, cada reserva tendrá un botón para abrir WhatsApp con el mensaje listo y enviarlo manualmente.
+            </div>
+          </div>
+
+          <button
+            type="button"
+            disabled
+            style={{
+              padding: '11px 16px',
+              borderRadius: 14,
+              border: '0.5px solid #d0d0d5',
+              background: '#f2f2f7',
+              color: '#8e8e93',
+              fontSize: 13,
+              fontWeight: 800,
+              fontFamily: 'inherit',
+              cursor: 'not-allowed',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Enlazar próximamente
+          </button>
+        </div>
       </div>
     </div>
   );
