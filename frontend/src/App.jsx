@@ -2711,13 +2711,44 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
 
 
 function ConfigurationSection() {
-  const quickCardStyle = {
-    background: '#fff',
-    border: '0.5px solid #e8e8ed',
+  const [openPanel, setOpenPanel] = useState(null);
+
+  const panels = [
+    {
+      key: 'services',
+      title: 'Servicios',
+      description: 'Creá, editá y eliminá los servicios que ve el cliente al reservar.',
+      action: 'Gestionar servicios',
+    },
+    {
+      key: 'staff',
+      title: 'Profesionales',
+      description: 'Agregá integrantes del negocio y configurá su disponibilidad individual.',
+      action: 'Gestionar profesionales',
+    },
+    {
+      key: 'availability',
+      title: 'Disponibilidad',
+      description: 'Definí días, horarios y duración base de los turnos.',
+      action: 'Gestionar horarios',
+    },
+  ];
+
+  const quickCardStyle = (key) => ({
+    background: openPanel === key ? '#eef6ff' : '#fff',
+    border: openPanel === key ? '1.5px solid #0071e3' : '0.5px solid #e8e8ed',
     borderRadius: 18,
     padding: 16,
-    boxShadow: '0 1px 8px rgba(0,0,0,0.04)',
-  };
+    boxShadow: openPanel === key ? '0 6px 18px rgba(0,113,227,0.12)' : '0 1px 8px rgba(0,0,0,0.04)',
+    cursor: 'pointer',
+    textAlign: 'left',
+    fontFamily: 'inherit',
+    transition: 'all 0.18s ease',
+    minHeight: 116,
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'space-between',
+  });
 
   const quickTitleStyle = {
     fontSize: 15,
@@ -2733,6 +2764,29 @@ function ConfigurationSection() {
     margin: 0,
   };
 
+  const actionStyle = (key) => ({
+    marginTop: 12,
+    fontSize: 12,
+    fontWeight: 900,
+    color: openPanel === key ? '#0071e3' : '#8e8e93',
+  });
+
+  const renderOpenPanel = () => {
+    if (openPanel === 'services') {
+      return <ServicesSection />;
+    }
+
+    if (openPanel === 'staff') {
+      return <StaffSection />;
+    }
+
+    if (openPanel === 'availability') {
+      return <AvailabilitySection />;
+    }
+
+    return null;
+  };
+
   return (
     <div style={{ display: 'grid', gap: 16 }}>
       <div style={{ background: '#fff', borderRadius: 22, padding: '22px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
@@ -2740,30 +2794,31 @@ function ConfigurationSection() {
           Configuración de agenda
         </div>
         <div style={{ fontSize: 13, color: '#6e6e73', lineHeight: 1.45 }}>
-          En esta sección administrás todo lo necesario para que tu agenda pública funcione: servicios, profesionales y horarios disponibles.
+          Elegí qué querés configurar. Todo queda ordenado en un solo lugar, sin llenar la pantalla de información innecesaria.
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12, marginTop: 18 }} className="config-summary-grid">
-          <div style={quickCardStyle}>
-            <div style={quickTitleStyle}>Servicios</div>
-            <p style={quickTextStyle}>Creá, editá y eliminá los servicios que ve el cliente al reservar.</p>
-          </div>
+          {panels.map((panel) => (
+            <button
+              key={panel.key}
+              type="button"
+              onClick={() => setOpenPanel((current) => (current === panel.key ? null : panel.key))}
+              style={quickCardStyle(panel.key)}
+            >
+              <div>
+                <div style={quickTitleStyle}>{panel.title}</div>
+                <p style={quickTextStyle}>{panel.description}</p>
+              </div>
 
-          <div style={quickCardStyle}>
-            <div style={quickTitleStyle}>Profesionales</div>
-            <p style={quickTextStyle}>Agregá integrantes del negocio y configurá su disponibilidad individual.</p>
-          </div>
-
-          <div style={quickCardStyle}>
-            <div style={quickTitleStyle}>Disponibilidad</div>
-            <p style={quickTextStyle}>Definí días, horarios y duración base de los turnos.</p>
-          </div>
+              <div style={actionStyle(panel.key)}>
+                {openPanel === panel.key ? 'Ocultar' : panel.action}
+              </div>
+            </button>
+          ))}
         </div>
       </div>
 
-      <ServicesSection />
-      <StaffSection />
-      <AvailabilitySection />
+      {renderOpenPanel()}
     </div>
   );
 }
