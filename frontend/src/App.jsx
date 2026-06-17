@@ -727,6 +727,7 @@ function ReservationsSection() {
   const [bookings, setBookings] = useState([]);
   const [loadingBookings, setLoadingBookings] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
+  const [reservationView, setReservationView] = useState('today');
 
   let storedProfessional = {};
 
@@ -797,9 +798,102 @@ function ReservationsSection() {
   const statusLabel = { pending: 'Pendiente', confirmed: 'Confirmada', cancelled: 'Cancelada' };
   const statusBg = { pending: '#fff8ee', confirmed: '#edfff3', cancelled: '#fff2f2' };
 
-  const pendingCount = bookings.filter((b) => b.status === 'pending').length;
-  const confirmedCount = bookings.filter((b) => b.status === 'confirmed').length;
-  const cancelledCount = bookings.filter((b) => b.status === 'cancelled').length;
+  const getLocalDateKey = (date = new Date()) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  const getBookingDateKey = (booking) => {
+    const value = getBookingDateValue(booking);
+    if (!value) return '';
+
+    const raw = String(value).trim();
+
+    const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (isoMatch) {
+      return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+    }
+
+    const slashMatch = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (slashMatch) {
+      const [, day, month, year] = slashMatch;
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+
+    const parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) {
+      return getLocalDateKey(parsed);
+    }
+
+    return '';
+  };
+
+  const getBookingSortValue = (booking) => {
+    const dateKey = getBookingDateKey(booking) || '9999-12-31';
+    const time = formatTime(booking.startTime ?? booking.start_time) || '00:00';
+    return `${dateKey} ${time}`;
+  };
+
+  const todayKey = getLocalDateKey();
+
+  const todayBookings = bookings
+    .filter((booking) => getBookingDateKey(booking) === todayKey)
+    .sort((a, b) => getBookingSortValue(a).localeCompare(getBookingSortValue(b)));
+
+  const upcomingBookings = bookings
+    .filter((booking) => {
+      const key = getBookingDateKey(booking);
+      return key && key > todayKey;
+    })
+    .sort((a, b) => getBookingSortValue(a).localeCompare(getBookingSortValue(b)));
+
+  const archivedBookings = bookings
+    .filter((booking) => {
+      const key = getBookingDateKey(booking);
+      return !key || key < todayKey;
+    })
+    .sort((a, b) => getBookingSortValue(b).localeCompare(getBookingSortValue(a)));
+
+  const visibleBookings =
+    reservationView === 'upcoming'
+      ? upcomingBookings
+      : reservationView === 'archived'
+        ? archivedBookings
+        : todayBookings;
+
+  const pendingCount = todayBookings.filter((b) => b.status === 'pending').length;
+  const confirmedCount = todayBookings.filter((b) => b.status === 'confirmed').length;
+  const cancelledCount = todayBookings.filter((b) => b.status === 'cancelled').length;
+
+  const reservationViewButtonStyle = (key) => ({
+    flex: 1,
+    padding: '11px 12px',
+    borderRadius: 14,
+    border: reservationView === key ? '1px solid #0071e3' : '0.5px solid #e2e2e7',
+    background: reservationView === key ? '#eaf3ff' : '#fff',
+    color: reservationView === key ? '#0071e3' : '#1a1a1a',
+    fontSize: 13,
+    fontWeight: 800,
+    fontFamily: 'inherit',
+    cursor: 'pointer',
+    boxShadow: reservationView === key ? '0 1px 6px rgba(0,113,227,0.16)' : '0 1px 5px rgba(0,0,0,0.04)',
+  });
+
+  const currentTitle =
+    reservationView === 'upcoming'
+      ? 'Próximas reservas'
+      : reservationView === 'archived'
+        ? 'Reservas archivadas'
+        : 'Reservas de hoy';
+
+  const emptyText =
+    reservationView === 'upcoming'
+      ? 'No tenés próximas reservas.'
+      : reservationView === 'archived'
+        ? 'Todavía no hay reservas archivadas.'
+        : 'No tenés reservas para hoy.';
 
   return (
     <>
@@ -807,40 +901,57 @@ function ReservationsSection() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
           <div style={{ background: '#fff8ee', borderRadius: 16, padding: '14px 16px' }}>
             <div style={{ fontSize: 24, fontWeight: 700, color: '#ff9f0a' }}>{pendingCount}</div>
-            <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2 }}>Pendientes</div>
+            <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2 }}>Pendientes hoy</div>
           </div>
 
           <div style={{ background: '#edfff3', borderRadius: 16, padding: '14px 16px' }}>
             <div style={{ fontSize: 24, fontWeight: 700, color: '#30d158' }}>{confirmedCount}</div>
-            <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2 }}>Confirmadas</div>
+            <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2 }}>Confirmadas hoy</div>
           </div>
 
           <div style={{ background: '#fff2f2', borderRadius: 16, padding: '14px 16px' }}>
             <div style={{ fontSize: 24, fontWeight: 700, color: '#ff453a' }}>{cancelledCount}</div>
-            <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2 }}>Canceladas</div>
+            <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2 }}>Canceladas hoy</div>
           </div>
 
           <div style={{ background: '#f2f2f7', borderRadius: 16, padding: '14px 16px', border: '0.5px solid #e8e8ed' }}>
-            <div style={{ fontSize: 24, fontWeight: 700, color: '#1a1a1a' }}>{bookings.length}</div>
-            <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2 }}>Total</div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: '#1a1a1a' }}>{todayBookings.length}</div>
+            <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2 }}>Total hoy</div>
           </div>
         </div>
       )}
 
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+        <button type="button" onClick={() => setReservationView('today')} style={reservationViewButtonStyle('today')}>
+          Hoy ({todayBookings.length})
+        </button>
+        <button type="button" onClick={() => setReservationView('upcoming')} style={reservationViewButtonStyle('upcoming')}>
+          Próximas ({upcomingBookings.length})
+        </button>
+        <button type="button" onClick={() => setReservationView('archived')} style={reservationViewButtonStyle('archived')}>
+          Archivadas ({archivedBookings.length})
+        </button>
+      </div>
+
       <div style={{ background: '#fff', borderRadius: 20, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
-          <div style={{ fontSize: 15, fontWeight: 600, color: '#1a1a1a' }}>Reservas recibidas</div>
-          <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 600 }}>Actualización automática cada 5 s</div>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>{currentTitle}</div>
+            <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 600, marginTop: 3 }}>
+              A las 00:00, las reservas anteriores pasan automáticamente a Archivadas.
+            </div>
+          </div>
+          <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 600, whiteSpace: 'nowrap' }}>Actualización automática cada 5 s</div>
         </div>
 
         {loadingBookings ? (
           <div style={{ textAlign: 'center', color: '#aeaeb2', padding: 32 }}>Cargando reservas...</div>
-        ) : bookings.length === 0 ? (
+        ) : visibleBookings.length === 0 ? (
           <div style={{ textAlign: 'center', color: '#aeaeb2', padding: 32 }}>
-            <div style={{ fontWeight: 500 }}>No tenés reservas todavía.</div>
+            <div style={{ fontWeight: 500 }}>{emptyText}</div>
           </div>
         ) : (
-          bookings.map((b) => {
+          visibleBookings.map((b) => {
             const isPending = b.status === 'pending';
             const isCancelled = b.status === 'cancelled';
             const dateStr = formatDate(getBookingDateValue(b));
@@ -971,7 +1082,7 @@ function ReservationsSection() {
                   </a>
                 )}
 
-                {isPending && (
+                {isPending && reservationView !== 'archived' && (
                   <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
                     <button
                       onClick={() => handleAction(b.id, 'confirm')}
