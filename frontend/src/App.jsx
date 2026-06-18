@@ -729,6 +729,11 @@ function ReservationsSection() {
   const [actionLoading, setActionLoading] = useState(null);
   const [reservationView, setReservationView] = useState('today');
   const [expandedBookingId, setExpandedBookingId] = useState(null);
+  const [archivedSearch, setArchivedSearch] = useState('');
+  const [archivedStatus, setArchivedStatus] = useState('all');
+  const [archivedService, setArchivedService] = useState('all');
+  const [archivedFromDate, setArchivedFromDate] = useState('');
+  const [archivedToDate, setArchivedToDate] = useState('');
 
   let storedProfessional = {};
 
@@ -850,12 +855,56 @@ function ReservationsSection() {
     })
     .sort((a, b) => getBookingSortValue(a).localeCompare(getBookingSortValue(b)));
 
-  const archivedBookings = bookings
+  const rawArchivedBookings = bookings
     .filter((booking) => {
       const key = getBookingDateKey(booking);
       return !key || key < todayKey;
     })
     .sort((a, b) => getBookingSortValue(b).localeCompare(getBookingSortValue(a)));
+
+  const archivedServiceOptions = Array.from(
+    new Set(
+      rawArchivedBookings
+        .map((booking) => String(booking.serviceName ?? booking.service_name ?? '').trim())
+        .filter(Boolean)
+    )
+  ).sort((a, b) => a.localeCompare(b, 'es'));
+
+  const archivedBookings = rawArchivedBookings.filter((booking) => {
+    const dateKey = getBookingDateKey(booking);
+    const status = String(booking.status || '').trim();
+    const serviceName = String(booking.serviceName ?? booking.service_name ?? '').trim();
+    const searchText = normalizeSearchText([
+      booking.clientName ?? booking.client_name,
+      booking.clientPhone ?? booking.client_phone,
+      serviceName,
+      booking.staffName ?? booking.staff_name,
+      booking.comment,
+    ].filter(Boolean).join(' '));
+
+    const searchOk = !archivedSearch.trim() || searchText.includes(normalizeSearchText(archivedSearch));
+    const statusOk = archivedStatus === 'all' || status === archivedStatus;
+    const serviceOk = archivedService === 'all' || serviceName === archivedService;
+    const fromOk = !archivedFromDate || (dateKey && dateKey >= archivedFromDate);
+    const toOk = !archivedToDate || (dateKey && dateKey <= archivedToDate);
+
+    return searchOk && statusOk && serviceOk && fromOk && toOk;
+  });
+
+  const clearArchivedFilters = () => {
+    setArchivedSearch('');
+    setArchivedStatus('all');
+    setArchivedService('all');
+    setArchivedFromDate('');
+    setArchivedToDate('');
+  };
+
+  const hasArchivedFilters =
+    archivedSearch.trim() ||
+    archivedStatus !== 'all' ||
+    archivedService !== 'all' ||
+    archivedFromDate ||
+    archivedToDate;
 
   const visibleBookings =
     reservationView === 'upcoming'
@@ -1071,7 +1120,7 @@ function ReservationsSection() {
           Próximas ({upcomingBookings.length})
         </button>
         <button type="button" onClick={() => setReservationView('archived')} style={reservationViewButtonStyle('archived')}>
-          Archivadas ({archivedBookings.length})
+          Archivadas ({rawArchivedBookings.length})
         </button>
       </div>
 
@@ -1085,6 +1134,136 @@ function ReservationsSection() {
           </div>
           <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 600, whiteSpace: 'nowrap' }}>Actualización automática cada 5 s</div>
         </div>
+
+        {reservationView === 'archived' && !loadingBookings && (
+          <div
+            style={{
+              background: '#f7f7fb',
+              border: '0.5px solid #e4e4ea',
+              borderRadius: 18,
+              padding: 14,
+              marginBottom: 16,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 900, color: '#1a1a1a' }}>Buscar en archivadas</div>
+                <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 700, marginTop: 2 }}>
+                  Filtrá por cliente, fecha, servicio o estado.
+                </div>
+              </div>
+
+              {hasArchivedFilters && (
+                <button
+                  type="button"
+                  onClick={clearArchivedFilters}
+                  style={{
+                    border: 'none',
+                    background: '#fff',
+                    color: '#0071e3',
+                    borderRadius: 999,
+                    padding: '8px 12px',
+                    fontSize: 12,
+                    fontWeight: 900,
+                    fontFamily: 'inherit',
+                    cursor: 'pointer',
+                    boxShadow: '0 1px 5px rgba(0,0,0,0.05)',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Limpiar
+                </button>
+              )}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.3fr) repeat(4, minmax(120px, 1fr))', gap: 10 }}>
+              <input
+                value={archivedSearch}
+                onChange={(e) => setArchivedSearch(e.target.value)}
+                placeholder="Buscar cliente, teléfono o profesional"
+                style={{
+                  ...inputStyle,
+                  margin: 0,
+                  background: '#fff',
+                  borderRadius: 14,
+                  fontSize: 13,
+                  padding: '11px 12px',
+                }}
+              />
+
+              <input
+                type="date"
+                value={archivedFromDate}
+                onChange={(e) => setArchivedFromDate(e.target.value)}
+                title="Desde"
+                style={{
+                  ...inputStyle,
+                  margin: 0,
+                  background: '#fff',
+                  borderRadius: 14,
+                  fontSize: 13,
+                  padding: '11px 12px',
+                }}
+              />
+
+              <input
+                type="date"
+                value={archivedToDate}
+                onChange={(e) => setArchivedToDate(e.target.value)}
+                title="Hasta"
+                style={{
+                  ...inputStyle,
+                  margin: 0,
+                  background: '#fff',
+                  borderRadius: 14,
+                  fontSize: 13,
+                  padding: '11px 12px',
+                }}
+              />
+
+              <select
+                value={archivedStatus}
+                onChange={(e) => setArchivedStatus(e.target.value)}
+                style={{
+                  ...inputStyle,
+                  margin: 0,
+                  background: '#fff',
+                  borderRadius: 14,
+                  fontSize: 13,
+                  padding: '11px 12px',
+                }}
+              >
+                <option value="all">Todos los estados</option>
+                <option value="pending">Pendientes</option>
+                <option value="confirmed">Confirmadas</option>
+                <option value="completed">Completadas</option>
+                <option value="cancelled">Canceladas</option>
+              </select>
+
+              <select
+                value={archivedService}
+                onChange={(e) => setArchivedService(e.target.value)}
+                style={{
+                  ...inputStyle,
+                  margin: 0,
+                  background: '#fff',
+                  borderRadius: 14,
+                  fontSize: 13,
+                  padding: '11px 12px',
+                }}
+              >
+                <option value="all">Todos los servicios</option>
+                {archivedServiceOptions.map((service) => (
+                  <option key={service} value={service}>{service}</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800, marginTop: 10 }}>
+              Mostrando {archivedBookings.length} de {rawArchivedBookings.length} reservas archivadas.
+            </div>
+          </div>
+        )}
 
         {loadingBookings ? (
           <div style={{ textAlign: 'center', color: '#aeaeb2', padding: 32 }}>Cargando reservas...</div>
