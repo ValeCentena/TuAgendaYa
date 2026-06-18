@@ -866,7 +866,35 @@ function ReservationsSection() {
 
   const pendingCount = todayBookings.filter((b) => b.status === 'pending').length;
   const confirmedCount = todayBookings.filter((b) => b.status === 'confirmed').length;
+  const completedCount = todayBookings.filter((b) => b.status === 'completed').length;
   const cancelledCount = todayBookings.filter((b) => b.status === 'cancelled').length;
+
+  const clientStatsMap = new Map();
+
+  bookings.forEach((booking) => {
+    const clientName = String(booking.clientName ?? booking.client_name ?? '').trim();
+    const clientPhone = String(booking.clientPhone ?? booking.client_phone ?? '').trim();
+
+    if (!clientName && !clientPhone) return;
+
+    const key = normalizeSearchText(clientPhone || clientName);
+    const existing = clientStatsMap.get(key) || {
+      name: clientName || 'Sin nombre',
+      phone: clientPhone,
+      count: 0,
+    };
+
+    existing.count += 1;
+
+    if (!existing.name && clientName) existing.name = clientName;
+    if (!existing.phone && clientPhone) existing.phone = clientPhone;
+
+    clientStatsMap.set(key, existing);
+  });
+
+  const totalClientsCount = clientStatsMap.size;
+  const frequentClient = Array.from(clientStatsMap.values()).sort((a, b) => b.count - a.count)[0] || null;
+  const frequentClientLabel = frequentClient ? `${frequentClient.name} (${frequentClient.count})` : 'Sin datos';
 
   const reservationViewButtonStyle = (key) => ({
     flex: 1,
@@ -978,25 +1006,59 @@ function ReservationsSection() {
   return (
     <>
       {!loadingBookings && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
-          <div style={{ background: '#fff8ee', borderRadius: 16, padding: '14px 16px' }}>
-            <div style={{ fontSize: 24, fontWeight: 700, color: '#ff9f0a' }}>{pendingCount}</div>
-            <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2 }}>Pendientes hoy</div>
+        <div style={{ background: '#fff', borderRadius: 22, padding: '18px 20px', marginBottom: 16, boxShadow: '0 1px 8px rgba(0,0,0,0.05)' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 900, color: '#1a1a1a' }}>Resumen del negocio</div>
+              <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 600, marginTop: 3 }}>
+                Vista rápida del día, próximas reservas y clientes.
+              </div>
+            </div>
+            <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800, whiteSpace: 'nowrap' }}>
+              Actualiza cada 5 s
+            </div>
           </div>
 
-          <div style={{ background: '#edfff3', borderRadius: 16, padding: '14px 16px' }}>
-            <div style={{ fontSize: 24, fontWeight: 700, color: '#30d158' }}>{confirmedCount}</div>
-            <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2 }}>Confirmadas hoy</div>
-          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(132px, 1fr))', gap: 10 }}>
+            <div style={{ background: '#f2f2f7', borderRadius: 16, padding: '14px 16px', border: '0.5px solid #e8e8ed' }}>
+              <div style={{ fontSize: 24, fontWeight: 900, color: '#1a1a1a' }}>{todayBookings.length}</div>
+              <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2, fontWeight: 700 }}>Reservas hoy</div>
+            </div>
 
-          <div style={{ background: '#fff2f2', borderRadius: 16, padding: '14px 16px' }}>
-            <div style={{ fontSize: 24, fontWeight: 700, color: '#ff453a' }}>{cancelledCount}</div>
-            <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2 }}>Canceladas hoy</div>
-          </div>
+            <div style={{ background: '#fff8ee', borderRadius: 16, padding: '14px 16px' }}>
+              <div style={{ fontSize: 24, fontWeight: 900, color: '#ff9f0a' }}>{pendingCount}</div>
+              <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2, fontWeight: 700 }}>Pendientes</div>
+            </div>
 
-          <div style={{ background: '#f2f2f7', borderRadius: 16, padding: '14px 16px', border: '0.5px solid #e8e8ed' }}>
-            <div style={{ fontSize: 24, fontWeight: 700, color: '#1a1a1a' }}>{todayBookings.length}</div>
-            <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2 }}>Total hoy</div>
+            <div style={{ background: '#edfff3', borderRadius: 16, padding: '14px 16px' }}>
+              <div style={{ fontSize: 24, fontWeight: 900, color: '#30d158' }}>{confirmedCount}</div>
+              <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2, fontWeight: 700 }}>Confirmadas</div>
+            </div>
+
+            <div style={{ background: '#f1f0ff', borderRadius: 16, padding: '14px 16px' }}>
+              <div style={{ fontSize: 24, fontWeight: 900, color: '#5e5ce6' }}>{completedCount}</div>
+              <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2, fontWeight: 700 }}>Completadas</div>
+            </div>
+
+            <div style={{ background: '#fff2f2', borderRadius: 16, padding: '14px 16px' }}>
+              <div style={{ fontSize: 24, fontWeight: 900, color: '#ff453a' }}>{cancelledCount}</div>
+              <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2, fontWeight: 700 }}>Canceladas</div>
+            </div>
+
+            <div style={{ background: '#eef7ff', borderRadius: 16, padding: '14px 16px' }}>
+              <div style={{ fontSize: 24, fontWeight: 900, color: '#0071e3' }}>{upcomingBookings.length}</div>
+              <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2, fontWeight: 700 }}>Próximas</div>
+            </div>
+
+            <div style={{ background: '#f7f7fb', borderRadius: 16, padding: '14px 16px', border: '0.5px solid #ececf1' }}>
+              <div style={{ fontSize: 24, fontWeight: 900, color: '#1a1a1a' }}>{totalClientsCount}</div>
+              <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2, fontWeight: 700 }}>Clientes</div>
+            </div>
+
+            <div style={{ background: '#f7f7fb', borderRadius: 16, padding: '14px 16px', border: '0.5px solid #ececf1' }}>
+              <div style={{ fontSize: 14, fontWeight: 900, color: '#1a1a1a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{frequentClientLabel}</div>
+              <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 6, fontWeight: 700 }}>Cliente frecuente</div>
+            </div>
           </div>
         </div>
       )}
