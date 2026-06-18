@@ -896,6 +896,85 @@ function ReservationsSection() {
         ? 'Todavía no hay reservas archivadas.'
         : 'No tenés reservas para hoy.';
 
+  const getDateObjectFromKey = (dateKey) => {
+    if (!dateKey || dateKey === 'sin-fecha') return null;
+    const [year, month, day] = dateKey.split('-').map(Number);
+    if (!year || !month || !day) return null;
+    return new Date(year, month - 1, day);
+  };
+
+  const capitalizeFirst = (value) => {
+    const text = String(value || '').trim();
+    if (!text) return '';
+    return text.charAt(0).toUpperCase() + text.slice(1);
+  };
+
+  const formatDayGroupTitle = (dateKey) => {
+    if (!dateKey || dateKey === 'sin-fecha') return 'Sin fecha registrada';
+
+    const date = getDateObjectFromKey(dateKey);
+    if (!date) return 'Sin fecha registrada';
+
+    const weekday = capitalizeFirst(date.toLocaleDateString('es-UY', { weekday: 'long' }));
+    const month = date.toLocaleDateString('es-UY', { month: 'long' });
+    const day = date.getDate();
+
+    if (dateKey === todayKey) {
+      return `Hoy · ${weekday} ${day} de ${month}`;
+    }
+
+    return `${weekday} ${day} de ${month}`;
+  };
+
+  const formatMonthGroupTitle = (monthKey) => {
+    if (!monthKey || monthKey === 'sin-fecha') return 'Sin fecha';
+
+    const [year, month] = monthKey.split('-').map(Number);
+    if (!year || !month) return 'Sin fecha';
+
+    const date = new Date(year, month - 1, 1);
+    const monthName = capitalizeFirst(date.toLocaleDateString('es-UY', { month: 'long' }));
+
+    return `${monthName} ${year}`;
+  };
+
+  const visibleBookingItems = [];
+  let lastMonthKey = null;
+  let lastDateKey = null;
+
+  visibleBookings.forEach((booking) => {
+    const dateKey = getBookingDateKey(booking) || 'sin-fecha';
+    const monthKey = dateKey === 'sin-fecha' ? 'sin-fecha' : dateKey.slice(0, 7);
+
+    if (monthKey !== lastMonthKey) {
+      visibleBookingItems.push({
+        type: 'month-header',
+        key: `month-${reservationView}-${monthKey}`,
+        monthKey,
+        title: formatMonthGroupTitle(monthKey),
+      });
+      lastMonthKey = monthKey;
+      lastDateKey = null;
+    }
+
+    if (dateKey !== lastDateKey) {
+      visibleBookingItems.push({
+        type: 'date-header',
+        key: `date-${reservationView}-${dateKey}`,
+        dateKey,
+        title: formatDayGroupTitle(dateKey),
+        count: visibleBookings.filter((item) => (getBookingDateKey(item) || 'sin-fecha') === dateKey).length,
+      });
+      lastDateKey = dateKey;
+    }
+
+    visibleBookingItems.push({
+      type: 'booking',
+      key: `booking-${booking.id}`,
+      booking,
+    });
+  });
+
   return (
     <>
       {!loadingBookings && (
@@ -939,7 +1018,7 @@ function ReservationsSection() {
           <div>
             <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>{currentTitle}</div>
             <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 600, marginTop: 3 }}>
-              A las 00:00, las reservas anteriores pasan automáticamente a Archivadas.
+              Las reservas se agrupan por mes y fecha, y a las 00:00 pasan automáticamente a Archivadas.
             </div>
           </div>
           <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 600, whiteSpace: 'nowrap' }}>Actualización automática cada 5 s</div>
@@ -952,7 +1031,55 @@ function ReservationsSection() {
             <div style={{ fontWeight: 500 }}>{emptyText}</div>
           </div>
         ) : (
-          visibleBookings.map((b) => {
+          visibleBookingItems.map((item) => {
+            if (item.type === 'month-header') {
+              return (
+                <div
+                  key={item.key}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 10,
+                    padding: '10px 4px 8px',
+                    marginTop: 4,
+                    marginBottom: 6,
+                    borderBottom: '0.5px solid #f0f0f0',
+                  }}
+                >
+                  <div style={{ fontSize: 13, fontWeight: 900, color: '#1a1a1a' }}>{item.title}</div>
+                  <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800 }}>
+                    {item.monthKey === 'sin-fecha' ? 'Sin fecha' : 'Archivo por mes'}
+                  </div>
+                </div>
+              );
+            }
+
+            if (item.type === 'date-header') {
+              return (
+                <div
+                  key={item.key}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 10,
+                    background: '#f5f5f7',
+                    borderRadius: 14,
+                    padding: '9px 12px',
+                    marginBottom: 8,
+                    marginTop: 8,
+                  }}
+                >
+                  <div style={{ fontSize: 12, fontWeight: 900, color: '#1a1a1a' }}>{item.title}</div>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: '#8e8e93' }}>
+                    {item.count} {item.count === 1 ? 'turno' : 'turnos'}
+                  </div>
+                </div>
+              );
+            }
+
+            const b = item.booking;
             const isPending = b.status === 'pending';
             const isConfirmed = b.status === 'confirmed';
             const isCompleted = b.status === 'completed';
@@ -1055,6 +1182,18 @@ function ReservationsSection() {
                       }}
                     >
                       {mainService}{staffName ? ` · ${staffName}` : ''}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: '#8e8e93',
+                        marginTop: 3,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {dateStr}
                     </div>
                   </div>
 
