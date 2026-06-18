@@ -957,10 +957,6 @@ function ReservationsSection() {
             const isCompleted = b.status === 'completed';
             const isCancelled = b.status === 'cancelled';
             const isArchivedView = reservationView === 'archived';
-            const canSendWhatsApp = Boolean(clientPhone && whatsappUrl && !isCancelled);
-            const canConfirm = !isArchivedView && isPending;
-            const canComplete = !isArchivedView && (isPending || isConfirmed);
-            const canCancel = !isArchivedView && !isCancelled && !isCompleted;
             const dateStr = formatDate(getBookingDateValue(b));
             const timeStr = formatTime(b.startTime ?? b.start_time);
             const endStr = formatTime(b.endTime ?? b.end_time);
@@ -980,6 +976,10 @@ function ReservationsSection() {
               endStr,
             });
             const whatsappUrl = buildWhatsAppUrl(clientPhone, whatsappMessage);
+            const canSendWhatsApp = Boolean(clientPhone && whatsappUrl && !isCancelled);
+            const canConfirm = !isArchivedView && isPending;
+            const canComplete = !isArchivedView && (isPending || isConfirmed);
+            const canCancel = !isArchivedView && !isCancelled && !isCompleted;
 
             return (
               <div
