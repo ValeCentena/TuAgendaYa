@@ -4233,6 +4233,350 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
 }
 
 
+function AdminLoginPage() {
+  const navigate = useNavigate();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const token = localStorage.getItem('tuagendaya_admin_token');
+    if (token) {
+      navigate('/admin/dashboard', { replace: true });
+    }
+  }, [navigate]);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      const response = await fetch(`${API_BASE}/admin/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'No se pudo iniciar sesión admin');
+      }
+
+      localStorage.setItem('tuagendaya_admin_token', data.token);
+      localStorage.setItem('tuagendaya_admin_user', JSON.stringify(data.admin || { email }));
+      navigate('/admin/dashboard', { replace: true });
+    } catch (err) {
+      setError(err.message || 'Error iniciando sesión admin');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#f2f2f7', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, fontFamily: APP_FONT }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap');
+        * { box-sizing: border-box; }
+        button, input { font-family: ${APP_FONT}; }
+      `}</style>
+
+      <form onSubmit={handleSubmit} style={{ width: '100%', maxWidth: 420, background: '#fff', borderRadius: 28, padding: 30, boxShadow: '0 12px 32px rgba(0,0,0,0.08)' }}>
+        <div style={{ marginBottom: 24 }}>
+          <TuAgendaLogo height={44} />
+        </div>
+
+        <h1 style={{ fontSize: 24, margin: '0 0 6px', color: '#1a1a1a', fontWeight: 900 }}>Panel dueño</h1>
+        <p style={{ margin: '0 0 22px', color: '#6e6e73', lineHeight: 1.45, fontSize: 14 }}>
+          Entrá como administrador para ver todos los negocios registrados en TuAgendaYa.
+        </p>
+
+        <label style={{ display: 'block', fontSize: 13, fontWeight: 800, color: '#6e6e73', marginBottom: 6 }}>Email admin</label>
+        <input
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          type="email"
+          placeholder="admin@tuagendaya.com"
+          autoComplete="email"
+          style={{ width: '100%', border: '1px solid #dcdce3', borderRadius: 14, padding: '13px 14px', fontSize: 15, outline: 'none', marginBottom: 14 }}
+        />
+
+        <label style={{ display: 'block', fontSize: 13, fontWeight: 800, color: '#6e6e73', marginBottom: 6 }}>Contraseña</label>
+        <input
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          type="password"
+          placeholder="Contraseña admin"
+          autoComplete="current-password"
+          style={{ width: '100%', border: '1px solid #dcdce3', borderRadius: 14, padding: '13px 14px', fontSize: 15, outline: 'none', marginBottom: 16 }}
+        />
+
+        {error && (
+          <div style={{ background: '#fff0f0', color: '#d92d20', borderRadius: 14, padding: 12, fontSize: 13, fontWeight: 700, marginBottom: 14 }}>
+            {error}
+          </div>
+        )}
+
+        <button
+          type="submit"
+          disabled={loading}
+          style={{ width: '100%', border: 'none', borderRadius: 15, background: loading ? '#9ecbff' : '#0071e3', color: '#fff', padding: '14px 16px', fontSize: 15, fontWeight: 900, cursor: loading ? 'not-allowed' : 'pointer' }}
+        >
+          {loading ? 'Entrando...' : 'Entrar al panel admin'}
+        </button>
+      </form>
+    </div>
+  );
+}
+
+function AdminDashboardPage() {
+  const navigate = useNavigate();
+  const [stats, setStats] = useState(null);
+  const [professionals, setProfessionals] = useState([]);
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState('all');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const token = localStorage.getItem('tuagendaya_admin_token');
+
+  const adminFetch = useCallback(async (path, options = {}) => {
+    const currentToken = localStorage.getItem('tuagendaya_admin_token');
+
+    const response = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${currentToken}`,
+        ...(options.headers || {}),
+      },
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (response.status === 401 || response.status === 403) {
+      localStorage.removeItem('tuagendaya_admin_token');
+      localStorage.removeItem('tuagendaya_admin_user');
+      navigate('/admin/login', { replace: true });
+      throw new Error(data.error || 'Sesión admin vencida');
+    }
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Error de administración');
+    }
+
+    return data;
+  }, [navigate]);
+
+  const loadAdminData = useCallback(async () => {
+    setError('');
+
+    try {
+      const params = new URLSearchParams();
+      if (search.trim()) params.set('search', search.trim());
+      if (status !== 'all') params.set('status', status);
+
+      const [statsData, professionalsData] = await Promise.all([
+        adminFetch('/admin/stats'),
+        adminFetch(`/admin/professionals?${params.toString()}`),
+      ]);
+
+      setStats(statsData);
+      setProfessionals(professionalsData.professionals || []);
+    } catch (err) {
+      setError(err.message || 'Error cargando panel admin');
+    } finally {
+      setLoading(false);
+    }
+  }, [adminFetch, search, status]);
+
+  useEffect(() => {
+    if (!token) {
+      navigate('/admin/login', { replace: true });
+      return;
+    }
+
+    loadAdminData();
+  }, [token, navigate, loadAdminData]);
+
+  useEffect(() => {
+    if (!token) return;
+    const timer = setInterval(loadAdminData, 10000);
+    return () => clearInterval(timer);
+  }, [token, loadAdminData]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('tuagendaya_admin_token');
+    localStorage.removeItem('tuagendaya_admin_user');
+    navigate('/admin/login', { replace: true });
+  };
+
+  const updateStatus = async (professional, nextStatus) => {
+    try {
+      await adminFetch(`/admin/professionals/${professional.id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      await loadAdminData();
+    } catch (err) {
+      alert(err.message || 'No se pudo actualizar el negocio');
+    }
+  };
+
+  const statCards = [
+    { label: 'Negocios', value: stats?.professionals?.total || 0, color: '#0071e3', bg: '#eef6ff' },
+    { label: 'Activos', value: stats?.professionals?.active || 0, color: '#21c55d', bg: '#edfff3' },
+    { label: 'Suspendidos', value: stats?.professionals?.suspended || 0, color: '#ff3b30', bg: '#fff0f0' },
+    { label: 'Reservas totales', value: stats?.bookings?.total || 0, color: '#5856d6', bg: '#f1f0ff' },
+    { label: 'Reservas hoy', value: stats?.bookings?.today || 0, color: '#ff9500', bg: '#fff7e8' },
+    { label: 'Clientes', value: stats?.clients?.total || 0, color: '#111827', bg: '#f4f4f8' },
+  ];
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#f2f2f7', padding: '22px 16px', fontFamily: APP_FONT }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap');
+        * { box-sizing: border-box; }
+        button, input, select { font-family: ${APP_FONT}; }
+        @media (max-width: 760px) {
+          .admin-grid { grid-template-columns: 1fr !important; }
+          .admin-header { flex-direction: column !important; align-items: stretch !important; }
+          .admin-filters { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
+
+      <div style={{ maxWidth: 1040, margin: '0 auto' }}>
+        <div className="admin-header" style={{ background: '#fff', borderRadius: 26, padding: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18, boxShadow: '0 1px 10px rgba(0,0,0,0.06)', marginBottom: 18 }}>
+          <div>
+            <TuAgendaLogo height={42} />
+            <h1 style={{ margin: '18px 0 6px', color: '#1a1a1a', fontSize: 25, fontWeight: 900 }}>Panel dueño de TuAgendaYa</h1>
+            <p style={{ margin: 0, color: '#6e6e73', fontSize: 14, lineHeight: 1.45 }}>Control general de negocios, reservas y clientes registrados.</p>
+          </div>
+
+          <button onClick={handleLogout} style={{ border: '1px solid #e0e0e5', background: '#fff', borderRadius: 14, padding: '10px 16px', color: '#6e6e73', fontSize: 14, fontWeight: 800, cursor: 'pointer' }}>
+            Cerrar sesión
+          </button>
+        </div>
+
+        {error && (
+          <div style={{ background: '#fff0f0', color: '#d92d20', borderRadius: 18, padding: 14, fontSize: 14, fontWeight: 800, marginBottom: 16 }}>
+            {error}
+          </div>
+        )}
+
+        <div className="admin-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 10, marginBottom: 18 }}>
+          {statCards.map((card) => (
+            <div key={card.label} style={{ background: card.bg, borderRadius: 18, padding: 16, border: '1px solid rgba(0,0,0,0.04)' }}>
+              <div style={{ color: card.color, fontSize: 24, fontWeight: 900, marginBottom: 6 }}>{card.value}</div>
+              <div style={{ color: '#6e6e73', fontSize: 12, fontWeight: 800 }}>{card.label}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ background: '#fff', borderRadius: 24, padding: 22, boxShadow: '0 1px 10px rgba(0,0,0,0.06)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 16 }}>
+            <div>
+              <h2 style={{ margin: '0 0 6px', color: '#1a1a1a', fontSize: 20, fontWeight: 900 }}>Negocios registrados</h2>
+              <p style={{ margin: 0, color: '#6e6e73', fontSize: 13 }}>Actualiza cada 10 segundos.</p>
+            </div>
+          </div>
+
+          <div className="admin-filters" style={{ display: 'grid', gridTemplateColumns: '1fr 180px', gap: 10, marginBottom: 16 }}>
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Buscar por negocio, email, slug o rubro"
+              style={{ width: '100%', border: '1px solid #dcdce3', borderRadius: 14, padding: '12px 14px', outline: 'none', fontSize: 14 }}
+            />
+            <select
+              value={status}
+              onChange={(event) => setStatus(event.target.value)}
+              style={{ width: '100%', border: '1px solid #dcdce3', borderRadius: 14, padding: '12px 14px', outline: 'none', fontSize: 14, background: '#fff' }}
+            >
+              <option value="all">Todos</option>
+              <option value="active">Activos</option>
+              <option value="suspended">Suspendidos</option>
+            </select>
+          </div>
+
+          {loading ? (
+            <div style={{ padding: 40, textAlign: 'center', color: '#8e8e93', fontSize: 15 }}>Cargando negocios...</div>
+          ) : professionals.length === 0 ? (
+            <div style={{ padding: 40, textAlign: 'center', color: '#8e8e93', fontSize: 15 }}>No hay negocios para mostrar.</div>
+          ) : (
+            <div style={{ display: 'grid', gap: 12 }}>
+              {professionals.map((professional) => {
+                const publicUrl = professional.slug ? `https://tuagendaya-web.onrender.com/reservar/${professional.slug}` : '';
+                const isActive = professional.status !== 'suspended';
+
+                return (
+                  <div key={professional.id} style={{ border: '1px solid #e8e8ed', borderRadius: 18, padding: 16, background: '#fff', display: 'grid', gap: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                      <div>
+                        <div style={{ color: '#1a1a1a', fontSize: 16, fontWeight: 900 }}>
+                          {professional.businessName || professional.name || 'Negocio sin nombre'}
+                        </div>
+                        <div style={{ color: '#6e6e73', fontSize: 13, marginTop: 4 }}>
+                          {professional.email || 'Sin email'} · {professional.profession || 'Sin rubro'}
+                        </div>
+                        {publicUrl && (
+                          <a href={publicUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: 6, color: '#0071e3', fontSize: 13, fontWeight: 800, textDecoration: 'none' }}>
+                            Abrir link público
+                          </a>
+                        )}
+                      </div>
+
+                      <span style={{ borderRadius: 999, padding: '6px 10px', fontSize: 12, fontWeight: 900, background: isActive ? '#edfff3' : '#fff0f0', color: isActive ? '#188038' : '#ff3b30' }}>
+                        {isActive ? 'Activo' : 'Suspendido'}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10 }}>
+                      <div style={{ background: '#f7f7fb', borderRadius: 14, padding: 12 }}>
+                        <div style={{ fontSize: 18, fontWeight: 900, color: '#1a1a1a' }}>{professional.bookingsCount || 0}</div>
+                        <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 800 }}>Reservas</div>
+                      </div>
+                      <div style={{ background: '#f7f7fb', borderRadius: 14, padding: 12 }}>
+                        <div style={{ fontSize: 18, fontWeight: 900, color: '#1a1a1a' }}>{professional.clientsCount || 0}</div>
+                        <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 800 }}>Clientes</div>
+                      </div>
+                      <div style={{ background: '#f7f7fb', borderRadius: 14, padding: 12 }}>
+                        <div style={{ fontSize: 13, fontWeight: 900, color: '#1a1a1a' }}>{professional.createdAt ? new Date(professional.createdAt).toLocaleDateString('es-UY') : '-'}</div>
+                        <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 800 }}>Registro</div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                      <button
+                        type="button"
+                        onClick={() => updateStatus(professional, isActive ? 'suspended' : 'active')}
+                        style={{ border: 'none', borderRadius: 14, padding: '11px 14px', background: isActive ? '#ff3b30' : '#21c55d', color: '#fff', fontWeight: 900, cursor: 'pointer' }}
+                      >
+                        {isActive ? 'Suspender negocio' : 'Activar negocio'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => navigator.clipboard?.writeText(publicUrl)}
+                        disabled={!publicUrl}
+                        style={{ border: '1px solid #dcdce3', borderRadius: 14, padding: '11px 14px', background: '#fff', color: '#0071e3', fontWeight: 900, cursor: publicUrl ? 'pointer' : 'not-allowed' }}
+                      >
+                        Copiar link público
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 function ProfesionalPage() {
   const [professional, setProfessional] = useState(() => {
     const token = localStorage.getItem('tuagendaya_token');
@@ -4275,6 +4619,8 @@ export default function App() {
       <Route path="/profesional/login" element={<ProfesionalPage />} />
       <Route path="/profesional/register" element={<RegisterPage />} />
       <Route path="/profesional/dashboard" element={<ProfesionalPage />} />
+      <Route path="/admin/login" element={<AdminLoginPage />} />
+      <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
       <Route path="/reservar/:slug" element={<BookPage />} />
       <Route path="/:slug" element={<BookPage />} />
     </Routes>

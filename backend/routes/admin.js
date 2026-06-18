@@ -1,174 +1,375 @@
-const express = require('express');
-const bcrypt = require('bcryptjs');
-const router = express.Router();
-const db = require('../db');
-const { adminAuthMiddleware, signAdminToken } = require('../middleware/adminAuth');
+const express = require("express");
+const jwt = require("jsonwebtoken");
+const db = require("../db");
 
-// ── Comparación segura de strings (evita timing attacks) ──────
-function safeCompare(a, b) {
-  if (a.length !== b.length) return false;
-  let result = 0;
-  for (let i = 0; i < a.length; i++) result |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return result === 0;
+const router = express.Router();
+
+function normalizeText(value) {
+  return String(value || "").trim();
 }
 
-// ── POST /api/admin/login ─────────────────────────────────────
-router.post('/login', async (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ error: 'Email y contraseña requeridos' });
+function getAdminToken(req) {
+  const authHeader = req.headers.authorization || "";
+  if (!authHeader.startsWith("Bearer ")) return null;
+  return authHeader.slice(7);
+}
 
-  const adminEmail = process.env.ADMIN_EMAIL;
-  const adminPassword = process.env.ADMIN_PASSWORD;
+function requireAdmin(req, res, next) {
+  try {
+    const token = getAdminToken(req);
 
-  if (!adminEmail || !adminPassword) {
-    return res.status(503).json({ error: 'Panel admin no configurado. Agregá ADMIN_EMAIL y ADMIN_PASSWORD al .env' });
-  }
-
-  const emailOk = safeCompare(email.toLowerCase().trim(), adminEmail.toLowerCase().trim());
-  const passOk = safeCompare(password, adminPassword);
-
-  if (!emailOk || !passOk) {
-    return res.status(401).json({ error: 'Credenciales de administrador incorrectas' });
-  }
-
-  const token = signAdminToken({ email: adminEmail });
-  res.json({ token, admin: { email: adminEmail, role: 'admin' } });
-});
-
-// ── GET /api/admin/stats ──────────────────────────────────────
-router.get('/stats', adminAuthMiddleware, (req, res) => {
-  const totalProfessionals = db.prepare("SELECT COUNT(*) as count FROM professionals").get().count;
-  const activeProfessionals = db.prepare("SELECT COUNT(*) as count FROM professionals WHERE status = 'active' OR status IS NULL").get().count;
-  const suspendedProfessionals = db.prepare("SELECT COUNT(*) as count FROM professionals WHERE status = 'suspended'").get().count;
-  const totalAppointments = db.prepare("SELECT COUNT(*) as count FROM appointments").get().count;
-  const totalClients = db.prepare("SELECT COUNT(*) as count FROM clients").get().count;
-  const thisMonth = new Date();
-  const monthStart = `${thisMonth.getFullYear()}-${String(thisMonth.getMonth() + 1).padStart(2, '0')}-01`;
-  const newThisMonth = db.prepare("SELECT COUNT(*) as count FROM professionals WHERE created_at >= ?").get(monthStart).count;
-
-  const recentProfessionals = db.prepare(`
-    SELECT id, name, email, profession, slug, plan,
-      COALESCE(status, 'active') as status,
-      created_at,
-      (SELECT COUNT(*) FROM appointments WHERE professional_id = professionals.id) as appointment_count
-    FROM professionals
-    ORDER BY created_at DESC
-    LIMIT 5
-  `).all();
-
-  res.json({
-    totals: {
-      professionals: totalProfessionals,
-      active: activeProfessionals,
-      suspended: suspendedProfessionals,
-      appointments: totalAppointments,
-      clients: totalClients,
-      new_this_month: newThisMonth,
-    },
-    recent_professionals: recentProfessionals,
-  });
-});
-
-// ── GET /api/admin/professionals ──────────────────────────────
-router.get('/professionals', adminAuthMiddleware, (req, res) => {
-  const { search = '', status = '', page = 1, limit = 20 } = req.query;
-  const offset = (parseInt(page) - 1) * parseInt(limit);
-
-  let where = 'WHERE 1=1';
-  const params = [];
-
-  if (search) {
-    where += ' AND (p.name LIKE ? OR p.email LIKE ? OR p.profession LIKE ? OR p.slug LIKE ?)';
-    const s = `%${search}%`;
-    params.push(s, s, s, s);
-  }
-  if (status) {
-    if (status === 'active') {
-      where += " AND (p.status = 'active' OR p.status IS NULL)";
-    } else {
-      where += " AND p.status = ?";
-      params.push(status);
+    if (!token) {
+      return res.status(401).json({ error: "Token admin requerido" });
     }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    if (decoded.role !== "admin") {
+      return res.status(403).json({ error: "Acceso admin denegado" });
+    }
+
+    req.admin = decoded;
+    next();
+  } catch (error) {
+    return res.status(401).json({ error: "Token admin inválido" });
   }
+}
 
-  const professionals = db.prepare(`
-    SELECT p.id, p.name, p.email, p.phone, p.profession, p.slug, p.plan,
-      COALESCE(p.status, 'active') as status, p.created_at,
-      (SELECT COUNT(*) FROM appointments WHERE professional_id = p.id) as appointment_count,
-      (SELECT COUNT(*) FROM clients WHERE professional_id = p.id) as client_count
-    FROM professionals p
-    ${where}
-    ORDER BY p.created_at DESC
-    LIMIT ? OFFSET ?
-  `).all(...params, parseInt(limit), offset);
+function normalizeProfessional(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    businessName: row.business_name,
+    business_name: row.business_name,
+    email: row.email,
+    phone: row.phone,
+    profession: row.profession,
+    address: row.address,
+    slug: row.slug,
+    logoUrl: row.logo_url,
+    logo_url: row.logo_url,
+    status: row.status,
+    plan: row.plan || "gratis",
+    bookingsCount: Number(row.bookings_count || 0),
+    clientsCount: Number(row.clients_count || 0),
+    createdAt: row.created_at,
+    created_at: row.created_at,
+    updatedAt: row.updated_at,
+    updated_at: row.updated_at,
+  };
+}
 
-  const total = db.prepare(`
-    SELECT COUNT(*) as count FROM professionals p ${where}
-  `).get(...params).count;
+router.post("/login", async (req, res) => {
+  try {
+    const email = normalizeText(req.body.email).toLowerCase();
+    const password = normalizeText(req.body.password);
 
-  res.json({ professionals, total, page: parseInt(page), limit: parseInt(limit) });
+    const adminEmail = normalizeText(process.env.ADMIN_EMAIL).toLowerCase();
+    const adminPassword = normalizeText(process.env.ADMIN_PASSWORD);
+
+    if (!process.env.JWT_SECRET) {
+      return res.status(500).json({ error: "JWT_SECRET no está configurado" });
+    }
+
+    if (!adminEmail || !adminPassword) {
+      return res.status(500).json({ error: "ADMIN_EMAIL o ADMIN_PASSWORD no están configurados" });
+    }
+
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email y contraseña son obligatorios" });
+    }
+
+    if (email !== adminEmail || password !== adminPassword) {
+      return res.status(401).json({ error: "Credenciales admin incorrectas" });
+    }
+
+    const token = jwt.sign(
+      {
+        role: "admin",
+        email: adminEmail,
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "8h" }
+    );
+
+    res.json({
+      token,
+      admin: {
+        email: adminEmail,
+        role: "admin",
+      },
+    });
+  } catch (error) {
+    console.error("Error admin login:", error);
+    res.status(500).json({ error: "Error iniciando sesión admin" });
+  }
 });
 
-// ── GET /api/admin/professionals/:id ─────────────────────────
-router.get('/professionals/:id', adminAuthMiddleware, (req, res) => {
-  const id = parseInt(req.params.id);
-  const professional = db.prepare(`
-    SELECT p.*,
-      COALESCE(p.status, 'active') as status,
-      (SELECT COUNT(*) FROM appointments WHERE professional_id = p.id) as appointment_count,
-      (SELECT COUNT(*) FROM clients WHERE professional_id = p.id) as client_count,
-      (SELECT COUNT(*) FROM services WHERE professional_id = p.id AND active = 1) as service_count
-    FROM professionals p
-    WHERE p.id = ?
-  `).get(id);
-
-  if (!professional) return res.status(404).json({ error: 'Profesional no encontrado' });
-
-  const { password_hash, google_access_token, google_refresh_token, ...safe } = professional;
-
-  const recentAppointments = db.prepare(`
-    SELECT a.id, a.client_name, a.client_email, a.start_time, a.status,
-      s.name as service_name, s.price as service_price
-    FROM appointments a
-    JOIN services s ON a.service_id = s.id
-    WHERE a.professional_id = ?
-    ORDER BY a.start_time DESC
-    LIMIT 10
-  `).all(id);
-
-  const clients = db.prepare(`
-    SELECT id, name, email, phone, total_visits, no_show_count, created_at
-    FROM clients WHERE professional_id = ?
-    ORDER BY total_visits DESC
-    LIMIT 10
-  `).all(id);
-
-  const services = db.prepare(`
-    SELECT id, name, duration, price, active FROM services
-    WHERE professional_id = ? ORDER BY sort_order, name
-  `).all(id);
-
-  res.json({ professional: safe, recent_appointments: recentAppointments, clients, services });
-});
-
-// ── PATCH /api/admin/professionals/:id/status ─────────────────
-router.patch('/professionals/:id/status', adminAuthMiddleware, (req, res) => {
-  const id = parseInt(req.params.id);
-  const { status } = req.body;
-
-  if (!['active', 'suspended'].includes(status)) {
-    return res.status(400).json({ error: 'Estado inválido. Debe ser "active" o "suspended".' });
-  }
-
-  const professional = db.prepare('SELECT id, name, email FROM professionals WHERE id = ?').get(id);
-  if (!professional) return res.status(404).json({ error: 'Profesional no encontrado' });
-
-  db.prepare('UPDATE professionals SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(status, id);
-
+router.get("/me", requireAdmin, async (req, res) => {
   res.json({
-    message: `Profesional ${status === 'active' ? 'activado' : 'suspendido'} correctamente`,
-    professional: { id, name: professional.name, email: professional.email, status },
+    admin: {
+      email: req.admin.email,
+      role: req.admin.role,
+    },
   });
+});
+
+router.get("/stats", requireAdmin, async (req, res) => {
+  try {
+    const professionalsResult = await db.query(
+      `
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE status = 'active')::int AS active,
+        COUNT(*) FILTER (WHERE status = 'suspended')::int AS suspended
+      FROM professionals
+      `
+    );
+
+    const bookingsResult = await db.query(
+      `
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE booking_date = CURRENT_DATE)::int AS today,
+        COUNT(*) FILTER (WHERE booking_date > CURRENT_DATE)::int AS upcoming,
+        COUNT(*) FILTER (WHERE status = 'completed')::int AS completed,
+        COUNT(*) FILTER (WHERE status = 'cancelled')::int AS cancelled
+      FROM bookings
+      `
+    );
+
+    const clientsResult = await db.query(
+      `
+      SELECT COUNT(*)::int AS total
+      FROM (
+        SELECT professional_id, LOWER(TRIM(client_phone)) AS phone
+        FROM bookings
+        WHERE client_phone IS NOT NULL AND TRIM(client_phone) <> ''
+        GROUP BY professional_id, LOWER(TRIM(client_phone))
+      ) clients
+      `
+    );
+
+    const latestResult = await db.query(
+      `
+      SELECT
+        p.id,
+        p.name,
+        p.business_name,
+        p.email,
+        p.phone,
+        p.profession,
+        p.address,
+        p.slug,
+        p.logo_url,
+        p.status,
+        p.created_at,
+        p.updated_at,
+        COUNT(b.id)::int AS bookings_count,
+        COUNT(DISTINCT LOWER(TRIM(b.client_phone))) FILTER (WHERE b.client_phone IS NOT NULL AND TRIM(b.client_phone) <> '')::int AS clients_count
+      FROM professionals p
+      LEFT JOIN bookings b ON b.professional_id = p.id
+      GROUP BY p.id
+      ORDER BY p.created_at DESC
+      LIMIT 5
+      `
+    );
+
+    res.json({
+      professionals: professionalsResult.rows[0] || { total: 0, active: 0, suspended: 0 },
+      bookings: bookingsResult.rows[0] || { total: 0, today: 0, upcoming: 0, completed: 0, cancelled: 0 },
+      clients: clientsResult.rows[0] || { total: 0 },
+      latestProfessionals: latestResult.rows.map(normalizeProfessional),
+    });
+  } catch (error) {
+    console.error("Error admin stats:", error);
+    res.status(500).json({ error: "Error obteniendo estadísticas admin" });
+  }
+});
+
+router.get("/professionals", requireAdmin, async (req, res) => {
+  try {
+    const search = normalizeText(req.query.search).toLowerCase();
+    const status = normalizeText(req.query.status).toLowerCase();
+
+    const params = [];
+    const where = [];
+
+    if (search) {
+      params.push(`%${search}%`);
+      where.push(`(
+        LOWER(COALESCE(p.name, '')) LIKE $${params.length}
+        OR LOWER(COALESCE(p.business_name, '')) LIKE $${params.length}
+        OR LOWER(COALESCE(p.email, '')) LIKE $${params.length}
+        OR LOWER(COALESCE(p.slug, '')) LIKE $${params.length}
+        OR LOWER(COALESCE(p.profession, '')) LIKE $${params.length}
+      )`);
+    }
+
+    if (status && status !== "all") {
+      params.push(status);
+      where.push(`p.status = $${params.length}`);
+    }
+
+    const whereSql = where.length > 0 ? `WHERE ${where.join(" AND ")}` : "";
+
+    const result = await db.query(
+      `
+      SELECT
+        p.id,
+        p.name,
+        p.business_name,
+        p.email,
+        p.phone,
+        p.profession,
+        p.address,
+        p.slug,
+        p.logo_url,
+        p.status,
+        p.created_at,
+        p.updated_at,
+        COUNT(b.id)::int AS bookings_count,
+        COUNT(DISTINCT LOWER(TRIM(b.client_phone))) FILTER (WHERE b.client_phone IS NOT NULL AND TRIM(b.client_phone) <> '')::int AS clients_count
+      FROM professionals p
+      LEFT JOIN bookings b ON b.professional_id = p.id
+      ${whereSql}
+      GROUP BY p.id
+      ORDER BY p.created_at DESC
+      LIMIT 200
+      `,
+      params
+    );
+
+    res.json({ professionals: result.rows.map(normalizeProfessional) });
+  } catch (error) {
+    console.error("Error admin professionals:", error);
+    res.status(500).json({ error: "Error obteniendo negocios" });
+  }
+});
+
+router.get("/professionals/:id", requireAdmin, async (req, res) => {
+  try {
+    const professionalId = Number(req.params.id);
+
+    if (!professionalId || Number.isNaN(professionalId)) {
+      return res.status(400).json({ error: "Profesional inválido" });
+    }
+
+    const professionalResult = await db.query(
+      `
+      SELECT
+        p.id,
+        p.name,
+        p.business_name,
+        p.email,
+        p.phone,
+        p.profession,
+        p.address,
+        p.slug,
+        p.logo_url,
+        p.status,
+        p.created_at,
+        p.updated_at,
+        COUNT(b.id)::int AS bookings_count,
+        COUNT(DISTINCT LOWER(TRIM(b.client_phone))) FILTER (WHERE b.client_phone IS NOT NULL AND TRIM(b.client_phone) <> '')::int AS clients_count
+      FROM professionals p
+      LEFT JOIN bookings b ON b.professional_id = p.id
+      WHERE p.id = $1
+      GROUP BY p.id
+      LIMIT 1
+      `,
+      [professionalId]
+    );
+
+    if (professionalResult.rows.length === 0) {
+      return res.status(404).json({ error: "Negocio no encontrado" });
+    }
+
+    const bookingsResult = await db.query(
+      `
+      SELECT
+        b.id,
+        b.client_name,
+        b.client_phone,
+        b.booking_date,
+        b.start_time,
+        b.end_time,
+        b.status,
+        b.comment,
+        b.created_at,
+        ps.name AS service_name,
+        ps.duration_minutes,
+        ps.price,
+        sm.name AS staff_name
+      FROM bookings b
+      LEFT JOIN professional_services ps ON ps.id = b.service_id
+      LEFT JOIN staff_members sm ON sm.id = b.staff_id
+      WHERE b.professional_id = $1
+      ORDER BY b.booking_date DESC NULLS LAST, b.start_time DESC NULLS LAST, b.created_at DESC
+      LIMIT 50
+      `,
+      [professionalId]
+    );
+
+    res.json({
+      professional: normalizeProfessional(professionalResult.rows[0]),
+      latestBookings: bookingsResult.rows,
+    });
+  } catch (error) {
+    console.error("Error admin professional detail:", error);
+    res.status(500).json({ error: "Error obteniendo detalle del negocio" });
+  }
+});
+
+router.patch("/professionals/:id/status", requireAdmin, async (req, res) => {
+  try {
+    const professionalId = Number(req.params.id);
+    const status = normalizeText(req.body.status).toLowerCase();
+
+    if (!professionalId || Number.isNaN(professionalId)) {
+      return res.status(400).json({ error: "Profesional inválido" });
+    }
+
+    if (!['active', 'suspended'].includes(status)) {
+      return res.status(400).json({ error: "Estado inválido" });
+    }
+
+    const result = await db.query(
+      `
+      UPDATE professionals
+      SET status = $1, updated_at = NOW()
+      WHERE id = $2
+      RETURNING
+        id,
+        name,
+        business_name,
+        email,
+        phone,
+        profession,
+        address,
+        slug,
+        logo_url,
+        status,
+        created_at,
+        updated_at,
+        0::int AS bookings_count,
+        0::int AS clients_count
+      `,
+      [status, professionalId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Negocio no encontrado" });
+    }
+
+    res.json({
+      success: true,
+      professional: normalizeProfessional(result.rows[0]),
+    });
+  } catch (error) {
+    console.error("Error admin status:", error);
+    res.status(500).json({ error: "Error actualizando estado" });
+  }
 });
 
 module.exports = router;
