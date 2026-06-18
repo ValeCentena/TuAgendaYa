@@ -355,6 +355,55 @@ async function ensureDefaultServices(professionalId) {
   return result.rows;
 }
 
+
+async function ensureClientNotesTable() {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS client_notes (
+      id SERIAL PRIMARY KEY,
+      professional_id INTEGER NOT NULL REFERENCES professionals(id) ON DELETE CASCADE,
+      client_key TEXT NOT NULL,
+      client_name TEXT,
+      client_phone TEXT,
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE (professional_id, client_key)
+    );
+  `);
+
+  await db.query(`ALTER TABLE client_notes ADD COLUMN IF NOT EXISTS professional_id INTEGER;`);
+  await db.query(`ALTER TABLE client_notes ADD COLUMN IF NOT EXISTS client_key TEXT;`);
+  await db.query(`ALTER TABLE client_notes ADD COLUMN IF NOT EXISTS client_name TEXT;`);
+  await db.query(`ALTER TABLE client_notes ADD COLUMN IF NOT EXISTS client_phone TEXT;`);
+  await db.query(`ALTER TABLE client_notes ADD COLUMN IF NOT EXISTS notes TEXT;`);
+  await db.query(`ALTER TABLE client_notes ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();`);
+  await db.query(`ALTER TABLE client_notes ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();`);
+
+  await db.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_client_notes_professional_key
+    ON client_notes (professional_id, client_key);
+  `);
+}
+
+function normalizeClientNote(row) {
+  return {
+    id: row.id,
+    professionalId: row.professional_id,
+    professional_id: row.professional_id,
+    clientKey: row.client_key,
+    client_key: row.client_key,
+    clientName: row.client_name,
+    client_name: row.client_name,
+    clientPhone: row.client_phone,
+    client_phone: row.client_phone,
+    notes: row.notes || "",
+    createdAt: row.created_at,
+    created_at: row.created_at,
+    updatedAt: row.updated_at,
+    updated_at: row.updated_at,
+  };
+}
+
 router.get("/me/profile", async (req, res) => {
   try {
     const professionalId = getProfessionalIdFromRequest(req);
@@ -671,6 +720,87 @@ router.delete("/me/services/:id", async (req, res) => {
   } catch (error) {
     res.status(error.status || 500).json({
       error: error.message || "Error eliminando servicio",
+    });
+  }
+});
+
+
+router.get("/me/client-notes", async (req, res) => {
+  try {
+    const professionalId = getProfessionalIdFromRequest(req);
+
+    await ensureClientNotesTable();
+
+    const result = await db.query(
+      `
+      SELECT *
+      FROM client_notes
+      WHERE professional_id = $1
+      ORDER BY updated_at DESC, id DESC
+      `,
+      [professionalId]
+    );
+
+    res.json({
+      notes: result.rows.map(normalizeClientNote),
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({
+      error: error.message || "Error obteniendo notas de clientes",
+    });
+  }
+});
+
+router.patch("/me/client-notes/:clientKey", async (req, res) => {
+  try {
+    const professionalId = getProfessionalIdFromRequest(req);
+    const clientKey = String(req.params.clientKey || "").trim();
+    const clientName = String(req.body.clientName ?? req.body.client_name ?? "").trim();
+    const clientPhone = String(req.body.clientPhone ?? req.body.client_phone ?? "").trim();
+    const notes = String(req.body.notes ?? "").trim();
+
+    if (!clientKey) {
+      return res.status(400).json({ error: "Cliente inválido" });
+    }
+
+    if (notes.length > 3000) {
+      return res.status(400).json({
+        error: "La nota es demasiado larga. Máximo 3000 caracteres.",
+      });
+    }
+
+    await ensureClientNotesTable();
+
+    const result = await db.query(
+      `
+      INSERT INTO client_notes (
+        professional_id,
+        client_key,
+        client_name,
+        client_phone,
+        notes,
+        created_at,
+        updated_at
+      )
+      VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+      ON CONFLICT (professional_id, client_key)
+      DO UPDATE SET
+        client_name = EXCLUDED.client_name,
+        client_phone = EXCLUDED.client_phone,
+        notes = EXCLUDED.notes,
+        updated_at = NOW()
+      RETURNING *
+      `,
+      [professionalId, clientKey, clientName || null, clientPhone || null, notes || null]
+    );
+
+    res.json({
+      success: true,
+      note: normalizeClientNote(result.rows[0]),
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({
+      error: error.message || "Error guardando nota de cliente",
     });
   }
 });

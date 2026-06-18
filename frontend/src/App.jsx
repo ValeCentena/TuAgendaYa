@@ -1536,6 +1536,10 @@ function ClientsSection() {
   const [loadingClients, setLoadingClients] = useState(true);
   const [search, setSearch] = useState('');
   const [expandedClientKey, setExpandedClientKey] = useState(null);
+  const [clientNotes, setClientNotes] = useState({});
+  const [noteDrafts, setNoteDrafts] = useState({});
+  const [savingNoteKey, setSavingNoteKey] = useState(null);
+  const [noteStatus, setNoteStatus] = useState({});
 
   let storedProfessional = {};
 
@@ -1611,15 +1615,42 @@ function ClientsSection() {
       });
   }, []);
 
+  const fetchClientNotes = useCallback(() => {
+    const token = localStorage.getItem('tuagendaya_token');
+
+    return fetch(`${API_BASE}/professionals/me/client-notes`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        const notesMap = {};
+        const draftsMap = {};
+
+        (Array.isArray(data.notes) ? data.notes : []).forEach((item) => {
+          const key = item.clientKey ?? item.client_key;
+          if (!key) return;
+          notesMap[key] = item;
+          draftsMap[key] = item.notes || '';
+        });
+
+        setClientNotes(notesMap);
+        setNoteDrafts((current) => ({ ...draftsMap, ...current }));
+      })
+      .catch(() => {
+        setClientNotes({});
+      });
+  }, []);
+
   useEffect(() => {
     fetchBookings(true);
+    fetchClientNotes();
 
     const intervalId = window.setInterval(() => {
       fetchBookings(false);
     }, 10000);
 
     return () => window.clearInterval(intervalId);
-  }, [fetchBookings]);
+  }, [fetchBookings, fetchClientNotes]);
 
   const clientsMap = new Map();
 
@@ -1654,6 +1685,12 @@ function ClientsSection() {
     }
 
     client.bookings.push(booking);
+  });
+
+  clientsMap.forEach((client, key) => {
+    const savedNote = clientNotes[key];
+    client.notes = savedNote?.notes || '';
+    client.noteUpdatedAt = savedNote?.updatedAt ?? savedNote?.updated_at ?? null;
   });
 
   const clients = Array.from(clientsMap.values()).map((client) => {
@@ -1702,6 +1739,62 @@ function ClientsSection() {
       '',
       'Gracias por reservar con nosotros.',
     ].join('\n');
+  };
+
+  const getClientDraftNote = (client) => {
+    if (noteDrafts[client.key] !== undefined) return noteDrafts[client.key];
+    return client.notes || '';
+  };
+
+  const handleClientNoteChange = (client, value) => {
+    setNoteDrafts((current) => ({ ...current, [client.key]: value }));
+    setNoteStatus((current) => ({ ...current, [client.key]: '' }));
+  };
+
+  const saveClientNote = async (client) => {
+    const token = localStorage.getItem('tuagendaya_token');
+    const draft = getClientDraftNote(client);
+
+    setSavingNoteKey(client.key);
+    setNoteStatus((current) => ({ ...current, [client.key]: '' }));
+
+    try {
+      const res = await fetch(`${API_BASE}/professionals/me/client-notes/${encodeURIComponent(client.key)}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          clientName: client.name,
+          clientPhone: client.phone,
+          notes: draft,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'No se pudo guardar la nota');
+      }
+
+      const savedNote = data.note || {
+        clientKey: client.key,
+        client_key: client.key,
+        notes: draft,
+        updatedAt: new Date().toISOString(),
+      };
+
+      setClientNotes((current) => ({ ...current, [client.key]: savedNote }));
+      setNoteStatus((current) => ({ ...current, [client.key]: 'Nota guardada' }));
+    } catch (error) {
+      setNoteStatus((current) => ({
+        ...current,
+        [client.key]: error.message || 'No se pudo guardar la nota',
+      }));
+    } finally {
+      setSavingNoteKey(null);
+    }
   };
 
   const summaryCardStyle = {
@@ -1819,6 +1912,11 @@ function ClientsSection() {
                       <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 600, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         Última: {lastDate}{lastTime ? ` · ${lastTime}` : ''} · {lastService}
                       </div>
+                      {client.notes && (
+                        <div style={{ fontSize: 11, color: '#0071e3', fontWeight: 800, marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          Nota interna guardada
+                        </div>
+                      )}
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1875,6 +1973,62 @@ function ClientsSection() {
                             Enviar WhatsApp
                           </a>
                         )}
+
+                        <div style={{ background: '#fafafa', borderRadius: 16, padding: 14, marginBottom: 14, border: '0.5px solid #eeeeef' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 8 }}>
+                            <div>
+                              <div style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 900 }}>Notas internas</div>
+                              <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 700, marginTop: 2 }}>
+                                Solo las ve el profesional. No se muestran al cliente.
+                              </div>
+                            </div>
+                            {client.noteUpdatedAt && (
+                              <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 700, textAlign: 'right' }}>
+                                Guardada
+                              </div>
+                            )}
+                          </div>
+
+                          <textarea
+                            value={getClientDraftNote(client)}
+                            onChange={(event) => handleClientNoteChange(client, event.target.value)}
+                            placeholder="Ej: prefiere horario de mañana, no asistió una vez, paga en efectivo..."
+                            maxLength={3000}
+                            style={{
+                              ...inputStyle,
+                              minHeight: 92,
+                              resize: 'vertical',
+                              borderRadius: 14,
+                              background: '#fff',
+                              lineHeight: 1.45,
+                              fontFamily: 'inherit',
+                            }}
+                          />
+
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginTop: 10 }}>
+                            <div style={{ fontSize: 11, color: noteStatus[client.key] === 'Nota guardada' ? '#188038' : '#8e8e93', fontWeight: 800 }}>
+                              {noteStatus[client.key] || `${getClientDraftNote(client).length}/3000 caracteres`}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => saveClientNote(client)}
+                              disabled={savingNoteKey === client.key}
+                              style={{
+                                border: 'none',
+                                borderRadius: 12,
+                                padding: '10px 14px',
+                                background: savingNoteKey === client.key ? '#d1d1d6' : '#0071e3',
+                                color: '#fff',
+                                fontSize: 13,
+                                fontWeight: 900,
+                                cursor: savingNoteKey === client.key ? 'not-allowed' : 'pointer',
+                                fontFamily: 'inherit',
+                              }}
+                            >
+                              {savingNoteKey === client.key ? 'Guardando...' : 'Guardar nota'}
+                            </button>
+                          </div>
+                        </div>
 
                         <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 900, marginBottom: 8 }}>Historial de reservas</div>
 
