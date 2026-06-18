@@ -4489,6 +4489,7 @@ function AdminDashboardPage() {
     { label: 'Activos', value: stats?.professionals?.active || 0, color: '#21c55d', bg: '#edfff3' },
     { label: 'Suspendidos', value: stats?.professionals?.suspended || 0, color: '#ff3b30', bg: '#fff0f0' },
     { label: 'Reservas totales', value: stats?.bookings?.total || 0, color: '#5856d6', bg: '#f1f0ff' },
+    { label: 'Reservas este mes', value: stats?.bookings?.monthly || 0, color: '#0071e3', bg: '#eef6ff' },
     { label: 'Reservas hoy', value: stats?.bookings?.today || 0, color: '#ff9500', bg: '#fff7e8' },
     { label: 'Clientes', value: stats?.clients?.total || 0, color: '#111827', bg: '#f4f4f8' },
   ];
@@ -4528,7 +4529,7 @@ function AdminDashboardPage() {
           </div>
         )}
 
-        <div className="admin-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 10, marginBottom: 18 }}>
+        <div className="admin-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginBottom: 18 }}>
           {statCards.map((card) => (
             <div key={card.label} style={{ background: card.bg, borderRadius: 18, padding: 16, border: '1px solid rgba(0,0,0,0.04)' }}>
               <div style={{ color: card.color, fontSize: 24, fontWeight: 900, marginBottom: 6 }}>{card.value}</div>
@@ -4572,6 +4573,10 @@ function AdminDashboardPage() {
               {professionals.map((professional) => {
                 const publicUrl = professional.slug ? `https://tuagendaya-web.onrender.com/reservar/${professional.slug}` : '';
                 const isActive = professional.status !== 'suspended';
+                const planName = professional.plan || 'Profesional';
+                const monthlyLimit = Number(professional.monthlyLimit || professional.monthly_limit || 1000);
+                const monthlyUsed = Number(professional.monthlyBookingsCount || professional.monthly_bookings_count || 0);
+                const monthlyPercent = monthlyLimit > 0 ? Math.min(100, Math.round((monthlyUsed / monthlyLimit) * 100)) : 0;
 
                 return (
                   <div key={professional.id} style={{ border: '1px solid #e8e8ed', borderRadius: 18, padding: 16, background: '#fff', display: 'grid', gap: 12 }}>
@@ -4595,18 +4600,25 @@ function AdminDashboardPage() {
                       </span>
                     </div>
 
-                    <div className="admin-business-metrics" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10 }}>
+                    <div className="admin-business-metrics" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 10 }}>
+                      <div style={{ background: '#eef6ff', borderRadius: 14, padding: 12 }}>
+                        <div style={{ fontSize: 15, fontWeight: 900, color: '#0071e3' }}>{planName}</div>
+                        <div style={{ fontSize: 12, color: '#6e6e73', fontWeight: 800 }}>Plan</div>
+                      </div>
+                      <div style={{ background: '#f7f7fb', borderRadius: 14, padding: 12 }}>
+                        <div style={{ fontSize: 18, fontWeight: 900, color: '#1a1a1a' }}>{monthlyUsed}/{monthlyLimit}</div>
+                        <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 800 }}>Reservas del mes</div>
+                        <div style={{ marginTop: 8, height: 6, borderRadius: 999, background: '#e5e5ea', overflow: 'hidden' }}>
+                          <div style={{ width: `${monthlyPercent}%`, height: '100%', borderRadius: 999, background: monthlyPercent >= 90 ? '#ff3b30' : '#0071e3' }} />
+                        </div>
+                      </div>
                       <div style={{ background: '#f7f7fb', borderRadius: 14, padding: 12 }}>
                         <div style={{ fontSize: 18, fontWeight: 900, color: '#1a1a1a' }}>{professional.bookingsCount || 0}</div>
-                        <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 800 }}>Reservas</div>
+                        <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 800 }}>Reservas totales</div>
                       </div>
                       <div style={{ background: '#f7f7fb', borderRadius: 14, padding: 12 }}>
                         <div style={{ fontSize: 18, fontWeight: 900, color: '#1a1a1a' }}>{professional.clientsCount || 0}</div>
                         <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 800 }}>Clientes</div>
-                      </div>
-                      <div style={{ background: '#f7f7fb', borderRadius: 14, padding: 12 }}>
-                        <div style={{ fontSize: 13, fontWeight: 900, color: '#1a1a1a' }}>{professional.createdAt ? new Date(professional.createdAt).toLocaleDateString('es-UY') : '-'}</div>
-                        <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 800 }}>Registro</div>
                       </div>
                     </div>
 
@@ -4691,10 +4703,18 @@ function AdminDashboardPage() {
               <div style={{ padding: 40, textAlign: 'center', color: '#8e8e93', fontWeight: 800 }}>Cargando detalle...</div>
             ) : (
               <>
-                <div className="admin-detail-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 10, marginBottom: 16 }}>
+                <div className="admin-detail-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 10, marginBottom: 16 }}>
+                  <div style={{ background: '#eef6ff', borderRadius: 16, padding: 14 }}>
+                    <div style={{ fontSize: 15, fontWeight: 900, color: '#0071e3' }}>{selectedBusiness.plan || 'Profesional'}</div>
+                    <div style={{ color: '#8e8e93', fontSize: 12, fontWeight: 800 }}>Plan</div>
+                  </div>
+                  <div style={{ background: '#f7f7fb', borderRadius: 16, padding: 14 }}>
+                    <div style={{ fontSize: 20, fontWeight: 900, color: '#1a1a1a' }}>{Number(selectedBusiness.monthlyBookingsCount || selectedBusiness.monthly_bookings_count || 0)}/{Number(selectedBusiness.monthlyLimit || selectedBusiness.monthly_limit || 1000)}</div>
+                    <div style={{ color: '#8e8e93', fontSize: 12, fontWeight: 800 }}>Reservas del mes</div>
+                  </div>
                   <div style={{ background: '#f7f7fb', borderRadius: 16, padding: 14 }}>
                     <div style={{ fontSize: 20, fontWeight: 900, color: '#0071e3' }}>{selectedBusiness.bookingsCount || 0}</div>
-                    <div style={{ color: '#8e8e93', fontSize: 12, fontWeight: 800 }}>Reservas</div>
+                    <div style={{ color: '#8e8e93', fontSize: 12, fontWeight: 800 }}>Reservas totales</div>
                   </div>
                   <div style={{ background: '#f7f7fb', borderRadius: 16, padding: 14 }}>
                     <div style={{ fontSize: 20, fontWeight: 900, color: '#111827' }}>{selectedBusiness.clientsCount || 0}</div>
@@ -4717,6 +4737,9 @@ function AdminDashboardPage() {
                     <div><strong style={{ color: '#1a1a1a' }}>Teléfono:</strong> {selectedBusiness.phone || '-'}</div>
                     <div><strong style={{ color: '#1a1a1a' }}>Dirección:</strong> {selectedBusiness.address || '-'}</div>
                     <div><strong style={{ color: '#1a1a1a' }}>Slug:</strong> {selectedBusiness.slug || '-'}</div>
+                    <div><strong style={{ color: '#1a1a1a' }}>Plan:</strong> {selectedBusiness.plan || 'Profesional'}</div>
+                    <div><strong style={{ color: '#1a1a1a' }}>Límite mensual:</strong> {Number(selectedBusiness.monthlyLimit || selectedBusiness.monthly_limit || 1000)} reservas</div>
+                    <div><strong style={{ color: '#1a1a1a' }}>Reservas usadas este mes:</strong> {Number(selectedBusiness.monthlyBookingsCount || selectedBusiness.monthly_bookings_count || 0)}</div>
                     <div><strong style={{ color: '#1a1a1a' }}>Link público:</strong> {selectedBusiness.slug ? `https://tuagendaya-web.onrender.com/reservar/${selectedBusiness.slug}` : '-'}</div>
                   </div>
 
