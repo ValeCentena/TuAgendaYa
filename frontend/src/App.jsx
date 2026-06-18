@@ -1690,6 +1690,7 @@ function ClientsSection() {
   const [loadingClients, setLoadingClients] = useState(true);
   const [search, setSearch] = useState('');
   const [expandedClientKey, setExpandedClientKey] = useState(null);
+  const [showFrequentClients, setShowFrequentClients] = useState(false);
   const [clientNotes, setClientNotes] = useState({});
   const [noteDrafts, setNoteDrafts] = useState({});
   const [savingNoteKey, setSavingNoteKey] = useState(null);
@@ -1882,7 +1883,15 @@ function ClientsSection() {
     });
 
   const totalBookings = bookings.length;
-  const frequentClients = clients.filter((client) => client.bookings.length >= 2).length;
+  const attendedClients = clients
+    .filter((client) => client.completedCount > 0)
+    .sort((a, b) => {
+      if (b.completedCount !== a.completedCount) return b.completedCount - a.completedCount;
+      const aValue = a.lastBooking ? getBookingSortValue(a.lastBooking) : '0000-00-00 00:00';
+      const bValue = b.lastBooking ? getBookingSortValue(b.lastBooking) : '0000-00-00 00:00';
+      return bValue.localeCompare(aValue);
+    });
+  const frequentClients = attendedClients.length;
 
   const buildClientGeneralMessage = (client) => {
     const safeName = client.name || 'te';
@@ -1961,21 +1970,90 @@ function ClientsSection() {
 
   return (
     <div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12, marginBottom: 16 }}>
-        <div style={summaryCardStyle}>
-          <div style={{ fontSize: 26, fontWeight: 900, color: '#0071e3' }}>{clients.length}</div>
-          <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 700, marginTop: 2 }}>Clientes registrados</div>
-        </div>
+      <div style={{ marginBottom: 16 }}>
+        <button
+          type="button"
+          onClick={() => setShowFrequentClients((current) => !current)}
+          style={{
+            ...summaryCardStyle,
+            width: '100%',
+            border: `1px solid ${showFrequentClients ? '#0071e3' : '#eeeeef'}`,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            textAlign: 'left',
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 1fr) auto',
+            gap: 12,
+            alignItems: 'center',
+            background: showFrequentClients ? '#f0f7ff' : '#fff',
+          }}
+        >
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+              <div style={{ fontSize: 26, fontWeight: 900, color: '#30d158' }}>{frequentClients}</div>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 900, color: '#1a1a1a' }}>Clientes frecuentes</div>
+                <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 700, marginTop: 2 }}>
+                  Clientes que ya asistieron al menos una vez. Se actualiza automáticamente con cada reserva completada.
+                </div>
+              </div>
+            </div>
+          </div>
 
-        <div style={summaryCardStyle}>
-          <div style={{ fontSize: 26, fontWeight: 900, color: '#30d158' }}>{frequentClients}</div>
-          <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 700, marginTop: 2 }}>Clientes frecuentes</div>
-        </div>
+          <div style={{ color: '#0071e3', fontSize: 22, fontWeight: 900, transform: showFrequentClients ? 'rotate(180deg)' : 'rotate(0deg)', transition: '0.18s ease' }}>
+            ⌄
+          </div>
+        </button>
 
-        <div style={summaryCardStyle}>
-          <div style={{ fontSize: 26, fontWeight: 900, color: '#1a1a1a' }}>{totalBookings}</div>
-          <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 700, marginTop: 2 }}>Reservas históricas</div>
-        </div>
+        {showFrequentClients && (
+          <div style={{ marginTop: 10, background: '#fff', borderRadius: 18, border: '0.5px solid #e8e8ed', overflow: 'hidden', boxShadow: '0 1px 8px rgba(0,0,0,0.04)' }}>
+            {attendedClients.length === 0 ? (
+              <div style={{ padding: 18, color: '#8e8e93', fontSize: 13, fontWeight: 700, textAlign: 'center' }}>
+                Todavía no hay clientes con asistencias completadas.
+              </div>
+            ) : (
+              attendedClients.map((client, index) => {
+                const lastBooking = client.lastBooking;
+                const lastDate = lastBooking ? formatDate(getBookingDateValue(lastBooking)) : 'Sin reservas';
+                const lastTime = lastBooking ? formatTime(lastBooking.startTime ?? lastBooking.start_time) : '';
+
+                return (
+                  <div
+                    key={`attended-${client.key}`}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '34px minmax(0, 1fr) auto',
+                      gap: 12,
+                      alignItems: 'center',
+                      padding: '13px 16px',
+                      borderTop: index === 0 ? 'none' : '0.5px solid #eeeeef',
+                    }}
+                  >
+                    <div style={{ width: 34, height: 34, borderRadius: 12, background: '#edfff3', color: '#30d158', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900 }}>
+                      {index + 1}
+                    </div>
+
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 900, color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {client.name || 'Cliente sin nombre'}
+                      </div>
+                      <div style={{ fontSize: 12, color: '#6e6e73', fontWeight: 700, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {client.phone || 'Sin teléfono'} · Última asistencia: {lastDate}{lastTime ? ` · ${lastTime}` : ''}
+                      </div>
+                    </div>
+
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 18, fontWeight: 900, color: '#30d158' }}>{client.completedCount}</div>
+                      <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800 }}>
+                        {client.completedCount === 1 ? 'asistencia' : 'asistencias'}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
       </div>
 
       <div style={{ background: '#fff', borderRadius: 22, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
