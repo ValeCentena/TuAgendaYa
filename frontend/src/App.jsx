@@ -1468,6 +1468,403 @@ function AvailabilityTable({ availability, onChange }) {
   );
 }
 
+
+function ClientsSection() {
+  const [bookings, setBookings] = useState([]);
+  const [loadingClients, setLoadingClients] = useState(true);
+  const [search, setSearch] = useState('');
+  const [expandedClientKey, setExpandedClientKey] = useState(null);
+
+  let storedProfessional = {};
+
+  try {
+    storedProfessional = JSON.parse(localStorage.getItem('tuagendaya_professional')) || {};
+  } catch {
+    storedProfessional = {};
+  }
+
+  const businessName = storedProfessional.businessName || storedProfessional.business_name || storedProfessional.name || '';
+
+  const getLocalDateKey = (date = new Date()) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  const getBookingDateKey = (booking) => {
+    const value = getBookingDateValue(booking);
+    if (!value) return '';
+
+    const raw = String(value).trim();
+
+    const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (isoMatch) {
+      return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+    }
+
+    const slashMatch = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (slashMatch) {
+      const [, day, month, year] = slashMatch;
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+
+    const parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) {
+      return getLocalDateKey(parsed);
+    }
+
+    return '';
+  };
+
+  const getBookingSortValue = (booking) => {
+    const dateKey = getBookingDateKey(booking) || '0000-00-00';
+    const time = formatTime(booking.startTime ?? booking.start_time) || '00:00';
+    return `${dateKey} ${time}`;
+  };
+
+  const fetchBookings = useCallback((showLoading = false) => {
+    const token = localStorage.getItem('tuagendaya_token');
+
+    if (showLoading) {
+      setLoadingClients(true);
+    }
+
+    return fetch(`${API_BASE}/bookings/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        setBookings(Array.isArray(data.bookings) ? data.bookings : []);
+      })
+      .catch(() => {
+        if (showLoading) {
+          setBookings([]);
+        }
+      })
+      .finally(() => {
+        if (showLoading) {
+          setLoadingClients(false);
+        }
+      });
+  }, []);
+
+  useEffect(() => {
+    fetchBookings(true);
+
+    const intervalId = window.setInterval(() => {
+      fetchBookings(false);
+    }, 10000);
+
+    return () => window.clearInterval(intervalId);
+  }, [fetchBookings]);
+
+  const clientsMap = new Map();
+
+  bookings.forEach((booking) => {
+    const clientName = String(booking.clientName ?? booking.client_name ?? '').trim();
+    const clientPhone = String(booking.clientPhone ?? booking.client_phone ?? '').trim();
+
+    if (!clientName && !clientPhone) return;
+
+    const normalizedPhone = normalizePhoneForWhatsApp(clientPhone);
+    const key = normalizedPhone || normalizeSearchText(clientName);
+
+    if (!clientsMap.has(key)) {
+      clientsMap.set(key, {
+        key,
+        name: clientName || 'Cliente sin nombre',
+        phone: clientPhone,
+        normalizedPhone,
+        bookings: [],
+      });
+    }
+
+    const client = clientsMap.get(key);
+
+    if ((!client.name || client.name === 'Cliente sin nombre') && clientName) {
+      client.name = clientName;
+    }
+
+    if (!client.phone && clientPhone) {
+      client.phone = clientPhone;
+      client.normalizedPhone = normalizedPhone;
+    }
+
+    client.bookings.push(booking);
+  });
+
+  const clients = Array.from(clientsMap.values()).map((client) => {
+    const sortedBookings = [...client.bookings].sort((a, b) => getBookingSortValue(b).localeCompare(getBookingSortValue(a)));
+    const lastBooking = sortedBookings[0] || null;
+    const completedCount = sortedBookings.filter((booking) => booking.status === 'completed').length;
+    const cancelledCount = sortedBookings.filter((booking) => booking.status === 'cancelled').length;
+    const pendingOrConfirmedCount = sortedBookings.filter((booking) => booking.status === 'pending' || booking.status === 'confirmed').length;
+
+    return {
+      ...client,
+      bookings: sortedBookings,
+      lastBooking,
+      completedCount,
+      cancelledCount,
+      pendingOrConfirmedCount,
+    };
+  });
+
+  const filteredClients = clients
+    .filter((client) => {
+      const query = normalizeSearchText(search);
+      if (!query) return true;
+
+      return (
+        normalizeSearchText(client.name).includes(query) ||
+        normalizeSearchText(client.phone).includes(query) ||
+        normalizeSearchText(client.normalizedPhone).includes(query)
+      );
+    })
+    .sort((a, b) => {
+      const aValue = a.lastBooking ? getBookingSortValue(a.lastBooking) : '0000-00-00 00:00';
+      const bValue = b.lastBooking ? getBookingSortValue(b.lastBooking) : '0000-00-00 00:00';
+      return bValue.localeCompare(aValue);
+    });
+
+  const totalBookings = bookings.length;
+  const frequentClients = clients.filter((client) => client.bookings.length >= 2).length;
+
+  const buildClientGeneralMessage = (client) => {
+    const safeName = client.name || 'te';
+    const safeBusinessName = businessName || 'el negocio';
+
+    return [
+      `Hola ${safeName}, te escribimos de ${safeBusinessName}.`,
+      '',
+      'Gracias por reservar con nosotros.',
+    ].join('\n');
+  };
+
+  const summaryCardStyle = {
+    background: '#fff',
+    borderRadius: 18,
+    padding: '16px 18px',
+    boxShadow: '0 1px 8px rgba(0,0,0,0.05)',
+    border: '0.5px solid #eeeeef',
+  };
+
+  return (
+    <div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12, marginBottom: 16 }}>
+        <div style={summaryCardStyle}>
+          <div style={{ fontSize: 26, fontWeight: 900, color: '#0071e3' }}>{clients.length}</div>
+          <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 700, marginTop: 2 }}>Clientes registrados</div>
+        </div>
+
+        <div style={summaryCardStyle}>
+          <div style={{ fontSize: 26, fontWeight: 900, color: '#30d158' }}>{frequentClients}</div>
+          <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 700, marginTop: 2 }}>Clientes frecuentes</div>
+        </div>
+
+        <div style={summaryCardStyle}>
+          <div style={{ fontSize: 26, fontWeight: 900, color: '#1a1a1a' }}>{totalBookings}</div>
+          <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 700, marginTop: 2 }}>Reservas históricas</div>
+        </div>
+      </div>
+
+      <div style={{ background: '#fff', borderRadius: 22, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 16 }}>
+          <div>
+            <div style={{ fontSize: 17, fontWeight: 900, color: '#1a1a1a' }}>Clientes</div>
+            <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 600, marginTop: 4 }}>
+              Se crean automáticamente con cada reserva. Podés ver historial y contactar por WhatsApp.
+            </div>
+          </div>
+        </div>
+
+        <input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Buscar por nombre o teléfono"
+          style={{ ...inputStyle, marginBottom: 16, borderRadius: 14, padding: '13px 14px', background: '#f9f9fb' }}
+        />
+
+        {loadingClients ? (
+          <div style={{ textAlign: 'center', color: '#aeaeb2', padding: 34 }}>Cargando clientes...</div>
+        ) : filteredClients.length === 0 ? (
+          <div style={{ textAlign: 'center', color: '#aeaeb2', padding: 34 }}>
+            {clients.length === 0 ? 'Todavía no hay clientes. Se van a crear automáticamente cuando hagan reservas.' : 'No encontramos clientes con esa búsqueda.'}
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {filteredClients.map((client) => {
+              const isExpanded = expandedClientKey === client.key;
+              const lastBooking = client.lastBooking;
+              const lastDate = lastBooking ? formatDate(getBookingDateValue(lastBooking)) : 'Sin reservas';
+              const lastTime = lastBooking ? formatTime(lastBooking.startTime ?? lastBooking.start_time) : null;
+              const lastService = lastBooking ? (lastBooking.serviceName ?? lastBooking.service_name ?? 'Servicio') : 'Sin servicio';
+              const whatsappUrl = buildWhatsAppUrl(client.phone, buildClientGeneralMessage(client));
+
+              return (
+                <div
+                  key={client.key}
+                  style={{
+                    border: `1px solid ${isExpanded ? '#0071e3' : '#e8e8ed'}`,
+                    borderRadius: 18,
+                    background: '#fff',
+                    overflow: 'hidden',
+                    boxShadow: isExpanded ? '0 8px 24px rgba(0,113,227,0.10)' : '0 1px 8px rgba(0,0,0,0.04)',
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setExpandedClientKey(isExpanded ? null : client.key)}
+                    style={{
+                      width: '100%',
+                      border: 'none',
+                      background: 'transparent',
+                      padding: '15px 16px',
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                      display: 'grid',
+                      gridTemplateColumns: '44px minmax(0, 1fr) auto',
+                      gap: 12,
+                      alignItems: 'center',
+                      textAlign: 'left',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 14,
+                        background: '#f2f2f7',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#0071e3',
+                        fontWeight: 900,
+                        fontSize: 17,
+                      }}
+                    >
+                      {String(client.name || '?').trim().charAt(0).toUpperCase() || '?'}
+                    </div>
+
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 900, color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {client.name || 'Cliente sin nombre'}
+                      </div>
+                      <div style={{ fontSize: 12, color: '#6e6e73', fontWeight: 700, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {client.phone || 'Sin teléfono'} · {client.bookings.length} {client.bookings.length === 1 ? 'reserva' : 'reservas'}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 600, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        Última: {lastDate}{lastTime ? ` · ${lastTime}` : ''} · {lastService}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {client.bookings.length >= 2 && (
+                        <span style={{ fontSize: 11, color: '#188038', background: '#edfff3', padding: '5px 9px', borderRadius: 999, fontWeight: 900 }}>
+                          Frecuente
+                        </span>
+                      )}
+                      <span style={{ color: '#8e8e93', fontSize: 18, fontWeight: 800, transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: '0.18s ease' }}>
+                        ⌄
+                      </span>
+                    </div>
+                  </button>
+
+                  {isExpanded && (
+                    <div style={{ padding: '0 16px 16px 16px' }}>
+                      <div style={{ borderTop: '0.5px solid #eeeeef', paddingTop: 14 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10, marginBottom: 12 }}>
+                          <div style={{ background: '#fafafa', borderRadius: 14, padding: 12 }}>
+                            <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800 }}>Total</div>
+                            <div style={{ fontSize: 18, color: '#1a1a1a', fontWeight: 900, marginTop: 4 }}>{client.bookings.length}</div>
+                          </div>
+
+                          <div style={{ background: '#fafafa', borderRadius: 14, padding: 12 }}>
+                            <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800 }}>Completadas</div>
+                            <div style={{ fontSize: 18, color: '#5e5ce6', fontWeight: 900, marginTop: 4 }}>{client.completedCount}</div>
+                          </div>
+
+                          <div style={{ background: '#fafafa', borderRadius: 14, padding: 12 }}>
+                            <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800 }}>Canceladas</div>
+                            <div style={{ fontSize: 18, color: '#ff453a', fontWeight: 900, marginTop: 4 }}>{client.cancelledCount}</div>
+                          </div>
+                        </div>
+
+                        {whatsappUrl && (
+                          <a
+                            href={whatsappUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              textDecoration: 'none',
+                              padding: '10px 14px',
+                              borderRadius: 12,
+                              background: '#25d366',
+                              color: '#fff',
+                              fontSize: 13,
+                              fontWeight: 900,
+                              marginBottom: 12,
+                            }}
+                          >
+                            Enviar WhatsApp
+                          </a>
+                        )}
+
+                        <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 900, marginBottom: 8 }}>Historial de reservas</div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          {client.bookings.slice(0, 8).map((booking) => {
+                            const dateStr = formatDate(getBookingDateValue(booking));
+                            const timeStr = formatTime(booking.startTime ?? booking.start_time);
+                            const endStr = formatTime(booking.endTime ?? booking.end_time);
+                            const serviceName = booking.serviceName ?? booking.service_name ?? 'Servicio no especificado';
+                            const staffName = booking.staffName ?? booking.staff_name;
+                            const status = booking.status || 'pending';
+                            const statusColor = { pending: '#ff9f0a', confirmed: '#30d158', completed: '#5e5ce6', cancelled: '#ff453a' }[status] || '#8e8e93';
+                            const statusLabel = { pending: 'Pendiente', confirmed: 'Confirmada', completed: 'Completada', cancelled: 'Cancelada' }[status] || status;
+
+                            return (
+                              <div key={booking.id} style={{ background: '#fafafa', borderRadius: 14, padding: '10px 12px', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 10, alignItems: 'center' }}>
+                                <div style={{ minWidth: 0 }}>
+                                  <div style={{ fontSize: 13, fontWeight: 900, color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {dateStr}{timeStr ? ` · ${timeStr}${endStr ? ` - ${endStr}` : ''}` : ''}
+                                  </div>
+                                  <div style={{ fontSize: 12, color: '#6e6e73', fontWeight: 700, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {serviceName}{staffName ? ` · ${staffName}` : ''}
+                                  </div>
+                                </div>
+
+                                <div style={{ fontSize: 11, color: statusColor, background: '#fff', border: `0.5px solid ${statusColor}33`, padding: '5px 9px', borderRadius: 999, fontWeight: 900 }}>
+                                  {statusLabel}
+                                </div>
+                              </div>
+                            );
+                          })}
+
+                          {client.bookings.length > 8 && (
+                            <div style={{ textAlign: 'center', fontSize: 12, color: '#8e8e93', fontWeight: 700, padding: 8 }}>
+                              Mostrando las últimas 8 reservas de este cliente.
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
 function AvailabilitySection() {
   const [availability, setAvailability] = useState(getDefaultAvailability());
   const [loading, setLoading] = useState(true);
@@ -3368,11 +3765,13 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
 
         <div className="dashboard-tabs" style={{ display: 'flex', gap: 10, marginBottom: 16, overflowX: 'auto' }}>
           <button style={tabStyle('reservas')} onClick={() => setActiveTab('reservas')}>Reservas</button>
+          <button style={tabStyle('clientes')} onClick={() => setActiveTab('clientes')}>Clientes</button>
           <button style={tabStyle('configuracion')} onClick={() => setActiveTab('configuracion')}>Configuración</button>
           <button style={tabStyle('perfil')} onClick={() => setActiveTab('perfil')}>Perfil</button>
         </div>
 
         {activeTab === 'reservas' && <ReservationsSection />}
+        {activeTab === 'clientes' && <ClientsSection />}
         {activeTab === 'configuracion' && <ConfigurationSection />}
         {activeTab === 'perfil' && (
           <BusinessProfileSection
