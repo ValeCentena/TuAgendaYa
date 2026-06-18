@@ -1068,15 +1068,10 @@ function ReservationsSection() {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(132px, 1fr))', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10 }}>
             <div style={{ background: '#f2f2f7', borderRadius: 16, padding: '14px 16px', border: '0.5px solid #e8e8ed' }}>
               <div style={{ fontSize: 24, fontWeight: 900, color: '#1a1a1a' }}>{todayBookings.length}</div>
               <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2, fontWeight: 700 }}>Reservas hoy</div>
-            </div>
-
-            <div style={{ background: '#fff8ee', borderRadius: 16, padding: '14px 16px' }}>
-              <div style={{ fontSize: 24, fontWeight: 900, color: '#ff9f0a' }}>{pendingCount}</div>
-              <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2, fontWeight: 700 }}>Pendientes</div>
             </div>
 
             <div style={{ background: '#edfff3', borderRadius: 16, padding: '14px 16px' }}>
@@ -1084,29 +1079,9 @@ function ReservationsSection() {
               <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2, fontWeight: 700 }}>Confirmadas</div>
             </div>
 
-            <div style={{ background: '#f1f0ff', borderRadius: 16, padding: '14px 16px' }}>
-              <div style={{ fontSize: 24, fontWeight: 900, color: '#5e5ce6' }}>{completedCount}</div>
-              <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2, fontWeight: 700 }}>Completadas</div>
-            </div>
-
             <div style={{ background: '#fff2f2', borderRadius: 16, padding: '14px 16px' }}>
               <div style={{ fontSize: 24, fontWeight: 900, color: '#ff453a' }}>{cancelledCount}</div>
               <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2, fontWeight: 700 }}>Canceladas</div>
-            </div>
-
-            <div style={{ background: '#eef7ff', borderRadius: 16, padding: '14px 16px' }}>
-              <div style={{ fontSize: 24, fontWeight: 900, color: '#0071e3' }}>{upcomingBookings.length}</div>
-              <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2, fontWeight: 700 }}>Próximas</div>
-            </div>
-
-            <div style={{ background: '#f7f7fb', borderRadius: 16, padding: '14px 16px', border: '0.5px solid #ececf1' }}>
-              <div style={{ fontSize: 24, fontWeight: 900, color: '#1a1a1a' }}>{totalClientsCount}</div>
-              <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2, fontWeight: 700 }}>Clientes</div>
-            </div>
-
-            <div style={{ background: '#f7f7fb', borderRadius: 16, padding: '14px 16px', border: '0.5px solid #ececf1' }}>
-              <div style={{ fontSize: 14, fontWeight: 900, color: '#1a1a1a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{frequentClientLabel}</div>
-              <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 6, fontWeight: 700 }}>Cliente frecuente</div>
             </div>
           </div>
         </div>
@@ -2086,7 +2061,7 @@ function ClientsSection() {
                         {client.name || 'Cliente sin nombre'}
                       </div>
                       <div style={{ fontSize: 12, color: '#6e6e73', fontWeight: 700, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {client.phone || 'Sin teléfono'} · {client.bookings.length} {client.bookings.length === 1 ? 'reserva' : 'reservas'}
+                        {client.phone || 'Sin teléfono'} · {client.completedCount} {client.completedCount === 1 ? 'asistencia' : 'asistencias'} · {client.bookings.length} {client.bookings.length === 1 ? 'reserva' : 'reservas'}
                       </div>
                       <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 600, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         Última: {lastDate}{lastTime ? ` · ${lastTime}` : ''} · {lastService}
@@ -2099,7 +2074,7 @@ function ClientsSection() {
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      {client.bookings.length >= 2 && (
+                      {client.completedCount >= 2 && (
                         <span style={{ fontSize: 11, color: '#188038', background: '#edfff3', padding: '5px 9px', borderRadius: 999, fontWeight: 900 }}>
                           Frecuente
                         </span>
