@@ -728,6 +728,7 @@ function ReservationsSection() {
   const [loadingBookings, setLoadingBookings] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
   const [reservationView, setReservationView] = useState('today');
+  const [expandedBookingId, setExpandedBookingId] = useState(null);
 
   let storedProfessional = {};
 
@@ -981,191 +982,263 @@ function ReservationsSection() {
             const canComplete = !isArchivedView && (isPending || isConfirmed);
             const canCancel = !isArchivedView && !isCancelled && !isCompleted;
 
+            const isExpanded = expandedBookingId === b.id;
+            const mainTime = timeStr ? `${timeStr}${endStr ? ` - ${endStr}` : ''}` : 'Sin hora';
+            const mainService = serviceName || 'Servicio no especificado';
+
             return (
               <div
                 key={b.id}
                 style={{
-                  border: `1px solid ${isCancelled ? '#ffe0e0' : '#e8e8ed'}`,
-                  borderRadius: 16,
-                  padding: 16,
+                  border: `1px solid ${isExpanded ? '#0071e3' : isCancelled ? '#ffe0e0' : '#e8e8ed'}`,
+                  borderRadius: 18,
                   marginBottom: 10,
-                  background: isCancelled ? '#fffafa' : isCompleted ? '#fbfbff' : '#fafafa',
-                  opacity: isCancelled ? 0.72 : 1,
+                  background: isCancelled ? '#fffafa' : isCompleted ? '#fbfbff' : '#fff',
+                  opacity: isCancelled ? 0.78 : 1,
+                  overflow: 'hidden',
+                  boxShadow: isExpanded ? '0 8px 24px rgba(0,113,227,0.10)' : '0 1px 8px rgba(0,0,0,0.04)',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 10 }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: 14, color: '#1a1a1a' }}>{clientName}</div>
-
-                    {clientPhone && (
-                      <div style={{ fontSize: 12, color: '#6e6e73', marginTop: 2 }}>Teléfono: {clientPhone}</div>
-                    )}
-
-                    {serviceName && (
-                      <div style={{ fontSize: 12, color: '#0071e3', marginTop: 4 }}>
-                        Servicio: {serviceName}
-                        {serviceDuration ? ` · ${serviceDuration} min` : ''}
-                        {servicePrice ? ` · $${servicePrice}` : ''}
-                      </div>
-                    )}
-
-                    {staffName && (
-                      <div style={{ fontSize: 12, color: '#6e6e73', marginTop: 4 }}>
-                        Profesional: {staffName}
-                      </div>
-                    )}
-                  </div>
-
-                  <span
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 600,
-                      flexShrink: 0,
-                      whiteSpace: 'nowrap',
-                      color: statusColor[b.status] || '#6e6e73',
-                      background: statusBg[b.status] || '#f2f2f7',
-                      padding: '4px 12px',
-                      borderRadius: 20,
-                    }}
-                  >
-                    {statusLabel[b.status] || b.status}
-                  </span>
-                </div>
-
-                <div
+                <button
+                  type="button"
+                  onClick={() => setExpandedBookingId(isExpanded ? null : b.id)}
                   style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
+                    width: '100%',
+                    border: 'none',
+                    background: 'transparent',
+                    padding: '14px 16px',
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    textAlign: 'left',
+                    display: 'grid',
+                    gridTemplateColumns: '96px minmax(0, 1fr) auto',
                     gap: 12,
-                    background: '#fff',
-                    border: '0.5px solid #e8e8ed',
-                    borderRadius: 10,
-                    padding: '7px 12px',
-                    marginBottom: 8,
-                    fontSize: 13,
+                    alignItems: 'center',
                   }}
                 >
-                  <span>Fecha: <strong>{dateStr}</strong></span>
-
-                  {timeStr && (
-                    <span style={{ color: '#3a3a3c' }}>
-                      Hora: <strong>{timeStr}</strong>
-                      {endStr && <span style={{ color: '#aeaeb2', fontWeight: 400 }}> → {endStr}</span>}
-                    </span>
-                  )}
-                </div>
-
-                {b.comment && (
-                  <div style={{ fontSize: 12, color: '#8e8e93', fontStyle: 'italic', marginBottom: 10, paddingLeft: 2 }}>
-                    "{b.comment}"
-                  </div>
-                )}
-
-                {canSendWhatsApp && (
-                  <a
-                    href={whatsappUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      textDecoration: 'none',
-                      width: '100%',
-                      padding: '10px 12px',
-                      borderRadius: 12,
-                      border: '0.5px solid #c8f2d3',
-                      background: '#edfff3',
-                      color: '#188038',
-                      fontSize: 13,
-                      fontWeight: 800,
-                      fontFamily: 'inherit',
-                      boxSizing: 'border-box',
-                      marginTop: 6,
-                      marginBottom: isPending ? 8 : 0,
-                    }}
-                  >
-                    Enviar WhatsApp al cliente
-                  </a>
-                )}
-
-                {!isArchivedView && (canConfirm || canComplete || canCancel) && (
                   <div
                     style={{
-                      display: 'grid',
-                      gridTemplateColumns: `repeat(${[canConfirm, canComplete, canCancel].filter(Boolean).length}, minmax(0, 1fr))`,
-                      gap: 8,
-                      marginTop: 6,
+                      borderRadius: 14,
+                      background: '#f2f2f7',
+                      padding: '9px 8px',
+                      textAlign: 'center',
+                      color: '#1a1a1a',
                     }}
                   >
-                    {canConfirm && (
-                      <button
-                        onClick={() => handleAction(b.id, 'confirm')}
-                        disabled={actionLoading === `${b.id}-confirm`}
-                        style={{
-                          padding: '9px 0',
-                          borderRadius: 10,
-                          border: 'none',
-                          background: '#30d158',
-                          color: '#fff',
-                          fontSize: 13,
-                          fontWeight: 700,
-                          fontFamily: 'inherit',
-                          cursor: 'pointer',
-                          opacity: actionLoading === `${b.id}-confirm` ? 0.6 : 1,
-                        }}
-                      >
-                        {actionLoading === `${b.id}-confirm` ? '...' : 'Confirmar'}
-                      </button>
-                    )}
-
-                    {canComplete && (
-                      <button
-                        onClick={() => handleAction(b.id, 'complete')}
-                        disabled={actionLoading === `${b.id}-complete`}
-                        style={{
-                          padding: '9px 0',
-                          borderRadius: 10,
-                          border: 'none',
-                          background: '#5e5ce6',
-                          color: '#fff',
-                          fontSize: 13,
-                          fontWeight: 700,
-                          fontFamily: 'inherit',
-                          cursor: 'pointer',
-                          opacity: actionLoading === `${b.id}-complete` ? 0.6 : 1,
-                        }}
-                      >
-                        {actionLoading === `${b.id}-complete` ? '...' : 'Completar'}
-                      </button>
-                    )}
-
-                    {canCancel && (
-                      <button
-                        onClick={() => handleAction(b.id, 'cancel')}
-                        disabled={actionLoading === `${b.id}-cancel`}
-                        style={{
-                          padding: '9px 0',
-                          borderRadius: 10,
-                          border: 'none',
-                          background: '#ff453a',
-                          color: '#fff',
-                          fontSize: 13,
-                          fontWeight: 700,
-                          fontFamily: 'inherit',
-                          cursor: 'pointer',
-                          opacity: actionLoading === `${b.id}-cancel` ? 0.6 : 1,
-                        }}
-                      >
-                        {actionLoading === `${b.id}-cancel` ? '...' : 'Cancelar'}
-                      </button>
-                    )}
+                    <div style={{ fontSize: 15, fontWeight: 900, lineHeight: 1 }}>{timeStr || '--:--'}</div>
+                    {endStr && <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 700, marginTop: 4 }}>hasta {endStr}</div>}
                   </div>
-                )} 
 
-                {isArchivedView && (
-                  <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 600, marginTop: 8 }}>
-                    Registro archivado. No se muestra como turno activo del día.
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontWeight: 900,
+                          fontSize: 14,
+                          color: '#1a1a1a',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {clientName || 'Cliente sin nombre'}
+                      </div>
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: '#6e6e73',
+                        marginTop: 4,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {mainService}{staffName ? ` · ${staffName}` : ''}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 800,
+                        flexShrink: 0,
+                        whiteSpace: 'nowrap',
+                        color: statusColor[b.status] || '#6e6e73',
+                        background: statusBg[b.status] || '#f2f2f7',
+                        padding: '5px 10px',
+                        borderRadius: 999,
+                      }}
+                    >
+                      {statusLabel[b.status] || b.status}
+                    </span>
+                    <span style={{ color: '#8e8e93', fontSize: 18, fontWeight: 800, transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: '0.18s ease' }}>
+                      ⌄
+                    </span>
+                  </div>
+                </button>
+
+                {isExpanded && (
+                  <div style={{ padding: '0 16px 16px 16px' }}>
+                    <div
+                      style={{
+                        borderTop: '0.5px solid #eeeeef',
+                        paddingTop: 14,
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                        gap: 10,
+                      }}
+                    >
+                      <div style={{ background: '#fafafa', borderRadius: 14, padding: 12 }}>
+                        <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800, marginBottom: 4 }}>Cliente</div>
+                        <div style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 800 }}>{clientName || 'Sin nombre'}</div>
+                      </div>
+
+                      <div style={{ background: '#fafafa', borderRadius: 14, padding: 12 }}>
+                        <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800, marginBottom: 4 }}>Teléfono</div>
+                        <div style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 800 }}>{clientPhone || 'Sin teléfono'}</div>
+                      </div>
+
+                      <div style={{ background: '#fafafa', borderRadius: 14, padding: 12 }}>
+                        <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800, marginBottom: 4 }}>Servicio</div>
+                        <div style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 800 }}>{mainService}</div>
+                        {(serviceDuration || servicePrice) && (
+                          <div style={{ fontSize: 12, color: '#0071e3', fontWeight: 700, marginTop: 4 }}>
+                            {serviceDuration ? `${serviceDuration} min` : ''}{serviceDuration && servicePrice ? ' · ' : ''}{servicePrice ? `$${servicePrice}` : ''}
+                          </div>
+                        )}
+                      </div>
+
+                      <div style={{ background: '#fafafa', borderRadius: 14, padding: 12 }}>
+                        <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800, marginBottom: 4 }}>Profesional</div>
+                        <div style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 800 }}>{staffName || 'Sin asignar'}</div>
+                      </div>
+
+                      <div style={{ background: '#fafafa', borderRadius: 14, padding: 12 }}>
+                        <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800, marginBottom: 4 }}>Fecha</div>
+                        <div style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 800 }}>{dateStr}</div>
+                      </div>
+
+                      <div style={{ background: '#fafafa', borderRadius: 14, padding: 12 }}>
+                        <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800, marginBottom: 4 }}>Hora</div>
+                        <div style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 800 }}>{mainTime}</div>
+                      </div>
+                    </div>
+
+                    {b.comment && (
+                      <div style={{ fontSize: 12, color: '#6e6e73', fontStyle: 'italic', marginTop: 10, padding: 12, background: '#fafafa', borderRadius: 14 }}>
+                        "{b.comment}"
+                      </div>
+                    )}
+
+                    {canSendWhatsApp && (
+                      <a
+                        href={whatsappUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          textDecoration: 'none',
+                          width: '100%',
+                          padding: '11px 12px',
+                          borderRadius: 14,
+                          border: '0.5px solid #c8f2d3',
+                          background: '#edfff3',
+                          color: '#188038',
+                          fontSize: 13,
+                          fontWeight: 900,
+                          fontFamily: 'inherit',
+                          boxSizing: 'border-box',
+                          marginTop: 12,
+                          marginBottom: !isArchivedView && (canConfirm || canComplete || canCancel) ? 10 : 0,
+                        }}
+                      >
+                        Enviar WhatsApp al cliente
+                      </a>
+                    )}
+
+                    {!isArchivedView && (canConfirm || canComplete || canCancel) && (
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: `repeat(${[canConfirm, canComplete, canCancel].filter(Boolean).length}, minmax(0, 1fr))`,
+                          gap: 8,
+                          marginTop: 10,
+                        }}
+                      >
+                        {canConfirm && (
+                          <button
+                            onClick={() => handleAction(b.id, 'confirm')}
+                            disabled={actionLoading === `${b.id}-confirm`}
+                            style={{
+                              padding: '10px 0',
+                              borderRadius: 12,
+                              border: 'none',
+                              background: '#30d158',
+                              color: '#fff',
+                              fontSize: 13,
+                              fontWeight: 800,
+                              fontFamily: 'inherit',
+                              cursor: 'pointer',
+                              opacity: actionLoading === `${b.id}-confirm` ? 0.6 : 1,
+                            }}
+                          >
+                            {actionLoading === `${b.id}-confirm` ? '...' : 'Confirmar'}
+                          </button>
+                        )}
+
+                        {canComplete && (
+                          <button
+                            onClick={() => handleAction(b.id, 'complete')}
+                            disabled={actionLoading === `${b.id}-complete`}
+                            style={{
+                              padding: '10px 0',
+                              borderRadius: 12,
+                              border: 'none',
+                              background: '#5e5ce6',
+                              color: '#fff',
+                              fontSize: 13,
+                              fontWeight: 800,
+                              fontFamily: 'inherit',
+                              cursor: 'pointer',
+                              opacity: actionLoading === `${b.id}-complete` ? 0.6 : 1,
+                            }}
+                          >
+                            {actionLoading === `${b.id}-complete` ? '...' : 'Completar'}
+                          </button>
+                        )}
+
+                        {canCancel && (
+                          <button
+                            onClick={() => handleAction(b.id, 'cancel')}
+                            disabled={actionLoading === `${b.id}-cancel`}
+                            style={{
+                              padding: '10px 0',
+                              borderRadius: 12,
+                              border: 'none',
+                              background: '#ff453a',
+                              color: '#fff',
+                              fontSize: 13,
+                              fontWeight: 800,
+                              fontFamily: 'inherit',
+                              cursor: 'pointer',
+                              opacity: actionLoading === `${b.id}-cancel` ? 0.6 : 1,
+                            }}
+                          >
+                            {actionLoading === `${b.id}-cancel` ? '...' : 'Cancelar'}
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {isArchivedView && (
+                      <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 700, marginTop: 12, textAlign: 'center' }}>
+                        Registro archivado. No se muestra como turno activo del día.
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
