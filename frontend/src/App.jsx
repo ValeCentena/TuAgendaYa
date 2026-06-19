@@ -83,7 +83,7 @@ const inputStyle = {
   padding: '10px 12px',
   borderRadius: 10,
   border: '0.5px solid #d0d0d5',
-  fontSize: 14,
+  fontSize: 16,
   fontFamily: 'inherit',
   outline: 'none',
   boxSizing: 'border-box',
@@ -5208,18 +5208,28 @@ function ProfesionalPage() {
 
 function MobileViewportController() {
   useEffect(() => {
-    const viewportContent = 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover';
-    let viewport = document.querySelector('meta[name="viewport"]');
+    const isMobile = window.matchMedia('(max-width: 768px)').matches;
 
-    if (!viewport) {
-      viewport = document.createElement('meta');
-      viewport.setAttribute('name', 'viewport');
-      document.head.appendChild(viewport);
-    }
+    const setViewport = () => {
+      let viewport = document.querySelector('meta[name="viewport"]');
 
-    viewport.setAttribute('content', viewportContent);
+      if (!viewport) {
+        viewport = document.createElement('meta');
+        viewport.setAttribute('name', 'viewport');
+        document.head.appendChild(viewport);
+      }
 
-    const styleId = 'tuagendaya-mobile-zoom-fix';
+      viewport.setAttribute(
+        'content',
+        isMobile
+          ? 'width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover'
+          : 'width=device-width, initial-scale=1, viewport-fit=cover'
+      );
+    };
+
+    setViewport();
+
+    const styleId = 'tuagendaya-mobile-no-zoom-fix';
     let style = document.getElementById(styleId);
 
     if (!style) {
@@ -5230,21 +5240,27 @@ function MobileViewportController() {
 
     style.innerHTML = `
       html {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        overflow-x: hidden;
         -webkit-text-size-adjust: 100%;
         text-size-adjust: 100%;
-        width: 100%;
-        overflow-x: hidden;
       }
 
       body {
         width: 100%;
+        max-width: 100%;
         min-width: 0;
+        margin: 0;
         overflow-x: hidden;
         overscroll-behavior-x: none;
+        -webkit-tap-highlight-color: transparent;
       }
 
       #root {
         width: 100%;
+        max-width: 100%;
         min-width: 0;
         overflow-x: hidden;
       }
@@ -5263,11 +5279,21 @@ function MobileViewportController() {
       }
 
       @media (max-width: 768px) {
+        body {
+          position: relative;
+        }
+
         input,
         textarea,
         select {
           font-size: 16px !important;
           line-height: 1.35 !important;
+          width: 100% !important;
+          max-width: 100% !important;
+          min-width: 0 !important;
+          -webkit-appearance: none;
+          appearance: none;
+          transform: translateZ(0);
         }
 
         input::placeholder,
@@ -5276,10 +5302,64 @@ function MobileViewportController() {
         }
 
         button {
+          max-width: 100% !important;
           min-height: 44px;
+          white-space: normal !important;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        img,
+        svg,
+        canvas,
+        video {
+          max-width: 100%;
+        }
+
+        table {
+          width: 100%;
+          max-width: 100%;
+          display: block;
+          overflow-x: auto;
+        }
+
+        /* Evita que tarjetas o formularios con anchos fijos rompan el viewport en iPhone */
+        .tuagendaya-mobile-safe,
+        main,
+        section,
+        form {
+          width: 100% !important;
+          max-width: 100% !important;
+          min-width: 0 !important;
+          overflow-x: hidden !important;
         }
       }
     `;
+
+    const preventGesture = (event) => {
+      event.preventDefault();
+    };
+
+    const resetZoomAfterInput = () => {
+      setViewport();
+      if (window.visualViewport && window.visualViewport.scale !== 1) {
+        window.scrollTo({ left: 0, behavior: 'auto' });
+      }
+    };
+
+    document.addEventListener('gesturestart', preventGesture, { passive: false });
+    document.addEventListener('gesturechange', preventGesture, { passive: false });
+    document.addEventListener('gestureend', preventGesture, { passive: false });
+    document.addEventListener('focusin', resetZoomAfterInput);
+    document.addEventListener('focusout', resetZoomAfterInput);
+
+    return () => {
+      document.removeEventListener('gesturestart', preventGesture);
+      document.removeEventListener('gesturechange', preventGesture);
+      document.removeEventListener('gestureend', preventGesture);
+      document.removeEventListener('focusin', resetZoomAfterInput);
+      document.removeEventListener('focusout', resetZoomAfterInput);
+    };
   }, []);
 
   return null;
