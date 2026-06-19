@@ -199,6 +199,97 @@ function buildWhatsAppUrl(phone, message) {
   return `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(message)}`;
 }
 
+
+function csvSafe(value) {
+  const raw = value === null || value === undefined ? '' : String(value);
+  const clean = raw.replace(/\r?\n|\r/g, ' ').trim();
+  return `"${clean.replace(/"/g, '""')}"`;
+}
+
+function downloadCsvFile(filename, headers, rows) {
+  const csvLines = [
+    headers.map(csvSafe).join(','),
+    ...rows.map((row) => row.map(csvSafe).join(',')),
+  ];
+
+  const blob = new Blob([`\ufeff${csvLines.join('\n')}`], {
+    type: 'text/csv;charset=utf-8;',
+  });
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function exportBookingsToCsv(bookings, filename = 'reservas.csv') {
+  const headers = [
+    'Fecha',
+    'Hora inicio',
+    'Hora fin',
+    'Cliente',
+    'Telefono',
+    'Servicio',
+    'Profesional',
+    'Estado',
+    'Duracion',
+    'Precio',
+    'Comentario',
+  ];
+
+  const rows = bookings.map((booking) => [
+    formatDate(getBookingDateValue(booking)),
+    formatTime(booking.startTime ?? booking.start_time) || '',
+    formatTime(booking.endTime ?? booking.end_time) || '',
+    booking.clientName ?? booking.client_name ?? '',
+    booking.clientPhone ?? booking.client_phone ?? '',
+    booking.serviceName ?? booking.service_name ?? '',
+    booking.staffName ?? booking.staff_name ?? '',
+    booking.status || '',
+    booking.serviceDurationMinutes ?? booking.service_duration_minutes ?? '',
+    booking.servicePrice ?? booking.service_price ?? '',
+    booking.comment || '',
+  ]);
+
+  downloadCsvFile(filename, headers, rows);
+}
+
+function exportClientsToCsv(clients, filename = 'clientes.csv') {
+  const headers = [
+    'Cliente',
+    'Telefono',
+    'Reservas totales',
+    'Asistencias',
+    'Canceladas',
+    'Pendientes o confirmadas',
+    'Ultima reserva',
+    'Ultima hora',
+    'Notas internas',
+  ];
+
+  const rows = clients.map((client) => {
+    const lastBooking = client.lastBooking;
+
+    return [
+      client.name || '',
+      client.phone || '',
+      client.bookings?.length || 0,
+      client.completedCount || 0,
+      client.cancelledCount || 0,
+      client.pendingOrConfirmedCount || 0,
+      lastBooking ? formatDate(getBookingDateValue(lastBooking)) : '',
+      lastBooking ? formatTime(lastBooking.startTime ?? lastBooking.start_time) || '' : '',
+      client.notes || '',
+    ];
+  });
+
+  downloadCsvFile(filename, headers, rows);
+}
+
 function normalizeSlug(value) {
   return String(value || '')
     .trim()
@@ -1128,27 +1219,50 @@ function ReservationsSection() {
                 </div>
               </div>
 
-              {hasArchivedFilters && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                 <button
                   type="button"
-                  onClick={clearArchivedFilters}
+                  onClick={() => exportBookingsToCsv(archivedBookings, 'reservas-archivadas-tuagendaya.csv')}
+                  disabled={archivedBookings.length === 0}
                   style={{
                     border: 'none',
-                    background: '#fff',
-                    color: '#0071e3',
+                    background: archivedBookings.length === 0 ? '#f2f2f7' : '#0071e3',
+                    color: archivedBookings.length === 0 ? '#8e8e93' : '#fff',
                     borderRadius: 999,
                     padding: '8px 12px',
                     fontSize: 12,
                     fontWeight: 900,
                     fontFamily: 'inherit',
-                    cursor: 'pointer',
-                    boxShadow: '0 1px 5px rgba(0,0,0,0.05)',
+                    cursor: archivedBookings.length === 0 ? 'not-allowed' : 'pointer',
+                    boxShadow: archivedBookings.length === 0 ? 'none' : '0 1px 5px rgba(0,113,227,0.18)',
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  Limpiar
+                  Exportar CSV
                 </button>
-              )}
+
+                {hasArchivedFilters && (
+                  <button
+                    type="button"
+                    onClick={clearArchivedFilters}
+                    style={{
+                      border: 'none',
+                      background: '#fff',
+                      color: '#0071e3',
+                      borderRadius: 999,
+                      padding: '8px 12px',
+                      fontSize: 12,
+                      fontWeight: 900,
+                      fontFamily: 'inherit',
+                      cursor: 'pointer',
+                      boxShadow: '0 1px 5px rgba(0,0,0,0.05)',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    Limpiar
+                  </button>
+                )}
+              </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.3fr) repeat(4, minmax(120px, 1fr))', gap: 10 }}>
@@ -2064,6 +2178,27 @@ function ClientsSection() {
               Se crean automáticamente con cada reserva. Podés ver historial y contactar por WhatsApp.
             </div>
           </div>
+
+          <button
+            type="button"
+            onClick={() => exportClientsToCsv(filteredClients, 'clientes-tuagendaya.csv')}
+            disabled={filteredClients.length === 0}
+            style={{
+              border: 'none',
+              background: filteredClients.length === 0 ? '#f2f2f7' : '#0071e3',
+              color: filteredClients.length === 0 ? '#8e8e93' : '#fff',
+              borderRadius: 999,
+              padding: '9px 13px',
+              fontSize: 12,
+              fontWeight: 900,
+              fontFamily: 'inherit',
+              cursor: filteredClients.length === 0 ? 'not-allowed' : 'pointer',
+              whiteSpace: 'nowrap',
+              boxShadow: filteredClients.length === 0 ? 'none' : '0 1px 6px rgba(0,113,227,0.18)',
+            }}
+          >
+            Exportar clientes
+          </button>
         </div>
 
         <input
