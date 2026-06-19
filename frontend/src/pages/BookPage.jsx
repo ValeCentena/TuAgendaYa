@@ -328,11 +328,11 @@ export default function BookPage() {
       <div
         style={{
           marginTop: 10,
-          background: '#fff',
-          borderRadius: 20,
-          padding: 10,
-          border: '1px solid #e5e5ea',
-          boxShadow: '0 12px 28px rgba(0,0,0,0.07)',
+          background: 'linear-gradient(180deg, #ffffff 0%, #fbfbfd 100%)',
+          borderRadius: 24,
+          padding: 12,
+          border: '1px solid rgba(0,0,0,0.06)',
+          boxShadow: '0 18px 36px rgba(0,0,0,0.08)',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -342,13 +342,13 @@ export default function BookPage() {
             disabled={!canGoPrevious}
             aria-label="Mes anterior"
             style={{
-              width: 30,
-              height: 30,
-              borderRadius: 12,
-              border: 'none',
-              background: canGoPrevious ? '#f2f2f7' : '#fafafa',
+              width: 28,
+              height: 28,
+              borderRadius: 14,
+              border: '1px solid rgba(0,0,0,0.05)',
+              background: canGoPrevious ? '#f5f5f7' : '#fbfbfd',
               color: canGoPrevious ? '#1a1a1a' : '#c7c7cc',
-              fontSize: 17,
+              fontSize: 16,
               cursor: canGoPrevious ? 'pointer' : 'not-allowed',
               fontFamily: 'inherit',
             }}
@@ -357,7 +357,7 @@ export default function BookPage() {
           </button>
 
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 14, fontWeight: 800, color: '#111827', letterSpacing: '-0.03em' }}>
+            <div style={{ fontSize: 14, fontWeight: 850, color: '#111827', letterSpacing: '-0.03em' }}>
               {MONTH_NAMES[calendarMonth.getMonth()]} {calendarMonth.getFullYear()}
             </div>
             <div style={{ fontSize: 11, color: '#8e8e93', marginTop: 1 }}>
@@ -370,13 +370,13 @@ export default function BookPage() {
             onClick={goToNextMonth}
             aria-label="Mes siguiente"
             style={{
-              width: 30,
-              height: 30,
-              borderRadius: 12,
-              border: 'none',
-              background: '#f2f2f7',
+              width: 28,
+              height: 28,
+              borderRadius: 14,
+              border: '1px solid rgba(0,0,0,0.05)',
+              background: '#f5f5f7',
               color: '#1a1a1a',
-              fontSize: 17,
+              fontSize: 16,
               cursor: 'pointer',
               fontFamily: 'inherit',
             }}
@@ -419,10 +419,10 @@ export default function BookPage() {
                 disabled={isPast}
                 onClick={() => selectCalendarDate(date)}
                 style={{
-                  height: 34,
-                  borderRadius: 12,
-                  border: isSelected ? 'none' : isToday ? '1px solid #0071e3' : '1px solid transparent',
-                  background: isSelected ? '#0071e3' : isPast ? '#fafafa' : '#f8f8fb',
+                  height: 32,
+                  borderRadius: 14,
+                  border: isSelected ? '1px solid #0071e3' : isToday ? '1px solid #0071e3' : '1px solid rgba(0,0,0,0.06)',
+                  background: isSelected ? '#0071e3' : isPast ? '#fbfbfd' : '#ffffff',
                   color: isSelected ? '#fff' : isPast ? '#c7c7cc' : '#1a1a1a',
                   fontSize: 13,
                   fontWeight: isSelected || isToday ? 800 : 650,
@@ -792,14 +792,15 @@ export default function BookPage() {
                 onClick={openCalendar}
                 style={{
                   width: '100%',
-                  border: calendarOpen ? '2px solid #0071e3' : '1px solid #e1e1e6',
-                  background: canChooseDate ? '#fff' : '#f7f7f9',
-                  borderRadius: 18,
-                  padding: '12px 14px',
+                  border: calendarOpen ? '1.5px solid #0071e3' : '1px solid rgba(0,0,0,0.07)',
+                  background: canChooseDate ? 'linear-gradient(180deg, #ffffff 0%, #fbfbfd 100%)' : '#f7f7f9',
+                  borderRadius: 22,
+                  padding: '13px 14px',
                   fontFamily: 'inherit',
                   cursor: canChooseDate ? 'pointer' : 'not-allowed',
                   textAlign: 'left',
                   display: 'flex',
+                  boxShadow: calendarOpen ? '0 10px 24px rgba(0,113,227,0.10)' : '0 8px 18px rgba(0,0,0,0.04)',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   gap: 12,
@@ -807,7 +808,7 @@ export default function BookPage() {
               >
                 <div>
                   <div style={{ fontSize: 15, fontWeight: 800, color: bookingDate ? '#1a1a1a' : '#8e8e93', letterSpacing: '-0.02em' }}>
-                    {bookingDate ? formatLongDate(bookingDate) : 'Tocá para elegir una fecha'}
+                    {bookingDate ? formatLongDate(bookingDate) : 'Tocá acá para elegir una fecha'}
                   </div>
                   <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 3 }}>
                     No se pueden seleccionar fechas anteriores
@@ -818,7 +819,7 @@ export default function BookPage() {
                   style={{
                     width: 30,
                     height: 30,
-                    borderRadius: 12,
+                    borderRadius: 15,
                     background: calendarOpen ? '#0071e3' : '#f2f2f7',
                     color: calendarOpen ? '#fff' : '#0071e3',
                     display: 'flex',
@@ -875,8 +876,8 @@ export default function BookPage() {
                             disabled={!isAvailable}
                             onClick={() => isAvailable && setSelectedTime(slot.time)}
                             style={{
-                              padding: '9px 6px',
-                              borderRadius: 13,
+                              padding: '8px 6px',
+                              borderRadius: 16,
                               border: isSelected
                                 ? '2px solid #0071e3'
                                 : isAvailable
@@ -885,8 +886,8 @@ export default function BookPage() {
                               background: isSelected
                                 ? '#0071e3'
                                 : isAvailable
-                                  ? '#fff'
-                                  : '#fafafa',
+                                  ? '#ffffff'
+                                  : '#fbfbfd',
                               color: isSelected
                                 ? '#fff'
                                 : isAvailable
@@ -897,7 +898,7 @@ export default function BookPage() {
                               fontFamily: 'inherit',
                               cursor: isAvailable ? 'pointer' : 'not-allowed',
                               textDecoration: isAvailable ? 'none' : 'line-through',
-                              boxShadow: isSelected ? '0 8px 18px rgba(0,113,227,0.18)' : 'none',
+                              boxShadow: isSelected ? '0 8px 18px rgba(0,113,227,0.18)' : '0 4px 10px rgba(0,0,0,0.035)',
                             }}
                           >
                             {slot.time}
