@@ -4371,34 +4371,118 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
         }
 
         @media (max-width: 720px) {
+          html, body, #root {
+            max-width: 100%;
+            overflow-x: hidden;
+          }
+
+          .dashboard-panel {
+            padding: 12px 10px 98px !important;
+            background: #f2f2f7 !important;
+          }
+
+          .dashboard-panel > div {
+            max-width: 100% !important;
+          }
+
           .dashboard-header-card {
             flex-direction: column;
             align-items: stretch !important;
-            gap: 18px;
+            gap: 16px !important;
+            padding: 18px 16px !important;
+            border-radius: 24px !important;
+            margin-bottom: 12px !important;
+          }
+
+          .dashboard-header-card img[alt="Tu Agenda Ya"] {
+            height: 38px !important;
           }
 
           .dashboard-header-side {
             width: 100%;
+            min-width: 0 !important;
             align-items: stretch !important;
+            gap: 10px !important;
+          }
+
+          .dashboard-header-side button {
+            align-self: stretch !important;
+            min-height: 42px !important;
+            border-radius: 14px !important;
           }
 
           .dashboard-business-logo-box {
             width: 100% !important;
             min-width: 0 !important;
+            height: 92px !important;
             align-self: stretch !important;
+            border-radius: 20px !important;
           }
 
           .dashboard-tabs {
+            position: fixed !important;
+            left: 10px !important;
+            right: 10px !important;
+            bottom: 10px !important;
+            z-index: 1000 !important;
             display: grid !important;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+            gap: 6px !important;
+            padding: 8px !important;
+            margin: 0 !important;
+            border-radius: 22px !important;
+            background: rgba(255, 255, 255, 0.94) !important;
+            box-shadow: 0 10px 34px rgba(0,0,0,0.18) !important;
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            overflow: visible !important;
+          }
+
+          .dashboard-tabs button {
+            min-height: 46px !important;
+            padding: 9px 4px !important;
+            border-radius: 16px !important;
+            font-size: 11px !important;
+            line-height: 1.1 !important;
+            white-space: normal !important;
+            box-shadow: none !important;
           }
 
           .dashboard-public-link {
             align-items: flex-start !important;
           }
 
+          .dashboard-public-link button {
+            min-height: 36px !important;
+            padding: 8px 12px !important;
+            border-radius: 12px !important;
+          }
+
           .config-summary-grid {
             grid-template-columns: 1fr !important;
+          }
+
+          .dashboard-panel div[style*="grid-template-columns"] {
+            grid-template-columns: 1fr !important;
+          }
+
+          .dashboard-panel div[style*="padding: 20px 24px"],
+          .dashboard-panel div[style*="padding: 20px 24px;"],
+          .dashboard-panel div[style*="padding: 22px"],
+          .dashboard-panel div[style*="padding: 24px"] {
+            padding: 16px !important;
+          }
+
+          .dashboard-panel button {
+            min-height: 42px;
+            touch-action: manipulation;
+          }
+
+          .dashboard-panel input,
+          .dashboard-panel select,
+          .dashboard-panel textarea {
+            min-height: 42px;
+            font-size: 16px !important;
           }
         }
       `}</style>
