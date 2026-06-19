@@ -4372,30 +4372,45 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
 
         @media (max-width: 720px) {
           html, body, #root {
+            width: 100%;
             max-width: 100%;
             overflow-x: hidden;
+            background: #f2f2f7;
           }
 
           .dashboard-panel {
-            padding: 12px 10px 98px !important;
+            width: 100% !important;
+            max-width: 100vw !important;
+            overflow-x: hidden !important;
+            box-sizing: border-box !important;
+            padding: calc(env(safe-area-inset-top, 0px) + 24px) 8px calc(env(safe-area-inset-bottom, 0px) + 118px) !important;
             background: #f2f2f7 !important;
           }
 
           .dashboard-panel > div {
+            width: 100% !important;
             max-width: 100% !important;
+            margin-left: auto !important;
+            margin-right: auto !important;
+            box-sizing: border-box !important;
           }
 
           .dashboard-header-card {
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
             flex-direction: column;
             align-items: stretch !important;
-            gap: 16px !important;
-            padding: 18px 16px !important;
+            gap: 14px !important;
+            padding: 22px 14px 16px !important;
             border-radius: 24px !important;
-            margin-bottom: 12px !important;
+            margin: 0 0 14px 0 !important;
+            overflow: hidden !important;
           }
 
           .dashboard-header-card img[alt="Tu Agenda Ya"] {
-            height: 38px !important;
+            height: 34px !important;
+            max-width: 100% !important;
           }
 
           .dashboard-header-side {
@@ -4414,16 +4429,17 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
           .dashboard-business-logo-box {
             width: 100% !important;
             min-width: 0 !important;
-            height: 92px !important;
+            height: 88px !important;
             align-self: stretch !important;
             border-radius: 20px !important;
+            box-sizing: border-box !important;
           }
 
           .dashboard-tabs {
             position: fixed !important;
             left: 10px !important;
             right: 10px !important;
-            bottom: 10px !important;
+            bottom: calc(env(safe-area-inset-bottom, 0px) + 10px) !important;
             z-index: 1000 !important;
             display: grid !important;
             grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
@@ -4450,6 +4466,12 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
 
           .dashboard-public-link {
             align-items: flex-start !important;
+            flex-direction: column !important;
+          }
+
+          .dashboard-public-link > div {
+            width: 100% !important;
+            max-width: 100% !important;
           }
 
           .dashboard-public-link button {
@@ -5183,9 +5205,91 @@ function ProfesionalPage() {
   );
 }
 
+
+function MobileViewportController() {
+  useEffect(() => {
+    const viewportContent = 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover';
+    let viewport = document.querySelector('meta[name="viewport"]');
+
+    if (!viewport) {
+      viewport = document.createElement('meta');
+      viewport.setAttribute('name', 'viewport');
+      document.head.appendChild(viewport);
+    }
+
+    viewport.setAttribute('content', viewportContent);
+
+    const styleId = 'tuagendaya-mobile-zoom-fix';
+    let style = document.getElementById(styleId);
+
+    if (!style) {
+      style = document.createElement('style');
+      style.id = styleId;
+      document.head.appendChild(style);
+    }
+
+    style.innerHTML = `
+      html {
+        -webkit-text-size-adjust: 100%;
+        text-size-adjust: 100%;
+        width: 100%;
+        overflow-x: hidden;
+      }
+
+      body {
+        width: 100%;
+        min-width: 0;
+        overflow-x: hidden;
+        overscroll-behavior-x: none;
+      }
+
+      #root {
+        width: 100%;
+        min-width: 0;
+        overflow-x: hidden;
+      }
+
+      *, *::before, *::after {
+        box-sizing: border-box;
+      }
+
+      button,
+      a,
+      [role="button"],
+      input,
+      textarea,
+      select {
+        touch-action: manipulation;
+      }
+
+      @media (max-width: 768px) {
+        input,
+        textarea,
+        select {
+          font-size: 16px !important;
+          line-height: 1.35 !important;
+        }
+
+        input::placeholder,
+        textarea::placeholder {
+          font-size: 16px !important;
+        }
+
+        button {
+          min-height: 44px;
+        }
+      }
+    `;
+  }, []);
+
+  return null;
+}
+
 export default function App() {
   return (
-    <Routes>
+    <>
+      <MobileViewportController />
+      <Routes>
       <Route path="/" element={<Navigate to="/profesional/login" replace />} />
       <Route path="/profesional/login" element={<ProfesionalPage />} />
       <Route path="/profesional/register" element={<RegisterPage />} />
@@ -5193,7 +5297,8 @@ export default function App() {
       <Route path="/admin/login" element={<AdminLoginPage />} />
       <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
       <Route path="/reservar/:slug" element={<BookPage />} />
-      <Route path="/:slug" element={<BookPage />} />
-    </Routes>
+        <Route path="/:slug" element={<BookPage />} />
+      </Routes>
+    </>
   );
 }
