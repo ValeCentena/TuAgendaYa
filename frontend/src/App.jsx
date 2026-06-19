@@ -3553,6 +3553,8 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [previewLogoMode, setPreviewLogoMode] = useState('square');
+  const [planBookings, setPlanBookings] = useState([]);
+  const [loadingPlan, setLoadingPlan] = useState(true);
 
   const token = localStorage.getItem('tuagendaya_token');
 
@@ -3584,8 +3586,30 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
       .finally(() => setLoading(false));
   };
 
+  const fetchPlanBookings = () => {
+    if (!token) {
+      setLoadingPlan(false);
+      return;
+    }
+
+    setLoadingPlan(true);
+
+    fetch(`${API_BASE}/bookings/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        setPlanBookings(Array.isArray(data.bookings) ? data.bookings : []);
+      })
+      .catch(() => {
+        setPlanBookings([]);
+      })
+      .finally(() => setLoadingPlan(false));
+  };
+
   useEffect(() => {
     fetchProfile();
+    fetchPlanBookings();
   }, []);
 
   useEffect(() => {
@@ -3704,6 +3728,48 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
     }
   };
 
+  const getBookingDateValue = (booking) => {
+    const raw = booking?.bookingDate || booking?.booking_date || booking?.date || booking?.fecha || '';
+    const clean = String(raw || '').trim();
+
+    if (!clean) return '';
+
+    const isoMatch = clean.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+
+    const parsed = new Date(clean);
+    if (!Number.isNaN(parsed.getTime())) {
+      const year = parsed.getFullYear();
+      const month = String(parsed.getMonth() + 1).padStart(2, '0');
+      const day = String(parsed.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    return '';
+  };
+
+  const now = new Date();
+  const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const planName = professional?.plan || professional?.plan_name || 'Profesional';
+  const monthlyLimit = Number(professional?.monthlyLimit || professional?.monthly_limit || 1000);
+  const monthlyUsed = planBookings.filter((booking) => getBookingDateValue(booking).startsWith(currentMonthKey)).length;
+  const monthlyPercent = monthlyLimit > 0 ? Math.min(100, Math.round((monthlyUsed / monthlyLimit) * 100)) : 0;
+  const publicSlug = professional?.slug || '';
+  const publicLink = publicSlug ? `https://tuagendaya-web.onrender.com/reservar/${publicSlug}` : '';
+  const statusText = professional?.status === 'suspended' ? 'Suspendido' : 'Activo';
+  const statusColor = professional?.status === 'suspended' ? '#ff453a' : '#30d158';
+
+  const copyPublicLinkFromProfile = async () => {
+    if (!publicLink) return;
+
+    try {
+      await navigator.clipboard.writeText(publicLink);
+      setMessage('Link público copiado correctamente.');
+    } catch {
+      setError('No se pudo copiar el link.');
+    }
+  };
+
   if (loading) {
     return (
       <div style={{ background: '#fff', borderRadius: 20, padding: 24, textAlign: 'center', color: '#aeaeb2' }}>
@@ -3714,6 +3780,72 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
 
   return (
     <div style={{ display: 'grid', gap: 16 }}>
+      <div style={{ background: '#fff', borderRadius: 20, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14, marginBottom: 16 }}>
+          <div>
+            <div style={{ fontSize: 17, fontWeight: 900, color: '#1a1a1a' }}>Estado del plan</div>
+            <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 4, lineHeight: 1.45 }}>
+              Controlá el estado de tu cuenta, el uso mensual y el link público de reservas.
+            </div>
+          </div>
+          <div style={{ padding: '7px 11px', borderRadius: 999, background: statusColor === '#30d158' ? '#edfff3' : '#fff2f2', color: statusColor, fontSize: 12, fontWeight: 900, whiteSpace: 'nowrap' }}>
+            {statusText}
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10, marginBottom: 14 }}>
+          <div style={{ background: '#f2f2f7', borderRadius: 16, padding: '14px 16px', border: '0.5px solid #e8e8ed' }}>
+            <div style={{ fontSize: 12, color: '#6e6e73', fontWeight: 800 }}>Plan actual</div>
+            <div style={{ fontSize: 20, fontWeight: 900, color: '#1a1a1a', marginTop: 4 }}>{planName}</div>
+          </div>
+
+          <div style={{ background: '#eef6ff', borderRadius: 16, padding: '14px 16px', border: '0.5px solid #d8eaff' }}>
+            <div style={{ fontSize: 12, color: '#6e6e73', fontWeight: 800 }}>Uso mensual</div>
+            <div style={{ fontSize: 20, fontWeight: 900, color: '#0071e3', marginTop: 4 }}>
+              {loadingPlan ? '...' : `${monthlyUsed}/${monthlyLimit}`}
+            </div>
+          </div>
+
+          <div style={{ background: '#f7f7fb', borderRadius: 16, padding: '14px 16px', border: '0.5px solid #e8e8ed' }}>
+            <div style={{ fontSize: 12, color: '#6e6e73', fontWeight: 800 }}>Estado</div>
+            <div style={{ fontSize: 20, fontWeight: 900, color: statusColor, marginTop: 4 }}>{statusText}</div>
+          </div>
+        </div>
+
+        <div style={{ width: '100%', height: 9, borderRadius: 999, background: '#f2f2f7', overflow: 'hidden', marginBottom: 12 }}>
+          <div style={{ width: `${monthlyPercent}%`, height: '100%', borderRadius: 999, background: monthlyPercent >= 90 ? '#ff453a' : '#0071e3' }} />
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 10, alignItems: 'center', background: '#f7f7fb', border: '0.5px solid #e8e8ed', borderRadius: 16, padding: 12 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800, marginBottom: 3 }}>Link público</div>
+            <div style={{ fontSize: 13, color: publicLink ? '#1a1a1a' : '#8e8e93', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {publicLink || 'Todavía no hay link público disponible'}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={copyPublicLinkFromProfile}
+            disabled={!publicLink}
+            style={{
+              padding: '9px 13px',
+              borderRadius: 12,
+              border: 'none',
+              background: publicLink ? '#0071e3' : '#d1d1d6',
+              color: '#fff',
+              fontSize: 12,
+              fontWeight: 900,
+              fontFamily: 'inherit',
+              cursor: publicLink ? 'pointer' : 'not-allowed',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Copiar link
+          </button>
+        </div>
+      </div>
+
       <div style={{ background: '#fff', borderRadius: 20, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
         <div style={{ marginBottom: 18 }}>
           <div style={{ fontSize: 17, fontWeight: 700, color: '#1a1a1a' }}>Perfil del negocio</div>
