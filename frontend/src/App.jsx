@@ -5294,6 +5294,7 @@ export default function App() {
       <Route path="/profesional/login" element={<ProfesionalPage />} />
       <Route path="/profesional/register" element={<RegisterPage />} />
       <Route path="/profesional/dashboard" element={<ProfesionalPage />} />
+      <Route path="/admin-app" element={<AdminLoginPage />} />
       <Route path="/admin/login" element={<AdminLoginPage />} />
       <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
       <Route path="/reservar/:slug" element={<BookPage />} />
