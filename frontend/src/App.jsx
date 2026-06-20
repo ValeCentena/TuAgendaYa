@@ -664,12 +664,12 @@ function RegisterPage() {
     e.preventDefault();
     setError('');
 
-    if (!form.name.trim()) return setError('El nombre es obligatorio.');
+    if (!form.name.trim()) return setError('El nombre del profesional es obligatorio.');
     if (!form.businessName.trim()) return setError('El nombre del negocio es obligatorio.');
     if (!form.email.trim()) return setError('El email es obligatorio.');
     if (form.password.length < 8) return setError('La contraseña debe tener mínimo 8 caracteres.');
     if (!form.profession.trim()) return setError('El rubro o profesión es obligatorio.');
-    if (!form.address.trim()) return setError('La dirección es obligatoria.');
+    if (!form.address.trim()) return setError('La dirección del negocio es obligatoria.');
     if (!form.slug.trim()) return setError('El link público es obligatorio.');
 
     setLoading(true);
@@ -706,111 +706,252 @@ function RegisterPage() {
     }
   };
 
+  const publicPreview = form.slug ? `/reservar/${normalizeSlug(form.slug)}` : '/reservar/tu-negocio';
+
   return (
-    <AuthLayout>
-      <div style={{ textAlign: 'center', marginBottom: 22 }}>
-        <TuAgendaLogo height={52} centered />
-        <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>Crear cuenta profesional</div>
-        <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 4 }}>Configurá tu negocio en minutos</div>
-      </div>
+    <div
+      style={{
+        minHeight: '100vh',
+        background: 'linear-gradient(180deg, #f7fbff 0%, #f5f5f7 45%, #ffffff 100%)',
+        padding: 'max(18px, env(safe-area-inset-top)) 14px 28px',
+        fontFamily: APP_FONT,
+        boxSizing: 'border-box',
+      }}
+    >
+      <style>
+        {`
+          .register-shell {
+            width: min(1080px, 100%);
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 0.9fr 1.1fr;
+            gap: 18px;
+            align-items: stretch;
+          }
 
-      <form onSubmit={handleSubmit}>
-        <label style={smallLabelStyle}>Nombre del profesional *</label>
-        <input
-          style={{ ...inputStyle, marginBottom: 10 }}
-          value={form.name}
-          onChange={(e) => updateForm('name', e.target.value)}
-          placeholder="Ej: Valentino"
-          required
-        />
+          .register-card {
+            background: rgba(255,255,255,0.92);
+            border: 0.5px solid rgba(225,229,236,0.95);
+            border-radius: 34px;
+            box-shadow: 0 18px 50px rgba(15,23,42,0.07);
+          }
 
-        <label style={smallLabelStyle}>Nombre del negocio *</label>
-        <input
-          style={{ ...inputStyle, marginBottom: 10 }}
-          value={form.businessName}
-          onChange={(e) => updateForm('businessName', e.target.value)}
-          placeholder="Ej: Barbería Centro"
-          required
-        />
+          .register-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+          }
 
-        <label style={smallLabelStyle}>Email *</label>
-        <input
-          style={{ ...inputStyle, marginBottom: 10 }}
-          type="email"
-          value={form.email}
-          onChange={(e) => updateForm('email', e.target.value)}
-          placeholder="negocio@email.com"
-          required
-        />
+          .register-full {
+            grid-column: 1 / -1;
+          }
 
-        <label style={smallLabelStyle}>Contraseña *</label>
-        <input
-          style={{ ...inputStyle, marginBottom: 10 }}
-          type="password"
-          value={form.password}
-          onChange={(e) => updateForm('password', e.target.value)}
-          placeholder="Mínimo 8 caracteres"
-          required
-        />
+          @media (max-width: 860px) {
+            .register-shell {
+              grid-template-columns: 1fr !important;
+            }
+            .register-grid {
+              grid-template-columns: 1fr !important;
+            }
+          }
+        `}
+      </style>
 
-        <label style={smallLabelStyle}>Teléfono</label>
-        <input
-          style={{ ...inputStyle, marginBottom: 10 }}
-          value={form.phone}
-          onChange={(e) => updateForm('phone', e.target.value)}
-          placeholder="099 123 456"
-        />
-
-        <label style={smallLabelStyle}>Rubro / profesión *</label>
-        <ProfessionCombobox
-          value={form.profession}
-          onChange={(value) => updateForm('profession', value)}
-        />
-
-        <label style={smallLabelStyle}>Dirección del negocio *</label>
-        <input
-          style={{ ...inputStyle, marginBottom: 10 }}
-          value={form.address}
-          onChange={(e) => updateForm('address', e.target.value)}
-          placeholder="Ej: Av. Italia 1234, Montevideo"
-          required
-        />
-
-        <label style={smallLabelStyle}>Link público *</label>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
-          <span style={{ fontSize: 12, color: '#8e8e93', whiteSpace: 'nowrap' }}>/reservar/</span>
-          <input
-            style={{ ...inputStyle, marginBottom: 0 }}
-            value={form.slug}
-            onChange={(e) => updateForm('slug', e.target.value)}
-            placeholder="barberia-centro"
-            required
-          />
-        </div>
-
-        {error && (
-          <div style={{ background: '#fff2f2', border: '0.5px solid #ffcdd2', borderRadius: 10, padding: '10px 12px', fontSize: 13, color: '#c62828', marginBottom: 12 }}>
-            {error}
-          </div>
-        )}
+      <div style={{ width: 'min(1080px, 100%)', margin: '0 auto 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+        <button
+          type="button"
+          onClick={() => navigate('/')}
+          style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+        >
+          <TuAgendaLogo height={36} />
+        </button>
 
         <button
-          type="submit"
-          disabled={loading}
-          style={{ width: '100%', padding: '13px', borderRadius: 12, border: 'none', background: loading ? '#aeaeb2' : '#0071e3', color: '#fff', fontSize: 15, fontWeight: 700, fontFamily: 'inherit', cursor: loading ? 'not-allowed' : 'pointer', marginTop: 4 }}
+          type="button"
+          onClick={() => navigate('/profesional/login')}
+          style={{
+            border: '0.5px solid #d7dce5',
+            background: '#fff',
+            color: '#111827',
+            borderRadius: 999,
+            padding: '10px 15px',
+            fontSize: 14,
+            fontWeight: 850,
+            fontFamily: 'inherit',
+            cursor: 'pointer',
+          }}
         >
-          {loading ? 'Creando cuenta...' : 'Crear cuenta'}
+          Ingresar
         </button>
-      </form>
+      </div>
 
-      <button
-        type="button"
-        onClick={() => navigate('/profesional/login')}
-        style={{ width: '100%', marginTop: 12, padding: '12px', borderRadius: 12, border: '0.5px solid #d0d0d5', background: '#fff', color: '#0071e3', fontSize: 14, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer' }}
-      >
-        Ya tengo cuenta
-      </button>
-    </AuthLayout>
+      <div className="register-shell">
+        <aside className="register-card" style={{ padding: 26, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 18 }}>
+          <div>
+            <div style={{ display: 'inline-flex', alignItems: 'center', borderRadius: 999, background: '#eaf4ff', color: '#0066cc', padding: '8px 12px', fontSize: 13, fontWeight: 950, marginBottom: 16 }}>
+              Crear cuenta profesional
+            </div>
+            <h1 style={{ margin: 0, color: '#0f172a', fontSize: 38, lineHeight: 1, letterSpacing: '-1.6px', fontWeight: 950 }}>
+              Configurá tu agenda en minutos.
+            </h1>
+            <p style={{ margin: '16px 0 0', color: '#64748b', fontSize: 15.5, lineHeight: 1.55, fontWeight: 650 }}>
+              Completá los datos del negocio, elegí tu link público y entrá directo al panel para configurar servicios, horarios y profesionales.
+            </p>
+          </div>
+
+          <div style={{ display: 'grid', gap: 10 }}>
+            {[
+              ['1', 'Datos del negocio', 'Nombre, rubro, dirección y contacto.'],
+              ['2', 'Link público', 'Tu agenda queda disponible para compartir.'],
+              ['3', 'Panel completo', 'Servicios, clientes, reservas y WhatsApp manual.'],
+            ].map(([number, title, text]) => (
+              <div key={title} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', background: '#f8fafc', border: '0.5px solid #e5e7eb', borderRadius: 22, padding: 14 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 13, background: '#0071e3', color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 950, flex: '0 0 auto' }}>{number}</div>
+                <div>
+                  <div style={{ color: '#111827', fontSize: 14, fontWeight: 950 }}>{title}</div>
+                  <div style={{ color: '#64748b', fontSize: 13, lineHeight: 1.4, marginTop: 2, fontWeight: 650 }}>{text}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ background: '#fff', borderRadius: 24, border: '0.5px solid #e5e7eb', padding: 16 }}>
+            <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 900, marginBottom: 4 }}>Tu link quedaría así</div>
+            <div style={{ color: '#0071e3', fontWeight: 950, fontSize: 14, wordBreak: 'break-word' }}>{publicPreview}</div>
+          </div>
+        </aside>
+
+        <section className="register-card" style={{ padding: 24 }}>
+          <div style={{ marginBottom: 18 }}>
+            <h2 style={{ margin: 0, color: '#111827', fontSize: 24, letterSpacing: '-0.7px', fontWeight: 950 }}>Datos de la cuenta</h2>
+            <p style={{ margin: '6px 0 0', color: '#6e6e73', fontSize: 14, fontWeight: 650 }}>
+              Estos datos después se pueden editar desde Perfil.
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit}>
+            <div className="register-grid">
+              <div>
+                <label style={smallLabelStyle}>Nombre del profesional *</label>
+                <input
+                  style={{ ...inputStyle, marginBottom: 0, borderRadius: 15, padding: '13px 14px' }}
+                  value={form.name}
+                  onChange={(e) => updateForm('name', e.target.value)}
+                  placeholder="Ej: Valentino"
+                  required
+                />
+              </div>
+
+              <div>
+                <label style={smallLabelStyle}>Nombre del negocio *</label>
+                <input
+                  style={{ ...inputStyle, marginBottom: 0, borderRadius: 15, padding: '13px 14px' }}
+                  value={form.businessName}
+                  onChange={(e) => updateForm('businessName', e.target.value)}
+                  placeholder="Ej: Odontología V"
+                  required
+                />
+              </div>
+
+              <div>
+                <label style={smallLabelStyle}>Email *</label>
+                <input
+                  style={{ ...inputStyle, marginBottom: 0, borderRadius: 15, padding: '13px 14px' }}
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => updateForm('email', e.target.value)}
+                  placeholder="negocio@email.com"
+                  required
+                  autoComplete="email"
+                />
+              </div>
+
+              <div>
+                <label style={smallLabelStyle}>Contraseña *</label>
+                <input
+                  style={{ ...inputStyle, marginBottom: 0, borderRadius: 15, padding: '13px 14px' }}
+                  type="password"
+                  value={form.password}
+                  onChange={(e) => updateForm('password', e.target.value)}
+                  placeholder="Mínimo 8 caracteres"
+                  required
+                  autoComplete="new-password"
+                />
+              </div>
+
+              <div>
+                <label style={smallLabelStyle}>Teléfono</label>
+                <input
+                  style={{ ...inputStyle, marginBottom: 0, borderRadius: 15, padding: '13px 14px' }}
+                  value={form.phone}
+                  onChange={(e) => updateForm('phone', e.target.value)}
+                  placeholder="099 123 456"
+                  inputMode="tel"
+                />
+              </div>
+
+              <div>
+                <label style={smallLabelStyle}>Rubro / profesión *</label>
+                <ProfessionCombobox
+                  value={form.profession}
+                  onChange={(value) => updateForm('profession', value)}
+                />
+              </div>
+
+              <div className="register-full">
+                <label style={smallLabelStyle}>Dirección del negocio *</label>
+                <input
+                  style={{ ...inputStyle, marginBottom: 0, borderRadius: 15, padding: '13px 14px' }}
+                  value={form.address}
+                  onChange={(e) => updateForm('address', e.target.value)}
+                  placeholder="Ej: Av. Italia 1234, Montevideo"
+                  required
+                />
+              </div>
+
+              <div className="register-full">
+                <label style={smallLabelStyle}>Link público *</label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 8, alignItems: 'center', background: '#f8fafc', border: '0.5px solid #d0d0d5', borderRadius: 15, padding: '6px 8px 6px 12px' }}>
+                  <span style={{ fontSize: 13, color: '#8e8e93', whiteSpace: 'nowrap', fontWeight: 800 }}>/reservar/</span>
+                  <input
+                    style={{ border: 'none', outline: 'none', background: '#fff', borderRadius: 12, padding: '11px 12px', fontSize: 16, fontFamily: 'inherit', color: '#1a1a1a', minWidth: 0 }}
+                    value={form.slug}
+                    onChange={(e) => updateForm('slug', e.target.value)}
+                    placeholder="odontologia-v"
+                    required
+                  />
+                </div>
+                <div style={{ marginTop: 7, color: '#8e8e93', fontSize: 12, fontWeight: 650 }}>
+                  Usá un nombre corto, sin espacios ni tildes. Ejemplo: odontologia-v
+                </div>
+              </div>
+            </div>
+
+            {error && (
+              <div style={{ background: '#fff2f2', border: '0.5px solid #ffcdd2', borderRadius: 14, padding: '11px 13px', fontSize: 13, color: '#c62828', marginTop: 14, fontWeight: 700 }}>
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              style={{ width: '100%', padding: '15px', borderRadius: 18, border: 'none', background: loading ? '#aeaeb2' : '#0071e3', color: '#fff', fontSize: 16, fontWeight: 950, fontFamily: 'inherit', cursor: loading ? 'not-allowed' : 'pointer', marginTop: 18, boxShadow: loading ? 'none' : '0 14px 30px rgba(0,113,227,0.20)' }}
+            >
+              {loading ? 'Creando cuenta...' : 'Crear cuenta profesional'}
+            </button>
+          </form>
+
+          <button
+            type="button"
+            onClick={() => navigate('/profesional/login')}
+            style={{ width: '100%', marginTop: 12, padding: '13px', borderRadius: 18, border: '0.5px solid #d0d0d5', background: '#fff', color: '#0071e3', fontSize: 14, fontWeight: 900, fontFamily: 'inherit', cursor: 'pointer' }}
+          >
+            Ya tengo cuenta
+          </button>
+        </section>
+      </div>
+    </div>
   );
 }
 
@@ -5410,7 +5551,7 @@ function LandingPage() {
             .landing-title { font-size: 38px !important; line-height: 0.98 !important; letter-spacing: -1.7px !important; }
             .landing-subtitle { font-size: 16px !important; }
             .landing-actions { grid-template-columns: 1fr !important; }
-            .landing-preview { min-height: auto !important; padding: 14px !important; border-radius: 28px !important; }
+            .landing-preview { min-height: auto !important; padding: 8px !important; border-radius: 28px !important; }
             .landing-preview-inner { min-height: auto !important; border-radius: 24px !important; }
             .landing-grid-4,
             .landing-grid-3,
@@ -5605,14 +5746,15 @@ function LandingPage() {
             className="landing-preview"
             style={{
               minHeight: 470,
-              background: 'linear-gradient(145deg, #0f172a 0%, #1d4ed8 100%)',
+              background: 'linear-gradient(180deg, rgba(234,244,255,0.92), rgba(255,255,255,0.96))',
+              border: '1px solid rgba(0,113,227,0.22)',
               borderRadius: 34,
-              padding: 18,
-              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.25), 0 24px 55px rgba(30,64,175,0.22)',
+              padding: 10,
+              boxShadow: '0 22px 50px rgba(15,23,42,0.08)',
               overflow: 'hidden',
             }}
           >
-            <div className="landing-preview-inner" style={{ background: '#f8fafc', borderRadius: 28, padding: 18, height: '100%', minHeight: 430 }}>
+            <div className="landing-preview-inner" style={{ background: '#f8fafc', borderRadius: 28, padding: 18, height: '100%', minHeight: 430, border: '0.5px solid rgba(226,232,240,0.95)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <div>
                   <div style={{ fontSize: 12, color: '#64748b', fontWeight: 950 }}>Panel profesional</div>
