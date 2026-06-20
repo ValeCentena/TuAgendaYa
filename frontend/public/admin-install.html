@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+
+    <link rel="manifest" href="/admin-manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <meta name="theme-color" content="#0071e3" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="TuAgendaYa Admin" />
+
+    <title>TuAgendaYa Admin</title>
+
+    <style>
+      * { box-sizing: border-box; }
+      html, body {
+        width: 100%;
+        min-height: 100%;
+        margin: 0;
+        overflow-x: hidden;
+        background: #f5f5f7;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", Inter, Arial, sans-serif;
+        color: #111827;
+        -webkit-font-smoothing: antialiased;
+      }
+      body {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+      }
+      .card {
+        width: 100%;
+        max-width: 420px;
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        border-radius: 28px;
+        box-shadow: 0 20px 60px rgba(15, 23, 42, 0.10);
+        padding: 28px;
+        text-align: center;
+      }
+      .logo {
+        width: 150px;
+        height: auto;
+        object-fit: contain;
+        margin: 0 auto 18px;
+        display: block;
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 24px;
+        letter-spacing: -0.03em;
+      }
+      p {
+        margin: 0 0 18px;
+        color: #6b7280;
+        font-size: 15px;
+        line-height: 1.45;
+      }
+      a {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 48px;
+        width: 100%;
+        border-radius: 999px;
+        background: #0071e3;
+        color: white;
+        text-decoration: none;
+        font-weight: 700;
+        font-size: 16px;
+      }
+      .hint {
+        margin-top: 18px;
+        font-size: 13px;
+        color: #8b8b95;
+      }
+    </style>
+
+    <script>
+      (function () {
+        var isStandalone =
+          window.matchMedia("(display-mode: standalone)").matches ||
+          window.navigator.standalone === true;
+
+        if (isStandalone) {
+          window.location.replace("/admin/login");
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <main class="card">
+      <img class="logo" src="/tuagendaya-logo.png" alt="TuAgendaYa" />
+      <h1>TuAgendaYa Admin</h1>
+      <p>Instalá este acceso para entrar directo al panel dueño de TuAgendaYa.</p>
+      <a href="/admin/login">Entrar al panel admin</a>
+      <div class="hint">En iPhone: Compartir → Agregar a pantalla de inicio.</div>
+    </main>
+  </body>
+</html>
