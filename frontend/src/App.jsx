@@ -4,28 +4,14 @@ import BookPage from './pages/BookPage.jsx';
 
 const API_BASE = 'https://tuagendaya-api.onrender.com/api';
 
-const APP_FONT = '"Nunito", "Arial Rounded MT Bold", "Avenir Next", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+const APP_FONT = "Nunito, ui-rounded, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 
-const brandTextStyle = {
-  fontFamily: APP_FONT,
-  fontWeight: 700,
-  letterSpacing: '-0.03em',
-  color: '#0071e3',
-};
-
-function TuAgendaLogo({ height = 38, centered = false }) {
+function TuAgendaLogo({ height = 42 }) {
   return (
     <img
       src="/tuagendaya-logo.png"
       alt="Tu Agenda Ya"
-      style={{
-        height,
-        width: 'auto',
-        maxWidth: '100%',
-        objectFit: 'contain',
-        display: 'block',
-        margin: centered ? '0 auto' : 0,
-      }}
+      style={{ height, width: 'auto', objectFit: 'contain', display: 'block' }}
     />
   );
 }
@@ -83,7 +69,7 @@ const inputStyle = {
   padding: '10px 12px',
   borderRadius: 10,
   border: '0.5px solid #d0d0d5',
-  fontSize: 16,
+  fontSize: 14,
   fontFamily: 'inherit',
   outline: 'none',
   boxSizing: 'border-box',
@@ -101,193 +87,15 @@ const smallLabelStyle = {
 
 function formatDate(d) {
   if (!d) return 'Sin fecha';
-
-  const raw = String(d).trim();
-
-  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (isoMatch) {
-    const [, y, m, day] = isoMatch;
-    return `${day}/${m}/${y}`;
-  }
-
-  const slashMatch = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-  if (slashMatch) {
-    const [, day, m, y] = slashMatch;
-    return `${String(day).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
-  }
-
-  const parsed = new Date(raw);
-  if (!Number.isNaN(parsed.getTime())) {
-    const day = String(parsed.getDate()).padStart(2, '0');
-    const m = String(parsed.getMonth() + 1).padStart(2, '0');
-    const y = parsed.getFullYear();
-    return `${day}/${m}/${y}`;
-  }
-
-  return 'Sin fecha';
-}
-
-function getBookingDateValue(booking) {
-  return (
-    booking?.bookingDate ??
-    booking?.booking_date ??
-    booking?.date ??
-    booking?.fecha ??
-    booking?.day ??
-    booking?.appointmentDate ??
-    booking?.appointment_date ??
-    booking?.startDate ??
-    booking?.start_date ??
-    booking?.createdDate ??
-    booking?.created_date ??
-    null
-  );
+  const str = String(d).slice(0, 10);
+  const [y, m, day] = str.split('-');
+  if (!y || !m || !day) return 'Sin fecha';
+  return `${day}/${m}/${y}`;
 }
 
 function formatTime(t) {
   if (!t) return null;
   return String(t).slice(0, 5);
-}
-
-function normalizePhoneForWhatsApp(phone) {
-  const onlyNumbers = String(phone || '').replace(/\D/g, '');
-
-  if (!onlyNumbers) return '';
-
-  if (onlyNumbers.startsWith('598')) {
-    return onlyNumbers;
-  }
-
-  if (onlyNumbers.startsWith('09') && onlyNumbers.length >= 8) {
-    return `598${onlyNumbers.slice(1)}`;
-  }
-
-  if (onlyNumbers.startsWith('9') && onlyNumbers.length >= 8) {
-    return `598${onlyNumbers}`;
-  }
-
-  if (onlyNumbers.startsWith('0') && onlyNumbers.length > 6) {
-    return `598${onlyNumbers.slice(1)}`;
-  }
-
-  return onlyNumbers;
-}
-
-function buildClientWhatsAppMessage({ clientName, businessName, serviceName, staffName, dateStr, timeStr, endStr }) {
-  const safeClientName = String(clientName || '').trim() || 'te';
-  const safeBusinessName = String(businessName || '').trim() || 'el negocio';
-
-  const lines = [
-    `Hola ${safeClientName}, tu reserva en ${safeBusinessName} quedó confirmada.`,
-    '',
-    serviceName ? `Servicio: ${serviceName}` : null,
-    staffName ? `Profesional: ${staffName}` : null,
-    dateStr ? `Fecha: ${dateStr}` : null,
-    timeStr ? `Hora: ${timeStr}${endStr ? ` a ${endStr}` : ''}` : null,
-    '',
-    'Te esperamos. Gracias por reservar.',
-  ];
-
-  return lines.filter((line) => line !== null).join('\n');
-}
-
-function buildWhatsAppUrl(phone, message) {
-  const normalizedPhone = normalizePhoneForWhatsApp(phone);
-
-  if (!normalizedPhone) return '';
-
-  return `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(message)}`;
-}
-
-
-function csvSafe(value) {
-  const raw = value === null || value === undefined ? '' : String(value);
-  const clean = raw.replace(/\r?\n|\r/g, ' ').trim();
-  return `"${clean.replace(/"/g, '""')}"`;
-}
-
-function downloadCsvFile(filename, headers, rows) {
-  const csvLines = [
-    headers.map(csvSafe).join(','),
-    ...rows.map((row) => row.map(csvSafe).join(',')),
-  ];
-
-  const blob = new Blob([`\ufeff${csvLines.join('\n')}`], {
-    type: 'text/csv;charset=utf-8;',
-  });
-
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-}
-
-function exportBookingsToCsv(bookings, filename = 'reservas.csv') {
-  const headers = [
-    'Fecha',
-    'Hora inicio',
-    'Hora fin',
-    'Cliente',
-    'Telefono',
-    'Servicio',
-    'Profesional',
-    'Estado',
-    'Duracion',
-    'Precio',
-    'Comentario',
-  ];
-
-  const rows = bookings.map((booking) => [
-    formatDate(getBookingDateValue(booking)),
-    formatTime(booking.startTime ?? booking.start_time) || '',
-    formatTime(booking.endTime ?? booking.end_time) || '',
-    booking.clientName ?? booking.client_name ?? '',
-    booking.clientPhone ?? booking.client_phone ?? '',
-    booking.serviceName ?? booking.service_name ?? '',
-    booking.staffName ?? booking.staff_name ?? '',
-    booking.status || '',
-    booking.serviceDurationMinutes ?? booking.service_duration_minutes ?? '',
-    booking.servicePrice ?? booking.service_price ?? '',
-    booking.comment || '',
-  ]);
-
-  downloadCsvFile(filename, headers, rows);
-}
-
-function exportClientsToCsv(clients, filename = 'clientes.csv') {
-  const headers = [
-    'Cliente',
-    'Telefono',
-    'Reservas totales',
-    'Asistencias',
-    'Canceladas',
-    'Pendientes o confirmadas',
-    'Ultima reserva',
-    'Ultima hora',
-    'Notas internas',
-  ];
-
-  const rows = clients.map((client) => {
-    const lastBooking = client.lastBooking;
-
-    return [
-      client.name || '',
-      client.phone || '',
-      client.bookings?.length || 0,
-      client.completedCount || 0,
-      client.cancelledCount || 0,
-      client.pendingOrConfirmedCount || 0,
-      lastBooking ? formatDate(getBookingDateValue(lastBooking)) : '',
-      lastBooking ? formatTime(lastBooking.startTime ?? lastBooking.start_time) || '' : '',
-      client.notes || '',
-    ];
-  });
-
-  downloadCsvFile(filename, headers, rows);
 }
 
 function normalizeSlug(value) {
@@ -433,8 +241,8 @@ function getProfessionExamples() {
 
 function AuthLayout({ children }) {
   return (
-    <div style={{ minHeight: '100vh', background: '#f2f2f7', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, fontFamily: APP_FONT }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap');@keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}`}</style>
+    <div style={{ minHeight: '100vh', background: '#f2f2f7', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <style>{`@keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}`}</style>
 
       <div style={{ background: '#fff', borderRadius: 24, padding: '36px 32px', border: '0.5px solid #e0e0e5', width: '100%', maxWidth: 460, animation: 'slideUp 250ms cubic-bezier(0.16,1,0.3,1) both', boxShadow: '0 2px 40px rgba(0,0,0,0.06)' }}>
         {children}
@@ -572,7 +380,7 @@ function LoginForm({ onLogin }) {
   return (
     <AuthLayout>
       <div style={{ textAlign: 'center', marginBottom: 24 }}>
-        <TuAgendaLogo height={52} centered />
+        <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: '#0071e3', marginBottom: 4 }}>TuAgendaYa</div>
         <div style={{ fontSize: 14, color: '#6e6e73' }}>Accedé a tu panel profesional</div>
       </div>
 
@@ -623,7 +431,7 @@ function LoginForm({ onLogin }) {
       </button>
 
       <div style={{ textAlign: 'center', fontSize: 11, color: '#aeaeb2', marginTop: 16 }}>
-        Tus datos están cifrados y protegidos
+        🔒 Tus datos están cifrados y protegidos
       </div>
     </AuthLayout>
   );
@@ -709,7 +517,7 @@ function RegisterPage() {
   return (
     <AuthLayout>
       <div style={{ textAlign: 'center', marginBottom: 22 }}>
-        <TuAgendaLogo height={52} centered />
+        <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: '#0071e3', marginBottom: 4 }}>TuAgendaYa</div>
         <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>Crear cuenta profesional</div>
         <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 4 }}>Configurá tu negocio en minutos</div>
       </div>
@@ -818,60 +626,24 @@ function ReservationsSection() {
   const [bookings, setBookings] = useState([]);
   const [loadingBookings, setLoadingBookings] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
-  const [reservationView, setReservationView] = useState('today');
-  const [expandedBookingId, setExpandedBookingId] = useState(null);
-  const [archivedSearch, setArchivedSearch] = useState('');
-  const [archivedStatus, setArchivedStatus] = useState('all');
-  const [archivedService, setArchivedService] = useState('all');
-  const [archivedFromDate, setArchivedFromDate] = useState('');
-  const [archivedToDate, setArchivedToDate] = useState('');
 
-  let storedProfessional = {};
-
-  try {
-    storedProfessional = JSON.parse(localStorage.getItem('tuagendaya_professional')) || {};
-  } catch {
-    storedProfessional = {};
-  }
-
-  const businessName = storedProfessional.businessName || storedProfessional.business_name || storedProfessional.name || '';
-
-  const fetchBookings = useCallback((showLoading = false) => {
+  const fetchBookings = () => {
     const token = localStorage.getItem('tuagendaya_token');
 
-    if (showLoading) {
-      setLoadingBookings(true);
-    }
+    setLoadingBookings(true);
 
-    return fetch(`${API_BASE}/bookings/me`, {
+    fetch(`${API_BASE}/bookings/me`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.json())
-      .then((data) => {
-        const nextBookings = Array.isArray(data.bookings) ? data.bookings : [];
-        setBookings(nextBookings);
-      })
-      .catch(() => {
-        if (showLoading) {
-          setBookings([]);
-        }
-      })
-      .finally(() => {
-        if (showLoading) {
-          setLoadingBookings(false);
-        }
-      });
-  }, []);
+      .then((data) => setBookings(data.bookings || []))
+      .catch(() => setBookings([]))
+      .finally(() => setLoadingBookings(false));
+  };
 
   useEffect(() => {
-    fetchBookings(true);
-
-    const intervalId = window.setInterval(() => {
-      fetchBookings(false);
-    }, 5000);
-
-    return () => window.clearInterval(intervalId);
-  }, [fetchBookings]);
+    fetchBookings();
+  }, []);
 
   const handleAction = async (id, action) => {
     setActionLoading(`${id}-${action}`);
@@ -883,7 +655,7 @@ function ReservationsSection() {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      fetchBookings(false);
+      fetchBookings();
     } catch {
       // no-op
     } finally {
@@ -891,531 +663,55 @@ function ReservationsSection() {
     }
   };
 
-  const statusColor = { pending: '#ff9f0a', confirmed: '#30d158', completed: '#5e5ce6', cancelled: '#ff453a' };
-  const statusLabel = { pending: 'Pendiente', confirmed: 'Confirmada', completed: 'Completada', cancelled: 'Cancelada' };
-  const statusBg = { pending: '#fff8ee', confirmed: '#edfff3', completed: '#f1f0ff', cancelled: '#fff2f2' };
+  const statusColor = { pending: '#ff9f0a', confirmed: '#30d158', cancelled: '#ff453a' };
+  const statusLabel = { pending: 'Pendiente', confirmed: 'Confirmada', cancelled: 'Cancelada' };
+  const statusBg = { pending: '#fff8ee', confirmed: '#edfff3', cancelled: '#fff2f2' };
 
-  const getLocalDateKey = (date = new Date()) => {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-  };
-
-  const getBookingDateKey = (booking) => {
-    const value = getBookingDateValue(booking);
-    if (!value) return '';
-
-    const raw = String(value).trim();
-
-    const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (isoMatch) {
-      return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
-    }
-
-    const slashMatch = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-    if (slashMatch) {
-      const [, day, month, year] = slashMatch;
-      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    }
-
-    const parsed = new Date(raw);
-    if (!Number.isNaN(parsed.getTime())) {
-      return getLocalDateKey(parsed);
-    }
-
-    return '';
-  };
-
-  const getBookingSortValue = (booking) => {
-    const dateKey = getBookingDateKey(booking) || '9999-12-31';
-    const time = formatTime(booking.startTime ?? booking.start_time) || '00:00';
-    return `${dateKey} ${time}`;
-  };
-
-  const todayKey = getLocalDateKey();
-
-  const todayBookings = bookings
-    .filter((booking) => getBookingDateKey(booking) === todayKey)
-    .sort((a, b) => getBookingSortValue(a).localeCompare(getBookingSortValue(b)));
-
-  const upcomingBookings = bookings
-    .filter((booking) => {
-      const key = getBookingDateKey(booking);
-      return key && key > todayKey;
-    })
-    .sort((a, b) => getBookingSortValue(a).localeCompare(getBookingSortValue(b)));
-
-  const rawArchivedBookings = bookings
-    .filter((booking) => {
-      const key = getBookingDateKey(booking);
-      return !key || key < todayKey;
-    })
-    .sort((a, b) => getBookingSortValue(b).localeCompare(getBookingSortValue(a)));
-
-  const archivedServiceOptions = Array.from(
-    new Set(
-      rawArchivedBookings
-        .map((booking) => String(booking.serviceName ?? booking.service_name ?? '').trim())
-        .filter(Boolean)
-    )
-  ).sort((a, b) => a.localeCompare(b, 'es'));
-
-  const archivedBookings = rawArchivedBookings.filter((booking) => {
-    const dateKey = getBookingDateKey(booking);
-    const status = String(booking.status || '').trim();
-    const serviceName = String(booking.serviceName ?? booking.service_name ?? '').trim();
-    const searchText = normalizeSearchText([
-      booking.clientName ?? booking.client_name,
-      booking.clientPhone ?? booking.client_phone,
-      serviceName,
-      booking.staffName ?? booking.staff_name,
-      booking.comment,
-    ].filter(Boolean).join(' '));
-
-    const searchOk = !archivedSearch.trim() || searchText.includes(normalizeSearchText(archivedSearch));
-    const statusOk = archivedStatus === 'all' || status === archivedStatus;
-    const serviceOk = archivedService === 'all' || serviceName === archivedService;
-    const fromOk = !archivedFromDate || (dateKey && dateKey >= archivedFromDate);
-    const toOk = !archivedToDate || (dateKey && dateKey <= archivedToDate);
-
-    return searchOk && statusOk && serviceOk && fromOk && toOk;
-  });
-
-  const clearArchivedFilters = () => {
-    setArchivedSearch('');
-    setArchivedStatus('all');
-    setArchivedService('all');
-    setArchivedFromDate('');
-    setArchivedToDate('');
-  };
-
-  const hasArchivedFilters =
-    archivedSearch.trim() ||
-    archivedStatus !== 'all' ||
-    archivedService !== 'all' ||
-    archivedFromDate ||
-    archivedToDate;
-
-  const visibleBookings =
-    reservationView === 'upcoming'
-      ? upcomingBookings
-      : reservationView === 'archived'
-        ? archivedBookings
-        : todayBookings;
-
-  const pendingCount = todayBookings.filter((b) => b.status === 'pending').length;
-  const confirmedCount = todayBookings.filter((b) => b.status === 'confirmed').length;
-  const completedCount = todayBookings.filter((b) => b.status === 'completed').length;
-  const cancelledCount = todayBookings.filter((b) => b.status === 'cancelled').length;
-
-  const clientStatsMap = new Map();
-
-  bookings.forEach((booking) => {
-    const clientName = String(booking.clientName ?? booking.client_name ?? '').trim();
-    const clientPhone = String(booking.clientPhone ?? booking.client_phone ?? '').trim();
-
-    if (!clientName && !clientPhone) return;
-
-    const key = normalizeSearchText(clientPhone || clientName);
-    const existing = clientStatsMap.get(key) || {
-      name: clientName || 'Sin nombre',
-      phone: clientPhone,
-      count: 0,
-    };
-
-    existing.count += 1;
-
-    if (!existing.name && clientName) existing.name = clientName;
-    if (!existing.phone && clientPhone) existing.phone = clientPhone;
-
-    clientStatsMap.set(key, existing);
-  });
-
-  const totalClientsCount = clientStatsMap.size;
-  const frequentClient = Array.from(clientStatsMap.values()).sort((a, b) => b.count - a.count)[0] || null;
-  const frequentClientLabel = frequentClient ? `${frequentClient.name} (${frequentClient.count})` : 'Sin datos';
-
-  const reservationViewButtonStyle = (key) => ({
-    flex: 1,
-    padding: '11px 12px',
-    borderRadius: 14,
-    border: reservationView === key ? '1px solid #0071e3' : '0.5px solid #e2e2e7',
-    background: reservationView === key ? '#eaf3ff' : '#fff',
-    color: reservationView === key ? '#0071e3' : '#1a1a1a',
-    fontSize: 13,
-    fontWeight: 800,
-    fontFamily: 'inherit',
-    cursor: 'pointer',
-    boxShadow: reservationView === key ? '0 1px 6px rgba(0,113,227,0.16)' : '0 1px 5px rgba(0,0,0,0.04)',
-  });
-
-  const currentTitle =
-    reservationView === 'upcoming'
-      ? 'Próximas reservas'
-      : reservationView === 'archived'
-        ? 'Reservas archivadas'
-        : 'Reservas de hoy';
-
-  const emptyText =
-    reservationView === 'upcoming'
-      ? 'No tenés próximas reservas.'
-      : reservationView === 'archived'
-        ? 'Todavía no hay reservas archivadas.'
-        : 'No tenés reservas para hoy.';
-
-  const getDateObjectFromKey = (dateKey) => {
-    if (!dateKey || dateKey === 'sin-fecha') return null;
-    const [year, month, day] = dateKey.split('-').map(Number);
-    if (!year || !month || !day) return null;
-    return new Date(year, month - 1, day);
-  };
-
-  const capitalizeFirst = (value) => {
-    const text = String(value || '').trim();
-    if (!text) return '';
-    return text.charAt(0).toUpperCase() + text.slice(1);
-  };
-
-  const formatDayGroupTitle = (dateKey) => {
-    if (!dateKey || dateKey === 'sin-fecha') return 'Sin fecha registrada';
-
-    const date = getDateObjectFromKey(dateKey);
-    if (!date) return 'Sin fecha registrada';
-
-    const weekday = capitalizeFirst(date.toLocaleDateString('es-UY', { weekday: 'long' }));
-    const month = date.toLocaleDateString('es-UY', { month: 'long' });
-    const day = date.getDate();
-
-    if (dateKey === todayKey) {
-      return `Hoy · ${weekday} ${day} de ${month}`;
-    }
-
-    return `${weekday} ${day} de ${month}`;
-  };
-
-  const formatMonthGroupTitle = (monthKey) => {
-    if (!monthKey || monthKey === 'sin-fecha') return 'Sin fecha';
-
-    const [year, month] = monthKey.split('-').map(Number);
-    if (!year || !month) return 'Sin fecha';
-
-    const date = new Date(year, month - 1, 1);
-    const monthName = capitalizeFirst(date.toLocaleDateString('es-UY', { month: 'long' }));
-
-    return `${monthName} ${year}`;
-  };
-
-  const visibleBookingItems = [];
-  let lastMonthKey = null;
-  let lastDateKey = null;
-
-  visibleBookings.forEach((booking) => {
-    const dateKey = getBookingDateKey(booking) || 'sin-fecha';
-    const monthKey = dateKey === 'sin-fecha' ? 'sin-fecha' : dateKey.slice(0, 7);
-
-    if (monthKey !== lastMonthKey) {
-      visibleBookingItems.push({
-        type: 'month-header',
-        key: `month-${reservationView}-${monthKey}`,
-        monthKey,
-        title: formatMonthGroupTitle(monthKey),
-      });
-      lastMonthKey = monthKey;
-      lastDateKey = null;
-    }
-
-    if (dateKey !== lastDateKey) {
-      visibleBookingItems.push({
-        type: 'date-header',
-        key: `date-${reservationView}-${dateKey}`,
-        dateKey,
-        title: formatDayGroupTitle(dateKey),
-        count: visibleBookings.filter((item) => (getBookingDateKey(item) || 'sin-fecha') === dateKey).length,
-      });
-      lastDateKey = dateKey;
-    }
-
-    visibleBookingItems.push({
-      type: 'booking',
-      key: `booking-${booking.id}`,
-      booking,
-    });
-  });
+  const pendingCount = bookings.filter((b) => b.status === 'pending').length;
+  const confirmedCount = bookings.filter((b) => b.status === 'confirmed').length;
+  const cancelledCount = bookings.filter((b) => b.status === 'cancelled').length;
 
   return (
     <>
       {!loadingBookings && (
-        <div style={{ background: '#fff', borderRadius: 22, padding: '18px 20px', marginBottom: 16, boxShadow: '0 1px 8px rgba(0,0,0,0.05)' }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
-            <div>
-              <div style={{ fontSize: 16, fontWeight: 900, color: '#1a1a1a' }}>Resumen del negocio</div>
-              <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 600, marginTop: 3 }}>
-                Vista rápida del día, próximas reservas y clientes.
-              </div>
-            </div>
-            <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800, whiteSpace: 'nowrap' }}>
-              Actualiza cada 5 s
-            </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
+          <div style={{ background: '#fff8ee', borderRadius: 16, padding: '14px 16px' }}>
+            <div style={{ fontSize: 24, fontWeight: 700, color: '#ff9f0a' }}>{pendingCount}</div>
+            <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2 }}>Pendientes</div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10 }}>
-            <div style={{ background: '#f2f2f7', borderRadius: 16, padding: '14px 16px', border: '0.5px solid #e8e8ed' }}>
-              <div style={{ fontSize: 24, fontWeight: 900, color: '#1a1a1a' }}>{todayBookings.length}</div>
-              <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2, fontWeight: 700 }}>Reservas hoy</div>
-            </div>
+          <div style={{ background: '#edfff3', borderRadius: 16, padding: '14px 16px' }}>
+            <div style={{ fontSize: 24, fontWeight: 700, color: '#30d158' }}>{confirmedCount}</div>
+            <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2 }}>Confirmadas</div>
+          </div>
 
-            <div style={{ background: '#edfff3', borderRadius: 16, padding: '14px 16px' }}>
-              <div style={{ fontSize: 24, fontWeight: 900, color: '#30d158' }}>{confirmedCount}</div>
-              <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2, fontWeight: 700 }}>Confirmadas</div>
-            </div>
+          <div style={{ background: '#fff2f2', borderRadius: 16, padding: '14px 16px' }}>
+            <div style={{ fontSize: 24, fontWeight: 700, color: '#ff453a' }}>{cancelledCount}</div>
+            <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2 }}>Canceladas</div>
+          </div>
 
-            <div style={{ background: '#fff2f2', borderRadius: 16, padding: '14px 16px' }}>
-              <div style={{ fontSize: 24, fontWeight: 900, color: '#ff453a' }}>{cancelledCount}</div>
-              <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2, fontWeight: 700 }}>Canceladas</div>
-            </div>
+          <div style={{ background: '#f2f2f7', borderRadius: 16, padding: '14px 16px', border: '0.5px solid #e8e8ed' }}>
+            <div style={{ fontSize: 24, fontWeight: 700, color: '#1a1a1a' }}>{bookings.length}</div>
+            <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2 }}>Total</div>
           </div>
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-        <button type="button" onClick={() => setReservationView('today')} style={reservationViewButtonStyle('today')}>
-          Hoy ({todayBookings.length})
-        </button>
-        <button type="button" onClick={() => setReservationView('upcoming')} style={reservationViewButtonStyle('upcoming')}>
-          Próximas ({upcomingBookings.length})
-        </button>
-        <button type="button" onClick={() => setReservationView('archived')} style={reservationViewButtonStyle('archived')}>
-          Archivadas ({rawArchivedBookings.length})
-        </button>
-      </div>
-
       <div style={{ background: '#fff', borderRadius: 20, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>{currentTitle}</div>
-            <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 600, marginTop: 3 }}>
-              Las reservas se agrupan por mes y fecha, y a las 00:00 pasan automáticamente a Archivadas.
-            </div>
-          </div>
-          <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 600, whiteSpace: 'nowrap' }}>Actualización automática cada 5 s</div>
-        </div>
-
-        {reservationView === 'archived' && !loadingBookings && (
-          <div
-            style={{
-              background: '#f7f7fb',
-              border: '0.5px solid #e4e4ea',
-              borderRadius: 18,
-              padding: 14,
-              marginBottom: 16,
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 900, color: '#1a1a1a' }}>Buscar en archivadas</div>
-                <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 700, marginTop: 2 }}>
-                  Filtrá por cliente, fecha, servicio o estado.
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                <button
-                  type="button"
-                  onClick={() => exportBookingsToCsv(archivedBookings, 'reservas-archivadas-tuagendaya.csv')}
-                  disabled={archivedBookings.length === 0}
-                  style={{
-                    border: 'none',
-                    background: archivedBookings.length === 0 ? '#f2f2f7' : '#0071e3',
-                    color: archivedBookings.length === 0 ? '#8e8e93' : '#fff',
-                    borderRadius: 999,
-                    padding: '8px 12px',
-                    fontSize: 12,
-                    fontWeight: 900,
-                    fontFamily: 'inherit',
-                    cursor: archivedBookings.length === 0 ? 'not-allowed' : 'pointer',
-                    boxShadow: archivedBookings.length === 0 ? 'none' : '0 1px 5px rgba(0,113,227,0.18)',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  Exportar CSV
-                </button>
-
-                {hasArchivedFilters && (
-                  <button
-                    type="button"
-                    onClick={clearArchivedFilters}
-                    style={{
-                      border: 'none',
-                      background: '#fff',
-                      color: '#0071e3',
-                      borderRadius: 999,
-                      padding: '8px 12px',
-                      fontSize: 12,
-                      fontWeight: 900,
-                      fontFamily: 'inherit',
-                      cursor: 'pointer',
-                      boxShadow: '0 1px 5px rgba(0,0,0,0.05)',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    Limpiar
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.3fr) repeat(4, minmax(120px, 1fr))', gap: 10 }}>
-              <input
-                value={archivedSearch}
-                onChange={(e) => setArchivedSearch(e.target.value)}
-                placeholder="Buscar cliente, teléfono o profesional"
-                style={{
-                  ...inputStyle,
-                  margin: 0,
-                  background: '#fff',
-                  borderRadius: 14,
-                  fontSize: 13,
-                  padding: '11px 12px',
-                }}
-              />
-
-              <input
-                type="date"
-                value={archivedFromDate}
-                onChange={(e) => setArchivedFromDate(e.target.value)}
-                title="Desde"
-                style={{
-                  ...inputStyle,
-                  margin: 0,
-                  background: '#fff',
-                  borderRadius: 14,
-                  fontSize: 13,
-                  padding: '11px 12px',
-                }}
-              />
-
-              <input
-                type="date"
-                value={archivedToDate}
-                onChange={(e) => setArchivedToDate(e.target.value)}
-                title="Hasta"
-                style={{
-                  ...inputStyle,
-                  margin: 0,
-                  background: '#fff',
-                  borderRadius: 14,
-                  fontSize: 13,
-                  padding: '11px 12px',
-                }}
-              />
-
-              <select
-                value={archivedStatus}
-                onChange={(e) => setArchivedStatus(e.target.value)}
-                style={{
-                  ...inputStyle,
-                  margin: 0,
-                  background: '#fff',
-                  borderRadius: 14,
-                  fontSize: 13,
-                  padding: '11px 12px',
-                }}
-              >
-                <option value="all">Todos los estados</option>
-                <option value="pending">Pendientes</option>
-                <option value="confirmed">Confirmadas</option>
-                <option value="completed">Completadas</option>
-                <option value="cancelled">Canceladas</option>
-              </select>
-
-              <select
-                value={archivedService}
-                onChange={(e) => setArchivedService(e.target.value)}
-                style={{
-                  ...inputStyle,
-                  margin: 0,
-                  background: '#fff',
-                  borderRadius: 14,
-                  fontSize: 13,
-                  padding: '11px 12px',
-                }}
-              >
-                <option value="all">Todos los servicios</option>
-                {archivedServiceOptions.map((service) => (
-                  <option key={service} value={service}>{service}</option>
-                ))}
-              </select>
-            </div>
-
-            <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800, marginTop: 10 }}>
-              Mostrando {archivedBookings.length} de {rawArchivedBookings.length} reservas archivadas.
-            </div>
-          </div>
-        )}
+        <div style={{ fontSize: 15, fontWeight: 600, color: '#1a1a1a', marginBottom: 16 }}>Reservas recibidas</div>
 
         {loadingBookings ? (
           <div style={{ textAlign: 'center', color: '#aeaeb2', padding: 32 }}>Cargando reservas...</div>
-        ) : visibleBookings.length === 0 ? (
+        ) : bookings.length === 0 ? (
           <div style={{ textAlign: 'center', color: '#aeaeb2', padding: 32 }}>
-            <div style={{ fontWeight: 500 }}>{emptyText}</div>
+            <div style={{ fontSize: 32, marginBottom: 8 }}>📭</div>
+            <div style={{ fontWeight: 500 }}>No tenés reservas todavía.</div>
           </div>
         ) : (
-          visibleBookingItems.map((item) => {
-            if (item.type === 'month-header') {
-              return (
-                <div
-                  key={item.key}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 10,
-                    padding: '10px 4px 8px',
-                    marginTop: 4,
-                    marginBottom: 6,
-                    borderBottom: '0.5px solid #f0f0f0',
-                  }}
-                >
-                  <div style={{ fontSize: 13, fontWeight: 900, color: '#1a1a1a' }}>{item.title}</div>
-                  <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800 }}>
-                    {item.monthKey === 'sin-fecha' ? 'Sin fecha' : 'Archivo por mes'}
-                  </div>
-                </div>
-              );
-            }
-
-            if (item.type === 'date-header') {
-              return (
-                <div
-                  key={item.key}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 10,
-                    background: '#f5f5f7',
-                    borderRadius: 14,
-                    padding: '9px 12px',
-                    marginBottom: 8,
-                    marginTop: 8,
-                  }}
-                >
-                  <div style={{ fontSize: 12, fontWeight: 900, color: '#1a1a1a' }}>{item.title}</div>
-                  <div style={{ fontSize: 11, fontWeight: 800, color: '#8e8e93' }}>
-                    {item.count} {item.count === 1 ? 'turno' : 'turnos'}
-                  </div>
-                </div>
-              );
-            }
-
-            const b = item.booking;
+          bookings.map((b) => {
             const isPending = b.status === 'pending';
-            const isConfirmed = b.status === 'confirmed';
-            const isCompleted = b.status === 'completed';
             const isCancelled = b.status === 'cancelled';
-            const isArchivedView = reservationView === 'archived';
-            const dateStr = formatDate(getBookingDateValue(b));
+            const dateStr = formatDate(b.bookingDate ?? b.booking_date);
             const timeStr = formatTime(b.startTime ?? b.start_time);
             const endStr = formatTime(b.endTime ?? b.end_time);
             const clientName = b.clientName ?? b.client_name;
@@ -1424,290 +720,128 @@ function ReservationsSection() {
             const serviceDuration = b.serviceDurationMinutes ?? b.service_duration_minutes;
             const servicePrice = b.servicePrice ?? b.service_price;
             const staffName = b.staffName ?? b.staff_name;
-            const whatsappMessage = buildClientWhatsAppMessage({
-              clientName,
-              businessName,
-              serviceName,
-              staffName,
-              dateStr,
-              timeStr,
-              endStr,
-            });
-            const whatsappUrl = buildWhatsAppUrl(clientPhone, whatsappMessage);
-            const canSendWhatsApp = Boolean(clientPhone && whatsappUrl && !isCancelled);
-            const canConfirm = !isArchivedView && isPending;
-            const canComplete = !isArchivedView && (isPending || isConfirmed);
-            const canCancel = !isArchivedView && !isCancelled && !isCompleted;
-
-            const isExpanded = expandedBookingId === b.id;
-            const mainTime = timeStr ? `${timeStr}${endStr ? ` - ${endStr}` : ''}` : 'Sin hora';
-            const mainService = serviceName || 'Servicio no especificado';
 
             return (
               <div
                 key={b.id}
                 style={{
-                  border: `1px solid ${isExpanded ? '#0071e3' : isCancelled ? '#ffe0e0' : '#e8e8ed'}`,
-                  borderRadius: 18,
+                  border: `1px solid ${isCancelled ? '#ffe0e0' : '#e8e8ed'}`,
+                  borderRadius: 16,
+                  padding: 16,
                   marginBottom: 10,
-                  background: isCancelled ? '#fffafa' : isCompleted ? '#fbfbff' : '#fff',
-                  opacity: isCancelled ? 0.78 : 1,
-                  overflow: 'hidden',
-                  boxShadow: isExpanded ? '0 8px 24px rgba(0,113,227,0.10)' : '0 1px 8px rgba(0,0,0,0.04)',
+                  background: isCancelled ? '#fffafa' : '#fafafa',
+                  opacity: isCancelled ? 0.72 : 1,
                 }}
               >
-                <button
-                  type="button"
-                  onClick={() => setExpandedBookingId(isExpanded ? null : b.id)}
-                  style={{
-                    width: '100%',
-                    border: 'none',
-                    background: 'transparent',
-                    padding: '14px 16px',
-                    cursor: 'pointer',
-                    fontFamily: 'inherit',
-                    textAlign: 'left',
-                    display: 'grid',
-                    gridTemplateColumns: '96px minmax(0, 1fr) auto',
-                    gap: 12,
-                    alignItems: 'center',
-                  }}
-                >
-                  <div
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 10 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14, color: '#1a1a1a' }}>{clientName}</div>
+
+                    {clientPhone && (
+                      <div style={{ fontSize: 12, color: '#6e6e73', marginTop: 2 }}>📞 {clientPhone}</div>
+                    )}
+
+                    {serviceName && (
+                      <div style={{ fontSize: 12, color: '#0071e3', marginTop: 4 }}>
+                        ✂️ {serviceName}
+                        {serviceDuration ? ` · ${serviceDuration} min` : ''}
+                        {servicePrice ? ` · $${servicePrice}` : ''}
+                      </div>
+                    )}
+
+                    {staffName && (
+                      <div style={{ fontSize: 12, color: '#6e6e73', marginTop: 4 }}>
+                        👤 Profesional: {staffName}
+                      </div>
+                    )}
+                  </div>
+
+                  <span
                     style={{
-                      borderRadius: 14,
-                      background: '#f2f2f7',
-                      padding: '9px 8px',
-                      textAlign: 'center',
-                      color: '#1a1a1a',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      flexShrink: 0,
+                      whiteSpace: 'nowrap',
+                      color: statusColor[b.status] || '#6e6e73',
+                      background: statusBg[b.status] || '#f2f2f7',
+                      padding: '4px 12px',
+                      borderRadius: 20,
                     }}
                   >
-                    <div style={{ fontSize: 15, fontWeight: 900, lineHeight: 1 }}>{timeStr || '--:--'}</div>
-                    {endStr && <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 700, marginTop: 4 }}>hasta {endStr}</div>}
-                  </div>
+                    {statusLabel[b.status] || b.status}
+                  </span>
+                </div>
 
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                      <div
-                        style={{
-                          fontWeight: 900,
-                          fontSize: 14,
-                          color: '#1a1a1a',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {clientName || 'Cliente sin nombre'}
-                      </div>
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: '#6e6e73',
-                        marginTop: 4,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {mainService}{staffName ? ` · ${staffName}` : ''}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 11,
-                        color: '#8e8e93',
-                        marginTop: 3,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {dateStr}
-                    </div>
-                  </div>
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    background: '#fff',
+                    border: '0.5px solid #e8e8ed',
+                    borderRadius: 10,
+                    padding: '7px 12px',
+                    marginBottom: 8,
+                    fontSize: 13,
+                  }}
+                >
+                  <span>📅 <strong>{dateStr}</strong></span>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 800,
-                        flexShrink: 0,
-                        whiteSpace: 'nowrap',
-                        color: statusColor[b.status] || '#6e6e73',
-                        background: statusBg[b.status] || '#f2f2f7',
-                        padding: '5px 10px',
-                        borderRadius: 999,
-                      }}
-                    >
-                      {statusLabel[b.status] || b.status}
+                  {timeStr && (
+                    <span style={{ color: '#3a3a3c' }}>
+                      ⏰ <strong>{timeStr}</strong>
+                      {endStr && <span style={{ color: '#aeaeb2', fontWeight: 400 }}> → {endStr}</span>}
                     </span>
-                    <span style={{ color: '#8e8e93', fontSize: 18, fontWeight: 800, transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: '0.18s ease' }}>
-                      ⌄
-                    </span>
-                  </div>
-                </button>
+                  )}
+                </div>
 
-                {isExpanded && (
-                  <div style={{ padding: '0 16px 16px 16px' }}>
-                    <div
+                {b.comment && (
+                  <div style={{ fontSize: 12, color: '#8e8e93', fontStyle: 'italic', marginBottom: 10, paddingLeft: 2 }}>
+                    "{b.comment}"
+                  </div>
+                )}
+
+                {isPending && (
+                  <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                    <button
+                      onClick={() => handleAction(b.id, 'confirm')}
+                      disabled={actionLoading === `${b.id}-confirm`}
                       style={{
-                        borderTop: '0.5px solid #eeeeef',
-                        paddingTop: 14,
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                        gap: 10,
+                        flex: 1,
+                        padding: '9px 0',
+                        borderRadius: 10,
+                        border: 'none',
+                        background: '#30d158',
+                        color: '#fff',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        fontFamily: 'inherit',
+                        cursor: 'pointer',
+                        opacity: actionLoading === `${b.id}-confirm` ? 0.6 : 1,
                       }}
                     >
-                      <div style={{ background: '#fafafa', borderRadius: 14, padding: 12 }}>
-                        <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800, marginBottom: 4 }}>Cliente</div>
-                        <div style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 800 }}>{clientName || 'Sin nombre'}</div>
-                      </div>
+                      {actionLoading === `${b.id}-confirm` ? '...' : '✓ Confirmar'}
+                    </button>
 
-                      <div style={{ background: '#fafafa', borderRadius: 14, padding: 12 }}>
-                        <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800, marginBottom: 4 }}>Teléfono</div>
-                        <div style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 800 }}>{clientPhone || 'Sin teléfono'}</div>
-                      </div>
-
-                      <div style={{ background: '#fafafa', borderRadius: 14, padding: 12 }}>
-                        <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800, marginBottom: 4 }}>Servicio</div>
-                        <div style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 800 }}>{mainService}</div>
-                        {(serviceDuration || servicePrice) && (
-                          <div style={{ fontSize: 12, color: '#0071e3', fontWeight: 700, marginTop: 4 }}>
-                            {serviceDuration ? `${serviceDuration} min` : ''}{serviceDuration && servicePrice ? ' · ' : ''}{servicePrice ? `$${servicePrice}` : ''}
-                          </div>
-                        )}
-                      </div>
-
-                      <div style={{ background: '#fafafa', borderRadius: 14, padding: 12 }}>
-                        <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800, marginBottom: 4 }}>Profesional</div>
-                        <div style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 800 }}>{staffName || 'Sin asignar'}</div>
-                      </div>
-
-                      <div style={{ background: '#fafafa', borderRadius: 14, padding: 12 }}>
-                        <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800, marginBottom: 4 }}>Fecha</div>
-                        <div style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 800 }}>{dateStr}</div>
-                      </div>
-
-                      <div style={{ background: '#fafafa', borderRadius: 14, padding: 12 }}>
-                        <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800, marginBottom: 4 }}>Hora</div>
-                        <div style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 800 }}>{mainTime}</div>
-                      </div>
-                    </div>
-
-                    {b.comment && (
-                      <div style={{ fontSize: 12, color: '#6e6e73', fontStyle: 'italic', marginTop: 10, padding: 12, background: '#fafafa', borderRadius: 14 }}>
-                        "{b.comment}"
-                      </div>
-                    )}
-
-                    {canSendWhatsApp && (
-                      <a
-                        href={whatsappUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          textDecoration: 'none',
-                          width: '100%',
-                          padding: '11px 12px',
-                          borderRadius: 14,
-                          border: '0.5px solid #c8f2d3',
-                          background: '#edfff3',
-                          color: '#188038',
-                          fontSize: 13,
-                          fontWeight: 900,
-                          fontFamily: 'inherit',
-                          boxSizing: 'border-box',
-                          marginTop: 12,
-                          marginBottom: !isArchivedView && (canConfirm || canComplete || canCancel) ? 10 : 0,
-                        }}
-                      >
-                        Enviar WhatsApp al cliente
-                      </a>
-                    )}
-
-                    {!isArchivedView && (canConfirm || canComplete || canCancel) && (
-                      <div
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: `repeat(${[canConfirm, canComplete, canCancel].filter(Boolean).length}, minmax(0, 1fr))`,
-                          gap: 8,
-                          marginTop: 10,
-                        }}
-                      >
-                        {canConfirm && (
-                          <button
-                            onClick={() => handleAction(b.id, 'confirm')}
-                            disabled={actionLoading === `${b.id}-confirm`}
-                            style={{
-                              padding: '10px 0',
-                              borderRadius: 12,
-                              border: 'none',
-                              background: '#30d158',
-                              color: '#fff',
-                              fontSize: 13,
-                              fontWeight: 800,
-                              fontFamily: 'inherit',
-                              cursor: 'pointer',
-                              opacity: actionLoading === `${b.id}-confirm` ? 0.6 : 1,
-                            }}
-                          >
-                            {actionLoading === `${b.id}-confirm` ? '...' : 'Confirmar'}
-                          </button>
-                        )}
-
-                        {canComplete && (
-                          <button
-                            onClick={() => handleAction(b.id, 'complete')}
-                            disabled={actionLoading === `${b.id}-complete`}
-                            style={{
-                              padding: '10px 0',
-                              borderRadius: 12,
-                              border: 'none',
-                              background: '#5e5ce6',
-                              color: '#fff',
-                              fontSize: 13,
-                              fontWeight: 800,
-                              fontFamily: 'inherit',
-                              cursor: 'pointer',
-                              opacity: actionLoading === `${b.id}-complete` ? 0.6 : 1,
-                            }}
-                          >
-                            {actionLoading === `${b.id}-complete` ? '...' : 'Completar'}
-                          </button>
-                        )}
-
-                        {canCancel && (
-                          <button
-                            onClick={() => handleAction(b.id, 'cancel')}
-                            disabled={actionLoading === `${b.id}-cancel`}
-                            style={{
-                              padding: '10px 0',
-                              borderRadius: 12,
-                              border: 'none',
-                              background: '#ff453a',
-                              color: '#fff',
-                              fontSize: 13,
-                              fontWeight: 800,
-                              fontFamily: 'inherit',
-                              cursor: 'pointer',
-                              opacity: actionLoading === `${b.id}-cancel` ? 0.6 : 1,
-                            }}
-                          >
-                            {actionLoading === `${b.id}-cancel` ? '...' : 'Cancelar'}
-                          </button>
-                        )}
-                      </div>
-                    )}
-
-                    {isArchivedView && (
-                      <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 700, marginTop: 12, textAlign: 'center' }}>
-                        Registro archivado. No se muestra como turno activo del día.
-                      </div>
-                    )}
+                    <button
+                      onClick={() => handleAction(b.id, 'cancel')}
+                      disabled={actionLoading === `${b.id}-cancel`}
+                      style={{
+                        flex: 1,
+                        padding: '9px 0',
+                        borderRadius: 10,
+                        border: 'none',
+                        background: '#ff453a',
+                        color: '#fff',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        fontFamily: 'inherit',
+                        cursor: 'pointer',
+                        opacity: actionLoading === `${b.id}-cancel` ? 0.6 : 1,
+                      }}
+                    >
+                      {actionLoading === `${b.id}-cancel` ? '...' : '✕ Cancelar'}
+                    </button>
                   </div>
                 )}
               </div>
@@ -1798,656 +932,6 @@ function AvailabilityTable({ availability, onChange }) {
   );
 }
 
-
-function ClientsSection() {
-  const [bookings, setBookings] = useState([]);
-  const [loadingClients, setLoadingClients] = useState(true);
-  const [search, setSearch] = useState('');
-  const [expandedClientKey, setExpandedClientKey] = useState(null);
-  const [showFrequentClients, setShowFrequentClients] = useState(false);
-  const [clientNotes, setClientNotes] = useState({});
-  const [noteDrafts, setNoteDrafts] = useState({});
-  const [savingNoteKey, setSavingNoteKey] = useState(null);
-  const [noteStatus, setNoteStatus] = useState({});
-
-  let storedProfessional = {};
-
-  try {
-    storedProfessional = JSON.parse(localStorage.getItem('tuagendaya_professional')) || {};
-  } catch {
-    storedProfessional = {};
-  }
-
-  const businessName = storedProfessional.businessName || storedProfessional.business_name || storedProfessional.name || '';
-
-  const getLocalDateKey = (date = new Date()) => {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-  };
-
-  const getBookingDateKey = (booking) => {
-    const value = getBookingDateValue(booking);
-    if (!value) return '';
-
-    const raw = String(value).trim();
-
-    const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (isoMatch) {
-      return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
-    }
-
-    const slashMatch = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-    if (slashMatch) {
-      const [, day, month, year] = slashMatch;
-      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    }
-
-    const parsed = new Date(raw);
-    if (!Number.isNaN(parsed.getTime())) {
-      return getLocalDateKey(parsed);
-    }
-
-    return '';
-  };
-
-  const getBookingSortValue = (booking) => {
-    const dateKey = getBookingDateKey(booking) || '0000-00-00';
-    const time = formatTime(booking.startTime ?? booking.start_time) || '00:00';
-    return `${dateKey} ${time}`;
-  };
-
-  const fetchBookings = useCallback((showLoading = false) => {
-    const token = localStorage.getItem('tuagendaya_token');
-
-    if (showLoading) {
-      setLoadingClients(true);
-    }
-
-    return fetch(`${API_BASE}/bookings/me`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => r.json())
-      .then((data) => {
-        setBookings(Array.isArray(data.bookings) ? data.bookings : []);
-      })
-      .catch(() => {
-        if (showLoading) {
-          setBookings([]);
-        }
-      })
-      .finally(() => {
-        if (showLoading) {
-          setLoadingClients(false);
-        }
-      });
-  }, []);
-
-  const fetchClientNotes = useCallback(() => {
-    const token = localStorage.getItem('tuagendaya_token');
-
-    return fetch(`${API_BASE}/professionals/me/client-notes`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => r.json())
-      .then((data) => {
-        const notesMap = {};
-        const draftsMap = {};
-
-        (Array.isArray(data.notes) ? data.notes : []).forEach((item) => {
-          const key = item.clientKey ?? item.client_key;
-          if (!key) return;
-          notesMap[key] = item;
-          draftsMap[key] = item.notes || '';
-        });
-
-        setClientNotes(notesMap);
-        setNoteDrafts((current) => ({ ...draftsMap, ...current }));
-      })
-      .catch(() => {
-        setClientNotes({});
-      });
-  }, []);
-
-  useEffect(() => {
-    fetchBookings(true);
-    fetchClientNotes();
-
-    const intervalId = window.setInterval(() => {
-      fetchBookings(false);
-    }, 10000);
-
-    return () => window.clearInterval(intervalId);
-  }, [fetchBookings, fetchClientNotes]);
-
-  const clientsMap = new Map();
-
-  bookings.forEach((booking) => {
-    const clientName = String(booking.clientName ?? booking.client_name ?? '').trim();
-    const clientPhone = String(booking.clientPhone ?? booking.client_phone ?? '').trim();
-
-    if (!clientName && !clientPhone) return;
-
-    const normalizedPhone = normalizePhoneForWhatsApp(clientPhone);
-    const key = normalizedPhone || normalizeSearchText(clientName);
-
-    if (!clientsMap.has(key)) {
-      clientsMap.set(key, {
-        key,
-        name: clientName || 'Cliente sin nombre',
-        phone: clientPhone,
-        normalizedPhone,
-        bookings: [],
-      });
-    }
-
-    const client = clientsMap.get(key);
-
-    if ((!client.name || client.name === 'Cliente sin nombre') && clientName) {
-      client.name = clientName;
-    }
-
-    if (!client.phone && clientPhone) {
-      client.phone = clientPhone;
-      client.normalizedPhone = normalizedPhone;
-    }
-
-    client.bookings.push(booking);
-  });
-
-  clientsMap.forEach((client, key) => {
-    const savedNote = clientNotes[key];
-    client.notes = savedNote?.notes || '';
-    client.noteUpdatedAt = savedNote?.updatedAt ?? savedNote?.updated_at ?? null;
-  });
-
-  const clients = Array.from(clientsMap.values()).map((client) => {
-    const sortedBookings = [...client.bookings].sort((a, b) => getBookingSortValue(b).localeCompare(getBookingSortValue(a)));
-    const lastBooking = sortedBookings[0] || null;
-    const completedCount = sortedBookings.filter((booking) => booking.status === 'completed').length;
-    const cancelledCount = sortedBookings.filter((booking) => booking.status === 'cancelled').length;
-    const pendingOrConfirmedCount = sortedBookings.filter((booking) => booking.status === 'pending' || booking.status === 'confirmed').length;
-
-    return {
-      ...client,
-      bookings: sortedBookings,
-      lastBooking,
-      completedCount,
-      cancelledCount,
-      pendingOrConfirmedCount,
-    };
-  });
-
-  const filteredClients = clients
-    .filter((client) => {
-      const query = normalizeSearchText(search);
-      if (!query) return true;
-
-      return (
-        normalizeSearchText(client.name).includes(query) ||
-        normalizeSearchText(client.phone).includes(query) ||
-        normalizeSearchText(client.normalizedPhone).includes(query)
-      );
-    })
-    .sort((a, b) => {
-      const aValue = a.lastBooking ? getBookingSortValue(a.lastBooking) : '0000-00-00 00:00';
-      const bValue = b.lastBooking ? getBookingSortValue(b.lastBooking) : '0000-00-00 00:00';
-      return bValue.localeCompare(aValue);
-    });
-
-  const totalBookings = bookings.length;
-  const attendedClients = clients
-    .filter((client) => client.completedCount > 0)
-    .sort((a, b) => {
-      if (b.completedCount !== a.completedCount) return b.completedCount - a.completedCount;
-      const aValue = a.lastBooking ? getBookingSortValue(a.lastBooking) : '0000-00-00 00:00';
-      const bValue = b.lastBooking ? getBookingSortValue(b.lastBooking) : '0000-00-00 00:00';
-      return bValue.localeCompare(aValue);
-    });
-  const frequentClients = attendedClients.length;
-
-  const buildClientGeneralMessage = (client) => {
-    const safeName = client.name || 'te';
-    const safeBusinessName = businessName || 'el negocio';
-
-    return [
-      `Hola ${safeName}, te escribimos de ${safeBusinessName}.`,
-      '',
-      'Gracias por reservar con nosotros.',
-    ].join('\n');
-  };
-
-  const getClientDraftNote = (client) => {
-    if (noteDrafts[client.key] !== undefined) return noteDrafts[client.key];
-    return client.notes || '';
-  };
-
-  const handleClientNoteChange = (client, value) => {
-    setNoteDrafts((current) => ({ ...current, [client.key]: value }));
-    setNoteStatus((current) => ({ ...current, [client.key]: '' }));
-  };
-
-  const saveClientNote = async (client) => {
-    const token = localStorage.getItem('tuagendaya_token');
-    const draft = getClientDraftNote(client);
-
-    setSavingNoteKey(client.key);
-    setNoteStatus((current) => ({ ...current, [client.key]: '' }));
-
-    try {
-      const res = await fetch(`${API_BASE}/professionals/me/client-notes/${encodeURIComponent(client.key)}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          clientName: client.name,
-          clientPhone: client.phone,
-          notes: draft,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'No se pudo guardar la nota');
-      }
-
-      const savedNote = data.note || {
-        clientKey: client.key,
-        client_key: client.key,
-        notes: draft,
-        updatedAt: new Date().toISOString(),
-      };
-
-      setClientNotes((current) => ({ ...current, [client.key]: savedNote }));
-      setNoteStatus((current) => ({ ...current, [client.key]: 'Nota guardada' }));
-    } catch (error) {
-      setNoteStatus((current) => ({
-        ...current,
-        [client.key]: error.message || 'No se pudo guardar la nota',
-      }));
-    } finally {
-      setSavingNoteKey(null);
-    }
-  };
-
-  const summaryCardStyle = {
-    background: '#fff',
-    borderRadius: 18,
-    padding: '16px 18px',
-    boxShadow: '0 1px 8px rgba(0,0,0,0.05)',
-    border: '0.5px solid #eeeeef',
-  };
-
-  return (
-    <div>
-      <div style={{ marginBottom: 16 }}>
-        <button
-          type="button"
-          onClick={() => setShowFrequentClients((current) => !current)}
-          style={{
-            ...summaryCardStyle,
-            width: '100%',
-            border: `1px solid ${showFrequentClients ? '#0071e3' : '#eeeeef'}`,
-            cursor: 'pointer',
-            fontFamily: 'inherit',
-            textAlign: 'left',
-            display: 'grid',
-            gridTemplateColumns: 'minmax(0, 1fr) auto',
-            gap: 12,
-            alignItems: 'center',
-            background: showFrequentClients ? '#f0f7ff' : '#fff',
-          }}
-        >
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-              <div style={{ fontSize: 26, fontWeight: 900, color: '#30d158' }}>{frequentClients}</div>
-              <div>
-                <div style={{ fontSize: 15, fontWeight: 900, color: '#1a1a1a' }}>Clientes frecuentes</div>
-                <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 700, marginTop: 2 }}>
-                  Clientes que ya asistieron al menos una vez. Se actualiza automáticamente con cada reserva completada.
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div style={{ color: '#0071e3', fontSize: 22, fontWeight: 900, transform: showFrequentClients ? 'rotate(180deg)' : 'rotate(0deg)', transition: '0.18s ease' }}>
-            ⌄
-          </div>
-        </button>
-
-        {showFrequentClients && (
-          <div style={{ marginTop: 10, background: '#fff', borderRadius: 18, border: '0.5px solid #e8e8ed', overflow: 'hidden', boxShadow: '0 1px 8px rgba(0,0,0,0.04)' }}>
-            {attendedClients.length === 0 ? (
-              <div style={{ padding: 18, color: '#8e8e93', fontSize: 13, fontWeight: 700, textAlign: 'center' }}>
-                Todavía no hay clientes con asistencias completadas.
-              </div>
-            ) : (
-              attendedClients.map((client, index) => {
-                const lastBooking = client.lastBooking;
-                const lastDate = lastBooking ? formatDate(getBookingDateValue(lastBooking)) : 'Sin reservas';
-                const lastTime = lastBooking ? formatTime(lastBooking.startTime ?? lastBooking.start_time) : '';
-
-                return (
-                  <div
-                    key={`attended-${client.key}`}
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: '34px minmax(0, 1fr) auto',
-                      gap: 12,
-                      alignItems: 'center',
-                      padding: '13px 16px',
-                      borderTop: index === 0 ? 'none' : '0.5px solid #eeeeef',
-                    }}
-                  >
-                    <div style={{ width: 34, height: 34, borderRadius: 12, background: '#edfff3', color: '#30d158', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900 }}>
-                      {index + 1}
-                    </div>
-
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 900, color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {client.name || 'Cliente sin nombre'}
-                      </div>
-                      <div style={{ fontSize: 12, color: '#6e6e73', fontWeight: 700, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {client.phone || 'Sin teléfono'} · Última asistencia: {lastDate}{lastTime ? ` · ${lastTime}` : ''}
-                      </div>
-                    </div>
-
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: 18, fontWeight: 900, color: '#30d158' }}>{client.completedCount}</div>
-                      <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800 }}>
-                        {client.completedCount === 1 ? 'asistencia' : 'asistencias'}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        )}
-      </div>
-
-      <div style={{ background: '#fff', borderRadius: 22, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 16 }}>
-          <div>
-            <div style={{ fontSize: 17, fontWeight: 900, color: '#1a1a1a' }}>Clientes</div>
-            <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 600, marginTop: 4 }}>
-              Se crean automáticamente con cada reserva. Podés ver historial y contactar por WhatsApp.
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => exportClientsToCsv(filteredClients, 'clientes-tuagendaya.csv')}
-            disabled={filteredClients.length === 0}
-            style={{
-              border: 'none',
-              background: filteredClients.length === 0 ? '#f2f2f7' : '#0071e3',
-              color: filteredClients.length === 0 ? '#8e8e93' : '#fff',
-              borderRadius: 999,
-              padding: '9px 13px',
-              fontSize: 12,
-              fontWeight: 900,
-              fontFamily: 'inherit',
-              cursor: filteredClients.length === 0 ? 'not-allowed' : 'pointer',
-              whiteSpace: 'nowrap',
-              boxShadow: filteredClients.length === 0 ? 'none' : '0 1px 6px rgba(0,113,227,0.18)',
-            }}
-          >
-            Exportar clientes
-          </button>
-        </div>
-
-        <input
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Buscar por nombre o teléfono"
-          style={{ ...inputStyle, marginBottom: 16, borderRadius: 14, padding: '13px 14px', background: '#f9f9fb' }}
-        />
-
-        {loadingClients ? (
-          <div style={{ textAlign: 'center', color: '#aeaeb2', padding: 34 }}>Cargando clientes...</div>
-        ) : filteredClients.length === 0 ? (
-          <div style={{ textAlign: 'center', color: '#aeaeb2', padding: 34 }}>
-            {clients.length === 0 ? 'Todavía no hay clientes. Se van a crear automáticamente cuando hagan reservas.' : 'No encontramos clientes con esa búsqueda.'}
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {filteredClients.map((client) => {
-              const isExpanded = expandedClientKey === client.key;
-              const lastBooking = client.lastBooking;
-              const lastDate = lastBooking ? formatDate(getBookingDateValue(lastBooking)) : 'Sin reservas';
-              const lastTime = lastBooking ? formatTime(lastBooking.startTime ?? lastBooking.start_time) : null;
-              const lastService = lastBooking ? (lastBooking.serviceName ?? lastBooking.service_name ?? 'Servicio') : 'Sin servicio';
-              const whatsappUrl = buildWhatsAppUrl(client.phone, buildClientGeneralMessage(client));
-
-              return (
-                <div
-                  key={client.key}
-                  style={{
-                    border: `1px solid ${isExpanded ? '#0071e3' : '#e8e8ed'}`,
-                    borderRadius: 18,
-                    background: '#fff',
-                    overflow: 'hidden',
-                    boxShadow: isExpanded ? '0 8px 24px rgba(0,113,227,0.10)' : '0 1px 8px rgba(0,0,0,0.04)',
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => setExpandedClientKey(isExpanded ? null : client.key)}
-                    style={{
-                      width: '100%',
-                      border: 'none',
-                      background: 'transparent',
-                      padding: '15px 16px',
-                      cursor: 'pointer',
-                      fontFamily: 'inherit',
-                      display: 'grid',
-                      gridTemplateColumns: '44px minmax(0, 1fr) auto',
-                      gap: 12,
-                      alignItems: 'center',
-                      textAlign: 'left',
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: 14,
-                        background: '#f2f2f7',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: '#0071e3',
-                        fontWeight: 900,
-                        fontSize: 17,
-                      }}
-                    >
-                      {String(client.name || '?').trim().charAt(0).toUpperCase() || '?'}
-                    </div>
-
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 900, color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {client.name || 'Cliente sin nombre'}
-                      </div>
-                      <div style={{ fontSize: 12, color: '#6e6e73', fontWeight: 700, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {client.phone || 'Sin teléfono'} · {client.completedCount} {client.completedCount === 1 ? 'asistencia' : 'asistencias'} · {client.bookings.length} {client.bookings.length === 1 ? 'reserva' : 'reservas'}
-                      </div>
-                      <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 600, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        Última: {lastDate}{lastTime ? ` · ${lastTime}` : ''} · {lastService}
-                      </div>
-                      {client.notes && (
-                        <div style={{ fontSize: 11, color: '#0071e3', fontWeight: 800, marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          Nota interna guardada
-                        </div>
-                      )}
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      {client.completedCount >= 2 && (
-                        <span style={{ fontSize: 11, color: '#188038', background: '#edfff3', padding: '5px 9px', borderRadius: 999, fontWeight: 900 }}>
-                          Frecuente
-                        </span>
-                      )}
-                      <span style={{ color: '#8e8e93', fontSize: 18, fontWeight: 800, transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: '0.18s ease' }}>
-                        ⌄
-                      </span>
-                    </div>
-                  </button>
-
-                  {isExpanded && (
-                    <div style={{ padding: '0 16px 16px 16px' }}>
-                      <div style={{ borderTop: '0.5px solid #eeeeef', paddingTop: 14 }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10, marginBottom: 12 }}>
-                          <div style={{ background: '#fafafa', borderRadius: 14, padding: 12 }}>
-                            <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800 }}>Total</div>
-                            <div style={{ fontSize: 18, color: '#1a1a1a', fontWeight: 900, marginTop: 4 }}>{client.bookings.length}</div>
-                          </div>
-
-                          <div style={{ background: '#fafafa', borderRadius: 14, padding: 12 }}>
-                            <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800 }}>Completadas</div>
-                            <div style={{ fontSize: 18, color: '#5e5ce6', fontWeight: 900, marginTop: 4 }}>{client.completedCount}</div>
-                          </div>
-
-                          <div style={{ background: '#fafafa', borderRadius: 14, padding: 12 }}>
-                            <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800 }}>Canceladas</div>
-                            <div style={{ fontSize: 18, color: '#ff453a', fontWeight: 900, marginTop: 4 }}>{client.cancelledCount}</div>
-                          </div>
-                        </div>
-
-                        {whatsappUrl && (
-                          <a
-                            href={whatsappUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              textDecoration: 'none',
-                              padding: '10px 14px',
-                              borderRadius: 12,
-                              background: '#25d366',
-                              color: '#fff',
-                              fontSize: 13,
-                              fontWeight: 900,
-                              marginBottom: 12,
-                            }}
-                          >
-                            Enviar WhatsApp
-                          </a>
-                        )}
-
-                        <div style={{ background: '#fafafa', borderRadius: 16, padding: 14, marginBottom: 14, border: '0.5px solid #eeeeef' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 8 }}>
-                            <div>
-                              <div style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 900 }}>Notas internas</div>
-                              <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 700, marginTop: 2 }}>
-                                Solo las ve el profesional. No se muestran al cliente.
-                              </div>
-                            </div>
-                            {client.noteUpdatedAt && (
-                              <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 700, textAlign: 'right' }}>
-                                Guardada
-                              </div>
-                            )}
-                          </div>
-
-                          <textarea
-                            value={getClientDraftNote(client)}
-                            onChange={(event) => handleClientNoteChange(client, event.target.value)}
-                            placeholder="Ej: prefiere horario de mañana, no asistió una vez, paga en efectivo..."
-                            maxLength={3000}
-                            style={{
-                              ...inputStyle,
-                              minHeight: 92,
-                              resize: 'vertical',
-                              borderRadius: 14,
-                              background: '#fff',
-                              lineHeight: 1.45,
-                              fontFamily: 'inherit',
-                            }}
-                          />
-
-                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginTop: 10 }}>
-                            <div style={{ fontSize: 11, color: noteStatus[client.key] === 'Nota guardada' ? '#188038' : '#8e8e93', fontWeight: 800 }}>
-                              {noteStatus[client.key] || `${getClientDraftNote(client).length}/3000 caracteres`}
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => saveClientNote(client)}
-                              disabled={savingNoteKey === client.key}
-                              style={{
-                                border: 'none',
-                                borderRadius: 12,
-                                padding: '10px 14px',
-                                background: savingNoteKey === client.key ? '#d1d1d6' : '#0071e3',
-                                color: '#fff',
-                                fontSize: 13,
-                                fontWeight: 900,
-                                cursor: savingNoteKey === client.key ? 'not-allowed' : 'pointer',
-                                fontFamily: 'inherit',
-                              }}
-                            >
-                              {savingNoteKey === client.key ? 'Guardando...' : 'Guardar nota'}
-                            </button>
-                          </div>
-                        </div>
-
-                        <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 900, marginBottom: 8 }}>Historial de reservas</div>
-
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                          {client.bookings.slice(0, 8).map((booking) => {
-                            const dateStr = formatDate(getBookingDateValue(booking));
-                            const timeStr = formatTime(booking.startTime ?? booking.start_time);
-                            const endStr = formatTime(booking.endTime ?? booking.end_time);
-                            const serviceName = booking.serviceName ?? booking.service_name ?? 'Servicio no especificado';
-                            const staffName = booking.staffName ?? booking.staff_name;
-                            const status = booking.status || 'pending';
-                            const statusColor = { pending: '#ff9f0a', confirmed: '#30d158', completed: '#5e5ce6', cancelled: '#ff453a' }[status] || '#8e8e93';
-                            const statusLabel = { pending: 'Pendiente', confirmed: 'Confirmada', completed: 'Completada', cancelled: 'Cancelada' }[status] || status;
-
-                            return (
-                              <div key={booking.id} style={{ background: '#fafafa', borderRadius: 14, padding: '10px 12px', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 10, alignItems: 'center' }}>
-                                <div style={{ minWidth: 0 }}>
-                                  <div style={{ fontSize: 13, fontWeight: 900, color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                    {dateStr}{timeStr ? ` · ${timeStr}${endStr ? ` - ${endStr}` : ''}` : ''}
-                                  </div>
-                                  <div style={{ fontSize: 12, color: '#6e6e73', fontWeight: 700, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                    {serviceName}{staffName ? ` · ${staffName}` : ''}
-                                  </div>
-                                </div>
-
-                                <div style={{ fontSize: 11, color: statusColor, background: '#fff', border: `0.5px solid ${statusColor}33`, padding: '5px 9px', borderRadius: 999, fontWeight: 900 }}>
-                                  {statusLabel}
-                                </div>
-                              </div>
-                            );
-                          })}
-
-                          {client.bookings.length > 8 && (
-                            <div style={{ textAlign: 'center', fontSize: 12, color: '#8e8e93', fontWeight: 700, padding: 8 }}>
-                              Mostrando las últimas 8 reservas de este cliente.
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-
 function AvailabilitySection() {
   const [availability, setAvailability] = useState(getDefaultAvailability());
   const [loading, setLoading] = useState(true);
@@ -2516,7 +1000,7 @@ function AvailabilitySection() {
         if (Array.isArray(data.availability)) {
           setAvailability(data.availability.map(normalizeAvailabilityItem));
         }
-        setMessage('Disponibilidad general guardada correctamente.');
+        setMessage('✓ Disponibilidad general guardada correctamente.');
       }
     } catch {
       setError('No se pudo conectar con el servidor.');
@@ -2688,7 +1172,7 @@ function StaffSection() {
       if (!res.ok) {
         setError(data.error || 'No se pudo crear el profesional.');
       } else {
-        setMessage('Profesional agregado correctamente.');
+        setMessage('✓ Profesional agregado correctamente.');
         resetForm();
 
         const newStaff = normalizeStaff(data.staffMember || data.staff_member || {});
@@ -2750,7 +1234,7 @@ function StaffSection() {
       if (!res.ok) {
         setError(data.error || 'No se pudo actualizar el profesional.');
       } else {
-        setMessage('Profesional actualizado correctamente.');
+        setMessage('✓ Profesional actualizado correctamente.');
         cancelEditing();
         fetchStaff();
       }
@@ -2780,7 +1264,7 @@ function StaffSection() {
       if (!res.ok) {
         setError(data.error || 'No se pudo desactivar el profesional.');
       } else {
-        setMessage('Profesional desactivado.');
+        setMessage('✓ Profesional desactivado.');
         fetchStaff();
       }
     } catch {
@@ -2823,7 +1307,7 @@ function StaffSection() {
         if (Array.isArray(data.availability)) {
           setAvailability(data.availability.map(normalizeAvailabilityItem));
         }
-        setMessage('Horarios del profesional guardados correctamente.');
+        setMessage('✓ Horarios del profesional guardados correctamente.');
       }
     } catch {
       setError('No se pudo conectar con el servidor.');
@@ -2845,7 +1329,7 @@ function StaffSection() {
         </div>
 
         <form onSubmit={handleCreate} style={{ background: '#f2f2f7', borderRadius: 16, padding: 16, marginBottom: 18 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>Agregar profesional</div>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>➕ Agregar profesional</div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1.2fr 0.7fr', gap: 10 }}>
             <div>
@@ -3023,11 +1507,11 @@ function StaffSection() {
                         </div>
 
                         {member.phone && (
-                          <div style={{ fontSize: 12, color: '#6e6e73', marginTop: 4 }}>Teléfono: {member.phone}</div>
+                          <div style={{ fontSize: 12, color: '#6e6e73', marginTop: 4 }}>📞 {member.phone}</div>
                         )}
 
                         {member.email && (
-                          <div style={{ fontSize: 12, color: '#6e6e73', marginTop: 2 }}>Email: {member.email}</div>
+                          <div style={{ fontSize: 12, color: '#6e6e73', marginTop: 2 }}>✉️ {member.email}</div>
                         )}
                       </button>
 
@@ -3059,7 +1543,7 @@ function StaffSection() {
                         disabled={!member.isActive || saving}
                         style={{ flex: 1, padding: '9px', borderRadius: 10, border: 'none', background: member.isActive ? '#ff453a' : '#aeaeb2', color: '#fff', fontWeight: 700, cursor: member.isActive ? 'pointer' : 'not-allowed' }}
                       >
-                        Eliminar
+                        Desactivar
                       </button>
                     </div>
                   </>
@@ -3187,7 +1671,7 @@ function ServicesSection() {
       if (!res.ok) {
         setError(data.error || 'No se pudo crear el servicio.');
       } else {
-        setMessage('Servicio creado correctamente.');
+        setMessage('✓ Servicio creado correctamente.');
         resetForm();
         fetchServices();
       }
@@ -3240,7 +1724,7 @@ function ServicesSection() {
       if (!res.ok) {
         setError(data.error || 'No se pudo actualizar el servicio.');
       } else {
-        setMessage('Servicio actualizado correctamente.');
+        setMessage('✓ Servicio actualizado correctamente.');
         cancelEditing();
         fetchServices();
       }
@@ -3251,8 +1735,8 @@ function ServicesSection() {
     }
   };
 
-  const deleteService = async (serviceId) => {
-    const confirmDelete = window.confirm('¿Querés eliminar este servicio? Esta acción lo quita de la lista de servicios. Las reservas ya creadas se mantienen.');
+  const disableService = async (serviceId) => {
+    const confirmDelete = window.confirm('¿Querés desactivar este servicio? No se borra de las reservas viejas.');
     if (!confirmDelete) return;
 
     setError('');
@@ -3268,9 +1752,9 @@ function ServicesSection() {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || 'No se pudo eliminar el servicio.');
+        setError(data.error || 'No se pudo desactivar el servicio.');
       } else {
-        setMessage('Servicio eliminado correctamente.');
+        setMessage('✓ Servicio desactivado.');
         fetchServices();
       }
     } catch {
@@ -3285,12 +1769,12 @@ function ServicesSection() {
       <div style={{ marginBottom: 18 }}>
         <div style={{ fontSize: 17, fontWeight: 700, color: '#1a1a1a' }}>Mis servicios</div>
         <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 4 }}>
-          Agregá, modificá o eliminá servicios. La duración cambia automáticamente los horarios disponibles.
+          Agregá, modificá o desactivá servicios. La duración cambia automáticamente los horarios disponibles.
         </div>
       </div>
 
       <form onSubmit={handleCreate} style={{ background: '#f2f2f7', borderRadius: 16, padding: 16, marginBottom: 18 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>Agregar servicio</div>
+        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>➕ Agregar servicio</div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
           <div>
@@ -3465,7 +1949,7 @@ function ServicesSection() {
                       )}
 
                       <div style={{ fontSize: 12, color: '#0071e3', marginTop: 6 }}>
-                        Duración: {service.durationMinutes} min
+                        ⏱ {service.durationMinutes} min
                         {service.price !== '' && service.price !== null && service.price !== undefined ? ` · $${service.price}` : ''}
                       </div>
                     </div>
@@ -3486,11 +1970,11 @@ function ServicesSection() {
 
                     <button
                       type="button"
-                      onClick={() => deleteService(service.id)}
-                      disabled={saving}
-                      style={{ flex: 1, padding: '9px', borderRadius: 10, border: 'none', background: '#ff453a', color: '#fff', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}
+                      onClick={() => disableService(service.id)}
+                      disabled={!service.isActive || saving}
+                      style={{ flex: 1, padding: '9px', borderRadius: 10, border: 'none', background: service.isActive ? '#ff453a' : '#aeaeb2', color: '#fff', fontWeight: 700, cursor: service.isActive ? 'pointer' : 'not-allowed' }}
                     >
-                      Eliminar
+                      Desactivar
                     </button>
                   </div>
                 </>
@@ -3503,838 +1987,8 @@ function ServicesSection() {
   );
 }
 
-
-function normalizeProfessionalFromApi(item) {
-  if (!item) return {};
-
-  return {
-    id: item.id,
-    name: item.name || '',
-    businessName: item.businessName ?? item.business_name ?? '',
-    business_name: item.business_name ?? item.businessName ?? '',
-    email: item.email || '',
-    phone: item.phone || '',
-    profession: item.profession || '',
-    address: item.address || '',
-    slug: item.slug || '',
-    logoUrl: item.logoUrl ?? item.logo_url ?? '',
-    logo_url: item.logo_url ?? item.logoUrl ?? '',
-    status: item.status || '',
-    createdAt: item.createdAt ?? item.created_at,
-    created_at: item.created_at ?? item.createdAt,
-    updatedAt: item.updatedAt ?? item.updated_at,
-    updated_at: item.updated_at ?? item.updatedAt,
-  };
-}
-
-
-function getLogoVisualModeFromImage(event, setter) {
-  const image = event.currentTarget || event.target;
-  const naturalWidth = image?.naturalWidth || 0;
-  const naturalHeight = image?.naturalHeight || 0;
-
-  if (!naturalWidth || !naturalHeight) {
-    setter('square');
-    return;
-  }
-
-  const ratio = naturalWidth / naturalHeight;
-
-  if (ratio >= 2.1) {
-    setter('wide');
-    return;
-  }
-
-  if (ratio <= 0.78) {
-    setter('tall');
-    return;
-  }
-
-  setter('square');
-}
-
-function getDashboardBusinessLogoBoxStyle(mode) {
-  const base = {
-    background: '#fff',
-    border: '0.5px solid #e8e8ed',
-    borderRadius: 16,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    alignSelf: 'flex-end',
-  };
-
-  if (mode === 'wide') {
-    return {
-      ...base,
-      width: 230,
-      minWidth: 230,
-      height: 86,
-      padding: '10px 18px',
-    };
-  }
-
-  if (mode === 'tall') {
-    return {
-      ...base,
-      width: 152,
-      minWidth: 152,
-      height: 106,
-      padding: 12,
-    };
-  }
-
-  return {
-    ...base,
-    width: 178,
-    minWidth: 178,
-    height: 98,
-    padding: 12,
-  };
-}
-
-function getDashboardBusinessLogoImageStyle(mode) {
-  if (mode === 'wide') {
-    return {
-      width: '100%',
-      height: 'auto',
-      maxHeight: 62,
-      objectFit: 'contain',
-      display: 'block',
-    };
-  }
-
-  if (mode === 'tall') {
-    return {
-      width: 'auto',
-      height: '100%',
-      maxWidth: '72%',
-      objectFit: 'contain',
-      display: 'block',
-    };
-  }
-
-  return {
-    width: '82%',
-    height: '82%',
-    objectFit: 'contain',
-    display: 'block',
-  };
-}
-
-function getProfilePreviewLogoBoxStyle(mode) {
-  const base = {
-    background: '#fff',
-    border: '0.5px solid #e8e8ed',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-  };
-
-  if (mode === 'wide') {
-    return { ...base, minHeight: 128 };
-  }
-
-  if (mode === 'tall') {
-    return { ...base, minHeight: 170 };
-  }
-
-  return { ...base, minHeight: 150 };
-}
-
-function getProfilePreviewLogoImageStyle(mode) {
-  if (mode === 'wide') {
-    return {
-      width: '100%',
-      maxWidth: 380,
-      height: 'auto',
-      maxHeight: 90,
-      objectFit: 'contain',
-      display: 'block',
-    };
-  }
-
-  if (mode === 'tall') {
-    return {
-      width: 'auto',
-      height: 122,
-      maxWidth: 180,
-      objectFit: 'contain',
-      display: 'block',
-    };
-  }
-
-  return {
-    width: 122,
-    height: 122,
-    objectFit: 'contain',
-    display: 'block',
-  };
-}
-
-function BusinessProfileSection({ professional, onProfileUpdated }) {
-  const fileInputRef = useRef(null);
-
-  const [form, setForm] = useState({
-    businessName: professional?.businessName || professional?.business_name || '',
-    phone: professional?.phone || '',
-    address: professional?.address || '',
-    logoUrl: professional?.logoUrl || professional?.logo_url || '',
-  });
-
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
-  const [previewLogoMode, setPreviewLogoMode] = useState('square');
-  const [planBookings, setPlanBookings] = useState([]);
-  const [loadingPlan, setLoadingPlan] = useState(true);
-
-  const token = localStorage.getItem('tuagendaya_token');
-
-  const fetchProfile = () => {
-    setLoading(true);
-    setError('');
-
-    fetch(`${API_BASE}/professionals/me/profile`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.professional) {
-          const normalized = normalizeProfessionalFromApi(data.professional);
-
-          setForm({
-            businessName: normalized.businessName || '',
-            phone: normalized.phone || '',
-            address: normalized.address || '',
-            logoUrl: normalized.logoUrl || '',
-          });
-
-          onProfileUpdated(normalized);
-        }
-      })
-      .catch(() => {
-        setError('No se pudo cargar el perfil del negocio.');
-      })
-      .finally(() => setLoading(false));
-  };
-
-  const fetchPlanBookings = () => {
-    if (!token) {
-      setLoadingPlan(false);
-      return;
-    }
-
-    setLoadingPlan(true);
-
-    fetch(`${API_BASE}/bookings/me`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => r.json())
-      .then((data) => {
-        setPlanBookings(Array.isArray(data.bookings) ? data.bookings : []);
-      })
-      .catch(() => {
-        setPlanBookings([]);
-      })
-      .finally(() => setLoadingPlan(false));
-  };
-
-  useEffect(() => {
-    fetchProfile();
-    fetchPlanBookings();
-  }, []);
-
-  useEffect(() => {
-    setPreviewLogoMode('square');
-  }, [form.logoUrl]);
-
-  const isValidLogoValue = (value) => {
-    const cleanValue = String(value || '').trim();
-
-    if (!cleanValue) return true;
-
-    return (
-      cleanValue.startsWith('http://') ||
-      cleanValue.startsWith('https://') ||
-      cleanValue.startsWith('data:image/png;base64,') ||
-      cleanValue.startsWith('data:image/jpeg;base64,') ||
-      cleanValue.startsWith('data:image/webp;base64,')
-    );
-  };
-
-  const handleLogoFileChange = (event) => {
-    const file = event.target.files?.[0];
-
-    if (!file) return;
-
-    setMessage('');
-    setError('');
-
-    const allowedTypes = ['image/png', 'image/jpeg', 'image/webp'];
-
-    if (!allowedTypes.includes(file.type)) {
-      setError('El logo debe ser una imagen PNG, JPG o WebP.');
-      event.target.value = '';
-      return;
-    }
-
-    const maxSizeMb = 1;
-    const maxSizeBytes = maxSizeMb * 1024 * 1024;
-
-    if (file.size > maxSizeBytes) {
-      setError('El logo no puede pesar más de 1 MB. Exportalo más liviano y volvé a cargarlo.');
-      event.target.value = '';
-      return;
-    }
-
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      const dataUrl = String(reader.result || '');
-      setForm((current) => ({ ...current, logoUrl: dataUrl }));
-      setMessage('Logo cargado. Guardá el perfil para aplicar el cambio.');
-    };
-
-    reader.onerror = () => {
-      setError('No se pudo leer el archivo del logo.');
-    };
-
-    reader.readAsDataURL(file);
-  };
-
-  const clearLogo = () => {
-    setForm((current) => ({ ...current, logoUrl: '' }));
-    setMessage('Logo quitado. Guardá el perfil para aplicar el cambio.');
-
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
-
-  const handleSave = async (e) => {
-    e.preventDefault();
-    setMessage('');
-    setError('');
-
-    if (!form.businessName.trim()) {
-      setError('El nombre del negocio es obligatorio.');
-      return;
-    }
-
-    if (!isValidLogoValue(form.logoUrl)) {
-      setError('El logo debe ser una URL válida o una imagen cargada desde archivo.');
-      return;
-    }
-
-    setSaving(true);
-
-    try {
-      const res = await fetch(`${API_BASE}/professionals/me/profile`, {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          businessName: form.businessName.trim(),
-          phone: form.phone.trim(),
-          address: form.address.trim(),
-          logoUrl: form.logoUrl.trim(),
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || 'No se pudo guardar el perfil.');
-      } else {
-        const normalized = normalizeProfessionalFromApi(data.professional);
-        localStorage.setItem('tuagendaya_professional', JSON.stringify(normalized));
-        onProfileUpdated(normalized);
-        setMessage('Perfil del negocio guardado correctamente.');
-      }
-    } catch {
-      setError('No se pudo conectar con el servidor.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const getBookingDateValue = (booking) => {
-    const raw = booking?.bookingDate || booking?.booking_date || booking?.date || booking?.fecha || '';
-    const clean = String(raw || '').trim();
-
-    if (!clean) return '';
-
-    const isoMatch = clean.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
-
-    const parsed = new Date(clean);
-    if (!Number.isNaN(parsed.getTime())) {
-      const year = parsed.getFullYear();
-      const month = String(parsed.getMonth() + 1).padStart(2, '0');
-      const day = String(parsed.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    }
-
-    return '';
-  };
-
-  const now = new Date();
-  const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const planName = professional?.plan || professional?.plan_name || 'Profesional';
-  const monthlyLimit = Number(professional?.monthlyLimit || professional?.monthly_limit || 1000);
-  const monthlyUsed = planBookings.filter((booking) => getBookingDateValue(booking).startsWith(currentMonthKey)).length;
-  const monthlyPercent = monthlyLimit > 0 ? Math.min(100, Math.round((monthlyUsed / monthlyLimit) * 100)) : 0;
-  const publicSlug = professional?.slug || '';
-  const publicLink = publicSlug ? `https://tuagendaya-web.onrender.com/reservar/${publicSlug}` : '';
-  const statusText = professional?.status === 'suspended' ? 'Suspendido' : 'Activo';
-  const statusColor = professional?.status === 'suspended' ? '#ff453a' : '#30d158';
-
-  const copyPublicLinkFromProfile = async () => {
-    if (!publicLink) return;
-
-    try {
-      await navigator.clipboard.writeText(publicLink);
-      setMessage('Link público copiado correctamente.');
-    } catch {
-      setError('No se pudo copiar el link.');
-    }
-  };
-
-  if (loading) {
-    return (
-      <div style={{ background: '#fff', borderRadius: 20, padding: 24, textAlign: 'center', color: '#aeaeb2' }}>
-        Cargando perfil del negocio...
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ display: 'grid', gap: 16 }}>
-      <div style={{ background: '#fff', borderRadius: 20, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14, marginBottom: 16 }}>
-          <div>
-            <div style={{ fontSize: 17, fontWeight: 900, color: '#1a1a1a' }}>Estado del plan</div>
-            <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 4, lineHeight: 1.45 }}>
-              Controlá el estado de tu cuenta, el uso mensual y el link público de reservas.
-            </div>
-          </div>
-          <div style={{ padding: '7px 11px', borderRadius: 999, background: statusColor === '#30d158' ? '#edfff3' : '#fff2f2', color: statusColor, fontSize: 12, fontWeight: 900, whiteSpace: 'nowrap' }}>
-            {statusText}
-          </div>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10, marginBottom: 14 }}>
-          <div style={{ background: '#f2f2f7', borderRadius: 16, padding: '14px 16px', border: '0.5px solid #e8e8ed' }}>
-            <div style={{ fontSize: 12, color: '#6e6e73', fontWeight: 800 }}>Plan actual</div>
-            <div style={{ fontSize: 20, fontWeight: 900, color: '#1a1a1a', marginTop: 4 }}>{planName}</div>
-          </div>
-
-          <div style={{ background: '#eef6ff', borderRadius: 16, padding: '14px 16px', border: '0.5px solid #d8eaff' }}>
-            <div style={{ fontSize: 12, color: '#6e6e73', fontWeight: 800 }}>Uso mensual</div>
-            <div style={{ fontSize: 20, fontWeight: 900, color: '#0071e3', marginTop: 4 }}>
-              {loadingPlan ? '...' : `${monthlyUsed}/${monthlyLimit}`}
-            </div>
-          </div>
-
-          <div style={{ background: '#f7f7fb', borderRadius: 16, padding: '14px 16px', border: '0.5px solid #e8e8ed' }}>
-            <div style={{ fontSize: 12, color: '#6e6e73', fontWeight: 800 }}>Estado</div>
-            <div style={{ fontSize: 20, fontWeight: 900, color: statusColor, marginTop: 4 }}>{statusText}</div>
-          </div>
-        </div>
-
-        <div style={{ width: '100%', height: 9, borderRadius: 999, background: '#f2f2f7', overflow: 'hidden', marginBottom: 12 }}>
-          <div style={{ width: `${monthlyPercent}%`, height: '100%', borderRadius: 999, background: monthlyPercent >= 90 ? '#ff453a' : '#0071e3' }} />
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 10, alignItems: 'center', background: '#f7f7fb', border: '0.5px solid #e8e8ed', borderRadius: 16, padding: 12 }}>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800, marginBottom: 3 }}>Link público</div>
-            <div style={{ fontSize: 13, color: publicLink ? '#1a1a1a' : '#8e8e93', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {publicLink || 'Todavía no hay link público disponible'}
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={copyPublicLinkFromProfile}
-            disabled={!publicLink}
-            style={{
-              padding: '9px 13px',
-              borderRadius: 12,
-              border: 'none',
-              background: publicLink ? '#0071e3' : '#d1d1d6',
-              color: '#fff',
-              fontSize: 12,
-              fontWeight: 900,
-              fontFamily: 'inherit',
-              cursor: publicLink ? 'pointer' : 'not-allowed',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            Copiar link
-          </button>
-        </div>
-      </div>
-
-      <div style={{ background: '#fff', borderRadius: 20, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
-        <div style={{ marginBottom: 18 }}>
-          <div style={{ fontSize: 17, fontWeight: 700, color: '#1a1a1a' }}>Perfil del negocio</div>
-          <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 4 }}>
-            Configurá los datos que aparecen en tu panel y en la página pública de reservas.
-          </div>
-        </div>
-
-        <form onSubmit={handleSave}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-            <div>
-              <label style={smallLabelStyle}>Nombre del negocio *</label>
-              <input
-                style={inputStyle}
-                value={form.businessName}
-                onChange={(e) => setForm({ ...form, businessName: e.target.value })}
-                placeholder="Nombre comercial"
-              />
-            </div>
-
-            <div>
-              <label style={smallLabelStyle}>Teléfono</label>
-              <input
-                style={inputStyle}
-                value={form.phone}
-                onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                placeholder="099 123 456"
-              />
-            </div>
-          </div>
-
-          <label style={smallLabelStyle}>Dirección</label>
-          <input
-            style={{ ...inputStyle, marginBottom: 12 }}
-            value={form.address}
-            onChange={(e) => setForm({ ...form, address: e.target.value })}
-            placeholder="Dirección del negocio"
-          />
-
-          <label style={smallLabelStyle}>Logo del negocio</label>
-
-          <div
-            style={{
-              background: '#f2f2f7',
-              borderRadius: 18,
-              padding: 16,
-              marginBottom: 12,
-              border: '0.5px solid #e8e8ed',
-            }}
-          >
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'minmax(0, 1fr) auto',
-                gap: 14,
-                alignItems: 'center',
-              }}
-            >
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a', marginBottom: 4 }}>
-                  Cargar logo desde archivo
-                </div>
-
-                <div style={{ fontSize: 12, color: '#6e6e73', lineHeight: 1.45 }}>
-                  Dimensiones recomendadas: 800 × 300 px. Formato recomendado: PNG con fondo transparente. Peso máximo: 1 MB.
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  onChange={handleLogoFileChange}
-                  style={{ display: 'none' }}
-                />
-
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  style={{
-                    padding: '10px 14px',
-                    borderRadius: 12,
-                    border: 'none',
-                    background: '#0071e3',
-                    color: '#fff',
-                    fontSize: 13,
-                    fontWeight: 800,
-                    fontFamily: 'inherit',
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  Seleccionar archivo
-                </button>
-
-                {form.logoUrl && (
-                  <button
-                    type="button"
-                    onClick={clearLogo}
-                    style={{
-                      padding: '10px 14px',
-                      borderRadius: 12,
-                      border: '0.5px solid #d0d0d5',
-                      background: '#fff',
-                      color: '#ff453a',
-                      fontSize: 13,
-                      fontWeight: 800,
-                      fontFamily: 'inherit',
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    Quitar logo
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div style={{ marginTop: 14 }}>
-              <label style={smallLabelStyle}>O pegar URL del logo</label>
-              <input
-                style={{ ...inputStyle, marginBottom: 0 }}
-                value={form.logoUrl.startsWith('data:image/') ? 'Logo cargado desde archivo' : form.logoUrl}
-                onChange={(e) => setForm({ ...form, logoUrl: e.target.value })}
-                placeholder="https://..."
-                disabled={form.logoUrl.startsWith('data:image/')}
-              />
-            </div>
-          </div>
-
-          {form.logoUrl ? (
-            <div style={getProfilePreviewLogoBoxStyle(previewLogoMode)}>
-              <div style={{ fontSize: 12, color: '#6e6e73', marginBottom: 10, fontWeight: 700 }}>Vista previa adaptable del logo</div>
-              <img
-                src={form.logoUrl}
-                alt="Logo del negocio"
-                onLoad={(event) => getLogoVisualModeFromImage(event, setPreviewLogoMode)}
-                style={getProfilePreviewLogoImageStyle(previewLogoMode)}
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                }}
-              />
-            </div>
-          ) : (
-            <div style={{ background: '#f2f2f7', borderRadius: 16, padding: 16, marginBottom: 12, color: '#8e8e93', fontSize: 13 }}>
-              Cuando cargues un logo, se va a mostrar acá, en el recuadro superior del panel y en la página pública de reservas.
-            </div>
-          )}
-
-          {message && (
-            <div style={{ background: '#edfff3', border: '0.5px solid #b7f5c8', borderRadius: 10, padding: '10px 12px', fontSize: 13, color: '#188038', marginBottom: 12 }}>
-              {message}
-            </div>
-          )}
-
-          {error && (
-            <div style={{ background: '#fff2f2', border: '0.5px solid #ffcdd2', borderRadius: 10, padding: '10px 12px', fontSize: 13, color: '#c62828', marginBottom: 12 }}>
-              {error}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={saving}
-            style={{ width: '100%', padding: '13px', borderRadius: 12, border: 'none', background: saving ? '#aeaeb2' : '#0071e3', color: '#fff', fontSize: 15, fontWeight: 800, fontFamily: 'inherit', cursor: saving ? 'not-allowed' : 'pointer' }}
-          >
-            {saving ? 'Guardando...' : 'Guardar perfil del negocio'}
-          </button>
-        </form>
-      </div>
-
-      <div style={{ background: '#fff', borderRadius: 20, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 16, alignItems: 'center' }}>
-          <div>
-            <div style={{ fontSize: 17, fontWeight: 800, color: '#1a1a1a' }}>WhatsApp Business</div>
-            <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 5, lineHeight: 1.45 }}>
-              Si contás con WhatsApp Business, más adelante vas a poder enlazar tu cuenta para enviar confirmaciones automáticas.
-              Por ahora, cada reserva tendrá un botón para abrir WhatsApp con el mensaje listo y enviarlo manualmente.
-            </div>
-          </div>
-
-          <button
-            type="button"
-            disabled
-            style={{
-              padding: '11px 16px',
-              borderRadius: 14,
-              border: '0.5px solid #d0d0d5',
-              background: '#f2f2f7',
-              color: '#8e8e93',
-              fontSize: 13,
-              fontWeight: 800,
-              fontFamily: 'inherit',
-              cursor: 'not-allowed',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            Enlazar próximamente
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-
-function ConfigurationSection() {
-  const [openPanel, setOpenPanel] = useState(null);
-
-  const panels = [
-    {
-      key: 'services',
-      title: 'Servicios',
-      description: 'Creá, editá y eliminá los servicios que ve el cliente al reservar.',
-      action: 'Gestionar servicios',
-    },
-    {
-      key: 'staff',
-      title: 'Profesionales',
-      description: 'Agregá integrantes del negocio y configurá su disponibilidad individual.',
-      action: 'Gestionar profesionales',
-    },
-    {
-      key: 'availability',
-      title: 'Disponibilidad',
-      description: 'Definí días, horarios y duración base de los turnos.',
-      action: 'Gestionar horarios',
-    },
-  ];
-
-  const quickCardStyle = (key) => ({
-    background: openPanel === key ? '#eef6ff' : '#fff',
-    border: openPanel === key ? '1.5px solid #0071e3' : '0.5px solid #e8e8ed',
-    borderRadius: 18,
-    padding: 16,
-    boxShadow: openPanel === key ? '0 6px 18px rgba(0,113,227,0.12)' : '0 1px 8px rgba(0,0,0,0.04)',
-    cursor: 'pointer',
-    textAlign: 'left',
-    fontFamily: 'inherit',
-    transition: 'all 0.18s ease',
-    minHeight: 116,
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'space-between',
-  });
-
-  const quickTitleStyle = {
-    fontSize: 15,
-    fontWeight: 900,
-    color: '#1a1a1a',
-    marginBottom: 5,
-  };
-
-  const quickTextStyle = {
-    fontSize: 13,
-    color: '#6e6e73',
-    lineHeight: 1.45,
-    margin: 0,
-  };
-
-  const actionStyle = (key) => ({
-    marginTop: 12,
-    fontSize: 12,
-    fontWeight: 900,
-    color: openPanel === key ? '#0071e3' : '#8e8e93',
-  });
-
-  const renderOpenPanel = () => {
-    if (openPanel === 'services') {
-      return <ServicesSection />;
-    }
-
-    if (openPanel === 'staff') {
-      return <StaffSection />;
-    }
-
-    if (openPanel === 'availability') {
-      return <AvailabilitySection />;
-    }
-
-    return null;
-  };
-
-  return (
-    <div style={{ display: 'grid', gap: 16 }}>
-      <div style={{ background: '#fff', borderRadius: 22, padding: '22px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
-        <div style={{ fontSize: 19, fontWeight: 900, color: '#1a1a1a', marginBottom: 6 }}>
-          Configuración de agenda
-        </div>
-        <div style={{ fontSize: 13, color: '#6e6e73', lineHeight: 1.45 }}>
-          Elegí qué querés configurar. Todo queda ordenado en un solo lugar, sin llenar la pantalla de información innecesaria.
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12, marginTop: 18 }} className="config-summary-grid">
-          {panels.map((panel) => (
-            <button
-              key={panel.key}
-              type="button"
-              onClick={() => setOpenPanel((current) => (current === panel.key ? null : panel.key))}
-              style={quickCardStyle(panel.key)}
-            >
-              <div>
-                <div style={quickTitleStyle}>{panel.title}</div>
-                <p style={quickTextStyle}>{panel.description}</p>
-              </div>
-
-              <div style={actionStyle(panel.key)}>
-                {openPanel === panel.key ? 'Ocultar' : panel.action}
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {renderOpenPanel()}
-    </div>
-  );
-}
-
-function Dashboard({ professional, onLogout, onProfileUpdated }) {
+function Dashboard({ professional, onLogout }) {
   const [activeTab, setActiveTab] = useState('reservas');
-  const [copiedPublicLink, setCopiedPublicLink] = useState(false);
-  const [businessLogoMode, setBusinessLogoMode] = useState('square');
-
-  const publicBookingUrl = professional?.slug
-    ? `https://tuagendaya-web.onrender.com/reservar/${professional.slug}`
-    : '';
-
-  const businessLogoUrl = professional?.logoUrl || professional?.logo_url || '';
-  const businessName = professional?.businessName || professional?.business_name || '';
-
-  useEffect(() => {
-    setBusinessLogoMode('square');
-  }, [businessLogoUrl]);
-
-  const handleCopyPublicLink = async () => {
-    if (!publicBookingUrl) return;
-
-    try {
-      await navigator.clipboard.writeText(publicBookingUrl);
-      setCopiedPublicLink(true);
-      setTimeout(() => setCopiedPublicLink(false), 2000);
-    } catch {
-      const textarea = document.createElement('textarea');
-      textarea.value = publicBookingUrl;
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textarea);
-      setCopiedPublicLink(true);
-      setTimeout(() => setCopiedPublicLink(false), 2000);
-    }
-  };
 
   const handleLogout = () => {
     localStorage.removeItem('tuagendaya_token');
@@ -4350,261 +2004,63 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
     background: activeTab === key ? '#0071e3' : '#fff',
     color: activeTab === key ? '#fff' : '#1a1a1a',
     fontSize: 14,
-    fontWeight: 800,
+    fontWeight: 700,
     cursor: 'pointer',
-    fontFamily: 'inherit',
     boxShadow: activeTab === key ? '0 1px 8px rgba(0,113,227,0.25)' : '0 1px 8px rgba(0,0,0,0.04)',
   });
 
   return (
-    <div className="dashboard-panel" style={{ minHeight: '100vh', background: '#f2f2f7', padding: '20px 16px', fontFamily: APP_FONT }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap');
-
-        .dashboard-panel,
-        .dashboard-panel * {
-          font-family: ${APP_FONT} !important;
-        }
-
-        button, input, select, textarea {
-          font-family: inherit;
-        }
-
-        @media (max-width: 720px) {
-          html, body, #root {
-            width: 100%;
-            max-width: 100%;
-            overflow-x: hidden;
-            background: #f2f2f7;
-          }
-
-          .dashboard-panel {
-            width: 100% !important;
-            max-width: 100vw !important;
-            overflow-x: hidden !important;
-            box-sizing: border-box !important;
-            padding: calc(env(safe-area-inset-top, 0px) + 24px) 8px calc(env(safe-area-inset-bottom, 0px) + 118px) !important;
-            background: #f2f2f7 !important;
-          }
-
-          .dashboard-panel > div {
-            width: 100% !important;
-            max-width: 100% !important;
-            margin-left: auto !important;
-            margin-right: auto !important;
-            box-sizing: border-box !important;
-          }
-
-          .dashboard-header-card {
-            width: 100% !important;
-            max-width: 100% !important;
-            box-sizing: border-box !important;
-            flex-direction: column;
-            align-items: stretch !important;
-            gap: 14px !important;
-            padding: 22px 14px 16px !important;
-            border-radius: 24px !important;
-            margin: 0 0 14px 0 !important;
-            overflow: hidden !important;
-          }
-
-          .dashboard-header-card img[alt="Tu Agenda Ya"] {
-            height: 34px !important;
-            max-width: 100% !important;
-          }
-
-          .dashboard-header-side {
-            width: 100%;
-            min-width: 0 !important;
-            align-items: stretch !important;
-            gap: 10px !important;
-          }
-
-          .dashboard-header-side button {
-            align-self: stretch !important;
-            min-height: 42px !important;
-            border-radius: 14px !important;
-          }
-
-          .dashboard-business-logo-box {
-            width: 100% !important;
-            min-width: 0 !important;
-            height: 88px !important;
-            align-self: stretch !important;
-            border-radius: 20px !important;
-            box-sizing: border-box !important;
-          }
-
-          .dashboard-tabs {
-            position: fixed !important;
-            left: 10px !important;
-            right: 10px !important;
-            bottom: calc(env(safe-area-inset-bottom, 0px) + 10px) !important;
-            z-index: 1000 !important;
-            display: grid !important;
-            grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-            gap: 6px !important;
-            padding: 8px !important;
-            margin: 0 !important;
-            border-radius: 22px !important;
-            background: rgba(255, 255, 255, 0.94) !important;
-            box-shadow: 0 10px 34px rgba(0,0,0,0.18) !important;
-            backdrop-filter: blur(18px);
-            -webkit-backdrop-filter: blur(18px);
-            overflow: visible !important;
-          }
-
-          .dashboard-tabs button {
-            min-height: 46px !important;
-            padding: 9px 4px !important;
-            border-radius: 16px !important;
-            font-size: 11px !important;
-            line-height: 1.1 !important;
-            white-space: normal !important;
-            box-shadow: none !important;
-          }
-
-          .dashboard-public-link {
-            align-items: flex-start !important;
-            flex-direction: column !important;
-          }
-
-          .dashboard-public-link > div {
-            width: 100% !important;
-            max-width: 100% !important;
-          }
-
-          .dashboard-public-link button {
-            min-height: 36px !important;
-            padding: 8px 12px !important;
-            border-radius: 12px !important;
-          }
-
-          .config-summary-grid {
-            grid-template-columns: 1fr !important;
-          }
-
-          .dashboard-panel div[style*="grid-template-columns"] {
-            grid-template-columns: 1fr !important;
-          }
-
-          .dashboard-panel div[style*="padding: 20px 24px"],
-          .dashboard-panel div[style*="padding: 20px 24px;"],
-          .dashboard-panel div[style*="padding: 22px"],
-          .dashboard-panel div[style*="padding: 24px"] {
-            padding: 16px !important;
-          }
-
-          .dashboard-panel button {
-            min-height: 42px;
-            touch-action: manipulation;
-          }
-
-          .dashboard-panel input,
-          .dashboard-panel select,
-          .dashboard-panel textarea {
-            min-height: 42px;
-            font-size: 16px !important;
-          }
-        }
-      `}</style>
-
+    <div style={{ minHeight: '100vh', background: '#f2f2f7', padding: '20px 16px' }}>
       <div style={{ maxWidth: 900, margin: '0 auto' }}>
-        <div className="dashboard-header-card" style={{ background: '#fff', borderRadius: 24, padding: '24px 28px', marginBottom: 18, boxShadow: '0 1px 10px rgba(0,0,0,0.06)', display: 'flex', alignItems: 'stretch', justifyContent: 'space-between', gap: 28 }}>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ marginBottom: 14 }}>
-              <TuAgendaLogo height={46} />
+        <div style={{ background: '#fff', borderRadius: 20, padding: '18px 24px', marginBottom: 16, boxShadow: '0 1px 8px rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: '#0071e3' }}>TuAgendaYa</div>
+            <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 2 }}>
+              Hola, {professional?.name || 'profesional'} 👋
             </div>
 
-            <div style={{ fontSize: 14, color: '#6e6e73', marginTop: 0, lineHeight: 1.35, fontWeight: 500 }}>
-              Hola, {professional?.name || 'profesional'}
-            </div>
-
-            {businessName && (
-              <div style={{ fontSize: 13, color: '#3a3a3c', marginTop: 5, lineHeight: 1.35, fontWeight: 600 }}>
-                {businessName}
+            {professional?.businessName && (
+              <div style={{ fontSize: 12, color: '#3a3a3c', marginTop: 4 }}>
+                {professional.businessName}
               </div>
             )}
 
             {professional?.address && (
-              <div style={{ fontSize: 13, color: '#8e8e93', marginTop: 5, lineHeight: 1.35, fontWeight: 500 }}>
-                Dirección: {professional.address}
+              <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 4 }}>
+                📍 {professional.address}
               </div>
             )}
 
             {professional?.slug && (
-              <div className="dashboard-public-link" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
-                <div style={{ fontSize: 13, color: '#8e8e93', wordBreak: 'break-word', lineHeight: 1.35, fontWeight: 500 }}>
-                  Link público: <strong>{publicBookingUrl}</strong>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleCopyPublicLink}
-                  style={{
-                    padding: '5px 10px',
-                    borderRadius: 9,
-                    border: '0.5px solid #d0d0d5',
-                    background: copiedPublicLink ? '#edfff3' : '#fff',
-                    color: copiedPublicLink ? '#188038' : '#0071e3',
-                    fontSize: 12,
-                    fontWeight: 700,
-                    fontFamily: 'inherit',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {copiedPublicLink ? 'Copiado' : 'Copiar'}
-                </button>
+              <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 4 }}>
+                Link público: <strong>tuagendaya-web.onrender.com/reservar/{professional.slug}</strong>
               </div>
             )}
           </div>
 
-          <div className="dashboard-header-side" style={{ minWidth: 190, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'space-between', gap: 14 }}>
-            <div className="dashboard-business-logo-box" style={getDashboardBusinessLogoBoxStyle(businessLogoMode)}>
-              {businessLogoUrl ? (
-                <img
-                  src={businessLogoUrl}
-                  alt={businessName || 'Logo del negocio'}
-                  onLoad={(event) => getLogoVisualModeFromImage(event, setBusinessLogoMode)}
-                  style={getDashboardBusinessLogoImageStyle(businessLogoMode)}
-                />
-              ) : (
-                <div style={{ fontSize: 12, color: '#aeaeb2', fontWeight: 700, textAlign: 'center' }}>
-                  Logo del negocio
-                </div>
-              )}
-            </div>
-
-            <button
-              onClick={handleLogout}
-              style={{ padding: '8px 16px', borderRadius: 10, border: '0.5px solid #e0e0e5', background: 'transparent', fontSize: 13, color: '#6e6e73', cursor: 'pointer', fontFamily: 'inherit', alignSelf: 'flex-end' }}
-            >
-              Cerrar sesión
-            </button>
-          </div>
+          <button
+            onClick={handleLogout}
+            style={{ padding: '8px 16px', borderRadius: 10, border: '0.5px solid #e0e0e5', background: 'transparent', fontSize: 13, color: '#6e6e73', cursor: 'pointer', fontFamily: 'inherit' }}
+          >
+            Cerrar sesión
+          </button>
         </div>
 
-        <div className="dashboard-tabs" style={{ display: 'flex', gap: 10, marginBottom: 16, overflowX: 'auto' }}>
-          <button style={tabStyle('reservas')} onClick={() => setActiveTab('reservas')}>Reservas</button>
-          <button style={tabStyle('clientes')} onClick={() => setActiveTab('clientes')}>Clientes</button>
-          <button style={tabStyle('configuracion')} onClick={() => setActiveTab('configuracion')}>Configuración</button>
-          <button style={tabStyle('perfil')} onClick={() => setActiveTab('perfil')}>Perfil</button>
+        <div style={{ display: 'flex', gap: 10, marginBottom: 16, overflowX: 'auto' }}>
+          <button style={tabStyle('reservas')} onClick={() => setActiveTab('reservas')}>📋 Reservas</button>
+          <button style={tabStyle('disponibilidad')} onClick={() => setActiveTab('disponibilidad')}>🗓 Disponibilidad</button>
+          <button style={tabStyle('servicios')} onClick={() => setActiveTab('servicios')}>✂️ Servicios</button>
+          <button style={tabStyle('profesionales')} onClick={() => setActiveTab('profesionales')}>👥 Profesionales</button>
         </div>
 
         {activeTab === 'reservas' && <ReservationsSection />}
-        {activeTab === 'clientes' && <ClientsSection />}
-        {activeTab === 'configuracion' && <ConfigurationSection />}
-        {activeTab === 'perfil' && (
-          <BusinessProfileSection
-            professional={professional}
-            onProfileUpdated={onProfileUpdated}
-          />
-        )}
+        {activeTab === 'disponibilidad' && <AvailabilitySection />}
+        {activeTab === 'servicios' && <ServicesSection />}
+        {activeTab === 'profesionales' && <StaffSection />}
       </div>
     </div>
   );
 }
-
 
 function AdminLoginPage() {
   const navigate = useNavigate();
@@ -4862,7 +2318,6 @@ function AdminDashboardPage() {
     { label: 'Activos', value: stats?.professionals?.active || 0, color: '#21c55d', bg: '#edfff3' },
     { label: 'Suspendidos', value: stats?.professionals?.suspended || 0, color: '#ff3b30', bg: '#fff0f0' },
     { label: 'Reservas totales', value: stats?.bookings?.total || 0, color: '#5856d6', bg: '#f1f0ff' },
-    { label: 'Reservas este mes', value: stats?.bookings?.monthly || 0, color: '#0071e3', bg: '#eef6ff' },
     { label: 'Reservas hoy', value: stats?.bookings?.today || 0, color: '#ff9500', bg: '#fff7e8' },
     { label: 'Clientes', value: stats?.clients?.total || 0, color: '#111827', bg: '#f4f4f8' },
   ];
@@ -4902,7 +2357,7 @@ function AdminDashboardPage() {
           </div>
         )}
 
-        <div className="admin-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginBottom: 18 }}>
+        <div className="admin-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 10, marginBottom: 18 }}>
           {statCards.map((card) => (
             <div key={card.label} style={{ background: card.bg, borderRadius: 18, padding: 16, border: '1px solid rgba(0,0,0,0.04)' }}>
               <div style={{ color: card.color, fontSize: 24, fontWeight: 900, marginBottom: 6 }}>{card.value}</div>
@@ -4946,10 +2401,6 @@ function AdminDashboardPage() {
               {professionals.map((professional) => {
                 const publicUrl = professional.slug ? `https://tuagendaya-web.onrender.com/reservar/${professional.slug}` : '';
                 const isActive = professional.status !== 'suspended';
-                const planName = professional.plan || 'Profesional';
-                const monthlyLimit = Number(professional.monthlyLimit || professional.monthly_limit || 1000);
-                const monthlyUsed = Number(professional.monthlyBookingsCount || professional.monthly_bookings_count || 0);
-                const monthlyPercent = monthlyLimit > 0 ? Math.min(100, Math.round((monthlyUsed / monthlyLimit) * 100)) : 0;
 
                 return (
                   <div key={professional.id} style={{ border: '1px solid #e8e8ed', borderRadius: 18, padding: 16, background: '#fff', display: 'grid', gap: 12 }}>
@@ -4973,25 +2424,18 @@ function AdminDashboardPage() {
                       </span>
                     </div>
 
-                    <div className="admin-business-metrics" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 10 }}>
-                      <div style={{ background: '#eef6ff', borderRadius: 14, padding: 12 }}>
-                        <div style={{ fontSize: 15, fontWeight: 900, color: '#0071e3' }}>{planName}</div>
-                        <div style={{ fontSize: 12, color: '#6e6e73', fontWeight: 800 }}>Plan</div>
-                      </div>
-                      <div style={{ background: '#f7f7fb', borderRadius: 14, padding: 12 }}>
-                        <div style={{ fontSize: 18, fontWeight: 900, color: '#1a1a1a' }}>{monthlyUsed}/{monthlyLimit}</div>
-                        <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 800 }}>Reservas del mes</div>
-                        <div style={{ marginTop: 8, height: 6, borderRadius: 999, background: '#e5e5ea', overflow: 'hidden' }}>
-                          <div style={{ width: `${monthlyPercent}%`, height: '100%', borderRadius: 999, background: monthlyPercent >= 90 ? '#ff3b30' : '#0071e3' }} />
-                        </div>
-                      </div>
+                    <div className="admin-business-metrics" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10 }}>
                       <div style={{ background: '#f7f7fb', borderRadius: 14, padding: 12 }}>
                         <div style={{ fontSize: 18, fontWeight: 900, color: '#1a1a1a' }}>{professional.bookingsCount || 0}</div>
-                        <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 800 }}>Reservas totales</div>
+                        <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 800 }}>Reservas</div>
                       </div>
                       <div style={{ background: '#f7f7fb', borderRadius: 14, padding: 12 }}>
                         <div style={{ fontSize: 18, fontWeight: 900, color: '#1a1a1a' }}>{professional.clientsCount || 0}</div>
                         <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 800 }}>Clientes</div>
+                      </div>
+                      <div style={{ background: '#f7f7fb', borderRadius: 14, padding: 12 }}>
+                        <div style={{ fontSize: 13, fontWeight: 900, color: '#1a1a1a' }}>{professional.createdAt ? new Date(professional.createdAt).toLocaleDateString('es-UY') : '-'}</div>
+                        <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 800 }}>Registro</div>
                       </div>
                     </div>
 
@@ -5076,18 +2520,10 @@ function AdminDashboardPage() {
               <div style={{ padding: 40, textAlign: 'center', color: '#8e8e93', fontWeight: 800 }}>Cargando detalle...</div>
             ) : (
               <>
-                <div className="admin-detail-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 10, marginBottom: 16 }}>
-                  <div style={{ background: '#eef6ff', borderRadius: 16, padding: 14 }}>
-                    <div style={{ fontSize: 15, fontWeight: 900, color: '#0071e3' }}>{selectedBusiness.plan || 'Profesional'}</div>
-                    <div style={{ color: '#8e8e93', fontSize: 12, fontWeight: 800 }}>Plan</div>
-                  </div>
-                  <div style={{ background: '#f7f7fb', borderRadius: 16, padding: 14 }}>
-                    <div style={{ fontSize: 20, fontWeight: 900, color: '#1a1a1a' }}>{Number(selectedBusiness.monthlyBookingsCount || selectedBusiness.monthly_bookings_count || 0)}/{Number(selectedBusiness.monthlyLimit || selectedBusiness.monthly_limit || 1000)}</div>
-                    <div style={{ color: '#8e8e93', fontSize: 12, fontWeight: 800 }}>Reservas del mes</div>
-                  </div>
+                <div className="admin-detail-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 10, marginBottom: 16 }}>
                   <div style={{ background: '#f7f7fb', borderRadius: 16, padding: 14 }}>
                     <div style={{ fontSize: 20, fontWeight: 900, color: '#0071e3' }}>{selectedBusiness.bookingsCount || 0}</div>
-                    <div style={{ color: '#8e8e93', fontSize: 12, fontWeight: 800 }}>Reservas totales</div>
+                    <div style={{ color: '#8e8e93', fontSize: 12, fontWeight: 800 }}>Reservas</div>
                   </div>
                   <div style={{ background: '#f7f7fb', borderRadius: 16, padding: 14 }}>
                     <div style={{ fontSize: 20, fontWeight: 900, color: '#111827' }}>{selectedBusiness.clientsCount || 0}</div>
@@ -5110,9 +2546,6 @@ function AdminDashboardPage() {
                     <div><strong style={{ color: '#1a1a1a' }}>Teléfono:</strong> {selectedBusiness.phone || '-'}</div>
                     <div><strong style={{ color: '#1a1a1a' }}>Dirección:</strong> {selectedBusiness.address || '-'}</div>
                     <div><strong style={{ color: '#1a1a1a' }}>Slug:</strong> {selectedBusiness.slug || '-'}</div>
-                    <div><strong style={{ color: '#1a1a1a' }}>Plan:</strong> {selectedBusiness.plan || 'Profesional'}</div>
-                    <div><strong style={{ color: '#1a1a1a' }}>Límite mensual:</strong> {Number(selectedBusiness.monthlyLimit || selectedBusiness.monthly_limit || 1000)} reservas</div>
-                    <div><strong style={{ color: '#1a1a1a' }}>Reservas usadas este mes:</strong> {Number(selectedBusiness.monthlyBookingsCount || selectedBusiness.monthly_bookings_count || 0)}</div>
                     <div><strong style={{ color: '#1a1a1a' }}>Link público:</strong> {selectedBusiness.slug ? `https://tuagendaya-web.onrender.com/reservar/${selectedBusiness.slug}` : '-'}</div>
                   </div>
 
@@ -5170,6 +2603,7 @@ function AdminDashboardPage() {
   );
 }
 
+
 function ProfesionalPage() {
   const [professional, setProfessional] = useState(() => {
     const token = localStorage.getItem('tuagendaya_token');
@@ -5182,194 +2616,16 @@ function ProfesionalPage() {
     }
   });
 
-  const handleProfessionalUpdate = (updatedProfessional) => {
-    const normalized = normalizeProfessionalFromApi({
-      ...(professional || {}),
-      ...(updatedProfessional || {}),
-    });
-
-    setProfessional(normalized);
-    localStorage.setItem('tuagendaya_professional', JSON.stringify(normalized));
-  };
-
   if (!professional) {
-    return <LoginForm onLogin={(prof) => setProfessional(normalizeProfessionalFromApi(prof || {}))} />;
+    return <LoginForm onLogin={(prof) => setProfessional(prof || {})} />;
   }
 
-  return (
-    <Dashboard
-      professional={professional}
-      onLogout={() => setProfessional(null)}
-      onProfileUpdated={handleProfessionalUpdate}
-    />
-  );
-}
-
-
-function MobileViewportController() {
-  useEffect(() => {
-    const isMobile = window.matchMedia('(max-width: 768px)').matches;
-
-    const setViewport = () => {
-      let viewport = document.querySelector('meta[name="viewport"]');
-
-      if (!viewport) {
-        viewport = document.createElement('meta');
-        viewport.setAttribute('name', 'viewport');
-        document.head.appendChild(viewport);
-      }
-
-      viewport.setAttribute(
-        'content',
-        isMobile
-          ? 'width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover'
-          : 'width=device-width, initial-scale=1, viewport-fit=cover'
-      );
-    };
-
-    setViewport();
-
-    const styleId = 'tuagendaya-mobile-no-zoom-fix';
-    let style = document.getElementById(styleId);
-
-    if (!style) {
-      style = document.createElement('style');
-      style.id = styleId;
-      document.head.appendChild(style);
-    }
-
-    style.innerHTML = `
-      html {
-        width: 100%;
-        max-width: 100%;
-        min-width: 0;
-        overflow-x: hidden;
-        -webkit-text-size-adjust: 100%;
-        text-size-adjust: 100%;
-      }
-
-      body {
-        width: 100%;
-        max-width: 100%;
-        min-width: 0;
-        margin: 0;
-        overflow-x: hidden;
-        overscroll-behavior-x: none;
-        -webkit-tap-highlight-color: transparent;
-      }
-
-      #root {
-        width: 100%;
-        max-width: 100%;
-        min-width: 0;
-        overflow-x: hidden;
-      }
-
-      *, *::before, *::after {
-        box-sizing: border-box;
-      }
-
-      button,
-      a,
-      [role="button"],
-      input,
-      textarea,
-      select {
-        touch-action: manipulation;
-      }
-
-      @media (max-width: 768px) {
-        body {
-          position: relative;
-        }
-
-        input,
-        textarea,
-        select {
-          font-size: 16px !important;
-          line-height: 1.35 !important;
-          width: 100% !important;
-          max-width: 100% !important;
-          min-width: 0 !important;
-          -webkit-appearance: none;
-          appearance: none;
-          transform: translateZ(0);
-        }
-
-        input::placeholder,
-        textarea::placeholder {
-          font-size: 16px !important;
-        }
-
-        button {
-          max-width: 100% !important;
-          min-height: 44px;
-          white-space: normal !important;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-
-        img,
-        svg,
-        canvas,
-        video {
-          max-width: 100%;
-        }
-
-        table {
-          width: 100%;
-          max-width: 100%;
-          display: block;
-          overflow-x: auto;
-        }
-
-        /* Evita que tarjetas o formularios con anchos fijos rompan el viewport en iPhone */
-        .tuagendaya-mobile-safe,
-        main,
-        section,
-        form {
-          width: 100% !important;
-          max-width: 100% !important;
-          min-width: 0 !important;
-          overflow-x: hidden !important;
-        }
-      }
-    `;
-
-    const preventGesture = (event) => {
-      event.preventDefault();
-    };
-
-    const resetZoomAfterInput = () => {
-      setViewport();
-      if (window.visualViewport && window.visualViewport.scale !== 1) {
-        window.scrollTo({ left: 0, behavior: 'auto' });
-      }
-    };
-
-    document.addEventListener('gesturestart', preventGesture, { passive: false });
-    document.addEventListener('gesturechange', preventGesture, { passive: false });
-    document.addEventListener('gestureend', preventGesture, { passive: false });
-    document.addEventListener('focusin', resetZoomAfterInput);
-    document.addEventListener('focusout', resetZoomAfterInput);
-
-    return () => {
-      document.removeEventListener('gesturestart', preventGesture);
-      document.removeEventListener('gesturechange', preventGesture);
-      document.removeEventListener('gestureend', preventGesture);
-      document.removeEventListener('focusin', resetZoomAfterInput);
-      document.removeEventListener('focusout', resetZoomAfterInput);
-    };
-  }, []);
-
-  return null;
+  return <Dashboard professional={professional} onLogout={() => setProfessional(null)} />;
 }
 
 export default function App() {
   return (
-    <>
-      <MobileViewportController />
-      <Routes>
+    <Routes>
       <Route path="/" element={<Navigate to="/profesional/login" replace />} />
       <Route path="/profesional/login" element={<ProfesionalPage />} />
       <Route path="/profesional/register" element={<RegisterPage />} />
@@ -5377,8 +2633,7 @@ export default function App() {
       <Route path="/admin/login" element={<AdminLoginPage />} />
       <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
       <Route path="/reservar/:slug" element={<BookPage />} />
-        <Route path="/:slug" element={<BookPage />} />
-      </Routes>
-    </>
+      <Route path="/:slug" element={<BookPage />} />
+    </Routes>
   );
 }
