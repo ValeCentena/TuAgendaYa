@@ -534,8 +534,8 @@ function ProfessionCombobox({ value, onChange }) {
 
 function LoginForm({ onLogin }) {
   const navigate = useNavigate();
-  const [email, setEmail] = useState('nuevo@tuagendaya.com');
-  const [password, setPassword] = useState('12345678');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -583,7 +583,7 @@ function LoginForm({ onLogin }) {
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="tu@email.com"
+          placeholder="Email"
           required
           autoComplete="email"
         />
@@ -594,7 +594,7 @@ function LoginForm({ onLogin }) {
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="••••••••"
+          placeholder="Contraseña"
           required
           autoComplete="current-password"
         />
@@ -4679,7 +4679,7 @@ function AdminLoginPage() {
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           type="email"
-          placeholder="admin@tuagendaya.com"
+          placeholder="Email"
           autoComplete="email"
           style={{ width: '100%', border: '1px solid #dcdce3', borderRadius: 14, padding: '13px 14px', fontSize: 15, outline: 'none', marginBottom: 14 }}
         />
@@ -4689,7 +4689,7 @@ function AdminLoginPage() {
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           type="password"
-          placeholder="Contraseña admin"
+          placeholder="Contraseña"
           autoComplete="current-password"
           style={{ width: '100%', border: '1px solid #dcdce3', borderRadius: 14, padding: '13px 14px', fontSize: 15, outline: 'none', marginBottom: 16 }}
         />
