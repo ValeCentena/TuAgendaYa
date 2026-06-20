@@ -5285,12 +5285,355 @@ function MobileViewportController() {
   return null;
 }
 
+
+function LandingPage() {
+  const navigate = useNavigate();
+
+  const featureCards = [
+    {
+      title: 'Reservas online',
+      text: 'Tus clientes reservan desde un link propio, sin llamadas ni mensajes de ida y vuelta.',
+    },
+    {
+      title: 'Panel profesional',
+      text: 'Gestioná reservas, clientes, servicios, profesionales, disponibilidad e historial desde un solo lugar.',
+    },
+    {
+      title: 'WhatsApp listo',
+      text: 'Enviá confirmaciones manuales por WhatsApp con el mensaje ya armado. WhatsApp Business automático queda preparado para conectar.',
+    },
+    {
+      title: 'Clientes e historial',
+      text: 'Cada reserva alimenta tu base de clientes, asistencias, notas internas y reservas archivadas.',
+    },
+  ];
+
+  const steps = [
+    'Creás tu cuenta profesional',
+    'Configurás servicios, horarios y profesionales',
+    'Compartís tu link público de reserva',
+    'Tus clientes reservan y vos gestionás todo desde el panel',
+  ];
+
+  return (
+    <div
+      style={{
+        minHeight: '100vh',
+        background: 'linear-gradient(180deg, #f7fbff 0%, #f5f5f7 42%, #ffffff 100%)',
+        color: '#111827',
+        fontFamily: APP_FONT,
+        overflowX: 'hidden',
+      }}
+    >
+      <style>
+        {`
+          @media (max-width: 760px) {
+            .landing-shell { padding: 18px 14px 28px !important; }
+            .landing-nav { border-radius: 22px !important; padding: 12px 14px !important; }
+            .landing-nav-actions { display: none !important; }
+            .landing-hero { grid-template-columns: 1fr !important; padding: 28px 18px !important; border-radius: 28px !important; }
+            .landing-title { font-size: 39px !important; letter-spacing: -1.6px !important; }
+            .landing-subtitle { font-size: 16px !important; }
+            .landing-actions { grid-template-columns: 1fr !important; }
+            .landing-preview { min-height: auto !important; }
+            .landing-features { grid-template-columns: 1fr !important; }
+            .landing-steps { grid-template-columns: 1fr !important; }
+            .landing-plan { grid-template-columns: 1fr !important; }
+          }
+        `}
+      </style>
+
+      <main className="landing-shell" style={{ maxWidth: 1180, margin: '0 auto', padding: '24px 22px 44px' }}>
+        <nav
+          className="landing-nav"
+          style={{
+            position: 'sticky',
+            top: 12,
+            zIndex: 20,
+            background: 'rgba(255,255,255,0.86)',
+            backdropFilter: 'blur(18px)',
+            WebkitBackdropFilter: 'blur(18px)',
+            border: '1px solid rgba(226,232,240,0.9)',
+            borderRadius: 28,
+            padding: '14px 18px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 16,
+            boxShadow: '0 12px 38px rgba(15,23,42,0.07)',
+            marginBottom: 22,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+            <TuAgendaLogo height={34} />
+          </div>
+          <div className="landing-nav-actions" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              type="button"
+              onClick={() => navigate('/profesional/login')}
+              style={{
+                border: '1px solid #d7dce5',
+                background: '#fff',
+                color: '#111827',
+                borderRadius: 999,
+                padding: '10px 16px',
+                fontSize: 14,
+                fontWeight: 800,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              Ingresar
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/profesional/register')}
+              style={{
+                border: 'none',
+                background: '#0071e3',
+                color: '#fff',
+                borderRadius: 999,
+                padding: '11px 18px',
+                fontSize: 14,
+                fontWeight: 900,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                boxShadow: '0 10px 24px rgba(0,113,227,0.22)',
+              }}
+            >
+              Crear cuenta
+            </button>
+          </div>
+        </nav>
+
+        <section
+          className="landing-hero"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1.05fr 0.95fr',
+            gap: 24,
+            alignItems: 'center',
+            background: 'rgba(255,255,255,0.92)',
+            border: '1px solid rgba(226,232,240,0.9)',
+            borderRadius: 38,
+            padding: 34,
+            boxShadow: '0 24px 70px rgba(15,23,42,0.08)',
+          }}
+        >
+          <div>
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                background: '#eaf4ff',
+                color: '#0066cc',
+                borderRadius: 999,
+                padding: '8px 12px',
+                fontSize: 13,
+                fontWeight: 900,
+                marginBottom: 18,
+              }}
+            >
+              Agenda online para profesionales y negocios
+            </div>
+
+            <h1
+              className="landing-title"
+              style={{
+                margin: 0,
+                fontSize: 58,
+                lineHeight: 0.96,
+                letterSpacing: '-2.7px',
+                fontWeight: 950,
+                color: '#0f172a',
+              }}
+            >
+              Reservas simples, panel completo y clientes ordenados.
+            </h1>
+
+            <p
+              className="landing-subtitle"
+              style={{
+                margin: '20px 0 0',
+                color: '#5f6470',
+                fontSize: 18,
+                lineHeight: 1.55,
+                maxWidth: 600,
+                fontWeight: 650,
+              }}
+            >
+              TuAgendaYa te da un link público para que tus clientes reserven y un panel tipo app para manejar reservas, servicios, disponibilidad, clientes, historial y WhatsApp.
+            </p>
+
+            <div className="landing-actions" style={{ display: 'grid', gridTemplateColumns: 'auto auto', gap: 12, marginTop: 26, maxWidth: 460 }}>
+              <button
+                type="button"
+                onClick={() => navigate('/profesional/register')}
+                style={{
+                  border: 'none',
+                  borderRadius: 18,
+                  background: '#0071e3',
+                  color: '#fff',
+                  padding: '15px 22px',
+                  fontSize: 16,
+                  fontWeight: 950,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  boxShadow: '0 14px 30px rgba(0,113,227,0.24)',
+                }}
+              >
+                Crear cuenta
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/profesional/login')}
+                style={{
+                  border: '1px solid #d7dce5',
+                  borderRadius: 18,
+                  background: '#fff',
+                  color: '#111827',
+                  padding: '15px 22px',
+                  fontSize: 16,
+                  fontWeight: 900,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                Ingresar
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 22 }}>
+              {['1000 reservas mensuales', 'WhatsApp manual', 'Clientes e historial', 'PWA instalable'].map((item) => (
+                <span
+                  key={item}
+                  style={{
+                    background: '#f8fafc',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: 999,
+                    padding: '8px 11px',
+                    color: '#475569',
+                    fontSize: 13,
+                    fontWeight: 850,
+                  }}
+                >
+                  {item}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div
+            className="landing-preview"
+            style={{
+              minHeight: 470,
+              background: 'linear-gradient(145deg, #0f172a 0%, #1d4ed8 100%)',
+              borderRadius: 34,
+              padding: 18,
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.25), 0 24px 55px rgba(30,64,175,0.22)',
+              overflow: 'hidden',
+            }}
+          >
+            <div style={{ background: '#f8fafc', borderRadius: 28, padding: 18, height: '100%', minHeight: 430 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <div>
+                  <div style={{ fontSize: 12, color: '#64748b', fontWeight: 900 }}>Hoy</div>
+                  <div style={{ fontSize: 22, color: '#0f172a', fontWeight: 950 }}>Reservas</div>
+                </div>
+                <div style={{ width: 52, height: 52, borderRadius: 18, background: '#eaf4ff', display: 'grid', placeItems: 'center', color: '#0071e3', fontWeight: 950 }}>4</div>
+              </div>
+
+              {[
+                ['09:30', 'Juan Pérez', 'Consulta inicial', 'Confirmada'],
+                ['10:20', 'Ana Silva', 'Limpieza dental', 'Pendiente'],
+                ['11:10', 'Carlos Díaz', 'Control', 'Confirmada'],
+              ].map((row) => (
+                <div key={row[0]} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 20, padding: 14, marginBottom: 10, boxShadow: '0 4px 14px rgba(15,23,42,0.04)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                    <div>
+                      <div style={{ fontSize: 13, color: '#0071e3', fontWeight: 950 }}>{row[0]}</div>
+                      <div style={{ fontSize: 16, color: '#111827', fontWeight: 950 }}>{row[1]}</div>
+                      <div style={{ fontSize: 13, color: '#64748b', fontWeight: 750 }}>{row[2]}</div>
+                    </div>
+                    <span style={{ alignSelf: 'flex-start', borderRadius: 999, padding: '6px 9px', background: row[3] === 'Confirmada' ? '#ecfdf5' : '#fffbeb', color: row[3] === 'Confirmada' ? '#047857' : '#b45309', fontSize: 11, fontWeight: 950 }}>{row[3]}</span>
+                  </div>
+                </div>
+              ))}
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 16 }}>
+                <div style={{ background: '#fff', borderRadius: 20, padding: 14, border: '1px solid #e5e7eb' }}>
+                  <div style={{ color: '#64748b', fontSize: 12, fontWeight: 900 }}>Clientes</div>
+                  <div style={{ color: '#0f172a', fontSize: 25, fontWeight: 950 }}>128</div>
+                </div>
+                <div style={{ background: '#fff', borderRadius: 20, padding: 14, border: '1px solid #e5e7eb' }}>
+                  <div style={{ color: '#64748b', fontSize: 12, fontWeight: 900 }}>Uso mensual</div>
+                  <div style={{ color: '#0f172a', fontSize: 25, fontWeight: 950 }}>23/1000</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section style={{ marginTop: 24 }}>
+          <div className="landing-features" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 14 }}>
+            {featureCards.map((card) => (
+              <article key={card.title} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 26, padding: 20, boxShadow: '0 10px 30px rgba(15,23,42,0.04)' }}>
+                <h3 style={{ margin: '0 0 8px', fontSize: 18, color: '#0f172a', fontWeight: 950 }}>{card.title}</h3>
+                <p style={{ margin: 0, color: '#64748b', fontSize: 14, lineHeight: 1.55, fontWeight: 650 }}>{card.text}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section style={{ marginTop: 24, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 32, padding: 24, boxShadow: '0 10px 30px rgba(15,23,42,0.04)' }}>
+          <h2 style={{ margin: '0 0 16px', color: '#0f172a', fontSize: 30, letterSpacing: '-0.9px', fontWeight: 950 }}>Cómo funciona</h2>
+          <div className="landing-steps" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
+            {steps.map((step, index) => (
+              <div key={step} style={{ background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: 22, padding: 16 }}>
+                <div style={{ width: 34, height: 34, borderRadius: 13, background: '#0071e3', color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 950, marginBottom: 10 }}>{index + 1}</div>
+                <div style={{ color: '#111827', fontSize: 15, lineHeight: 1.35, fontWeight: 900 }}>{step}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="landing-plan" style={{ marginTop: 24, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'stretch' }}>
+          <div style={{ background: '#0f172a', color: '#fff', borderRadius: 32, padding: 26, boxShadow: '0 18px 48px rgba(15,23,42,0.16)' }}>
+            <div style={{ color: '#93c5fd', fontSize: 14, fontWeight: 950, marginBottom: 8 }}>Plan Profesional</div>
+            <h2 style={{ margin: 0, fontSize: 34, letterSpacing: '-1px', fontWeight: 950 }}>Todo lo necesario para gestionar tu agenda.</h2>
+            <p style={{ color: '#cbd5e1', lineHeight: 1.55, fontSize: 15, fontWeight: 650 }}>
+              Hasta 1000 reservas mensuales, servicios con precio y duración, profesionales del negocio, clientes, historial, WhatsApp manual y estadísticas básicas.
+            </p>
+          </div>
+          <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 32, padding: 26 }}>
+            <h3 style={{ margin: '0 0 14px', fontSize: 22, color: '#0f172a', fontWeight: 950 }}>Ideal para</h3>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+              {['Barberías', 'Odontólogos', 'Psicólogos', 'Estéticas', 'Veterinarias', 'Entrenadores', 'Clínicas', 'Peluquerías'].map((item) => (
+                <span key={item} style={{ background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 999, padding: '9px 12px', color: '#334155', fontWeight: 850, fontSize: 13 }}>{item}</span>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate('/profesional/register')}
+              style={{ width: '100%', marginTop: 22, border: 'none', borderRadius: 18, background: '#0071e3', color: '#fff', padding: '15px 18px', fontSize: 16, fontWeight: 950, fontFamily: 'inherit', cursor: 'pointer' }}
+            >
+              Crear cuenta profesional
+            </button>
+          </div>
+        </section>
+      </main>
+    </div>
+  );
+}
+
+
 export default function App() {
   return (
     <>
       <MobileViewportController />
       <Routes>
-      <Route path="/" element={<Navigate to="/profesional/login" replace />} />
+      <Route path="/" element={<LandingPage />} />
       <Route path="/profesional/login" element={<ProfesionalPage />} />
       <Route path="/profesional/register" element={<RegisterPage />} />
       <Route path="/profesional/dashboard" element={<ProfesionalPage />} />
