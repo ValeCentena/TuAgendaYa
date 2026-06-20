@@ -5289,37 +5289,83 @@ function MobileViewportController() {
 function LandingPage() {
   const navigate = useNavigate();
 
-  const featureCards = [
+  const howItWorks = [
     {
-      title: 'Reservas online',
-      text: 'Tus clientes reservan desde un link propio, sin llamadas ni mensajes de ida y vuelta.',
+      title: 'Creá tu cuenta',
+      text: 'Registrás tu negocio, elegís tu rubro y dejás tu link público listo para compartir.',
     },
     {
-      title: 'Panel profesional',
-      text: 'Gestioná reservas, clientes, servicios, profesionales, disponibilidad e historial desde un solo lugar.',
+      title: 'Configurá tu agenda',
+      text: 'Cargás servicios con precio y duración, disponibilidad y profesionales del negocio.',
     },
     {
-      title: 'WhatsApp listo',
-      text: 'Enviá confirmaciones manuales por WhatsApp con el mensaje ya armado. WhatsApp Business automático queda preparado para conectar.',
+      title: 'Compartís tu link',
+      text: 'Tus clientes entran desde el celular y reservan sin escribirte para consultar horarios.',
     },
     {
-      title: 'Clientes e historial',
-      text: 'Cada reserva alimenta tu base de clientes, asistencias, notas internas y reservas archivadas.',
+      title: 'Gestionás todo',
+      text: 'Ves reservas, clientes, historial, WhatsApp, asistencias y estadísticas desde un panel tipo app.',
     },
   ];
 
-  const steps = [
-    'Creás tu cuenta profesional',
-    'Configurás servicios, horarios y profesionales',
-    'Compartís tu link público de reserva',
-    'Tus clientes reservan y vos gestionás todo desde el panel',
+  const included = [
+    'Link público propio para reservas',
+    'Servicios con precio y duración',
+    'Profesionales del negocio',
+    'Calendario y horarios disponibles',
+    'Clientes automáticos e historial',
+    'Notas internas por cliente',
+    'Reservas de hoy, próximas y archivadas',
+    'WhatsApp manual con mensaje listo',
+    'Estadísticas simples del negocio',
+    'Panel instalable como app en celular',
+  ];
+
+  const businessTypes = [
+    'Barberías',
+    'Peluquerías',
+    'Odontólogos',
+    'Psicólogos',
+    'Estéticas',
+    'Manicura y uñas',
+    'Veterinarias',
+    'Clínicas',
+    'Entrenadores',
+    'Fotógrafos',
+    'Consultorios',
+    'Servicios profesionales',
+  ];
+
+  const faqs = [
+    {
+      q: '¿El cliente necesita descargar una app?',
+      a: 'No. El cliente reserva desde un link web del negocio. El profesional sí puede instalar el panel como app en su celular.',
+    },
+    {
+      q: '¿WhatsApp automático está incluido?',
+      a: 'WhatsApp manual queda incluido. El automático se activa cuando el negocio conecta WhatsApp Business.',
+    },
+    {
+      q: '¿Puedo tener varios profesionales?',
+      a: 'Sí. Podés agregar profesionales del negocio y que el cliente elija con quién reservar.',
+    },
+    {
+      q: '¿Qué pasa con las reservas viejas?',
+      a: 'Se archivan automáticamente por fecha para que tengas historial sin ensuciar la agenda del día.',
+    },
+  ];
+
+  const quickStats = [
+    ['Reservas hoy', '4'],
+    ['Confirmadas', '3'],
+    ['Canceladas', '0'],
   ];
 
   return (
     <div
       style={{
         minHeight: '100vh',
-        background: 'linear-gradient(180deg, #f7fbff 0%, #f5f5f7 42%, #ffffff 100%)',
+        background: 'linear-gradient(180deg, #f7fbff 0%, #f5f5f7 38%, #ffffff 100%)',
         color: '#111827',
         fontFamily: APP_FONT,
         overflowX: 'hidden',
@@ -5327,46 +5373,90 @@ function LandingPage() {
     >
       <style>
         {`
+          .landing-shell {
+            max-width: 1180px;
+            margin: 0 auto;
+            padding: 24px 22px 56px;
+          }
+
+          .landing-glass {
+            background: rgba(255,255,255,0.88);
+            border: 1px solid rgba(226,232,240,0.95);
+            box-shadow: 0 18px 48px rgba(15,23,42,0.06);
+          }
+
+          .landing-button-primary,
+          .landing-button-secondary {
+            border-radius: 18px;
+            padding: 15px 22px;
+            font-size: 16px;
+            font-weight: 950;
+            font-family: inherit;
+            cursor: pointer;
+            transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+          }
+
+          .landing-button-primary:hover,
+          .landing-button-secondary:hover,
+          .landing-card:hover {
+            transform: translateY(-1px);
+          }
+
           @media (max-width: 760px) {
-            .landing-shell { padding: 18px 14px 28px !important; }
-            .landing-nav { border-radius: 22px !important; padding: 12px 14px !important; }
+            .landing-shell { padding: 16px 13px 34px !important; }
+            .landing-nav { top: 8px !important; border-radius: 22px !important; padding: 12px 14px !important; }
             .landing-nav-actions { display: none !important; }
-            .landing-hero { grid-template-columns: 1fr !important; padding: 28px 18px !important; border-radius: 28px !important; }
-            .landing-title { font-size: 39px !important; letter-spacing: -1.6px !important; }
+            .landing-hero { grid-template-columns: 1fr !important; padding: 24px 17px !important; border-radius: 30px !important; gap: 22px !important; }
+            .landing-title { font-size: 38px !important; line-height: 0.98 !important; letter-spacing: -1.7px !important; }
             .landing-subtitle { font-size: 16px !important; }
             .landing-actions { grid-template-columns: 1fr !important; }
-            .landing-preview { min-height: auto !important; }
-            .landing-features { grid-template-columns: 1fr !important; }
-            .landing-steps { grid-template-columns: 1fr !important; }
+            .landing-preview { min-height: auto !important; padding: 14px !important; border-radius: 28px !important; }
+            .landing-preview-inner { min-height: auto !important; border-radius: 24px !important; }
+            .landing-grid-4,
+            .landing-grid-3,
+            .landing-grid-2,
             .landing-plan { grid-template-columns: 1fr !important; }
+            .landing-section { border-radius: 28px !important; padding: 20px !important; }
+            .landing-section-title { font-size: 27px !important; }
+            .landing-floating-cta { left: 13px !important; right: 13px !important; bottom: 14px !important; display: grid !important; grid-template-columns: 1fr 1fr !important; }
           }
         `}
       </style>
 
-      <main className="landing-shell" style={{ maxWidth: 1180, margin: '0 auto', padding: '24px 22px 44px' }}>
+      <main className="landing-shell">
         <nav
-          className="landing-nav"
+          className="landing-nav landing-glass"
           style={{
             position: 'sticky',
             top: 12,
             zIndex: 20,
-            background: 'rgba(255,255,255,0.86)',
             backdropFilter: 'blur(18px)',
             WebkitBackdropFilter: 'blur(18px)',
-            border: '1px solid rgba(226,232,240,0.9)',
             borderRadius: 28,
             padding: '14px 18px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: 16,
-            boxShadow: '0 12px 38px rgba(15,23,42,0.07)',
             marginBottom: 22,
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-            <TuAgendaLogo height={34} />
-          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            style={{
+              border: 'none',
+              background: 'transparent',
+              padding: 0,
+              display: 'flex',
+              alignItems: 'center',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            <TuAgendaLogo height={35} />
+          </button>
+
           <div className="landing-nav-actions" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <button
               type="button"
@@ -5378,7 +5468,7 @@ function LandingPage() {
                 borderRadius: 999,
                 padding: '10px 16px',
                 fontSize: 14,
-                fontWeight: 800,
+                fontWeight: 850,
                 cursor: 'pointer',
                 fontFamily: 'inherit',
               }}
@@ -5395,7 +5485,7 @@ function LandingPage() {
                 borderRadius: 999,
                 padding: '11px 18px',
                 fontSize: 14,
-                fontWeight: 900,
+                fontWeight: 950,
                 cursor: 'pointer',
                 fontFamily: 'inherit',
                 boxShadow: '0 10px 24px rgba(0,113,227,0.22)',
@@ -5407,17 +5497,14 @@ function LandingPage() {
         </nav>
 
         <section
-          className="landing-hero"
+          className="landing-hero landing-glass"
           style={{
             display: 'grid',
             gridTemplateColumns: '1.05fr 0.95fr',
             gap: 24,
             alignItems: 'center',
-            background: 'rgba(255,255,255,0.92)',
-            border: '1px solid rgba(226,232,240,0.9)',
-            borderRadius: 38,
-            padding: 34,
-            boxShadow: '0 24px 70px rgba(15,23,42,0.08)',
+            borderRadius: 40,
+            padding: 36,
           }}
         >
           <div>
@@ -5431,25 +5518,25 @@ function LandingPage() {
                 borderRadius: 999,
                 padding: '8px 12px',
                 fontSize: 13,
-                fontWeight: 900,
+                fontWeight: 950,
                 marginBottom: 18,
               }}
             >
-              Agenda online para profesionales y negocios
+              Agenda online para negocios y profesionales
             </div>
 
             <h1
               className="landing-title"
               style={{
                 margin: 0,
-                fontSize: 58,
-                lineHeight: 0.96,
-                letterSpacing: '-2.7px',
+                fontSize: 60,
+                lineHeight: 0.95,
+                letterSpacing: '-2.8px',
                 fontWeight: 950,
                 color: '#0f172a',
               }}
             >
-              Reservas simples, panel completo y clientes ordenados.
+              Tu agenda, tus clientes y tus reservas en un solo lugar.
             </h1>
 
             <p
@@ -5458,46 +5545,36 @@ function LandingPage() {
                 margin: '20px 0 0',
                 color: '#5f6470',
                 fontSize: 18,
-                lineHeight: 1.55,
-                maxWidth: 600,
+                lineHeight: 1.56,
+                maxWidth: 610,
                 fontWeight: 650,
               }}
             >
-              TuAgendaYa te da un link público para que tus clientes reserven y un panel tipo app para manejar reservas, servicios, disponibilidad, clientes, historial y WhatsApp.
+              Creá tu link de reservas, configurá servicios y horarios, gestioná clientes, historial, WhatsApp y estadísticas desde un panel profesional instalable como app.
             </p>
 
             <div className="landing-actions" style={{ display: 'grid', gridTemplateColumns: 'auto auto', gap: 12, marginTop: 26, maxWidth: 460 }}>
               <button
+                className="landing-button-primary"
                 type="button"
                 onClick={() => navigate('/profesional/register')}
                 style={{
                   border: 'none',
-                  borderRadius: 18,
                   background: '#0071e3',
                   color: '#fff',
-                  padding: '15px 22px',
-                  fontSize: 16,
-                  fontWeight: 950,
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
                   boxShadow: '0 14px 30px rgba(0,113,227,0.24)',
                 }}
               >
                 Crear cuenta
               </button>
               <button
+                className="landing-button-secondary"
                 type="button"
                 onClick={() => navigate('/profesional/login')}
                 style={{
                   border: '1px solid #d7dce5',
-                  borderRadius: 18,
                   background: '#fff',
                   color: '#111827',
-                  padding: '15px 22px',
-                  fontSize: 16,
-                  fontWeight: 900,
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
                 }}
               >
                 Ingresar
@@ -5505,7 +5582,7 @@ function LandingPage() {
             </div>
 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 22 }}>
-              {['1000 reservas mensuales', 'WhatsApp manual', 'Clientes e historial', 'PWA instalable'].map((item) => (
+              {['Hasta 1000 reservas/mes', 'WhatsApp manual', 'Clientes e historial', 'App instalable'].map((item) => (
                 <span
                   key={item}
                   style={{
@@ -5535,11 +5612,11 @@ function LandingPage() {
               overflow: 'hidden',
             }}
           >
-            <div style={{ background: '#f8fafc', borderRadius: 28, padding: 18, height: '100%', minHeight: 430 }}>
+            <div className="landing-preview-inner" style={{ background: '#f8fafc', borderRadius: 28, padding: 18, height: '100%', minHeight: 430 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <div>
-                  <div style={{ fontSize: 12, color: '#64748b', fontWeight: 900 }}>Hoy</div>
-                  <div style={{ fontSize: 22, color: '#0f172a', fontWeight: 950 }}>Reservas</div>
+                  <div style={{ fontSize: 12, color: '#64748b', fontWeight: 950 }}>Panel profesional</div>
+                  <div style={{ fontSize: 23, color: '#0f172a', fontWeight: 950 }}>Reservas de hoy</div>
                 </div>
                 <div style={{ width: 52, height: 52, borderRadius: 18, background: '#eaf4ff', display: 'grid', placeItems: 'center', color: '#0071e3', fontWeight: 950 }}>4</div>
               </div>
@@ -5562,71 +5639,166 @@ function LandingPage() {
               ))}
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 16 }}>
-                <div style={{ background: '#fff', borderRadius: 20, padding: 14, border: '1px solid #e5e7eb' }}>
-                  <div style={{ color: '#64748b', fontSize: 12, fontWeight: 900 }}>Clientes</div>
-                  <div style={{ color: '#0f172a', fontSize: 25, fontWeight: 950 }}>128</div>
-                </div>
-                <div style={{ background: '#fff', borderRadius: 20, padding: 14, border: '1px solid #e5e7eb' }}>
-                  <div style={{ color: '#64748b', fontSize: 12, fontWeight: 900 }}>Uso mensual</div>
-                  <div style={{ color: '#0f172a', fontSize: 25, fontWeight: 950 }}>23/1000</div>
-                </div>
+                {quickStats.slice(0, 2).map(([label, value]) => (
+                  <div key={label} style={{ background: '#fff', borderRadius: 20, padding: 14, border: '1px solid #e5e7eb' }}>
+                    <div style={{ color: '#64748b', fontSize: 12, fontWeight: 900 }}>{label}</div>
+                    <div style={{ color: '#0f172a', fontSize: 25, fontWeight: 950 }}>{value}</div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
         </section>
 
-        <section style={{ marginTop: 24 }}>
-          <div className="landing-features" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 14 }}>
-            {featureCards.map((card) => (
-              <article key={card.title} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 26, padding: 20, boxShadow: '0 10px 30px rgba(15,23,42,0.04)' }}>
-                <h3 style={{ margin: '0 0 8px', fontSize: 18, color: '#0f172a', fontWeight: 950 }}>{card.title}</h3>
-                <p style={{ margin: 0, color: '#64748b', fontSize: 14, lineHeight: 1.55, fontWeight: 650 }}>{card.text}</p>
+        <section className="landing-section" style={{ marginTop: 24 }}>
+          <div className="landing-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 14 }}>
+            {[
+              ['Reservas online', 'Tus clientes eligen servicio, profesional, día y hora desde tu link público.'],
+              ['Panel tipo app', 'Gestionás todo desde celular o computadora, con experiencia simple y ordenada.'],
+              ['Clientes automáticos', 'Cada reserva alimenta una ficha de cliente con historial, asistencias y notas.'],
+              ['WhatsApp listo', 'Abrís WhatsApp con el mensaje armado para confirmar o contactar al cliente.'],
+            ].map(([title, text]) => (
+              <article key={title} className="landing-card" style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 26, padding: 20, boxShadow: '0 10px 30px rgba(15,23,42,0.04)' }}>
+                <h3 style={{ margin: '0 0 8px', fontSize: 18, color: '#0f172a', fontWeight: 950 }}>{title}</h3>
+                <p style={{ margin: 0, color: '#64748b', fontSize: 14, lineHeight: 1.55, fontWeight: 650 }}>{text}</p>
               </article>
             ))}
           </div>
         </section>
 
-        <section style={{ marginTop: 24, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 32, padding: 24, boxShadow: '0 10px 30px rgba(15,23,42,0.04)' }}>
-          <h2 style={{ margin: '0 0 16px', color: '#0f172a', fontSize: 30, letterSpacing: '-0.9px', fontWeight: 950 }}>Cómo funciona</h2>
-          <div className="landing-steps" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
-            {steps.map((step, index) => (
-              <div key={step} style={{ background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: 22, padding: 16 }}>
-                <div style={{ width: 34, height: 34, borderRadius: 13, background: '#0071e3', color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 950, marginBottom: 10 }}>{index + 1}</div>
-                <div style={{ color: '#111827', fontSize: 15, lineHeight: 1.35, fontWeight: 900 }}>{step}</div>
+        <section className="landing-section landing-glass" style={{ marginTop: 24, borderRadius: 34, padding: 26 }}>
+          <h2 className="landing-section-title" style={{ margin: '0 0 16px', color: '#0f172a', fontSize: 31, letterSpacing: '-0.9px', fontWeight: 950 }}>Cómo funciona</h2>
+          <div className="landing-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
+            {howItWorks.map((step, index) => (
+              <div key={step.title} style={{ background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: 23, padding: 17 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 14, background: '#0071e3', color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 950, marginBottom: 11 }}>{index + 1}</div>
+                <div style={{ color: '#111827', fontSize: 16, lineHeight: 1.25, fontWeight: 950 }}>{step.title}</div>
+                <p style={{ margin: '7px 0 0', color: '#64748b', lineHeight: 1.5, fontSize: 13.5, fontWeight: 650 }}>{step.text}</p>
               </div>
             ))}
           </div>
         </section>
 
         <section className="landing-plan" style={{ marginTop: 24, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'stretch' }}>
-          <div style={{ background: '#0f172a', color: '#fff', borderRadius: 32, padding: 26, boxShadow: '0 18px 48px rgba(15,23,42,0.16)' }}>
+          <div style={{ background: '#0f172a', color: '#fff', borderRadius: 34, padding: 28, boxShadow: '0 18px 48px rgba(15,23,42,0.16)' }}>
             <div style={{ color: '#93c5fd', fontSize: 14, fontWeight: 950, marginBottom: 8 }}>Plan Profesional</div>
-            <h2 style={{ margin: 0, fontSize: 34, letterSpacing: '-1px', fontWeight: 950 }}>Todo lo necesario para gestionar tu agenda.</h2>
-            <p style={{ color: '#cbd5e1', lineHeight: 1.55, fontSize: 15, fontWeight: 650 }}>
-              Hasta 1000 reservas mensuales, servicios con precio y duración, profesionales del negocio, clientes, historial, WhatsApp manual y estadísticas básicas.
+            <h2 style={{ margin: 0, fontSize: 36, letterSpacing: '-1.1px', fontWeight: 950 }}>Una agenda completa, simple de vender y fácil de usar.</h2>
+            <p style={{ color: '#cbd5e1', lineHeight: 1.58, fontSize: 15, fontWeight: 650 }}>
+              Hasta 1000 reservas mensuales, servicios con precio y duración, profesionales, clientes, historial, WhatsApp manual, estadísticas y panel instalable como app.
             </p>
-          </div>
-          <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 32, padding: 26 }}>
-            <h3 style={{ margin: '0 0 14px', fontSize: 22, color: '#0f172a', fontWeight: 950 }}>Ideal para</h3>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-              {['Barberías', 'Odontólogos', 'Psicólogos', 'Estéticas', 'Veterinarias', 'Entrenadores', 'Clínicas', 'Peluquerías'].map((item) => (
-                <span key={item} style={{ background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 999, padding: '9px 12px', color: '#334155', fontWeight: 850, fontSize: 13 }}>{item}</span>
-              ))}
-            </div>
             <button
               type="button"
               onClick={() => navigate('/profesional/register')}
-              style={{ width: '100%', marginTop: 22, border: 'none', borderRadius: 18, background: '#0071e3', color: '#fff', padding: '15px 18px', fontSize: 16, fontWeight: 950, fontFamily: 'inherit', cursor: 'pointer' }}
+              style={{ marginTop: 14, border: 'none', borderRadius: 18, background: '#fff', color: '#0f172a', padding: '14px 18px', fontSize: 15, fontWeight: 950, fontFamily: 'inherit', cursor: 'pointer' }}
             >
-              Crear cuenta profesional
+              Empezar ahora
+            </button>
+          </div>
+
+          <div className="landing-glass" style={{ borderRadius: 34, padding: 26 }}>
+            <h3 style={{ margin: '0 0 14px', fontSize: 22, color: '#0f172a', fontWeight: 950 }}>Qué incluye</h3>
+            <div style={{ display: 'grid', gap: 9 }}>
+              {included.map((item) => (
+                <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#334155', fontSize: 14, fontWeight: 750 }}>
+                  <span style={{ width: 22, height: 22, borderRadius: 8, background: '#eaf4ff', color: '#0071e3', display: 'grid', placeItems: 'center', fontWeight: 950, flex: '0 0 auto' }}>✓</span>
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="landing-section landing-glass" style={{ marginTop: 24, borderRadius: 34, padding: 26 }}>
+          <h2 className="landing-section-title" style={{ margin: '0 0 10px', color: '#0f172a', fontSize: 31, letterSpacing: '-0.9px', fontWeight: 950 }}>Para quién es</h2>
+          <p style={{ margin: '0 0 18px', color: '#64748b', fontSize: 15, lineHeight: 1.55, fontWeight: 650 }}>
+            Pensado para negocios y profesionales que viven de turnos, horarios y atención al cliente.
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+            {businessTypes.map((item) => (
+              <span key={item} style={{ background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 999, padding: '10px 13px', color: '#334155', fontWeight: 850, fontSize: 13 }}>{item}</span>
+            ))}
+          </div>
+        </section>
+
+        <section className="landing-section" style={{ marginTop: 24 }}>
+          <div className="landing-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            {faqs.map((item) => (
+              <article key={item.q} className="landing-card" style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 27, padding: 22, boxShadow: '0 10px 30px rgba(15,23,42,0.04)' }}>
+                <h3 style={{ margin: '0 0 8px', color: '#0f172a', fontSize: 17, fontWeight: 950 }}>{item.q}</h3>
+                <p style={{ margin: 0, color: '#64748b', lineHeight: 1.55, fontSize: 14, fontWeight: 650 }}>{item.a}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section
+          style={{
+            marginTop: 24,
+            borderRadius: 34,
+            background: 'linear-gradient(135deg, #0071e3 0%, #005bb8 100%)',
+            color: '#fff',
+            padding: 30,
+            textAlign: 'center',
+            boxShadow: '0 18px 48px rgba(0,113,227,0.22)',
+          }}
+        >
+          <h2 style={{ margin: 0, fontSize: 34, letterSpacing: '-1px', fontWeight: 950 }}>Empezá a recibir reservas online.</h2>
+          <p style={{ margin: '10px auto 20px', maxWidth: 620, color: 'rgba(255,255,255,0.86)', fontSize: 16, lineHeight: 1.55, fontWeight: 650 }}>
+            Creá tu cuenta profesional, configurá tus servicios y compartí tu link con tus clientes.
+          </p>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => navigate('/profesional/register')}
+              style={{ border: 'none', borderRadius: 18, background: '#fff', color: '#0f172a', padding: '15px 20px', fontSize: 16, fontWeight: 950, fontFamily: 'inherit', cursor: 'pointer' }}
+            >
+              Crear cuenta
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/profesional/login')}
+              style={{ border: '1px solid rgba(255,255,255,0.55)', borderRadius: 18, background: 'rgba(255,255,255,0.12)', color: '#fff', padding: '15px 20px', fontSize: 16, fontWeight: 900, fontFamily: 'inherit', cursor: 'pointer' }}
+            >
+              Ya tengo cuenta
             </button>
           </div>
         </section>
       </main>
+
+      <div
+        className="landing-floating-cta"
+        style={{
+          display: 'none',
+          position: 'fixed',
+          zIndex: 50,
+          padding: 8,
+          borderRadius: 22,
+          background: 'rgba(255,255,255,0.92)',
+          border: '1px solid rgba(226,232,240,0.95)',
+          boxShadow: '0 16px 42px rgba(15,23,42,0.16)',
+          backdropFilter: 'blur(18px)',
+          WebkitBackdropFilter: 'blur(18px)',
+          gap: 8,
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => navigate('/profesional/login')}
+          style={{ border: '1px solid #d7dce5', borderRadius: 16, background: '#fff', color: '#111827', padding: '12px 10px', fontSize: 14, fontWeight: 900, fontFamily: 'inherit' }}
+        >
+          Ingresar
+        </button>
+        <button
+          type="button"
+          onClick={() => navigate('/profesional/register')}
+          style={{ border: 'none', borderRadius: 16, background: '#0071e3', color: '#fff', padding: '12px 10px', fontSize: 14, fontWeight: 950, fontFamily: 'inherit' }}
+        >
+          Crear cuenta
+        </button>
+      </div>
     </div>
   );
 }
-
 
 export default function App() {
   return (
