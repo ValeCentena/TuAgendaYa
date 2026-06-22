@@ -2505,8 +2505,135 @@ function CashSection() {
     .slice()
     .sort((a, b) => String(b.closureDate ?? b.closure_date ?? '').localeCompare(String(a.closureDate ?? a.closure_date ?? '')));
 
+  const parseLocalDate = (dateValue) => {
+    const key = getDateKeyFromValue(dateValue);
+    if (!key) return null;
+    const [year, month, day] = key.split('-').map(Number);
+    if (!year || !month || !day) return null;
+    return new Date(year, month - 1, day);
+  };
+
+  const selectedDateObject = parseLocalDate(selectedDate) || new Date();
+  const startOfWeek = new Date(selectedDateObject);
+  const weekDay = startOfWeek.getDay();
+  const mondayOffset = weekDay === 0 ? -6 : 1 - weekDay;
+  startOfWeek.setDate(startOfWeek.getDate() + mondayOffset);
+  startOfWeek.setHours(0, 0, 0, 0);
+
+  const endOfWeek = new Date(startOfWeek);
+  endOfWeek.setDate(endOfWeek.getDate() + 6);
+  endOfWeek.setHours(23, 59, 59, 999);
+
+  const startOfMonth = new Date(selectedDateObject.getFullYear(), selectedDateObject.getMonth(), 1);
+  const endOfMonth = new Date(selectedDateObject.getFullYear(), selectedDateObject.getMonth() + 1, 0, 23, 59, 59, 999);
+
+  const getClosureDateObject = (closure) => parseLocalDate(closure.closureDate ?? closure.closure_date);
+  const getClosureNumber = (closure, camelKey, snakeKey) => Number(closure?.[camelKey] ?? closure?.[snakeKey] ?? 0) || 0;
+
+  const summarizeClosures = (items) => items.reduce((summary, closure) => {
+    summary.days += 1;
+    summary.bookings += getClosureNumber(closure, 'totalBookings', 'total_bookings');
+    summary.completed += getClosureNumber(closure, 'completedBookings', 'completed_bookings');
+    summary.cancelled += getClosureNumber(closure, 'cancelledBookings', 'cancelled_bookings');
+    summary.generated += getClosureNumber(closure, 'totalGenerated', 'total_generated');
+    summary.collected += getClosureNumber(closure, 'totalCollected', 'total_collected');
+    summary.pending += getClosureNumber(closure, 'totalPending', 'total_pending');
+    summary.cash += getClosureNumber(closure, 'cashTotal', 'cash_total');
+    summary.transfer += getClosureNumber(closure, 'transferTotal', 'transfer_total');
+    summary.card += getClosureNumber(closure, 'cardTotal', 'card_total');
+    summary.other += getClosureNumber(closure, 'otherTotal', 'other_total');
+    return summary;
+  }, {
+    days: 0,
+    bookings: 0,
+    completed: 0,
+    cancelled: 0,
+    generated: 0,
+    collected: 0,
+    pending: 0,
+    cash: 0,
+    transfer: 0,
+    card: 0,
+    other: 0,
+  });
+
+  const closuresThisWeek = closures.filter((closure) => {
+    const date = getClosureDateObject(closure);
+    return date && date >= startOfWeek && date <= endOfWeek;
+  });
+
+  const closuresThisMonth = closures.filter((closure) => {
+    const date = getClosureDateObject(closure);
+    return date && date >= startOfMonth && date <= endOfMonth;
+  });
+
+  const weeklySummary = summarizeClosures(closuresThisWeek);
+  const monthlySummary = summarizeClosures(closuresThisMonth);
+
+  const periodSummaryCardStyle = {
+    background: '#fff',
+    borderRadius: 22,
+    padding: '20px 22px',
+    boxShadow: '0 1px 8px rgba(0,0,0,0.06)',
+    border: '0.5px solid #ececf2',
+  };
+
+  const periodMetricStyle = {
+    background: '#f7f7fb',
+    borderRadius: 16,
+    padding: 12,
+  };
+
+  const renderPeriodSummary = (title, subtitle, summary) => (
+    <div style={periodSummaryCardStyle}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 14 }}>
+        <div>
+          <div style={{ fontSize: 17, fontWeight: 900, color: '#1a1a1a' }}>{title}</div>
+          <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 750, marginTop: 3, lineHeight: 1.4 }}>{subtitle}</div>
+        </div>
+        <div style={{ padding: '6px 10px', borderRadius: 999, background: '#f2f7ff', color: '#0071e3', fontSize: 11, fontWeight: 950 }}>
+          {summary.days} {summary.days === 1 ? 'cierre' : 'cierres'}
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 9, marginBottom: 10 }}>
+        <div style={periodMetricStyle}>
+          <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 950 }}>Cobrado</div>
+          <div style={{ fontSize: 16, color: '#188038', fontWeight: 950, marginTop: 4 }}>{formatMoney(summary.collected)}</div>
+        </div>
+        <div style={periodMetricStyle}>
+          <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 950 }}>Generado</div>
+          <div style={{ fontSize: 16, color: '#1a1a1a', fontWeight: 950, marginTop: 4 }}>{formatMoney(summary.generated)}</div>
+        </div>
+        <div style={periodMetricStyle}>
+          <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 950 }}>Pendiente</div>
+          <div style={{ fontSize: 16, color: '#ff9f0a', fontWeight: 950, marginTop: 4 }}>{formatMoney(summary.pending)}</div>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8 }}>
+        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Citas</div><div style={{ fontSize: 13, fontWeight: 950 }}>{summary.bookings}</div></div>
+        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Efectivo</div><div style={{ fontSize: 13, fontWeight: 950 }}>{formatMoney(summary.cash)}</div></div>
+        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Transfer.</div><div style={{ fontSize: 13, fontWeight: 950 }}>{formatMoney(summary.transfer)}</div></div>
+        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Tarjeta</div><div style={{ fontSize: 13, fontWeight: 950 }}>{formatMoney(summary.card)}</div></div>
+      </div>
+    </div>
+  );
+
   return (
     <div style={{ display: 'grid', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 14 }}>
+        {renderPeriodSummary(
+          'Resumen semanal',
+          `${formatDate(startOfWeek)} al ${formatDate(endOfWeek)}`,
+          weeklySummary
+        )}
+        {renderPeriodSummary(
+          'Resumen mensual',
+          selectedDateObject.toLocaleDateString('es-UY', { month: 'long', year: 'numeric' }),
+          monthlySummary
+        )}
+      </div>
       <div style={{ background: '#fff', borderRadius: 22, padding: '22px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 18 }}>
           <div>
