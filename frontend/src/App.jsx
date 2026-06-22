@@ -2296,13 +2296,20 @@ function ReservationsSection() {
 
 function CashSection() {
   const [bookings, setBookings] = useState([]);
+  const [closures, setClosures] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [closuresLoading, setClosuresLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(getLocalDateKeyValue());
+  const [closeLoading, setCloseLoading] = useState(false);
+  const [closeMessage, setCloseMessage] = useState('');
+  const [expandedClosureId, setExpandedClosureId] = useState(null);
 
   const statusLabel = { pending: 'Pendiente', confirmed: 'Confirmada', completed: 'Completada', cancelled: 'Cancelada' };
 
+  const getToken = () => localStorage.getItem('tuagendaya_token');
+
   const fetchBookings = useCallback((showLoading = false) => {
-    const token = localStorage.getItem('tuagendaya_token');
+    const token = getToken();
 
     if (showLoading) {
       setLoading(true);
@@ -2323,11 +2330,37 @@ function CashSection() {
       });
   }, []);
 
+  const fetchClosures = useCallback((showLoading = false) => {
+    const token = getToken();
+
+    if (showLoading) {
+      setClosuresLoading(true);
+    }
+
+    return fetch(`${API_BASE}/bookings/cash-closures`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        setClosures(Array.isArray(data.closures) ? data.closures : []);
+      })
+      .catch(() => {
+        if (showLoading) setClosures([]);
+      })
+      .finally(() => {
+        if (showLoading) setClosuresLoading(false);
+      });
+  }, []);
+
   useEffect(() => {
     fetchBookings(true);
-    const intervalId = window.setInterval(() => fetchBookings(false), 5000);
+    fetchClosures(true);
+    const intervalId = window.setInterval(() => {
+      fetchBookings(false);
+      fetchClosures(false);
+    }, 5000);
     return () => window.clearInterval(intervalId);
-  }, [fetchBookings]);
+  }, [fetchBookings, fetchClosures]);
 
   const dayBookings = bookings
     .filter((booking) => getDateKeyFromValue(getBookingDateValue(booking)) === selectedDate)
@@ -2377,6 +2410,8 @@ function CashSection() {
   });
 
   const servicesSummary = Array.from(serviceMap.values()).sort((a, b) => b.generated - a.generated);
+
+  const existingClosure = closures.find((closure) => getDateKeyFromValue(closure.closureDate ?? closure.closure_date) === selectedDate);
 
   const cashCardStyle = (bg = '#fff') => ({
     background: bg,
@@ -2431,6 +2466,45 @@ function CashSection() {
     downloadCsvFile(`caja-${selectedDate}.csv`, headers, rows);
   };
 
+  const closeCashDay = async () => {
+    if (dayBookings.length === 0) {
+      setCloseMessage('No hay citas para cerrar en esta fecha.');
+      return;
+    }
+
+    const token = getToken();
+    setCloseLoading(true);
+    setCloseMessage('');
+
+    try {
+      const response = await fetch(`${API_BASE}/bookings/cash-closures`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ closureDate: selectedDate }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'No se pudo cerrar la caja');
+      }
+
+      setCloseMessage(existingClosure ? 'Cierre actualizado correctamente.' : 'Caja cerrada correctamente.');
+      await fetchClosures(false);
+    } catch (error) {
+      setCloseMessage(error.message || 'Error cerrando caja');
+    } finally {
+      setCloseLoading(false);
+    }
+  };
+
+  const closureRows = closures
+    .slice()
+    .sort((a, b) => String(b.closureDate ?? b.closure_date ?? '').localeCompare(String(a.closureDate ?? a.closure_date ?? '')));
+
   return (
     <div style={{ display: 'grid', gap: 16 }}>
       <div style={{ background: '#fff', borderRadius: 22, padding: '22px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
@@ -2447,41 +2521,79 @@ function CashSection() {
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 14 }}>
-          <div style={cashCardStyle('#f4f4f8')}>
-            <div style={{ fontSize: 25, fontWeight: 950, color: '#1a1a1a' }}>{dayBookings.length}</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 12 }}>
+          <div style={cashCardStyle('#f7f7fb')}>
+            <div style={{ fontSize: 28, fontWeight: 950, color: '#1a1a1a' }}>{dayBookings.length}</div>
             <div style={smallStatStyle}>Citas del día</div>
           </div>
-          <div style={cashCardStyle('#edfff3')}>
-            <div style={{ fontSize: 25, fontWeight: 950, color: '#30b85b' }}>{completedBookings.length}</div>
+          <div style={cashCardStyle('#ecfff3')}>
+            <div style={{ fontSize: 28, fontWeight: 950, color: '#30d158' }}>{completedBookings.length}</div>
             <div style={smallStatStyle}>Completadas</div>
           </div>
-          <div style={cashCardStyle('#fff8ee')}>
-            <div style={{ fontSize: 25, fontWeight: 950, color: '#ff9f0a' }}>{pendingBookings.length}</div>
+          <div style={cashCardStyle('#fff8eb')}>
+            <div style={{ fontSize: 28, fontWeight: 950, color: '#ff9f0a' }}>{pendingBookings.length}</div>
             <div style={smallStatStyle}>Pendientes/confirmadas</div>
           </div>
-          <div style={cashCardStyle('#fff2f2')}>
-            <div style={{ fontSize: 25, fontWeight: 950, color: '#ff453a' }}>{cancelledBookings.length}</div>
+          <div style={cashCardStyle('#fff1f0')}>
+            <div style={{ fontSize: 28, fontWeight: 950, color: '#ff453a' }}>{cancelledBookings.length}</div>
             <div style={smallStatStyle}>Canceladas</div>
           </div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
-          <div style={cashCardStyle('#eef6ff')}>
-            <div style={{ fontSize: 12, color: '#0071e3', fontWeight: 900, marginBottom: 6 }}>Total generado</div>
-            <div style={{ fontSize: 26, color: '#1a1a1a', fontWeight: 950 }}>{formatMoney(totalGenerated)}</div>
-            <div style={smallStatStyle}>Suma de servicios no cancelados</div>
+          <div style={cashCardStyle('#f7f7fb')}>
+            <div style={{ fontSize: 13, color: '#8e8e93', fontWeight: 900 }}>Total generado</div>
+            <div style={{ fontSize: 26, fontWeight: 950, color: '#1a1a1a', marginTop: 6 }}>{formatMoney(totalGenerated)}</div>
           </div>
-          <div style={cashCardStyle('#edfff3')}>
-            <div style={{ fontSize: 12, color: '#188038', fontWeight: 900, marginBottom: 6 }}>Total cobrado</div>
-            <div style={{ fontSize: 26, color: '#1a1a1a', fontWeight: 950 }}>{formatMoney(totalCollected)}</div>
-            <div style={smallStatStyle}>Según pagos guardados</div>
+          <div style={cashCardStyle('#ecfff3')}>
+            <div style={{ fontSize: 13, color: '#8e8e93', fontWeight: 900 }}>Total cobrado</div>
+            <div style={{ fontSize: 26, fontWeight: 950, color: '#188038', marginTop: 6 }}>{formatMoney(totalCollected)}</div>
           </div>
-          <div style={cashCardStyle('#fff8ee')}>
-            <div style={{ fontSize: 12, color: '#b86b00', fontWeight: 900, marginBottom: 6 }}>Pendiente de cobro</div>
-            <div style={{ fontSize: 26, color: '#1a1a1a', fontWeight: 950 }}>{formatMoney(totalPending)}</div>
-            <div style={smallStatStyle}>Diferencia entre precio y cobrado</div>
+          <div style={cashCardStyle('#fff8eb')}>
+            <div style={{ fontSize: 13, color: '#8e8e93', fontWeight: 900 }}>Pendiente de cobro</div>
+            <div style={{ fontSize: 26, fontWeight: 950, color: '#ff9f0a', marginTop: 6 }}>{formatMoney(totalPending)}</div>
           </div>
+        </div>
+      </div>
+
+      <div style={{ background: '#fff', borderRadius: 22, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14, flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ fontSize: 17, fontWeight: 900, color: '#1a1a1a' }}>Cierre de caja</div>
+            <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 700, marginTop: 4, lineHeight: 1.45 }}>
+              Guardá un resumen fijo del día para consultar después en el historial.
+            </div>
+            {existingClosure && (
+              <div style={{ display: 'inline-flex', marginTop: 10, padding: '6px 10px', borderRadius: 999, background: '#ecfff3', color: '#188038', fontSize: 12, fontWeight: 900 }}>
+                Esta fecha ya tiene un cierre guardado. Podés actualizarlo si cambió algo.
+              </div>
+            )}
+            {closeMessage && (
+              <div style={{ marginTop: 10, color: closeMessage.toLowerCase().includes('error') || closeMessage.toLowerCase().includes('no se pudo') ? '#ff453a' : '#188038', fontSize: 12, fontWeight: 900 }}>
+                {closeMessage}
+              </div>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={closeCashDay}
+            disabled={closeLoading || dayBookings.length === 0}
+            style={{
+              border: 'none',
+              borderRadius: 16,
+              padding: '12px 16px',
+              background: closeLoading || dayBookings.length === 0 ? '#f2f2f7' : '#0071e3',
+              color: closeLoading || dayBookings.length === 0 ? '#8e8e93' : '#fff',
+              fontSize: 13,
+              fontWeight: 950,
+              fontFamily: 'inherit',
+              cursor: closeLoading || dayBookings.length === 0 ? 'not-allowed' : 'pointer',
+              boxShadow: closeLoading || dayBookings.length === 0 ? 'none' : '0 10px 22px rgba(0,113,227,0.22)',
+            }}
+          >
+            {closeLoading ? 'Guardando...' : existingClosure ? 'Actualizar cierre' : 'Cerrar caja del día'}
+          </button>
         </div>
       </div>
 
@@ -2604,6 +2716,108 @@ function CashSection() {
                       <div style={{ fontSize: 12, color: '#1a1a1a', fontWeight: 900, marginTop: 3 }}>{paymentMethodLabel[paymentMethod] || paymentMethod}</div>
                     </div>
                   </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div style={{ background: '#fff', borderRadius: 22, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
+          <div>
+            <div style={{ fontSize: 17, fontWeight: 900, color: '#1a1a1a' }}>Historial de cierres</div>
+            <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 700, marginTop: 2 }}>Cierres guardados por fecha, ordenados del más reciente al más antiguo.</div>
+          </div>
+          <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 900 }}>{closures.length} cierres</div>
+        </div>
+
+        {closuresLoading ? (
+          <div style={{ textAlign: 'center', color: '#aeaeb2', padding: 22 }}>Cargando cierres...</div>
+        ) : closureRows.length === 0 ? (
+          <div style={{ textAlign: 'center', color: '#aeaeb2', padding: 22, fontWeight: 700 }}>Todavía no hay cierres guardados.</div>
+        ) : (
+          <div style={{ display: 'grid', gap: 9 }}>
+            {closureRows.map((closure) => {
+              const closureId = closure.id;
+              const isExpanded = expandedClosureId === closureId;
+              const services = Array.isArray(closure.servicesSummary ?? closure.services_summary) ? (closure.servicesSummary ?? closure.services_summary) : [];
+
+              return (
+                <div key={closureId} style={{ border: '0.5px solid #ececf2', borderRadius: 18, overflow: 'hidden', background: '#fff' }}>
+                  <button
+                    type="button"
+                    onClick={() => setExpandedClosureId(isExpanded ? null : closureId)}
+                    style={{
+                      width: '100%',
+                      border: 'none',
+                      background: '#fff',
+                      padding: 15,
+                      display: 'grid',
+                      gridTemplateColumns: 'minmax(0, 1fr) auto auto',
+                      gap: 12,
+                      alignItems: 'center',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 950, color: '#1a1a1a' }}>{formatDate(closure.closureDate ?? closure.closure_date)}</div>
+                      <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800, marginTop: 3 }}>
+                        {(closure.totalBookings ?? closure.total_bookings ?? 0)} citas · {(closure.completedBookings ?? closure.completed_bookings ?? 0)} completadas
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800 }}>Cobrado</div>
+                      <div style={{ fontSize: 14, color: '#188038', fontWeight: 950 }}>{formatMoney(closure.totalCollected ?? closure.total_collected ?? 0)}</div>
+                    </div>
+                    <div style={{ color: '#8e8e93', fontSize: 18 }}>{isExpanded ? '−' : '+'}</div>
+                  </button>
+
+                  {isExpanded && (
+                    <div style={{ borderTop: '0.5px solid #f0f0f5', padding: 15, display: 'grid', gap: 12 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8 }}>
+                        <div style={{ background: '#f7f7fb', borderRadius: 14, padding: 10 }}>
+                          <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Generado</div>
+                          <div style={{ fontSize: 12, fontWeight: 950 }}>{formatMoney(closure.totalGenerated ?? closure.total_generated ?? 0)}</div>
+                        </div>
+                        <div style={{ background: '#ecfff3', borderRadius: 14, padding: 10 }}>
+                          <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Cobrado</div>
+                          <div style={{ fontSize: 12, color: '#188038', fontWeight: 950 }}>{formatMoney(closure.totalCollected ?? closure.total_collected ?? 0)}</div>
+                        </div>
+                        <div style={{ background: '#fff8eb', borderRadius: 14, padding: 10 }}>
+                          <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Pendiente</div>
+                          <div style={{ fontSize: 12, color: '#ff9f0a', fontWeight: 950 }}>{formatMoney(closure.totalPending ?? closure.total_pending ?? 0)}</div>
+                        </div>
+                        <div style={{ background: '#fff1f0', borderRadius: 14, padding: 10 }}>
+                          <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Canceladas</div>
+                          <div style={{ fontSize: 12, color: '#ff453a', fontWeight: 950 }}>{closure.cancelledBookings ?? closure.cancelled_bookings ?? 0}</div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8 }}>
+                        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Efectivo</div><div style={{ fontSize: 12, fontWeight: 950 }}>{formatMoney(closure.cashTotal ?? closure.cash_total ?? 0)}</div></div>
+                        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Transferencia</div><div style={{ fontSize: 12, fontWeight: 950 }}>{formatMoney(closure.transferTotal ?? closure.transfer_total ?? 0)}</div></div>
+                        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Tarjeta</div><div style={{ fontSize: 12, fontWeight: 950 }}>{formatMoney(closure.cardTotal ?? closure.card_total ?? 0)}</div></div>
+                        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Otro</div><div style={{ fontSize: 12, fontWeight: 950 }}>{formatMoney(closure.otherTotal ?? closure.other_total ?? 0)}</div></div>
+                      </div>
+
+                      {services.length > 0 && (
+                        <div style={{ background: '#fafafa', borderRadius: 15, padding: 12 }}>
+                          <div style={{ fontSize: 12, fontWeight: 950, marginBottom: 8 }}>Servicios incluidos</div>
+                          <div style={{ display: 'grid', gap: 6 }}>
+                            {services.map((service) => (
+                              <div key={service.name} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 12, color: '#6e6e73', fontWeight: 800 }}>
+                                <span>{service.name} · {service.count} {service.count === 1 ? 'turno' : 'turnos'}</span>
+                                <span>{formatMoney(service.collected ?? 0)} cobrado</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}
