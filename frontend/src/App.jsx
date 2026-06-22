@@ -162,6 +162,197 @@ function formatMoney(value) {
   })}`;
 }
 
+
+function getLocalDateKeyValue(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function getDateKeyFromValue(value) {
+  if (!value) return '';
+
+  const raw = String(value).trim();
+
+  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) {
+    return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+  }
+
+  const slashMatch = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (slashMatch) {
+    const [, day, month, year] = slashMatch;
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
+
+  const parsed = new Date(raw);
+  if (!Number.isNaN(parsed.getTime())) {
+    return getLocalDateKeyValue(parsed);
+  }
+
+  return '';
+}
+
+function formatDateKeyLong(dateKey) {
+  if (!dateKey) return 'Elegir fecha';
+
+  const [year, month, day] = String(dateKey).split('-').map(Number);
+  if (!year || !month || !day) return 'Elegir fecha';
+
+  const date = new Date(year, month - 1, day);
+  const formatted = date.toLocaleDateString('es-UY', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+
+  return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+}
+
+function DatePickerField({ value, onChange, placeholder = 'Elegir fecha', allowPast = true }) {
+  const [open, setOpen] = useState(false);
+  const [viewDate, setViewDate] = useState(() => {
+    if (value) {
+      const [year, month] = String(value).split('-').map(Number);
+      if (year && month) return new Date(year, month - 1, 1);
+    }
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
+
+  useEffect(() => {
+    if (!value) return;
+    const [year, month] = String(value).split('-').map(Number);
+    if (year && month) {
+      setViewDate(new Date(year, month - 1, 1));
+    }
+  }, [value]);
+
+  const todayKey = getLocalDateKeyValue();
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const startOffset = firstDay.getDay();
+  const monthTitle = viewDate.toLocaleDateString('es-UY', { month: 'long', year: 'numeric' });
+  const capitalizedMonth = monthTitle.charAt(0).toUpperCase() + monthTitle.slice(1);
+
+  const changeMonth = (delta) => {
+    setViewDate((current) => new Date(current.getFullYear(), current.getMonth() + delta, 1));
+  };
+
+  const clearValue = (event) => {
+    event.stopPropagation();
+    onChange('');
+    setOpen(false);
+  };
+
+  return (
+    <div style={{ position: 'relative', width: '100%' }}>
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        style={{
+          width: '100%',
+          minHeight: 42,
+          border: open ? '1px solid #0071e3' : '0.5px solid #d8d8de',
+          background: '#fff',
+          borderRadius: 14,
+          padding: '10px 12px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 10,
+          cursor: 'pointer',
+          fontFamily: 'inherit',
+          boxShadow: open ? '0 0 0 3px rgba(0,113,227,0.10)' : '0 1px 5px rgba(0,0,0,0.03)',
+        }}
+      >
+        <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: value ? '#1a1a1a' : '#8e8e93', fontSize: 13, fontWeight: 800 }}>
+          {value ? formatDate(value) : placeholder}
+        </span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          {value && (
+            <span
+              onClick={clearValue}
+              style={{ width: 22, height: 22, borderRadius: 999, background: '#f2f2f7', color: '#8e8e93', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900 }}
+            >
+              ×
+            </span>
+          )}
+          <span style={{ color: '#0071e3', fontSize: 15, fontWeight: 900 }}>▾</span>
+        </span>
+      </button>
+
+      {open && (
+        <div
+          style={{
+            position: 'absolute',
+            zIndex: 60,
+            top: 'calc(100% + 8px)',
+            left: 0,
+            width: 'min(314px, 88vw)',
+            background: '#fff',
+            border: '0.5px solid #e2e2e8',
+            borderRadius: 22,
+            padding: 12,
+            boxShadow: '0 18px 40px rgba(0,0,0,0.16)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <button type="button" onClick={() => changeMonth(-1)} style={{ width: 34, height: 34, borderRadius: 12, border: 'none', background: '#f6f6f8', color: '#1a1a1a', fontSize: 17, fontWeight: 900, cursor: 'pointer' }}>‹</button>
+            <div style={{ fontSize: 14, fontWeight: 900, color: '#1a1a1a' }}>{capitalizedMonth}</div>
+            <button type="button" onClick={() => changeMonth(1)} style={{ width: 34, height: 34, borderRadius: 12, border: 'none', background: '#f6f6f8', color: '#1a1a1a', fontSize: 17, fontWeight: 900, cursor: 'pointer' }}>›</button>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5, marginBottom: 6 }}>
+            {['D', 'L', 'M', 'M', 'J', 'V', 'S'].map((day) => (
+              <div key={day} style={{ textAlign: 'center', fontSize: 11, color: '#8e8e93', fontWeight: 900 }}>{day}</div>
+            ))}
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5 }}>
+            {Array.from({ length: startOffset }).map((_, index) => <div key={`empty-${index}`} />)}
+            {Array.from({ length: daysInMonth }).map((_, index) => {
+              const day = index + 1;
+              const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+              const selected = key === value;
+              const disabled = !allowPast && key < todayKey;
+
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => {
+                    onChange(key);
+                    setOpen(false);
+                  }}
+                  style={{
+                    height: 34,
+                    borderRadius: 12,
+                    border: selected ? '1px solid #0071e3' : 'none',
+                    background: selected ? '#eaf3ff' : disabled ? '#fafafa' : '#f6f6f8',
+                    color: disabled ? '#c7c7cc' : selected ? '#0071e3' : '#1a1a1a',
+                    fontSize: 13,
+                    fontWeight: 900,
+                    fontFamily: 'inherit',
+                    cursor: disabled ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {day}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const PAYMENT_STATUS_OPTIONS = [
   { value: 'pending', label: 'Pendiente' },
   { value: 'paid', label: 'Pagado' },
@@ -1538,34 +1729,16 @@ function ReservationsSection() {
                 }}
               />
 
-              <input
-                type="date"
+              <DatePickerField
                 value={archivedFromDate}
-                onChange={(e) => setArchivedFromDate(e.target.value)}
-                title="Desde"
-                style={{
-                  ...inputStyle,
-                  margin: 0,
-                  background: '#fff',
-                  borderRadius: 14,
-                  fontSize: 13,
-                  padding: '11px 12px',
-                }}
+                onChange={setArchivedFromDate}
+                placeholder="Desde"
               />
 
-              <input
-                type="date"
+              <DatePickerField
                 value={archivedToDate}
-                onChange={(e) => setArchivedToDate(e.target.value)}
-                title="Hasta"
-                style={{
-                  ...inputStyle,
-                  margin: 0,
-                  background: '#fff',
-                  borderRadius: 14,
-                  fontSize: 13,
-                  padding: '11px 12px',
-                }}
+                onChange={setArchivedToDate}
+                placeholder="Hasta"
               />
 
               <select
@@ -2117,6 +2290,327 @@ function ReservationsSection() {
         )}
       </div>
     </>
+  );
+}
+
+
+function CashSection() {
+  const [bookings, setBookings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedDate, setSelectedDate] = useState(getLocalDateKeyValue());
+
+  const statusLabel = { pending: 'Pendiente', confirmed: 'Confirmada', completed: 'Completada', cancelled: 'Cancelada' };
+
+  const fetchBookings = useCallback((showLoading = false) => {
+    const token = localStorage.getItem('tuagendaya_token');
+
+    if (showLoading) {
+      setLoading(true);
+    }
+
+    return fetch(`${API_BASE}/bookings/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        setBookings(Array.isArray(data.bookings) ? data.bookings : []);
+      })
+      .catch(() => {
+        if (showLoading) setBookings([]);
+      })
+      .finally(() => {
+        if (showLoading) setLoading(false);
+      });
+  }, []);
+
+  useEffect(() => {
+    fetchBookings(true);
+    const intervalId = window.setInterval(() => fetchBookings(false), 5000);
+    return () => window.clearInterval(intervalId);
+  }, [fetchBookings]);
+
+  const dayBookings = bookings
+    .filter((booking) => getDateKeyFromValue(getBookingDateValue(booking)) === selectedDate)
+    .sort((a, b) => {
+      const aTime = formatTime(a.startTime ?? a.start_time) || '00:00';
+      const bTime = formatTime(b.startTime ?? b.start_time) || '00:00';
+      return aTime.localeCompare(bTime);
+    });
+
+  const activeBookings = dayBookings.filter((booking) => booking.status !== 'cancelled');
+  const completedBookings = dayBookings.filter((booking) => booking.status === 'completed');
+  const cancelledBookings = dayBookings.filter((booking) => booking.status === 'cancelled');
+  const pendingBookings = dayBookings.filter((booking) => booking.status === 'pending' || booking.status === 'confirmed');
+
+  const getServicePrice = (booking) => Number(booking.servicePrice ?? booking.service_price ?? 0) || 0;
+  const getPaidAmount = (booking) => {
+    const value = Number(booking.amountPaid ?? booking.amount_paid ?? 0);
+    return Number.isNaN(value) ? 0 : value;
+  };
+
+  const totalGenerated = activeBookings.reduce((sum, booking) => sum + getServicePrice(booking), 0);
+  const totalCollected = activeBookings.reduce((sum, booking) => sum + getPaidAmount(booking), 0);
+  const totalPending = activeBookings.reduce((sum, booking) => sum + Math.max(getServicePrice(booking) - getPaidAmount(booking), 0), 0);
+
+  const byMethod = PAYMENT_METHOD_OPTIONS.map((method) => {
+    const total = activeBookings
+      .filter((booking) => getBookingPaymentMethod(booking) === method.value)
+      .reduce((sum, booking) => sum + getPaidAmount(booking), 0);
+
+    return { ...method, total };
+  });
+
+  const serviceMap = new Map();
+  activeBookings.forEach((booking) => {
+    const serviceName = String(booking.serviceName ?? booking.service_name ?? 'Servicio sin nombre').trim() || 'Servicio sin nombre';
+    const current = serviceMap.get(serviceName) || {
+      name: serviceName,
+      count: 0,
+      generated: 0,
+      collected: 0,
+    };
+
+    current.count += 1;
+    current.generated += getServicePrice(booking);
+    current.collected += getPaidAmount(booking);
+    serviceMap.set(serviceName, current);
+  });
+
+  const servicesSummary = Array.from(serviceMap.values()).sort((a, b) => b.generated - a.generated);
+
+  const cashCardStyle = (bg = '#fff') => ({
+    background: bg,
+    border: '0.5px solid #ececf2',
+    borderRadius: 18,
+    padding: 16,
+    boxShadow: '0 1px 7px rgba(0,0,0,0.045)',
+  });
+
+  const smallStatStyle = {
+    fontSize: 12,
+    color: '#8e8e93',
+    fontWeight: 800,
+    marginTop: 4,
+  };
+
+  const exportCashCsv = () => {
+    const headers = [
+      'Fecha',
+      'Hora',
+      'Cliente',
+      'Telefono',
+      'Servicio',
+      'Profesional',
+      'Estado reserva',
+      'Estado pago',
+      'Metodo pago',
+      'Precio',
+      'Cobrado',
+      'Pendiente',
+    ];
+
+    const rows = dayBookings.map((booking) => {
+      const price = getServicePrice(booking);
+      const paid = getPaidAmount(booking);
+      return [
+        formatDate(getBookingDateValue(booking)),
+        `${formatTime(booking.startTime ?? booking.start_time) || ''}${booking.endTime || booking.end_time ? ` - ${formatTime(booking.endTime ?? booking.end_time)}` : ''}`,
+        booking.clientName ?? booking.client_name ?? '',
+        booking.clientPhone ?? booking.client_phone ?? '',
+        booking.serviceName ?? booking.service_name ?? '',
+        booking.staffName ?? booking.staff_name ?? '',
+        statusLabel[booking.status] || booking.status || '',
+        paymentStatusLabel[getBookingPaymentStatus(booking)] || getBookingPaymentStatus(booking),
+        paymentMethodLabel[getBookingPaymentMethod(booking)] || getBookingPaymentMethod(booking),
+        price,
+        paid,
+        Math.max(price - paid, 0),
+      ];
+    });
+
+    downloadCsvFile(`caja-${selectedDate}.csv`, headers, rows);
+  };
+
+  return (
+    <div style={{ display: 'grid', gap: 16 }}>
+      <div style={{ background: '#fff', borderRadius: 22, padding: '22px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 18 }}>
+          <div>
+            <div style={{ fontSize: 19, fontWeight: 900, color: '#1a1a1a' }}>Caja diaria</div>
+            <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 4, lineHeight: 1.45 }}>
+              Controlá citas, cobros, pendientes y métodos de pago por día.
+            </div>
+          </div>
+
+          <div style={{ width: 250, maxWidth: '100%' }}>
+            <DatePickerField value={selectedDate} onChange={(nextDate) => setSelectedDate(nextDate || getLocalDateKeyValue())} placeholder="Elegir día" />
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 14 }}>
+          <div style={cashCardStyle('#f4f4f8')}>
+            <div style={{ fontSize: 25, fontWeight: 950, color: '#1a1a1a' }}>{dayBookings.length}</div>
+            <div style={smallStatStyle}>Citas del día</div>
+          </div>
+          <div style={cashCardStyle('#edfff3')}>
+            <div style={{ fontSize: 25, fontWeight: 950, color: '#30b85b' }}>{completedBookings.length}</div>
+            <div style={smallStatStyle}>Completadas</div>
+          </div>
+          <div style={cashCardStyle('#fff8ee')}>
+            <div style={{ fontSize: 25, fontWeight: 950, color: '#ff9f0a' }}>{pendingBookings.length}</div>
+            <div style={smallStatStyle}>Pendientes/confirmadas</div>
+          </div>
+          <div style={cashCardStyle('#fff2f2')}>
+            <div style={{ fontSize: 25, fontWeight: 950, color: '#ff453a' }}>{cancelledBookings.length}</div>
+            <div style={smallStatStyle}>Canceladas</div>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
+          <div style={cashCardStyle('#eef6ff')}>
+            <div style={{ fontSize: 12, color: '#0071e3', fontWeight: 900, marginBottom: 6 }}>Total generado</div>
+            <div style={{ fontSize: 26, color: '#1a1a1a', fontWeight: 950 }}>{formatMoney(totalGenerated)}</div>
+            <div style={smallStatStyle}>Suma de servicios no cancelados</div>
+          </div>
+          <div style={cashCardStyle('#edfff3')}>
+            <div style={{ fontSize: 12, color: '#188038', fontWeight: 900, marginBottom: 6 }}>Total cobrado</div>
+            <div style={{ fontSize: 26, color: '#1a1a1a', fontWeight: 950 }}>{formatMoney(totalCollected)}</div>
+            <div style={smallStatStyle}>Según pagos guardados</div>
+          </div>
+          <div style={cashCardStyle('#fff8ee')}>
+            <div style={{ fontSize: 12, color: '#b86b00', fontWeight: 900, marginBottom: 6 }}>Pendiente de cobro</div>
+            <div style={{ fontSize: 26, color: '#1a1a1a', fontWeight: 950 }}>{formatMoney(totalPending)}</div>
+            <div style={smallStatStyle}>Diferencia entre precio y cobrado</div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ background: '#fff', borderRadius: 22, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
+          <div>
+            <div style={{ fontSize: 17, fontWeight: 900, color: '#1a1a1a' }}>Métodos de pago</div>
+            <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 700, marginTop: 2 }}>Detalle de cobros registrados.</div>
+          </div>
+          <button
+            type="button"
+            onClick={exportCashCsv}
+            disabled={dayBookings.length === 0}
+            style={{
+              border: 'none',
+              borderRadius: 999,
+              padding: '9px 13px',
+              background: dayBookings.length === 0 ? '#f2f2f7' : '#0071e3',
+              color: dayBookings.length === 0 ? '#8e8e93' : '#fff',
+              fontSize: 12,
+              fontWeight: 900,
+              fontFamily: 'inherit',
+              cursor: dayBookings.length === 0 ? 'not-allowed' : 'pointer',
+            }}
+          >
+            Exportar caja CSV
+          </button>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 10 }}>
+          {byMethod.map((method) => (
+            <div key={method.value} style={{ background: '#f7f7fb', borderRadius: 16, padding: 14, border: '0.5px solid #ececf2' }}>
+              <div style={{ fontSize: 13, fontWeight: 900, color: '#1a1a1a' }}>{method.label}</div>
+              <div style={{ fontSize: 21, fontWeight: 950, color: '#0071e3', marginTop: 6 }}>{formatMoney(method.total)}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ background: '#fff', borderRadius: 22, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
+        <div style={{ fontSize: 17, fontWeight: 900, color: '#1a1a1a', marginBottom: 4 }}>Servicios del día</div>
+        <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 700, marginBottom: 14 }}>Cuánto generó cada servicio en la fecha elegida.</div>
+
+        {servicesSummary.length === 0 ? (
+          <div style={{ textAlign: 'center', color: '#aeaeb2', padding: 22, fontWeight: 700 }}>No hay servicios registrados para esta fecha.</div>
+        ) : (
+          <div style={{ display: 'grid', gap: 8 }}>
+            {servicesSummary.map((service) => (
+              <div key={service.name} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto auto', gap: 12, alignItems: 'center', background: '#fafafa', borderRadius: 16, padding: '12px 14px' }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 900, color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{service.name}</div>
+                  <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 700, marginTop: 2 }}>{service.count} {service.count === 1 ? 'turno' : 'turnos'}</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800 }}>Generado</div>
+                  <div style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 900 }}>{formatMoney(service.generated)}</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800 }}>Cobrado</div>
+                  <div style={{ fontSize: 13, color: '#188038', fontWeight: 900 }}>{formatMoney(service.collected)}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div style={{ background: '#fff', borderRadius: 22, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
+        <div style={{ fontSize: 17, fontWeight: 900, color: '#1a1a1a', marginBottom: 4 }}>Registro del día</div>
+        <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 700, marginBottom: 14 }}>Listado contable de citas y pagos.</div>
+
+        {loading ? (
+          <div style={{ textAlign: 'center', color: '#aeaeb2', padding: 28 }}>Cargando caja...</div>
+        ) : dayBookings.length === 0 ? (
+          <div style={{ textAlign: 'center', color: '#aeaeb2', padding: 28, fontWeight: 700 }}>No hay citas para esta fecha.</div>
+        ) : (
+          <div style={{ display: 'grid', gap: 9 }}>
+            {dayBookings.map((booking) => {
+              const price = getServicePrice(booking);
+              const paid = getPaidAmount(booking);
+              const pending = Math.max(price - paid, 0);
+              const paymentStatus = getBookingPaymentStatus(booking);
+              const paymentMethod = getBookingPaymentMethod(booking);
+
+              return (
+                <div key={booking.id} style={{ border: '0.5px solid #ececf2', background: booking.status === 'cancelled' ? '#fffafa' : '#fff', borderRadius: 16, padding: 14 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(0, 1fr) auto', gap: 12, alignItems: 'center' }}>
+                    <div style={{ background: '#f2f2f7', borderRadius: 14, padding: 9, textAlign: 'center' }}>
+                      <div style={{ fontSize: 14, fontWeight: 950 }}>{formatTime(booking.startTime ?? booking.start_time) || '--:--'}</div>
+                      <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 800, marginTop: 3 }}>{formatTime(booking.endTime ?? booking.end_time) || ''}</div>
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 950, color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{booking.clientName ?? booking.client_name ?? 'Cliente sin nombre'}</div>
+                      <div style={{ fontSize: 12, color: '#6e6e73', fontWeight: 700, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {booking.serviceName ?? booking.service_name ?? 'Servicio'}{booking.staffName || booking.staff_name ? ` · ${booking.staffName ?? booking.staff_name}` : ''}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                      <span style={{ fontSize: 11, fontWeight: 900, color: paymentStatusColor[paymentStatus] || '#6e6e73', background: paymentStatusBg[paymentStatus] || '#f2f2f7', padding: '5px 9px', borderRadius: 999 }}>
+                        {paymentStatusLabel[paymentStatus] || paymentStatus}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8, marginTop: 12 }}>
+                    <div style={{ background: '#fafafa', borderRadius: 13, padding: 10 }}>
+                      <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Precio</div>
+                      <div style={{ fontSize: 12, color: '#1a1a1a', fontWeight: 900, marginTop: 3 }}>{formatMoney(price)}</div>
+                    </div>
+                    <div style={{ background: '#fafafa', borderRadius: 13, padding: 10 }}>
+                      <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Cobrado</div>
+                      <div style={{ fontSize: 12, color: '#188038', fontWeight: 900, marginTop: 3 }}>{formatMoney(paid)}</div>
+                    </div>
+                    <div style={{ background: '#fafafa', borderRadius: 13, padding: 10 }}>
+                      <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Pendiente</div>
+                      <div style={{ fontSize: 12, color: pending > 0 ? '#ff9f0a' : '#188038', fontWeight: 900, marginTop: 3 }}>{formatMoney(pending)}</div>
+                    </div>
+                    <div style={{ background: '#fafafa', borderRadius: 13, padding: 10 }}>
+                      <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Método</div>
+                      <div style={{ fontSize: 12, color: '#1a1a1a', fontWeight: 900, marginTop: 3 }}>{paymentMethodLabel[paymentMethod] || paymentMethod}</div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -4843,7 +5337,7 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
             bottom: calc(env(safe-area-inset-bottom, 0px) + 10px) !important;
             z-index: 1000 !important;
             display: grid !important;
-            grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+            grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
             gap: 6px !important;
             padding: 8px !important;
             margin: 0 !important;
@@ -4988,12 +5482,14 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
         <div className="dashboard-tabs" style={{ display: 'flex', gap: 10, marginBottom: 16, overflowX: 'auto' }}>
           <button style={tabStyle('reservas')} onClick={() => setActiveTab('reservas')}>Reservas</button>
           <button style={tabStyle('clientes')} onClick={() => setActiveTab('clientes')}>Clientes</button>
+          <button style={tabStyle('caja')} onClick={() => setActiveTab('caja')}>Caja</button>
           <button style={tabStyle('configuracion')} onClick={() => setActiveTab('configuracion')}>Configuración</button>
           <button style={tabStyle('perfil')} onClick={() => setActiveTab('perfil')}>Perfil</button>
         </div>
 
         {activeTab === 'reservas' && <ReservationsSection />}
         {activeTab === 'clientes' && <ClientsSection />}
+        {activeTab === 'caja' && <CashSection />}
         {activeTab === 'configuracion' && <ConfigurationSection />}
         {activeTab === 'perfil' && (
           <BusinessProfileSection
