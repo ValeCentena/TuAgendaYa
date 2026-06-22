@@ -2570,6 +2570,58 @@ function CashSection() {
   const weeklySummary = summarizeClosures(closuresThisWeek);
   const monthlySummary = summarizeClosures(closuresThisMonth);
 
+
+  const exportClosureRowsToCsv = (items, filename) => {
+    const headers = [
+      'Fecha',
+      'Citas',
+      'Completadas',
+      'Canceladas',
+      'Total generado',
+      'Total cobrado',
+      'Pendiente de cobro',
+      'Efectivo',
+      'Transferencia',
+      'Tarjeta',
+      'Otro',
+    ];
+
+    const rows = items
+      .slice()
+      .sort((a, b) => String(a.closureDate ?? a.closure_date ?? '').localeCompare(String(b.closureDate ?? b.closure_date ?? '')))
+      .map((closure) => [
+        formatDate(closure.closureDate ?? closure.closure_date),
+        getClosureNumber(closure, 'totalBookings', 'total_bookings'),
+        getClosureNumber(closure, 'completedBookings', 'completed_bookings'),
+        getClosureNumber(closure, 'cancelledBookings', 'cancelled_bookings'),
+        getClosureNumber(closure, 'totalGenerated', 'total_generated'),
+        getClosureNumber(closure, 'totalCollected', 'total_collected'),
+        getClosureNumber(closure, 'totalPending', 'total_pending'),
+        getClosureNumber(closure, 'cashTotal', 'cash_total'),
+        getClosureNumber(closure, 'transferTotal', 'transfer_total'),
+        getClosureNumber(closure, 'cardTotal', 'card_total'),
+        getClosureNumber(closure, 'otherTotal', 'other_total'),
+      ]);
+
+    downloadCsvFile(filename, headers, rows);
+  };
+
+  const exportWeeklyCashCsv = () => {
+    exportClosureRowsToCsv(
+      closuresThisWeek,
+      `caja-semanal-${getDateKeyFromValue(startOfWeek)}-${getDateKeyFromValue(endOfWeek)}.csv`
+    );
+  };
+
+  const exportMonthlyCashCsv = () => {
+    const monthKey = `${selectedDateObject.getFullYear()}-${String(selectedDateObject.getMonth() + 1).padStart(2, '0')}`;
+    exportClosureRowsToCsv(closuresThisMonth, `caja-mensual-${monthKey}.csv`);
+  };
+
+  const exportAllCashClosuresCsv = () => {
+    exportClosureRowsToCsv(closures, 'historial-cierres-caja-tuagendaya.csv');
+  };
+
   const periodSummaryCardStyle = {
     background: '#fff',
     borderRadius: 22,
@@ -2633,6 +2685,76 @@ function CashSection() {
           selectedDateObject.toLocaleDateString('es-UY', { month: 'long', year: 'numeric' }),
           monthlySummary
         )}
+      </div>
+
+      <div style={{ background: '#fff', borderRadius: 22, padding: '18px 22px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)', border: '0.5px solid #ececf2' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ fontSize: 17, fontWeight: 900, color: '#1a1a1a' }}>Exportar caja</div>
+            <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 700, marginTop: 3, lineHeight: 1.45 }}>
+              Descargá cierres semanales, mensuales o el historial completo en CSV compatible con Excel.
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={exportWeeklyCashCsv}
+              disabled={closuresThisWeek.length === 0}
+              style={{
+                border: 'none',
+                borderRadius: 999,
+                padding: '10px 13px',
+                background: closuresThisWeek.length === 0 ? '#f2f2f7' : '#0071e3',
+                color: closuresThisWeek.length === 0 ? '#8e8e93' : '#fff',
+                fontSize: 12,
+                fontWeight: 900,
+                fontFamily: 'inherit',
+                cursor: closuresThisWeek.length === 0 ? 'not-allowed' : 'pointer',
+              }}
+            >
+              Exportar semana
+            </button>
+
+            <button
+              type="button"
+              onClick={exportMonthlyCashCsv}
+              disabled={closuresThisMonth.length === 0}
+              style={{
+                border: 'none',
+                borderRadius: 999,
+                padding: '10px 13px',
+                background: closuresThisMonth.length === 0 ? '#f2f2f7' : '#0071e3',
+                color: closuresThisMonth.length === 0 ? '#8e8e93' : '#fff',
+                fontSize: 12,
+                fontWeight: 900,
+                fontFamily: 'inherit',
+                cursor: closuresThisMonth.length === 0 ? 'not-allowed' : 'pointer',
+              }}
+            >
+              Exportar mes
+            </button>
+
+            <button
+              type="button"
+              onClick={exportAllCashClosuresCsv}
+              disabled={closures.length === 0}
+              style={{
+                border: '0.5px solid #d8d8df',
+                borderRadius: 999,
+                padding: '10px 13px',
+                background: '#fff',
+                color: closures.length === 0 ? '#aeaeb2' : '#1a1a1a',
+                fontSize: 12,
+                fontWeight: 900,
+                fontFamily: 'inherit',
+                cursor: closures.length === 0 ? 'not-allowed' : 'pointer',
+              }}
+            >
+              Exportar historial
+            </button>
+          </div>
+        </div>
       </div>
       <div style={{ background: '#fff', borderRadius: 22, padding: '22px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 18 }}>
@@ -2746,7 +2868,7 @@ function CashSection() {
               cursor: dayBookings.length === 0 ? 'not-allowed' : 'pointer',
             }}
           >
-            Exportar caja CSV
+            Exportar día CSV
           </button>
         </div>
 
