@@ -149,6 +149,74 @@ function formatTime(t) {
   return String(t).slice(0, 5);
 }
 
+function formatMoney(value) {
+  if (value === null || value === undefined || value === '') return '$0';
+
+  const number = Number(value);
+
+  if (Number.isNaN(number)) return '$0';
+
+  return `$${number.toLocaleString('es-UY', {
+    minimumFractionDigits: number % 1 === 0 ? 0 : 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+const PAYMENT_STATUS_OPTIONS = [
+  { value: 'pending', label: 'Pendiente' },
+  { value: 'paid', label: 'Pagado' },
+  { value: 'deposit', label: 'Seña' },
+  { value: 'cancelled', label: 'Cancelado' },
+];
+
+const PAYMENT_METHOD_OPTIONS = [
+  { value: 'cash', label: 'Efectivo' },
+  { value: 'transfer', label: 'Transferencia' },
+  { value: 'card', label: 'Tarjeta' },
+  { value: 'other', label: 'Otro' },
+];
+
+const paymentStatusLabel = {
+  pending: 'Pendiente',
+  paid: 'Pagado',
+  deposit: 'Seña',
+  cancelled: 'Cancelado',
+};
+
+const paymentMethodLabel = {
+  cash: 'Efectivo',
+  transfer: 'Transferencia',
+  card: 'Tarjeta',
+  other: 'Otro',
+};
+
+const paymentStatusColor = {
+  pending: '#ff9f0a',
+  paid: '#30d158',
+  deposit: '#0071e3',
+  cancelled: '#ff453a',
+};
+
+const paymentStatusBg = {
+  pending: '#fff8ee',
+  paid: '#edfff3',
+  deposit: '#eef6ff',
+  cancelled: '#fff2f2',
+};
+
+function getBookingPaymentStatus(booking) {
+  return String(booking?.paymentStatus ?? booking?.payment_status ?? 'pending').trim() || 'pending';
+}
+
+function getBookingPaymentMethod(booking) {
+  return String(booking?.paymentMethod ?? booking?.payment_method ?? 'cash').trim() || 'cash';
+}
+
+function getBookingAmountPaid(booking) {
+  const value = booking?.amountPaid ?? booking?.amount_paid ?? '';
+  return value === null || value === undefined ? '' : String(value);
+}
+
 function normalizePhoneForWhatsApp(phone) {
   const onlyNumbers = String(phone || '').replace(/\D/g, '');
 
@@ -966,6 +1034,7 @@ function ReservationsSection() {
   const [archivedService, setArchivedService] = useState('all');
   const [archivedFromDate, setArchivedFromDate] = useState('');
   const [archivedToDate, setArchivedToDate] = useState('');
+  const [paymentDrafts, setPaymentDrafts] = useState({});
 
   let storedProfessional = {};
 
@@ -1025,6 +1094,54 @@ function ReservationsSection() {
       });
 
       fetchBookings(false);
+    } catch {
+      // no-op
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const updatePaymentDraft = (bookingId, field, value) => {
+    setPaymentDrafts((current) => ({
+      ...current,
+      [bookingId]: {
+        ...(current[bookingId] || {}),
+        [field]: value,
+      },
+    }));
+  };
+
+  const getPaymentDraft = (booking) => {
+    const existing = paymentDrafts[booking.id] || {};
+
+    return {
+      paymentStatus: existing.paymentStatus ?? getBookingPaymentStatus(booking),
+      paymentMethod: existing.paymentMethod ?? getBookingPaymentMethod(booking),
+      amountPaid: existing.amountPaid ?? getBookingAmountPaid(booking),
+    };
+  };
+
+  const handleSavePayment = async (booking) => {
+    const draft = getPaymentDraft(booking);
+    const token = localStorage.getItem('tuagendaya_token');
+
+    setActionLoading(`${booking.id}-payment`);
+
+    try {
+      await fetch(`${API_BASE}/bookings/${booking.id}/payment`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          paymentStatus: draft.paymentStatus,
+          paymentMethod: draft.paymentMethod,
+          amountPaid: draft.amountPaid === '' ? null : Number(draft.amountPaid),
+        }),
+      });
+
+      await fetchBookings(false);
     } catch {
       // no-op
     } finally {
@@ -1565,6 +1682,12 @@ function ReservationsSection() {
             const serviceDuration = b.serviceDurationMinutes ?? b.service_duration_minutes;
             const servicePrice = b.servicePrice ?? b.service_price;
             const staffName = b.staffName ?? b.staff_name;
+            const paymentDraft = getPaymentDraft(b);
+            const currentPaymentStatus = getBookingPaymentStatus(b);
+            const currentPaymentMethod = getBookingPaymentMethod(b);
+            const currentAmountPaid = getBookingAmountPaid(b);
+            const paidAmountNumber = currentAmountPaid === '' ? 0 : Number(currentAmountPaid);
+            const pendingAmountNumber = Math.max(Number(servicePrice || 0) - (Number.isNaN(paidAmountNumber) ? 0 : paidAmountNumber), 0);
             const whatsappMessage = buildClientWhatsAppMessage({
               clientName,
               businessName,
@@ -1683,6 +1806,20 @@ function ReservationsSection() {
                     >
                       {statusLabel[b.status] || b.status}
                     </span>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 850,
+                        flexShrink: 0,
+                        whiteSpace: 'nowrap',
+                        color: paymentStatusColor[currentPaymentStatus] || '#6e6e73',
+                        background: paymentStatusBg[currentPaymentStatus] || '#f2f2f7',
+                        padding: '5px 10px',
+                        borderRadius: 999,
+                      }}
+                    >
+                      {paymentStatusLabel[currentPaymentStatus] || currentPaymentStatus}
+                    </span>
                     <span style={{ color: '#8e8e93', fontSize: 18, fontWeight: 800, transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: '0.18s ease' }}>
                       ⌄
                     </span>
@@ -1733,6 +1870,129 @@ function ReservationsSection() {
                       <div style={{ background: '#fafafa', borderRadius: 14, padding: 12 }}>
                         <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800, marginBottom: 4 }}>Hora</div>
                         <div style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 800 }}>{mainTime}</div>
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        marginTop: 12,
+                        padding: 14,
+                        borderRadius: 18,
+                        border: '0.5px solid #e6eef8',
+                        background: '#f7fbff',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
+                        <div>
+                          <div style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 950 }}>Pago y caja</div>
+                          <div style={{ fontSize: 11, color: '#6e6e73', fontWeight: 700, marginTop: 3 }}>
+                            Registrá cobro, método de pago y montos para el cierre diario.
+                          </div>
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 11,
+                            color: paymentStatusColor[currentPaymentStatus] || '#6e6e73',
+                            background: paymentStatusBg[currentPaymentStatus] || '#fff',
+                            padding: '6px 10px',
+                            borderRadius: 999,
+                            fontWeight: 900,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {paymentStatusLabel[currentPaymentStatus] || currentPaymentStatus}
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                          gap: 10,
+                          marginBottom: 12,
+                        }}
+                      >
+                        <div style={{ background: '#fff', borderRadius: 14, padding: 11, border: '0.5px solid #edf0f5' }}>
+                          <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900, marginBottom: 4 }}>PRECIO</div>
+                          <div style={{ fontSize: 14, color: '#1a1a1a', fontWeight: 950 }}>{formatMoney(servicePrice || 0)}</div>
+                        </div>
+                        <div style={{ background: '#fff', borderRadius: 14, padding: 11, border: '0.5px solid #edf0f5' }}>
+                          <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900, marginBottom: 4 }}>COBRADO</div>
+                          <div style={{ fontSize: 14, color: '#188038', fontWeight: 950 }}>{formatMoney(currentAmountPaid || 0)}</div>
+                        </div>
+                        <div style={{ background: '#fff', borderRadius: 14, padding: 11, border: '0.5px solid #edf0f5' }}>
+                          <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900, marginBottom: 4 }}>PENDIENTE</div>
+                          <div style={{ fontSize: 14, color: pendingAmountNumber > 0 ? '#ff9f0a' : '#188038', fontWeight: 950 }}>{formatMoney(pendingAmountNumber)}</div>
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))',
+                          gap: 8,
+                          alignItems: 'end',
+                        }}
+                      >
+                        <label style={{ display: 'block' }}>
+                          <span style={{ display: 'block', fontSize: 11, color: '#6e6e73', fontWeight: 850, marginBottom: 5 }}>Estado de pago</span>
+                          <select
+                            value={paymentDraft.paymentStatus}
+                            onChange={(event) => updatePaymentDraft(b.id, 'paymentStatus', event.target.value)}
+                            style={{ ...inputStyle, borderRadius: 13, padding: '10px 11px', fontSize: 13 }}
+                          >
+                            {PAYMENT_STATUS_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>{option.label}</option>
+                            ))}
+                          </select>
+                        </label>
+
+                        <label style={{ display: 'block' }}>
+                          <span style={{ display: 'block', fontSize: 11, color: '#6e6e73', fontWeight: 850, marginBottom: 5 }}>Método</span>
+                          <select
+                            value={paymentDraft.paymentMethod}
+                            onChange={(event) => updatePaymentDraft(b.id, 'paymentMethod', event.target.value)}
+                            style={{ ...inputStyle, borderRadius: 13, padding: '10px 11px', fontSize: 13 }}
+                          >
+                            {PAYMENT_METHOD_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>{option.label}</option>
+                            ))}
+                          </select>
+                        </label>
+
+                        <label style={{ display: 'block' }}>
+                          <span style={{ display: 'block', fontSize: 11, color: '#6e6e73', fontWeight: 850, marginBottom: 5 }}>Monto cobrado</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={paymentDraft.amountPaid}
+                            onChange={(event) => updatePaymentDraft(b.id, 'amountPaid', event.target.value)}
+                            placeholder="0"
+                            style={{ ...inputStyle, borderRadius: 13, padding: '10px 11px', fontSize: 13 }}
+                          />
+                        </label>
+
+                        <button
+                          type="button"
+                          onClick={() => handleSavePayment(b)}
+                          disabled={actionLoading === `${b.id}-payment`}
+                          style={{
+                            border: 'none',
+                            borderRadius: 13,
+                            padding: '11px 13px',
+                            background: '#0071e3',
+                            color: '#fff',
+                            fontSize: 13,
+                            fontWeight: 900,
+                            fontFamily: 'inherit',
+                            cursor: 'pointer',
+                            opacity: actionLoading === `${b.id}-payment` ? 0.65 : 1,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {actionLoading === `${b.id}-payment` ? 'Guardando...' : 'Guardar'}
+                        </button>
                       </div>
                     </div>
 
