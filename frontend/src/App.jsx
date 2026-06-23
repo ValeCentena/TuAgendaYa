@@ -1635,10 +1635,51 @@ function ReservationsSection() {
         ? archivedBookings
         : todayBookings;
 
-  const pendingCount = todayBookings.filter((b) => b.status === 'pending').length;
-  const confirmedCount = todayBookings.filter((b) => b.status === 'confirmed').length;
-  const completedCount = todayBookings.filter((b) => b.status === 'completed').length;
-  const cancelledCount = todayBookings.filter((b) => b.status === 'cancelled').length;
+  const getBookingUpdatedDateKey = (booking) => {
+    const value =
+      booking.updatedAt ??
+      booking.updated_at ??
+      booking.clientConfirmedAt ??
+      booking.client_confirmed_at ??
+      booking.clientCancelledAt ??
+      booking.client_cancelled_at ??
+      booking.createdAt ??
+      booking.created_at;
+
+    if (!value) return '';
+
+    const raw = String(value).trim();
+    const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+
+    if (isoMatch) {
+      return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+    }
+
+    const parsed = new Date(raw);
+
+    if (!Number.isNaN(parsed.getTime())) {
+      return getLocalDateKey(parsed);
+    }
+
+    return '';
+  };
+
+  const normalizeBookingStatus = (status) => String(status || '').trim().toLowerCase();
+
+  const todayConfirmedActions = bookings.filter((booking) => {
+    const status = normalizeBookingStatus(booking.status);
+    return (status === 'confirmed' || status === 'confirmada' || status === 'confirmado') && getBookingUpdatedDateKey(booking) === todayKey;
+  });
+
+  const todayCancelledActions = bookings.filter((booking) => {
+    const status = normalizeBookingStatus(booking.status);
+    return (status === 'cancelled' || status === 'cancelada' || status === 'cancelado') && getBookingUpdatedDateKey(booking) === todayKey;
+  });
+
+  const pendingCount = todayBookings.filter((b) => normalizeBookingStatus(b.status) === 'pending').length;
+  const confirmedCount = todayConfirmedActions.length;
+  const completedCount = todayBookings.filter((b) => normalizeBookingStatus(b.status) === 'completed').length;
+  const cancelledCount = todayCancelledActions.length;
 
   const clientStatsMap = new Map();
 
@@ -1782,7 +1823,7 @@ function ReservationsSection() {
             <div>
               <div style={{ fontSize: 16, fontWeight: 900, color: '#1a1a1a' }}>Resumen del negocio</div>
               <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 600, marginTop: 3 }}>
-                Vista rápida del día, próximas reservas y clientes.
+                Las confirmadas y canceladas se actualizan en el momento y se reinician cada día.
               </div>
             </div>
             <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800, whiteSpace: 'nowrap' }}>
@@ -1798,12 +1839,12 @@ function ReservationsSection() {
 
             <div style={{ background: '#edfff3', borderRadius: 16, padding: '14px 16px' }}>
               <div style={{ fontSize: 24, fontWeight: 900, color: '#30d158' }}>{confirmedCount}</div>
-              <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2, fontWeight: 700 }}>Confirmadas</div>
+              <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2, fontWeight: 700 }}>Confirmadas hoy</div>
             </div>
 
             <div style={{ background: '#fff2f2', borderRadius: 16, padding: '14px 16px' }}>
               <div style={{ fontSize: 24, fontWeight: 900, color: '#ff453a' }}>{cancelledCount}</div>
-              <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2, fontWeight: 700 }}>Canceladas</div>
+              <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2, fontWeight: 700 }}>Canceladas hoy</div>
             </div>
           </div>
         </div>
