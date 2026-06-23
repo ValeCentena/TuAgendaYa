@@ -1452,6 +1452,11 @@ function ReservationsSection() {
   }, [fetchBookings]);
 
   const handleAction = async (id, action) => {
+    if (action === 'cancel') {
+      const confirmed = window.confirm('¿Seguro querés cancelar esta reserva? El horario quedará libre nuevamente para otros clientes.');
+      if (!confirmed) return;
+    }
+
     setActionLoading(`${id}-${action}`);
     const token = localStorage.getItem('tuagendaya_token');
 
@@ -2018,10 +2023,11 @@ function ReservationsSection() {
             }
 
             const b = item.booking;
-            const isPending = b.status === 'pending';
-            const isConfirmed = b.status === 'confirmed';
-            const isCompleted = b.status === 'completed';
-            const isCancelled = b.status === 'cancelled';
+            const bookingStatus = String(b.status || '').toLowerCase();
+            const isPending = bookingStatus === 'pending' || bookingStatus === 'pendiente';
+            const isConfirmed = bookingStatus === 'confirmed' || bookingStatus === 'confirmada' || bookingStatus === 'confirmado';
+            const isCompleted = bookingStatus === 'completed' || bookingStatus === 'completada' || bookingStatus === 'completado';
+            const isCancelled = bookingStatus === 'cancelled' || bookingStatus === 'cancelada' || bookingStatus === 'cancelado';
             const isArchivedView = reservationView === 'archived';
             const dateStr = formatDate(getBookingDateValue(b));
             const timeStr = formatTime(b.startTime ?? b.start_time);
@@ -2051,7 +2057,9 @@ function ReservationsSection() {
             const canSendWhatsApp = Boolean(clientPhone && whatsappUrl && !isCancelled);
             const canConfirm = !isArchivedView && isPending;
             const canComplete = !isArchivedView && (isPending || isConfirmed);
-            const canCancel = !isArchivedView && !isCancelled && !isCompleted;
+            // La cancelación debe estar disponible también cuando la reserva ya fue confirmada.
+            // Solo se oculta cuando ya está completada, cancelada o en la vista Archivadas.
+            const canCancel = !isArchivedView && (isPending || isConfirmed) && !isCancelled && !isCompleted;
 
             const isExpanded = expandedBookingId === b.id;
             const mainTime = timeStr ? `${timeStr}${endStr ? ` - ${endStr}` : ''}` : 'Sin hora';
@@ -2448,7 +2456,7 @@ function ReservationsSection() {
                               opacity: actionLoading === `${b.id}-cancel` ? 0.6 : 1,
                             }}
                           >
-                            {actionLoading === `${b.id}-cancel` ? '...' : 'Cancelar'}
+                            {actionLoading === `${b.id}-cancel` ? '...' : 'Cancelar reserva'}
                           </button>
                         )}
                       </div>
