@@ -49,10 +49,7 @@ function normalizeProfessional(row) {
     logoUrl: row.logo_url,
     logo_url: row.logo_url,
     status: row.status,
-    plan: row.plan || "Profesional",
-    monthlyLimit: Number(row.monthly_limit || row.monthlyLimit || 1000),
-    monthlyBookingsCount: Number(row.monthly_bookings_count || row.monthlyBookingsCount || 0),
-    monthlyBookingsRemaining: Math.max(0, Number(row.monthly_limit || row.monthlyLimit || 1000) - Number(row.monthly_bookings_count || row.monthlyBookingsCount || 0)),
+    plan: row.plan || "gratis",
     bookingsCount: Number(row.bookings_count || 0),
     clientsCount: Number(row.clients_count || 0),
     createdAt: row.created_at,
@@ -135,7 +132,6 @@ router.get("/stats", requireAdmin, async (req, res) => {
         COUNT(*)::int AS total,
         COUNT(*) FILTER (WHERE booking_date = CURRENT_DATE)::int AS today,
         COUNT(*) FILTER (WHERE booking_date > CURRENT_DATE)::int AS upcoming,
-        COUNT(*) FILTER (WHERE booking_date >= date_trunc('month', CURRENT_DATE)::date AND booking_date < (date_trunc('month', CURRENT_DATE) + interval '1 month')::date)::int AS monthly,
         COUNT(*) FILTER (WHERE status = 'completed')::int AS completed,
         COUNT(*) FILTER (WHERE status = 'cancelled')::int AS cancelled
       FROM bookings
@@ -167,12 +163,9 @@ router.get("/stats", requireAdmin, async (req, res) => {
         p.slug,
         p.logo_url,
         p.status,
-        'Profesional' AS plan,
-        1000::int AS monthly_limit,
         p.created_at,
         p.updated_at,
         COUNT(b.id)::int AS bookings_count,
-        COUNT(b.id) FILTER (WHERE b.booking_date >= date_trunc('month', CURRENT_DATE)::date AND b.booking_date < (date_trunc('month', CURRENT_DATE) + interval '1 month')::date)::int AS monthly_bookings_count,
         COUNT(DISTINCT LOWER(TRIM(b.client_phone))) FILTER (WHERE b.client_phone IS NOT NULL AND TRIM(b.client_phone) <> '')::int AS clients_count
       FROM professionals p
       LEFT JOIN bookings b ON b.professional_id = p.id
@@ -184,7 +177,7 @@ router.get("/stats", requireAdmin, async (req, res) => {
 
     res.json({
       professionals: professionalsResult.rows[0] || { total: 0, active: 0, suspended: 0 },
-      bookings: bookingsResult.rows[0] || { total: 0, today: 0, upcoming: 0, monthly: 0, completed: 0, cancelled: 0 },
+      bookings: bookingsResult.rows[0] || { total: 0, today: 0, upcoming: 0, completed: 0, cancelled: 0 },
       clients: clientsResult.rows[0] || { total: 0 },
       latestProfessionals: latestResult.rows.map(normalizeProfessional),
     });
@@ -233,12 +226,9 @@ router.get("/professionals", requireAdmin, async (req, res) => {
         p.slug,
         p.logo_url,
         p.status,
-        'Profesional' AS plan,
-        1000::int AS monthly_limit,
         p.created_at,
         p.updated_at,
         COUNT(b.id)::int AS bookings_count,
-        COUNT(b.id) FILTER (WHERE b.booking_date >= date_trunc('month', CURRENT_DATE)::date AND b.booking_date < (date_trunc('month', CURRENT_DATE) + interval '1 month')::date)::int AS monthly_bookings_count,
         COUNT(DISTINCT LOWER(TRIM(b.client_phone))) FILTER (WHERE b.client_phone IS NOT NULL AND TRIM(b.client_phone) <> '')::int AS clients_count
       FROM professionals p
       LEFT JOIN bookings b ON b.professional_id = p.id
@@ -278,12 +268,9 @@ router.get("/professionals/:id", requireAdmin, async (req, res) => {
         p.slug,
         p.logo_url,
         p.status,
-        'Profesional' AS plan,
-        1000::int AS monthly_limit,
         p.created_at,
         p.updated_at,
         COUNT(b.id)::int AS bookings_count,
-        COUNT(b.id) FILTER (WHERE b.booking_date >= date_trunc('month', CURRENT_DATE)::date AND b.booking_date < (date_trunc('month', CURRENT_DATE) + interval '1 month')::date)::int AS monthly_bookings_count,
         COUNT(DISTINCT LOWER(TRIM(b.client_phone))) FILTER (WHERE b.client_phone IS NOT NULL AND TRIM(b.client_phone) <> '')::int AS clients_count
       FROM professionals p
       LEFT JOIN bookings b ON b.professional_id = p.id
@@ -363,9 +350,6 @@ router.patch("/professionals/:id/status", requireAdmin, async (req, res) => {
         slug,
         logo_url,
         status,
-        'Profesional' AS plan,
-        1000::int AS monthly_limit,
-        0::int AS monthly_bookings_count,
         created_at,
         updated_at,
         0::int AS bookings_count,
@@ -385,6 +369,70 @@ router.patch("/professionals/:id/status", requireAdmin, async (req, res) => {
   } catch (error) {
     console.error("Error admin status:", error);
     res.status(500).json({ error: "Error actualizando estado" });
+  }
+});
+
+
+router.get("/reset-test-data", async (req, res) => {
+  try {
+    const email = normalizeText(req.query.email).toLowerCase();
+    const password = normalizeText(req.query.password);
+    const confirm = normalizeText(req.query.confirm);
+
+    const adminEmail = normalizeText(process.env.ADMIN_EMAIL).toLowerCase();
+    const adminPassword = normalizeText(process.env.ADMIN_PASSWORD);
+
+    if (!adminEmail || !adminPassword) {
+      return res.status(500).json({
+        error: "ADMIN_EMAIL o ADMIN_PASSWORD no están configurados",
+      });
+    }
+
+    if (email !== adminEmail || password !== adminPassword) {
+      return res.status(401).json({
+        error: "Credenciales admin incorrectas",
+      });
+    }
+
+    if (confirm !== "ELIMINAR") {
+      return res.status(400).json({
+        error: "Confirmación inválida. Usá confirm=ELIMINAR",
+      });
+    }
+
+    console.log("Admin reset: borrando datos de prueba...");
+
+    await db.query("TRUNCATE TABLE cash_closures RESTART IDENTITY CASCADE").catch(() => {});
+    await db.query("TRUNCATE TABLE client_notes RESTART IDENTITY CASCADE").catch(() => {});
+    await db.query("TRUNCATE TABLE bookings RESTART IDENTITY CASCADE").catch(() => {});
+    await db.query("TRUNCATE TABLE staff_availability RESTART IDENTITY CASCADE").catch(() => {});
+    await db.query("TRUNCATE TABLE staff_members RESTART IDENTITY CASCADE").catch(() => {});
+    await db.query("TRUNCATE TABLE professional_availability RESTART IDENTITY CASCADE").catch(() => {});
+    await db.query("TRUNCATE TABLE professional_services RESTART IDENTITY CASCADE").catch(() => {});
+    await db.query("TRUNCATE TABLE professionals RESTART IDENTITY CASCADE").catch(() => {});
+
+    console.log("Admin reset: base limpiada correctamente.");
+
+    res.json({
+      success: true,
+      message: "Base limpiada correctamente. Ya podés crear un negocio nuevo desde cero.",
+      deleted: [
+        "cash_closures",
+        "client_notes",
+        "bookings",
+        "staff_availability",
+        "staff_members",
+        "professional_availability",
+        "professional_services",
+        "professionals",
+      ],
+    });
+  } catch (error) {
+    console.error("Error reset-test-data:", error);
+    res.status(500).json({
+      error: "Error limpiando datos de prueba",
+      details: error.message,
+    });
   }
 });
 
