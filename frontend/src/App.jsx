@@ -738,7 +738,7 @@ function ProfessionCombobox({ value, onChange }) {
           onChange(e.target.value);
           setOpen(true);
         }}
-        placeholder="Ej: Barbería, Odontología, Psicología..."
+        placeholder=""
         required
         autoComplete="off"
       />
@@ -1096,7 +1096,7 @@ function RegisterPage() {
                   style={{ ...inputStyle, marginBottom: 0, borderRadius: 15, padding: '13px 14px' }}
                   value={form.name}
                   onChange={(e) => updateForm('name', e.target.value)}
-                  placeholder="Ej: Valentino"
+                  placeholder=""
                   required
                 />
               </div>
@@ -1107,7 +1107,7 @@ function RegisterPage() {
                   style={{ ...inputStyle, marginBottom: 0, borderRadius: 15, padding: '13px 14px' }}
                   value={form.businessName}
                   onChange={(e) => updateForm('businessName', e.target.value)}
-                  placeholder="Ej: Odontología V"
+                  placeholder=""
                   required
                 />
               </div>
@@ -1119,7 +1119,7 @@ function RegisterPage() {
                   type="email"
                   value={form.email}
                   onChange={(e) => updateForm('email', e.target.value)}
-                  placeholder="negocio@email.com"
+                  placeholder="Email"
                   required
                   autoComplete="email"
                 />
@@ -1132,7 +1132,7 @@ function RegisterPage() {
                   type="password"
                   value={form.password}
                   onChange={(e) => updateForm('password', e.target.value)}
-                  placeholder="Mínimo 8 caracteres"
+                  placeholder="Contraseña"
                   required
                   autoComplete="new-password"
                 />
@@ -1144,7 +1144,7 @@ function RegisterPage() {
                   style={{ ...inputStyle, marginBottom: 0, borderRadius: 15, padding: '13px 14px' }}
                   value={form.phone}
                   onChange={(e) => updateForm('phone', e.target.value)}
-                  placeholder="099 123 456"
+                  placeholder=""
                   inputMode="tel"
                 />
               </div>
@@ -1163,7 +1163,7 @@ function RegisterPage() {
                   style={{ ...inputStyle, marginBottom: 0, borderRadius: 15, padding: '13px 14px' }}
                   value={form.address}
                   onChange={(e) => updateForm('address', e.target.value)}
-                  placeholder="Ej: Av. Italia 1234, Montevideo"
+                  placeholder=""
                   required
                 />
               </div>
@@ -1176,12 +1176,12 @@ function RegisterPage() {
                     style={{ border: 'none', outline: 'none', background: '#fff', borderRadius: 12, padding: '11px 12px', fontSize: 16, fontFamily: 'inherit', color: '#1a1a1a', minWidth: 0 }}
                     value={form.slug}
                     onChange={(e) => updateForm('slug', e.target.value)}
-                    placeholder="odontologia-v"
+                    placeholder=""
                     required
                   />
                 </div>
                 <div style={{ marginTop: 7, color: '#8e8e93', fontSize: 12, fontWeight: 650 }}>
-                  Usá un nombre corto, sin espacios ni tildes. Ejemplo: odontologia-v
+                  Usá un nombre corto, sin espacios ni tildes.
                 </div>
               </div>
             </div>
@@ -6633,6 +6633,9 @@ function MobileViewportController() {
         input::placeholder,
         textarea::placeholder {
           font-size: 16px !important;
+          color: #a8a8b0 !important;
+          opacity: 1 !important;
+          font-weight: 500 !important;
         }
 
         button {
