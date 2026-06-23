@@ -3260,12 +3260,17 @@ function AvailabilityTable({ availability, onChange }) {
     margin: 0,
     minWidth: 0,
     width: '100%',
-    height: 46,
+    maxWidth: '100%',
+    height: 52,
     padding: '10px 12px',
-    fontSize: 16,
-    borderRadius: 14,
+    fontSize: 15,
+    fontWeight: 850,
+    textAlign: 'center',
+    borderRadius: 16,
     background: '#fff',
     boxSizing: 'border-box',
+    appearance: 'none',
+    WebkitAppearance: 'none',
   };
 
   const selectInputStyle = {
@@ -3312,11 +3317,12 @@ function AvailabilityTable({ availability, onChange }) {
 
         .availability-mobile-grid {
           display: grid;
-          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-          gap: 12px;
+          grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+          gap: 14px;
           margin-top: 14px;
           width: 100%;
           max-width: 100%;
+          align-items: stretch;
         }
 
         .availability-mobile-field {
@@ -3326,25 +3332,32 @@ function AvailabilityTable({ availability, onChange }) {
 
         .availability-mobile-field input,
         .availability-mobile-field select {
+          display: block;
           width: 100%;
           max-width: 100%;
+          min-width: 0;
+        }
+
+        .availability-mobile-field input[type="time"]::-webkit-date-and-time-value {
+          text-align: center;
         }
 
         .availability-time-box {
           background: #ffffff;
           border: 1px solid #e8e8ee;
           border-radius: 18px;
-          padding: 10px;
-          box-shadow: inset 0 1px 0 rgba(255,255,255,0.8);
+          padding: 12px;
+          box-shadow: 0 8px 18px rgba(15, 23, 42, 0.035), inset 0 1px 0 rgba(255,255,255,0.8);
         }
 
         .availability-pause-box {
           grid-column: 1 / -1;
           background: #f5f8ff;
-          border: 1px solid rgba(0, 113, 227, 0.14);
-          border-radius: 18px;
-          padding: 12px;
+          border: 1px solid rgba(0, 113, 227, 0.16);
+          border-radius: 20px;
+          padding: 14px;
           margin-top: 2px;
+          overflow: hidden;
         }
 
         .availability-pause-header {
@@ -3357,9 +3370,17 @@ function AvailabilityTable({ availability, onChange }) {
 
         .availability-pause-times {
           display: grid;
-          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-          gap: 10px;
-          margin-top: 12px;
+          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+          gap: 12px;
+          margin-top: 14px;
+        }
+
+        .availability-pause-times .availability-mobile-field {
+          background: #ffffff;
+          border: 1px solid #e8e8ee;
+          border-radius: 18px;
+          padding: 12px;
+          box-shadow: 0 8px 18px rgba(15, 23, 42, 0.035), inset 0 1px 0 rgba(255,255,255,0.8);
         }
 
         .availability-mobile-field-full {
@@ -3390,21 +3411,26 @@ function AvailabilityTable({ availability, onChange }) {
 
         @media (max-width: 430px) {
           .availability-mobile-card {
-            padding: 13px;
-            border-radius: 21px;
+            padding: 14px;
+            border-radius: 22px;
           }
 
           .availability-mobile-grid {
-            grid-template-columns: 1fr 1fr;
-            gap: 9px;
+            grid-template-columns: 1fr;
+            gap: 12px;
+          }
+
+          .availability-pause-header {
+            align-items: flex-start;
+          }
+
+          .availability-pause-times {
+            grid-template-columns: 1fr;
+            gap: 12px;
           }
         }
 
         @media (max-width: 360px) {
-          .availability-mobile-grid {
-            grid-template-columns: 1fr;
-          }
-
           .availability-mobile-field-full {
             grid-column: auto;
           }
