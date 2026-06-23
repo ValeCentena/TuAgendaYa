@@ -3249,84 +3249,252 @@ function CashSection() {
 }
 
 function AvailabilityTable({ availability, onChange }) {
+  const timeInputStyle = {
+    ...inputStyle,
+    margin: 0,
+    minWidth: 0,
+    width: '100%',
+    height: 46,
+    padding: '10px 12px',
+    fontSize: 16,
+    borderRadius: 14,
+    background: '#fff',
+  };
+
+  const selectInputStyle = {
+    ...timeInputStyle,
+    appearance: 'none',
+    WebkitAppearance: 'none',
+    backgroundImage:
+      'linear-gradient(45deg, transparent 50%, #8e8e93 50%), linear-gradient(135deg, #8e8e93 50%, transparent 50%)',
+    backgroundPosition: 'calc(100% - 18px) 20px, calc(100% - 12px) 20px',
+    backgroundSize: '6px 6px, 6px 6px',
+    backgroundRepeat: 'no-repeat',
+    paddingRight: 34,
+  };
+
   return (
-    <div style={{ overflowX: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 680 }}>
-        <thead>
-          <tr>
-            <th style={{ textAlign: 'left', fontSize: 11, color: '#8e8e93', padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>DÍA</th>
-            <th style={{ textAlign: 'left', fontSize: 11, color: '#8e8e93', padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>ESTADO</th>
-            <th style={{ textAlign: 'left', fontSize: 11, color: '#8e8e93', padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>INICIO</th>
-            <th style={{ textAlign: 'left', fontSize: 11, color: '#8e8e93', padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>CIERRE</th>
-            <th style={{ textAlign: 'left', fontSize: 11, color: '#8e8e93', padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>INTERVALO</th>
-          </tr>
-        </thead>
+    <div className="availability-table-wrap">
+      <style>{`
+        .availability-table-wrap {
+          width: 100%;
+        }
 
-        <tbody>
-          {DAYS.map((dayInfo) => {
-            const day = availability.find((d) => d.dayOfWeek === dayInfo.dayOfWeek) || getDefaultAvailability()[dayInfo.dayOfWeek];
+        .availability-desktop {
+          display: block;
+          width: 100%;
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          border-radius: 18px;
+        }
 
-            return (
-              <tr key={dayInfo.dayOfWeek}>
-                <td style={{ padding: '12px 0', borderBottom: '1px solid #f5f5f5', fontSize: 14, fontWeight: 600 }}>
-                  {dayInfo.label}
-                </td>
+        .availability-mobile {
+          display: none;
+        }
 
-                <td style={{ padding: '12px 0', borderBottom: '1px solid #f5f5f5' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: day.isActive ? '#188038' : '#8e8e93', fontWeight: 600 }}>
+        .availability-mobile-card {
+          background: #f7f7fb;
+          border: 0.5px solid #e5e5ea;
+          border-radius: 20px;
+          padding: 14px;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.7);
+        }
+
+        .availability-mobile-grid {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+          gap: 10px;
+          margin-top: 12px;
+        }
+
+        .availability-mobile-field {
+          min-width: 0;
+        }
+
+        .availability-mobile-field-full {
+          grid-column: 1 / -1;
+        }
+
+        .availability-mobile-label {
+          display: block;
+          font-size: 11px;
+          line-height: 1.2;
+          color: #8e8e93;
+          font-weight: 850;
+          letter-spacing: -0.01em;
+          margin: 0 0 6px 2px;
+        }
+
+        @media (max-width: 760px) {
+          .availability-desktop {
+            display: none;
+          }
+
+          .availability-mobile {
+            display: grid;
+            gap: 12px;
+            width: 100%;
+          }
+        }
+
+        @media (max-width: 370px) {
+          .availability-mobile-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .availability-mobile-field-full {
+            grid-column: auto;
+          }
+        }
+      `}</style>
+
+      <div className="availability-desktop">
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 680 }}>
+          <thead>
+            <tr>
+              <th style={{ textAlign: 'left', fontSize: 11, color: '#8e8e93', padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>DÍA</th>
+              <th style={{ textAlign: 'left', fontSize: 11, color: '#8e8e93', padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>ESTADO</th>
+              <th style={{ textAlign: 'left', fontSize: 11, color: '#8e8e93', padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>INICIO</th>
+              <th style={{ textAlign: 'left', fontSize: 11, color: '#8e8e93', padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>CIERRE</th>
+              <th style={{ textAlign: 'left', fontSize: 11, color: '#8e8e93', padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>INTERVALO</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {DAYS.map((dayInfo) => {
+              const day = availability.find((d) => d.dayOfWeek === dayInfo.dayOfWeek) || getDefaultAvailability()[dayInfo.dayOfWeek];
+
+              return (
+                <tr key={dayInfo.dayOfWeek}>
+                  <td style={{ padding: '12px 0', borderBottom: '1px solid #f5f5f5', fontSize: 14, fontWeight: 700 }}>
+                    {dayInfo.label}
+                  </td>
+
+                  <td style={{ padding: '12px 0', borderBottom: '1px solid #f5f5f5' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: day.isActive ? '#188038' : '#8e8e93', fontWeight: 700 }}>
+                      <input
+                        type="checkbox"
+                        checked={day.isActive}
+                        onChange={(e) => onChange(day.dayOfWeek, 'isActive', e.target.checked)}
+                      />
+                      {day.isActive ? 'Activo' : 'Inactivo'}
+                    </label>
+                  </td>
+
+                  <td style={{ padding: '12px 8px 12px 0', borderBottom: '1px solid #f5f5f5' }}>
                     <input
-                      type="checkbox"
-                      checked={day.isActive}
-                      onChange={(e) => onChange(day.dayOfWeek, 'isActive', e.target.checked)}
+                      type="time"
+                      value={day.startTime}
+                      disabled={!day.isActive}
+                      onChange={(e) => onChange(day.dayOfWeek, 'startTime', e.target.value)}
+                      style={{ ...inputStyle, margin: 0, opacity: day.isActive ? 1 : 0.45 }}
                     />
-                    {day.isActive ? 'Activo' : 'Inactivo'}
-                  </label>
-                </td>
+                  </td>
 
-                <td style={{ padding: '12px 8px 12px 0', borderBottom: '1px solid #f5f5f5' }}>
+                  <td style={{ padding: '12px 8px 12px 0', borderBottom: '1px solid #f5f5f5' }}>
+                    <input
+                      type="time"
+                      value={day.endTime}
+                      disabled={!day.isActive}
+                      onChange={(e) => onChange(day.dayOfWeek, 'endTime', e.target.value)}
+                      style={{ ...inputStyle, margin: 0, opacity: day.isActive ? 1 : 0.45 }}
+                    />
+                  </td>
+
+                  <td style={{ padding: '12px 0', borderBottom: '1px solid #f5f5f5' }}>
+                    <select
+                      value={day.slotDurationMinutes}
+                      disabled={!day.isActive}
+                      onChange={(e) => onChange(day.dayOfWeek, 'slotDurationMinutes', Number(e.target.value))}
+                      style={{ ...inputStyle, margin: 0, opacity: day.isActive ? 1 : 0.45 }}
+                    >
+                      <option value={15}>15 min</option>
+                      <option value={30}>30 min</option>
+                      <option value={45}>45 min</option>
+                      <option value={60}>60 min</option>
+                      <option value={90}>90 min</option>
+                      <option value={120}>120 min</option>
+                    </select>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="availability-mobile">
+        {DAYS.map((dayInfo) => {
+          const day = availability.find((d) => d.dayOfWeek === dayInfo.dayOfWeek) || getDefaultAvailability()[dayInfo.dayOfWeek];
+
+          return (
+            <div key={dayInfo.dayOfWeek} className="availability-mobile-card">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 16, color: '#1d1d1f', fontWeight: 900, letterSpacing: '-0.02em' }}>{dayInfo.label}</div>
+                  <div style={{ fontSize: 12, color: day.isActive ? '#188038' : '#8e8e93', fontWeight: 800, marginTop: 2 }}>
+                    {day.isActive ? 'Disponible para reservas' : 'Día inactivo'}
+                  </div>
+                </div>
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: day.isActive ? '#188038' : '#8e8e93', fontSize: 13, fontWeight: 850, whiteSpace: 'nowrap' }}>
+                  <input
+                    type="checkbox"
+                    checked={day.isActive}
+                    onChange={(e) => onChange(day.dayOfWeek, 'isActive', e.target.checked)}
+                    style={{ width: 20, height: 20 }}
+                  />
+                  {day.isActive ? 'Activo' : 'Inactivo'}
+                </label>
+              </div>
+
+              <div className="availability-mobile-grid">
+                <div className="availability-mobile-field">
+                  <span className="availability-mobile-label">Apertura</span>
                   <input
                     type="time"
                     value={day.startTime}
                     disabled={!day.isActive}
                     onChange={(e) => onChange(day.dayOfWeek, 'startTime', e.target.value)}
-                    style={{ ...inputStyle, margin: 0, opacity: day.isActive ? 1 : 0.45 }}
+                    style={{ ...timeInputStyle, opacity: day.isActive ? 1 : 0.45 }}
                   />
-                </td>
+                </div>
 
-                <td style={{ padding: '12px 8px 12px 0', borderBottom: '1px solid #f5f5f5' }}>
+                <div className="availability-mobile-field">
+                  <span className="availability-mobile-label">Cierre</span>
                   <input
                     type="time"
                     value={day.endTime}
                     disabled={!day.isActive}
                     onChange={(e) => onChange(day.dayOfWeek, 'endTime', e.target.value)}
-                    style={{ ...inputStyle, margin: 0, opacity: day.isActive ? 1 : 0.45 }}
+                    style={{ ...timeInputStyle, opacity: day.isActive ? 1 : 0.45 }}
                   />
-                </td>
+                </div>
 
-                <td style={{ padding: '12px 0', borderBottom: '1px solid #f5f5f5' }}>
+                <div className="availability-mobile-field availability-mobile-field-full">
+                  <span className="availability-mobile-label">Duración de cada turno</span>
                   <select
                     value={day.slotDurationMinutes}
                     disabled={!day.isActive}
                     onChange={(e) => onChange(day.dayOfWeek, 'slotDurationMinutes', Number(e.target.value))}
-                    style={{ ...inputStyle, margin: 0, opacity: day.isActive ? 1 : 0.45 }}
+                    style={{ ...selectInputStyle, opacity: day.isActive ? 1 : 0.45 }}
                   >
-                    <option value={15}>15 min</option>
-                    <option value={30}>30 min</option>
-                    <option value={45}>45 min</option>
-                    <option value={60}>60 min</option>
-                    <option value={90}>90 min</option>
-                    <option value={120}>120 min</option>
+                    <option value={15}>15 minutos</option>
+                    <option value={30}>30 minutos</option>
+                    <option value={45}>45 minutos</option>
+                    <option value={60}>60 minutos</option>
+                    <option value={90}>90 minutos</option>
+                    <option value={120}>120 minutos</option>
                   </select>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
-
 
 function ClientsSection() {
   const [bookings, setBookings] = useState([]);
