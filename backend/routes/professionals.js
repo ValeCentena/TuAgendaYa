@@ -197,6 +197,9 @@ function defaultAvailability(professionalId) {
     start_time: "09:00",
     end_time: "18:00",
     slot_duration_minutes: 30,
+    break_enabled: false,
+    break_start_time: "13:00",
+    break_end_time: "14:00",
   }));
 }
 
@@ -215,6 +218,12 @@ function normalizeAvailabilityRow(row) {
     end_time: String(row.end_time || "18:00").slice(0, 5),
     slotDurationMinutes: row.slot_duration_minutes || 30,
     slot_duration_minutes: row.slot_duration_minutes || 30,
+    breakEnabled: Boolean(row.break_enabled),
+    break_enabled: Boolean(row.break_enabled),
+    breakStartTime: String(row.break_start_time || "13:00").slice(0, 5),
+    break_start_time: String(row.break_start_time || "13:00").slice(0, 5),
+    breakEndTime: String(row.break_end_time || "14:00").slice(0, 5),
+    break_end_time: String(row.break_end_time || "14:00").slice(0, 5),
   };
 }
 
@@ -237,7 +246,15 @@ function normalizeService(row) {
   };
 }
 
+async function ensureAvailabilityPauseColumns() {
+  await db.query(`ALTER TABLE professional_availability ADD COLUMN IF NOT EXISTS break_enabled BOOLEAN DEFAULT false;`);
+  await db.query(`ALTER TABLE professional_availability ADD COLUMN IF NOT EXISTS break_start_time TIME DEFAULT '13:00';`);
+  await db.query(`ALTER TABLE professional_availability ADD COLUMN IF NOT EXISTS break_end_time TIME DEFAULT '14:00';`);
+}
+
 async function ensureDefaultAvailability(professionalId) {
+  await ensureAvailabilityPauseColumns();
+
   const existing = await db.query(
     `
     SELECT *
@@ -264,10 +281,13 @@ async function ensureDefaultAvailability(professionalId) {
         start_time,
         end_time,
         slot_duration_minutes,
+        break_enabled,
+        break_start_time,
+        break_end_time,
         created_at,
         updated_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
       ON CONFLICT (professional_id, day_of_week)
       DO NOTHING
       `,
@@ -278,6 +298,9 @@ async function ensureDefaultAvailability(professionalId) {
         day.start_time,
         day.end_time,
         day.slot_duration_minutes,
+        day.break_enabled,
+        day.break_start_time,
+        day.break_end_time,
       ]
     );
   }
@@ -538,6 +561,8 @@ router.get("/me/availability", async (req, res) => {
 router.patch("/me/availability", async (req, res) => {
   try {
     const professionalId = getProfessionalIdFromRequest(req);
+    await ensureAvailabilityPauseColumns();
+
     const incoming = Array.isArray(req.body) ? req.body : req.body.availability;
 
     if (!Array.isArray(incoming)) {
@@ -550,6 +575,9 @@ router.patch("/me/availability", async (req, res) => {
       const startTime = String(item.startTime ?? item.start_time ?? "09:00").slice(0, 5);
       const endTime = String(item.endTime ?? item.end_time ?? "18:00").slice(0, 5);
       const slotDurationMinutes = Number(item.slotDurationMinutes ?? item.slot_duration_minutes ?? 30);
+      const breakEnabled = Boolean(item.breakEnabled ?? item.break_enabled ?? false);
+      const breakStartTime = String(item.breakStartTime ?? item.break_start_time ?? "13:00").slice(0, 5);
+      const breakEndTime = String(item.breakEndTime ?? item.break_end_time ?? "14:00").slice(0, 5);
 
       if (Number.isNaN(dayOfWeek) || dayOfWeek < 0 || dayOfWeek > 6) continue;
 
@@ -562,19 +590,25 @@ router.patch("/me/availability", async (req, res) => {
           start_time,
           end_time,
           slot_duration_minutes,
+          break_enabled,
+          break_start_time,
+          break_end_time,
           created_at,
           updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
         ON CONFLICT (professional_id, day_of_week)
         DO UPDATE SET
           is_active = EXCLUDED.is_active,
           start_time = EXCLUDED.start_time,
           end_time = EXCLUDED.end_time,
           slot_duration_minutes = EXCLUDED.slot_duration_minutes,
+          break_enabled = EXCLUDED.break_enabled,
+          break_start_time = EXCLUDED.break_start_time,
+          break_end_time = EXCLUDED.break_end_time,
           updated_at = NOW()
         `,
-        [professionalId, dayOfWeek, isActive, startTime, endTime, slotDurationMinutes]
+        [professionalId, dayOfWeek, isActive, startTime, endTime, slotDurationMinutes, breakEnabled, breakStartTime, breakEndTime]
       );
     }
 

@@ -574,6 +574,9 @@ function getDefaultAvailability() {
     startTime: '09:00',
     endTime: '18:00',
     slotDurationMinutes: 30,
+    breakEnabled: false,
+    breakStartTime: '13:00',
+    breakEndTime: '14:00',
   }));
 }
 
@@ -584,6 +587,9 @@ function normalizeAvailabilityItem(item) {
     startTime: String(item.startTime ?? item.start_time ?? '09:00').slice(0, 5),
     endTime: String(item.endTime ?? item.end_time ?? '18:00').slice(0, 5),
     slotDurationMinutes: Number(item.slotDurationMinutes ?? item.slot_duration_minutes ?? 30),
+    breakEnabled: Boolean(item.breakEnabled ?? item.break_enabled ?? false),
+    breakStartTime: String(item.breakStartTime ?? item.break_start_time ?? '13:00').slice(0, 5),
+    breakEndTime: String(item.breakEndTime ?? item.break_end_time ?? '14:00').slice(0, 5),
   };
 }
 
@@ -3307,8 +3313,8 @@ function AvailabilityTable({ availability, onChange }) {
         .availability-mobile-grid {
           display: grid;
           grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-          gap: 10px;
-          margin-top: 12px;
+          gap: 12px;
+          margin-top: 14px;
           width: 100%;
           max-width: 100%;
         }
@@ -3322,6 +3328,38 @@ function AvailabilityTable({ availability, onChange }) {
         .availability-mobile-field select {
           width: 100%;
           max-width: 100%;
+        }
+
+        .availability-time-box {
+          background: #ffffff;
+          border: 1px solid #e8e8ee;
+          border-radius: 18px;
+          padding: 10px;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.8);
+        }
+
+        .availability-pause-box {
+          grid-column: 1 / -1;
+          background: #f5f8ff;
+          border: 1px solid rgba(0, 113, 227, 0.14);
+          border-radius: 18px;
+          padding: 12px;
+          margin-top: 2px;
+        }
+
+        .availability-pause-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          width: 100%;
+        }
+
+        .availability-pause-times {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+          gap: 10px;
+          margin-top: 12px;
         }
 
         .availability-mobile-field-full {
@@ -3381,7 +3419,7 @@ function AvailabilityTable({ availability, onChange }) {
               <th style={{ textAlign: 'left', fontSize: 11, color: '#8e8e93', padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>ESTADO</th>
               <th style={{ textAlign: 'left', fontSize: 11, color: '#8e8e93', padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>INICIO</th>
               <th style={{ textAlign: 'left', fontSize: 11, color: '#8e8e93', padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>CIERRE</th>
-              <th style={{ textAlign: 'left', fontSize: 11, color: '#8e8e93', padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>INTERVALO</th>
+              <th style={{ textAlign: 'left', fontSize: 11, color: '#8e8e93', padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>PAUSA</th>
             </tr>
           </thead>
 
@@ -3427,19 +3465,36 @@ function AvailabilityTable({ availability, onChange }) {
                   </td>
 
                   <td style={{ padding: '12px 0', borderBottom: '1px solid #f5f5f5' }}>
-                    <select
-                      value={day.slotDurationMinutes}
-                      disabled={!day.isActive}
-                      onChange={(e) => onChange(day.dayOfWeek, 'slotDurationMinutes', Number(e.target.value))}
-                      style={{ ...inputStyle, margin: 0, opacity: day.isActive ? 1 : 0.45 }}
-                    >
-                      <option value={15}>15 min</option>
-                      <option value={30}>30 min</option>
-                      <option value={45}>45 min</option>
-                      <option value={60}>60 min</option>
-                      <option value={90}>90 min</option>
-                      <option value={120}>120 min</option>
-                    </select>
+                    <div style={{ display: 'grid', gap: 8 }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: day.breakEnabled ? '#0071e3' : '#8e8e93', fontWeight: 800 }}>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(day.breakEnabled)}
+                          disabled={!day.isActive}
+                          onChange={(e) => onChange(day.dayOfWeek, 'breakEnabled', e.target.checked)}
+                        />
+                        {day.breakEnabled ? 'Pausa activa' : 'Sin pausa'}
+                      </label>
+
+                      {day.breakEnabled && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                          <input
+                            type="time"
+                            value={day.breakStartTime || '13:00'}
+                            disabled={!day.isActive}
+                            onChange={(e) => onChange(day.dayOfWeek, 'breakStartTime', e.target.value)}
+                            style={{ ...inputStyle, margin: 0, opacity: day.isActive ? 1 : 0.45 }}
+                          />
+                          <input
+                            type="time"
+                            value={day.breakEndTime || '14:00'}
+                            disabled={!day.isActive}
+                            onChange={(e) => onChange(day.dayOfWeek, 'breakEndTime', e.target.value)}
+                            style={{ ...inputStyle, margin: 0, opacity: day.isActive ? 1 : 0.45 }}
+                          />
+                        </div>
+                      )}
+                    </div>
                   </td>
                 </tr>
               );
@@ -3474,7 +3529,7 @@ function AvailabilityTable({ availability, onChange }) {
               </div>
 
               <div className="availability-mobile-grid">
-                <div className="availability-mobile-field">
+                <div className="availability-mobile-field availability-time-box">
                   <span className="availability-mobile-label">Apertura</span>
                   <input
                     type="time"
@@ -3485,7 +3540,7 @@ function AvailabilityTable({ availability, onChange }) {
                   />
                 </div>
 
-                <div className="availability-mobile-field">
+                <div className="availability-mobile-field availability-time-box">
                   <span className="availability-mobile-label">Cierre</span>
                   <input
                     type="time"
@@ -3496,21 +3551,50 @@ function AvailabilityTable({ availability, onChange }) {
                   />
                 </div>
 
-                <div className="availability-mobile-field availability-mobile-field-full">
-                  <span className="availability-mobile-label">Duración de cada turno</span>
-                  <select
-                    value={day.slotDurationMinutes}
-                    disabled={!day.isActive}
-                    onChange={(e) => onChange(day.dayOfWeek, 'slotDurationMinutes', Number(e.target.value))}
-                    style={{ ...selectInputStyle, opacity: day.isActive ? 1 : 0.45 }}
-                  >
-                    <option value={15}>15 minutos</option>
-                    <option value={30}>30 minutos</option>
-                    <option value={45}>45 minutos</option>
-                    <option value={60}>60 minutos</option>
-                    <option value={90}>90 minutos</option>
-                    <option value={120}>120 minutos</option>
-                  </select>
+                <div className="availability-pause-box">
+                  <div className="availability-pause-header">
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 900, color: '#1d1d1f', letterSpacing: '-0.01em' }}>Pausa del día</div>
+                      <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 750, marginTop: 2 }}>Para almuerzo, descanso o corte interno de agenda.</div>
+                    </div>
+
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 900, color: day.breakEnabled ? '#0071e3' : '#8e8e93', whiteSpace: 'nowrap' }}>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(day.breakEnabled)}
+                        disabled={!day.isActive}
+                        onChange={(e) => onChange(day.dayOfWeek, 'breakEnabled', e.target.checked)}
+                        style={{ width: 20, height: 20 }}
+                      />
+                      {day.breakEnabled ? 'Pausar' : 'Sin pausa'}
+                    </label>
+                  </div>
+
+                  {day.breakEnabled && (
+                    <div className="availability-pause-times">
+                      <div className="availability-mobile-field">
+                        <span className="availability-mobile-label">Desde</span>
+                        <input
+                          type="time"
+                          value={day.breakStartTime || '13:00'}
+                          disabled={!day.isActive}
+                          onChange={(e) => onChange(day.dayOfWeek, 'breakStartTime', e.target.value)}
+                          style={{ ...timeInputStyle, opacity: day.isActive ? 1 : 0.45 }}
+                        />
+                      </div>
+
+                      <div className="availability-mobile-field">
+                        <span className="availability-mobile-label">Hasta</span>
+                        <input
+                          type="time"
+                          value={day.breakEndTime || '14:00'}
+                          disabled={!day.isActive}
+                          onChange={(e) => onChange(day.dayOfWeek, 'breakEndTime', e.target.value)}
+                          style={{ ...timeInputStyle, opacity: day.isActive ? 1 : 0.45 }}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

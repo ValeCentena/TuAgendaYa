@@ -572,6 +572,9 @@ async function getAvailabilityForDate(professionalId, staffId, bookingDate) {
       start_time: "09:00",
       end_time: "18:00",
       slot_duration_minutes: 30,
+      break_enabled: false,
+      break_start_time: "13:00",
+      break_end_time: "14:00",
     };
   }
 
@@ -635,11 +638,30 @@ async function getBusyBookings(professionalId, bookingDate, staffId) {
   return result.rows;
 }
 
-async function isTimeRangeAvailable(professionalId, staffId, bookingDate, startTime, endTime) {
+function rangeOverlapsPause(availability, start, end) {
+  if (!availability || !availability.break_enabled) {
+    return false;
+  }
+
+  const pauseStart = timeToMinutes(availability.break_start_time);
+  const pauseEnd = timeToMinutes(availability.break_end_time);
+
+  if (pauseStart === null || pauseEnd === null || pauseEnd <= pauseStart) {
+    return false;
+  }
+
+  return rangesOverlap(start, end, pauseStart, pauseEnd);
+}
+
+async function isTimeRangeAvailable(professionalId, staffId, bookingDate, startTime, endTime, availability = null) {
   const start = timeToMinutes(startTime);
   const end = timeToMinutes(endTime);
 
   if (start === null || end === null || end <= start) {
+    return false;
+  }
+
+  if (rangeOverlapsPause(availability, start, end)) {
     return false;
   }
 
@@ -768,6 +790,10 @@ router.get("/public/:slug/slots", async (req, res) => {
 
       let available = true;
 
+      if (rangeOverlapsPause(availability, slotStart, slotEnd)) {
+        available = false;
+      }
+
       for (const booking of busyBookings) {
         const busyStart = timeToMinutes(booking.start_time);
         const busyEnd = timeToMinutes(booking.end_time) || busyStart + 30;
@@ -879,7 +905,8 @@ router.post("/public/:slug/book", async (req, res) => {
       staff ? staff.id : null,
       normalizeDate(bookingDate),
       normalizeTime(startTime),
-      normalizeTime(finalEndTime)
+      normalizeTime(finalEndTime),
+      availability
     );
 
     if (!available) {
