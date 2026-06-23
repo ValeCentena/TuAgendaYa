@@ -3259,6 +3259,7 @@ function AvailabilityTable({ availability, onChange }) {
     fontSize: 16,
     borderRadius: 14,
     background: '#fff',
+    boxSizing: 'border-box',
   };
 
   const selectInputStyle = {
@@ -3293,11 +3294,14 @@ function AvailabilityTable({ availability, onChange }) {
         }
 
         .availability-mobile-card {
-          background: #f7f7fb;
+          width: 100%;
+          max-width: 100%;
+          overflow: hidden;
+          background: linear-gradient(180deg, #ffffff 0%, #f7f7fb 100%);
           border: 0.5px solid #e5e5ea;
-          border-radius: 20px;
+          border-radius: 22px;
           padding: 14px;
-          box-shadow: inset 0 1px 0 rgba(255,255,255,0.7);
+          box-shadow: 0 10px 24px rgba(15, 23, 42, 0.045), inset 0 1px 0 rgba(255,255,255,0.78);
         }
 
         .availability-mobile-grid {
@@ -3305,10 +3309,19 @@ function AvailabilityTable({ availability, onChange }) {
           grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
           gap: 10px;
           margin-top: 12px;
+          width: 100%;
+          max-width: 100%;
         }
 
         .availability-mobile-field {
           min-width: 0;
+          max-width: 100%;
+        }
+
+        .availability-mobile-field input,
+        .availability-mobile-field select {
+          width: 100%;
+          max-width: 100%;
         }
 
         .availability-mobile-field-full {
@@ -3337,7 +3350,19 @@ function AvailabilityTable({ availability, onChange }) {
           }
         }
 
-        @media (max-width: 370px) {
+        @media (max-width: 430px) {
+          .availability-mobile-card {
+            padding: 13px;
+            border-radius: 21px;
+          }
+
+          .availability-mobile-grid {
+            grid-template-columns: 1fr 1fr;
+            gap: 9px;
+          }
+        }
+
+        @media (max-width: 360px) {
           .availability-mobile-grid {
             grid-template-columns: 1fr;
           }
@@ -6962,11 +6987,18 @@ function MobileViewportController() {
       }
 
       @media (max-width: 768px) {
+        html,
+        body,
+        #root {
+          max-width: 100vw !important;
+        }
+
         input,
         textarea,
         select {
           font-size: 16px !important;
           line-height: 1.35 !important;
+          max-width: 100% !important;
         }
 
         input::placeholder,
@@ -6979,6 +7011,40 @@ function MobileViewportController() {
 
         button {
           min-height: 44px;
+          max-width: 100%;
+        }
+
+        img,
+        video,
+        canvas,
+        svg {
+          max-width: 100%;
+        }
+
+        [style*="grid-template-columns"] {
+          min-width: 0;
+        }
+
+        .config-summary-grid {
+          grid-template-columns: 1fr !important;
+          gap: 10px !important;
+        }
+
+        .admin-filters,
+        .admin-business-actions,
+        .admin-detail-grid,
+        .admin-business-metrics {
+          grid-template-columns: 1fr !important;
+        }
+      }
+
+      @media (max-width: 430px) {
+        body {
+          background: #f5f5f7;
+        }
+
+        #root > div {
+          max-width: 100vw !important;
         }
       }
     `;
