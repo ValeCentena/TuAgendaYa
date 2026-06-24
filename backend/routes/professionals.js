@@ -1,980 +1,394 @@
-const express = require("express");
-const jwt = require("jsonwebtoken");
-const db = require("../db");
-
+const express = require('express');
 const router = express.Router();
+const jwt = require('jsonwebtoken');
+const db = require('../db');
 
-function getTokenFromHeader(req) {
-  const authHeader = req.headers.authorization || "";
-
-  if (!authHeader.startsWith("Bearer ")) {
-    return null;
+function authMiddleware(req, res, next) {
+  const header = req.headers.authorization;
+  if (!header || !header.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Token requerido' });
   }
-
-  return authHeader.slice(7);
-}
-
-function getProfessionalIdFromRequest(req) {
-  const token = getTokenFromHeader(req);
-
-  if (!token) {
-    const error = new Error("Token requerido");
-    error.status = 401;
-    throw error;
-  }
-
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    const id =
-      decoded.id ||
-      decoded.professionalId ||
-      decoded.professional_id ||
-      decoded.userId ||
-      decoded.user_id;
-
-    if (!id) {
-      const error = new Error("Token inválido");
-      error.status = 401;
-      throw error;
-    }
-
-    return Number(id);
-  } catch (error) {
-    error.status = error.status || 401;
-    error.message = error.message || "Token inválido";
-    throw error;
+    const decoded = jwt.verify(
+      header.slice(7),
+      process.env.JWT_SECRET || 'tuagendaya-secret-dev-change-in-prod'
+    );
+    req.professional = decoded;
+    next();
+  } catch (e) {
+    return res.status(401).json({ error: 'Token inválido o expirado' });
   }
 }
 
-function normalizeText(value) {
-  return String(value || "")
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
+// ── Helpers de tipo ───────────────────────────────────────────
+// Convierte CUALQUIER valor truthy a 1 y cualquier falsy a 0.
+// Maneja: true, false, 1, 0, "true", "false", "1", "0", null, undefined.
+function toBoolInt(v) {
+  if (v === true  || v === 1 || v === '1' || v === 'true')  return 1;
+  if (v === false || v === 0 || v === '0' || v === 'false') return 0;
+  return v ? 1 : 0;
 }
 
-
-function parseBooleanValue(value, fallback = false) {
-  if (value === true || value === 1 || value === "1" || value === "true" || value === "on") return true;
-  if (value === false || value === 0 || value === "0" || value === "false" || value === "off") return false;
-  return fallback;
+// Devuelve "HH:MM" si el valor parece una hora válida, o null en otro caso.
+// Nunca devuelve false, "false", undefined ni cadenas inválidas.
+function toTimeOrNull(v) {
+  if (v === null || v === undefined || v === false || v === '' ||
+      v === 'false' || v === 'null' || v === 'undefined') return null;
+  const s = String(v).slice(0, 5);
+  return /^\d{2}:\d{2}$/.test(s) ? s : null;
 }
 
-function parsePositiveInteger(value, fallback = 30) {
-  if (value === false || value === true || value === "false" || value === "true" || value === "") {
-    return fallback;
-  }
+// ── Helpers disponibilidad ────────────────────────────────────
 
-  const number = Number(value);
-  if (!Number.isFinite(number) || number <= 0) return fallback;
-
-  return Math.round(number);
-}
-
-function normalizeTimeValue(value, fallback) {
-  const text = String(value || fallback || "").slice(0, 5);
-  return /^\d{2}:\d{2}$/.test(text) ? text : fallback;
-}
-
-function normalizeProfessionalProfile(row) {
-  if (!row) return null;
-
-  return {
-    id: row.id,
-    name: row.name,
-    businessName: row.business_name,
-    business_name: row.business_name,
-    email: row.email,
-    phone: row.phone,
-    profession: row.profession,
-    address: row.address,
-    slug: row.slug,
-    logoUrl: row.logo_url,
-    logo_url: row.logo_url,
-    status: row.status,
-    createdAt: row.created_at,
-    created_at: row.created_at,
-    updatedAt: row.updated_at,
-    updated_at: row.updated_at,
-  };
-}
-
-function isValidLogoValue(logoUrl) {
-  if (!logoUrl) return true;
-
-  return (
-    logoUrl.startsWith("http://") ||
-    logoUrl.startsWith("https://") ||
-    logoUrl.startsWith("data:image/png;base64,") ||
-    logoUrl.startsWith("data:image/jpeg;base64,") ||
-    logoUrl.startsWith("data:image/webp;base64,")
-  );
-}
-
-function getDefaultServicesByProfession(profession) {
-  const p = normalizeText(profession);
-
-  if (
-    p.includes("barber") ||
-    p.includes("peluquer") ||
-    p.includes("estilista") ||
-    p.includes("salon")
-  ) {
-    return [
-      { name: "Corte", description: "Corte de pelo", duration_minutes: 30, price: 500 },
-      { name: "Barba", description: "Arreglo de barba", duration_minutes: 20, price: 300 },
-      { name: "Corte + barba", description: "Corte de pelo y arreglo de barba", duration_minutes: 60, price: 800 },
-      { name: "Color", description: "Servicio de coloración", duration_minutes: 90, price: 1200 },
-    ];
-  }
-
-  if (p.includes("dent") || p.includes("odont")) {
-    return [
-      { name: "Consulta inicial", description: "Evaluación general", duration_minutes: 30, price: 1500 },
-      { name: "Limpieza dental", description: "Profilaxis y limpieza", duration_minutes: 45, price: 2500 },
-      { name: "Control", description: "Control odontológico", duration_minutes: 20, price: 1000 },
-      { name: "Urgencia dental", description: "Atención por dolor o urgencia", duration_minutes: 30, price: 2000 },
-    ];
-  }
-
-  if (p.includes("psic") || p.includes("terap")) {
-    return [
-      { name: "Primera entrevista", description: "Primera consulta de evaluación", duration_minutes: 60, price: 1800 },
-      { name: "Consulta individual", description: "Sesión individual", duration_minutes: 50, price: 1600 },
-      { name: "Consulta online", description: "Sesión por videollamada", duration_minutes: 50, price: 1500 },
-    ];
-  }
-
-  if (p.includes("una") || p.includes("uñas") || p.includes("manicur") || p.includes("nail")) {
-    return [
-      { name: "Manicura", description: "Servicio de manicura", duration_minutes: 45, price: 900 },
-      { name: "Kapping", description: "Kapping gel", duration_minutes: 60, price: 1200 },
-      { name: "Esmaltado semipermanente", description: "Esmaltado semi", duration_minutes: 60, price: 1000 },
-      { name: "Esculpidas", description: "Uñas esculpidas", duration_minutes: 90, price: 1800 },
-    ];
-  }
-
-  if (p.includes("veterin")) {
-    return [
-      { name: "Consulta general", description: "Consulta veterinaria", duration_minutes: 30, price: 1200 },
-      { name: "Vacunación", description: "Aplicación de vacuna", duration_minutes: 20, price: 900 },
-      { name: "Control", description: "Control post tratamiento", duration_minutes: 20, price: 800 },
-      { name: "Baño y corte", description: "Higiene y estética", duration_minutes: 60, price: 1800 },
-    ];
-  }
-
-  if (p.includes("medic") || p.includes("doctor") || p.includes("clinica") || p.includes("salud")) {
-    return [
-      { name: "Consulta médica", description: "Consulta general", duration_minutes: 30, price: 1500 },
-      { name: "Control", description: "Control médico", duration_minutes: 20, price: 1000 },
-      { name: "Primera consulta", description: "Primera evaluación", duration_minutes: 40, price: 1800 },
-    ];
-  }
-
-  if (p.includes("fisi") || p.includes("kines") || p.includes("masaj")) {
-    return [
-      { name: "Evaluación inicial", description: "Primera evaluación", duration_minutes: 45, price: 1500 },
-      { name: "Sesión de fisioterapia", description: "Tratamiento fisioterapéutico", duration_minutes: 45, price: 1400 },
-      { name: "Masaje terapéutico", description: "Masaje o descarga muscular", duration_minutes: 60, price: 1800 },
-    ];
-  }
-
-  if (p.includes("entren") || p.includes("personal trainer") || p.includes("gym") || p.includes("fitness")) {
-    return [
-      { name: "Clase personal", description: "Entrenamiento personalizado", duration_minutes: 60, price: 1200 },
-      { name: "Evaluación física", description: "Evaluación inicial", duration_minutes: 45, price: 1000 },
-      { name: "Planificación", description: "Armado de rutina", duration_minutes: 30, price: 800 },
-    ];
-  }
-
-  if (p.includes("maquill") || p.includes("makeup")) {
-    return [
-      { name: "Maquillaje social", description: "Maquillaje para evento", duration_minutes: 60, price: 1800 },
-      { name: "Maquillaje novia", description: "Servicio especial novia", duration_minutes: 120, price: 4500 },
-      { name: "Prueba de maquillaje", description: "Prueba previa", duration_minutes: 60, price: 1500 },
-    ];
-  }
-
-  if (p.includes("fotograf") || p.includes("foto")) {
-    return [
-      { name: "Sesión básica", description: "Sesión fotográfica corta", duration_minutes: 60, price: 2500 },
-      { name: "Sesión completa", description: "Sesión fotográfica completa", duration_minutes: 120, price: 5000 },
-      { name: "Reunión previa", description: "Coordinación de sesión", duration_minutes: 30, price: 0 },
-    ];
-  }
-
-  return [
-    { name: "Consulta", description: "Servicio general", duration_minutes: 30, price: 1000 },
-    { name: "Servicio estándar", description: "Servicio principal", duration_minutes: 30, price: 1000 },
-    { name: "Servicio extendido", description: "Servicio de mayor duración", duration_minutes: 60, price: 1800 },
-  ];
-}
-
-function defaultAvailability(professionalId) {
-  return [0, 1, 2, 3, 4, 5, 6].map((day) => ({
+function buildDefaultAvailability(professionalId) {
+  return [0, 1, 2, 3, 4, 5, 6].map(d => ({
     professional_id: professionalId,
-    day_of_week: day,
-    is_active: day >= 1 && day <= 5,
-    start_time: "09:00",
-    end_time: "18:00",
-    slot_duration_minutes: 30,
-    break_enabled: false,
-    break_start_time: "13:00",
-    break_end_time: "14:00",
+    day_of_week:     d,
+    is_active:       d >= 1 && d <= 5 ? 1 : 0,
+    start_time:      '09:00',
+    end_time:        '18:00',
+    break_enabled:   0,
+    break_start:     null,
+    break_end:       null,
   }));
 }
 
-function normalizeAvailabilityRow(row) {
+function normTime(t) {
+  if (!t) return null;
+  return String(t).slice(0, 5);
+}
+
+function normalizeAvailRow(r) {
   return {
-    id: row.id,
-    professionalId: row.professional_id,
-    professional_id: row.professional_id,
-    dayOfWeek: row.day_of_week,
-    day_of_week: row.day_of_week,
-    isActive: row.is_active,
-    is_active: row.is_active,
-    startTime: String(row.start_time || "09:00").slice(0, 5),
-    start_time: String(row.start_time || "09:00").slice(0, 5),
-    endTime: String(row.end_time || "18:00").slice(0, 5),
-    end_time: String(row.end_time || "18:00").slice(0, 5),
-    slotDurationMinutes: row.slot_duration_minutes || 30,
-    slot_duration_minutes: row.slot_duration_minutes || 30,
-    breakEnabled: Boolean(row.break_enabled),
-    break_enabled: Boolean(row.break_enabled),
-    breakStartTime: String(row.break_start_time || "13:00").slice(0, 5),
-    break_start_time: String(row.break_start_time || "13:00").slice(0, 5),
-    breakEndTime: String(row.break_end_time || "14:00").slice(0, 5),
-    break_end_time: String(row.break_end_time || "14:00").slice(0, 5),
+    ...r,
+    is_active:     toBoolInt(r.is_active),
+    start_time:    normTime(r.start_time) || '09:00',
+    end_time:      normTime(r.end_time)   || '18:00',
+    break_enabled: toBoolInt(r.break_enabled),
+    break_start:   normTime(r.break_start),
+    break_end:     normTime(r.break_end),
   };
 }
 
-function normalizeService(row) {
-  return {
-    id: row.id,
-    professionalId: row.professional_id,
-    professional_id: row.professional_id,
-    name: row.name,
-    description: row.description,
-    durationMinutes: row.duration_minutes,
-    duration_minutes: row.duration_minutes,
-    price: row.price === null || row.price === undefined ? null : Number(row.price),
-    isActive: row.is_active,
-    is_active: row.is_active,
-    createdAt: row.created_at,
-    created_at: row.created_at,
-    updatedAt: row.updated_at,
-    updated_at: row.updated_at,
-  };
+function mergeAvailWithDefaults(rows, professionalId) {
+  const defaults = buildDefaultAvailability(professionalId);
+  return [0, 1, 2, 3, 4, 5, 6].map(d => {
+    const found = rows.find(r => Number(r.day_of_week) === d);
+    return found ? normalizeAvailRow(found) : defaults[d];
+  });
 }
 
-async function ensureAvailabilityPauseColumns() {
-  await db.query(`ALTER TABLE professional_availability ADD COLUMN IF NOT EXISTS break_enabled BOOLEAN DEFAULT false;`);
-  await db.query(`ALTER TABLE professional_availability ADD COLUMN IF NOT EXISTS break_start_time TIME DEFAULT '13:00';`);
-  await db.query(`ALTER TABLE professional_availability ADD COLUMN IF NOT EXISTS break_end_time TIME DEFAULT '14:00';`);
-  await db.query(`ALTER TABLE professional_availability ADD COLUMN IF NOT EXISTS slot_duration_minutes INTEGER DEFAULT 30;`);
+// ── Helpers servicios ─────────────────────────────────────────
 
-  // Corrección de seguridad para bases que hayan quedado con columnas creadas
-  // con tipos viejos o incorrectos durante pruebas anteriores.
-  await db.query(`
-    ALTER TABLE professional_availability
-    ALTER COLUMN break_enabled TYPE BOOLEAN
-    USING CASE
-      WHEN break_enabled::text IN ('true', 't', '1', 'yes', 'on') THEN true
-      ELSE false
-    END;
-  `).catch(() => {});
-
-  await db.query(`
-    ALTER TABLE professional_availability
-    ALTER COLUMN slot_duration_minutes TYPE INTEGER
-    USING CASE
-      WHEN slot_duration_minutes::text ~ '^[0-9]+$' THEN slot_duration_minutes::text::integer
-      ELSE 30
-    END;
-  `).catch(() => {});
-
-  await db.query(`
-    UPDATE professional_availability
-    SET slot_duration_minutes = 30
-    WHERE slot_duration_minutes IS NULL OR slot_duration_minutes <= 0;
-  `).catch(() => {});
-
-  await db.query(`
-    UPDATE professional_availability
-    SET break_enabled = false
-    WHERE break_enabled IS NULL;
-  `).catch(() => {});
-}
-
-async function ensureDefaultAvailability(professionalId) {
-  await ensureAvailabilityPauseColumns();
-
-  const existing = await db.query(
-    `
-    SELECT *
-    FROM professional_availability
-    WHERE professional_id = $1
-    ORDER BY day_of_week ASC
-    `,
-    [professionalId]
-  );
-
-  if (existing.rows.length === 7) {
-    return existing.rows.map(normalizeAvailabilityRow);
+function getDefaultServices(profession) {
+  const p = (profession || '').toLowerCase();
+  if (p.includes('peluq') || p.includes('barber') || p.includes('cabello') || p.includes('pelo')) {
+    return [
+      { name: 'Corte de pelo', description: null, duration_minutes: 30, price: 0 },
+      { name: 'Coloración',    description: null, duration_minutes: 60, price: 0 },
+      { name: 'Tratamiento',   description: null, duration_minutes: 45, price: 0 },
+    ];
   }
-
-  const defaults = defaultAvailability(professionalId);
-
-  for (const day of defaults) {
-    await db.query(
-      `
-      INSERT INTO professional_availability (
-        professional_id,
-        day_of_week,
-        is_active,
-        start_time,
-        end_time,
-        slot_duration_minutes,
-        break_enabled,
-        break_start_time,
-        break_end_time,
-        created_at,
-        updated_at
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
-      ON CONFLICT (professional_id, day_of_week)
-      DO NOTHING
-      `,
-      [
-        day.professional_id,
-        day.day_of_week,
-        day.is_active,
-        day.start_time,
-        day.end_time,
-        day.slot_duration_minutes,
-        day.break_enabled,
-        day.break_start_time,
-        day.break_end_time,
-      ]
-    );
+  if (p.includes('estet') || p.includes('belleza') || p.includes('manicur') || p.includes('uñas')) {
+    return [
+      { name: 'Manicura',        description: null, duration_minutes: 30, price: 0 },
+      { name: 'Pedicura',        description: null, duration_minutes: 45, price: 0 },
+      { name: 'Diseño de uñas',  description: null, duration_minutes: 60, price: 0 },
+    ];
   }
-
-  const result = await db.query(
-    `
-    SELECT *
-    FROM professional_availability
-    WHERE professional_id = $1
-    ORDER BY day_of_week ASC
-    `,
-    [professionalId]
-  );
-
-  return result.rows.map(normalizeAvailabilityRow);
-}
-
-async function ensureDefaultServices(professionalId) {
-  const existing = await db.query(
-    `
-    SELECT *
-    FROM professional_services
-    WHERE professional_id = $1
-    ORDER BY id ASC
-    `,
-    [professionalId]
-  );
-
-  if (existing.rows.length > 0) {
-    return existing.rows;
+  if (p.includes('medic') || p.includes('doctor') || p.includes('psicolog') ||
+      p.includes('psiquiatr') || p.includes('nutricion') || p.includes('nutrición')) {
+    return [
+      { name: 'Consulta', description: null, duration_minutes: 30, price: 0 },
+      { name: 'Control',  description: null, duration_minutes: 20, price: 0 },
+    ];
   }
-
-  const professionalResult = await db.query(
-    `
-    SELECT profession
-    FROM professionals
-    WHERE id = $1
-    LIMIT 1
-    `,
-    [professionalId]
-  );
-
-  const profession = professionalResult.rows[0]?.profession || "";
-  const defaults = getDefaultServicesByProfession(profession);
-
-  for (const service of defaults) {
-    await db.query(
-      `
-      INSERT INTO professional_services (
-        professional_id,
-        name,
-        description,
-        duration_minutes,
-        price,
-        is_active,
-        created_at,
-        updated_at
-      )
-      VALUES ($1, $2, $3, $4, $5, true, NOW(), NOW())
-      `,
-      [professionalId, service.name, service.description, service.duration_minutes, service.price]
-    );
+  if (p.includes('abogad') || p.includes('contador') || p.includes('contad') || p.includes('asesor')) {
+    return [
+      { name: 'Consulta', description: null, duration_minutes: 60, price: 0 },
+      { name: 'Reunión',  description: null, duration_minutes: 90, price: 0 },
+    ];
   }
-
-  const result = await db.query(
-    `
-    SELECT *
-    FROM professional_services
-    WHERE professional_id = $1
-    ORDER BY id ASC
-    `,
-    [professionalId]
-  );
-
-  return result.rows;
+  if (p.includes('kinesiol') || p.includes('fisio') || p.includes('masaj') || p.includes('osteopat')) {
+    return [
+      { name: 'Sesión',  description: null, duration_minutes: 60, price: 0 },
+      { name: 'Masaje',  description: null, duration_minutes: 45, price: 0 },
+    ];
+  }
+  if (p.includes('entrenad') || p.includes('personal trainer') ||
+      p.includes('fitness')  || p.includes('gimnasio')) {
+    return [
+      { name: 'Clase personal', description: null, duration_minutes: 60, price: 0 },
+      { name: 'Evaluación',     description: null, duration_minutes: 30, price: 0 },
+    ];
+  }
+  return [
+    { name: 'Corte',    description: null, duration_minutes: 30, price: 0 },
+    { name: 'Consulta', description: null, duration_minutes: 30, price: 0 },
+  ];
 }
 
+// ══════════════════════════════════════════════════════════════
+// DISPONIBILIDAD
+// ══════════════════════════════════════════════════════════════
 
-async function ensureClientNotesTable() {
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS client_notes (
-      id SERIAL PRIMARY KEY,
-      professional_id INTEGER NOT NULL REFERENCES professionals(id) ON DELETE CASCADE,
-      client_key TEXT NOT NULL,
-      client_name TEXT,
-      client_phone TEXT,
-      notes TEXT,
-      created_at TIMESTAMP DEFAULT NOW(),
-      updated_at TIMESTAMP DEFAULT NOW(),
-      UNIQUE (professional_id, client_key)
-    );
-  `);
-
-  await db.query(`ALTER TABLE client_notes ADD COLUMN IF NOT EXISTS professional_id INTEGER;`);
-  await db.query(`ALTER TABLE client_notes ADD COLUMN IF NOT EXISTS client_key TEXT;`);
-  await db.query(`ALTER TABLE client_notes ADD COLUMN IF NOT EXISTS client_name TEXT;`);
-  await db.query(`ALTER TABLE client_notes ADD COLUMN IF NOT EXISTS client_phone TEXT;`);
-  await db.query(`ALTER TABLE client_notes ADD COLUMN IF NOT EXISTS notes TEXT;`);
-  await db.query(`ALTER TABLE client_notes ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();`);
-  await db.query(`ALTER TABLE client_notes ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();`);
-
-  await db.query(`
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_client_notes_professional_key
-    ON client_notes (professional_id, client_key);
-  `);
-}
-
-function normalizeClientNote(row) {
-  return {
-    id: row.id,
-    professionalId: row.professional_id,
-    professional_id: row.professional_id,
-    clientKey: row.client_key,
-    client_key: row.client_key,
-    clientName: row.client_name,
-    client_name: row.client_name,
-    clientPhone: row.client_phone,
-    client_phone: row.client_phone,
-    notes: row.notes || "",
-    createdAt: row.created_at,
-    created_at: row.created_at,
-    updatedAt: row.updated_at,
-    updated_at: row.updated_at,
-  };
-}
-
-router.get("/me/profile", async (req, res) => {
+// GET /api/professionals/me/availability
+router.get('/me/availability', authMiddleware, async (req, res) => {
   try {
-    const professionalId = getProfessionalIdFromRequest(req);
+    const profId = req.professional.id;
+    const rows = (await db.query(
+      `SELECT id, professional_id, day_of_week,
+              is_active,
+              start_time::text  AS start_time,
+              end_time::text    AS end_time,
+              break_enabled,
+              break_start::text AS break_start,
+              break_end::text   AS break_end
+       FROM professional_availability
+       WHERE professional_id = $1
+       ORDER BY day_of_week`,
+      [profId]
+    )).rows;
 
-    const result = await db.query(
-      `
-      SELECT
-        id,
-        name,
-        business_name,
-        email,
-        phone,
-        profession,
-        address,
-        slug,
-        logo_url,
-        status,
-        created_at,
-        updated_at
-      FROM professionals
-      WHERE id = $1
-      LIMIT 1
-      `,
-      [professionalId]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: "Profesional no encontrado" });
-    }
-
-    res.json({ professional: normalizeProfessionalProfile(result.rows[0]) });
-  } catch (error) {
-    res.status(error.status || 500).json({ error: error.message || "Error obteniendo perfil" });
-  }
-});
-
-router.patch("/me/profile", async (req, res) => {
-  try {
-    const professionalId = getProfessionalIdFromRequest(req);
-
-    const currentResult = await db.query(
-      `
-      SELECT *
-      FROM professionals
-      WHERE id = $1
-      LIMIT 1
-      `,
-      [professionalId]
-    );
-
-    if (currentResult.rows.length === 0) {
-      return res.status(404).json({ error: "Profesional no encontrado" });
-    }
-
-    const current = currentResult.rows[0];
-
-    const businessName =
-      req.body.businessName === undefined && req.body.business_name === undefined
-        ? current.business_name
-        : String(req.body.businessName ?? req.body.business_name ?? "").trim();
-
-    const phone =
-      req.body.phone === undefined ? current.phone : String(req.body.phone || "").trim();
-
-    const address =
-      req.body.address === undefined ? current.address : String(req.body.address || "").trim();
-
-    const logoUrl =
-      req.body.logoUrl === undefined && req.body.logo_url === undefined
-        ? current.logo_url
-        : String(req.body.logoUrl ?? req.body.logo_url ?? "").trim();
-
-    if (!businessName) {
-      return res.status(400).json({ error: "El nombre del negocio es obligatorio" });
-    }
-
-    if (!isValidLogoValue(logoUrl)) {
-      return res.status(400).json({
-        error: "El logo debe ser una URL válida o una imagen cargada desde archivo",
-      });
-    }
-
-    if (logoUrl && logoUrl.length > 1500000) {
-      return res.status(400).json({
-        error: "El logo es demasiado pesado. Usá una imagen menor a 1 MB.",
-      });
-    }
-
-    const result = await db.query(
-      `
-      UPDATE professionals
-      SET
-        business_name = $1,
-        phone = $2,
-        address = $3,
-        logo_url = $4,
-        updated_at = NOW()
-      WHERE id = $5
-      RETURNING
-        id,
-        name,
-        business_name,
-        email,
-        phone,
-        profession,
-        address,
-        slug,
-        logo_url,
-        status,
-        created_at,
-        updated_at
-      `,
-      [businessName, phone || null, address || null, logoUrl || null, professionalId]
-    );
-
-    res.json({ success: true, professional: normalizeProfessionalProfile(result.rows[0]) });
-  } catch (error) {
-    res.status(error.status || 500).json({ error: error.message || "Error actualizando perfil" });
-  }
-});
-
-router.get("/me/availability", async (req, res) => {
-  try {
-    const professionalId = getProfessionalIdFromRequest(req);
-    const availability = await ensureDefaultAvailability(professionalId);
+    const availability = mergeAvailWithDefaults(rows, profId);
     res.json({ availability });
-  } catch (error) {
-    res.status(error.status || 500).json({ error: error.message || "Error obteniendo disponibilidad" });
+  } catch (err) {
+    console.error('GET /me/availability error:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 
-router.patch("/me/availability", async (req, res) => {
+// PATCH /api/professionals/me/availability
+// Acepta camelCase o snake_case. Nunca falla por tipos incorrectos.
+// NO acepta slot_duration_minutes desde el frontend — se guarda siempre como 30.
+router.patch('/me/availability', authMiddleware, async (req, res) => {
+  const profId = req.professional.id;
+  const list   = req.body.availability;
+
+  if (!Array.isArray(list) || list.length === 0) {
+    return res.status(400).json({ error: 'Body debe tener { availability: [...] }' });
+  }
+
   try {
-    const professionalId = getProfessionalIdFromRequest(req);
-    await ensureAvailabilityPauseColumns();
+    for (const item of list) {
+      // ── día de la semana ──────────────────────────────────
+      const dow = parseInt(
+        item.day_of_week !== undefined ? item.day_of_week : item.dayOfWeek
+      );
+      if (isNaN(dow) || dow < 0 || dow > 6) continue;
 
-    const incoming = Array.isArray(req.body) ? req.body : req.body.availability;
+      // ── campos booleanos → INTEGER 0/1 ───────────────────
+      const isActive     = toBoolInt(item.is_active     !== undefined ? item.is_active     : item.isActive);
+      const breakEnabled = toBoolInt(item.break_enabled !== undefined ? item.break_enabled : item.breakEnabled);
 
-    if (!Array.isArray(incoming)) {
-      return res.status(400).json({ error: "Disponibilidad inválida" });
-    }
+      // ── horarios → "HH:MM" con fallback seguro ───────────
+      const startTime  = toTimeOrNull(item.start_time  || item.startTime)  || '09:00';
+      const endTime    = toTimeOrNull(item.end_time    || item.endTime)    || '18:00';
+      const breakStart = toTimeOrNull(item.break_start || item.breakStart);
+      const breakEnd   = toTimeOrNull(item.break_end   || item.breakEnd);
 
-    for (const item of incoming) {
-      const dayOfWeek = Number(item.dayOfWeek ?? item.day_of_week);
-      const isActive = parseBooleanValue(item.isActive ?? item.is_active, false);
-      const startTime = normalizeTimeValue(item.startTime ?? item.start_time, "09:00");
-      const endTime = normalizeTimeValue(item.endTime ?? item.end_time, "18:00");
-      const slotDurationMinutes = parsePositiveInteger(item.slotDurationMinutes ?? item.slot_duration_minutes, 30);
-      const breakEnabled = parseBooleanValue(item.breakEnabled ?? item.break_enabled, false);
-      const breakStartTime = normalizeTimeValue(item.breakStartTime ?? item.break_start_time, "13:00");
-      const breakEndTime = normalizeTimeValue(item.breakEndTime ?? item.break_end_time, "14:00");
-
-      if (Number.isNaN(dayOfWeek) || dayOfWeek < 0 || dayOfWeek > 6) continue;
-
+      // slot_duration_minutes se mantiene en 30 (la duración real viene de professional_services)
       await db.query(
-        `
-        INSERT INTO professional_availability (
-          professional_id,
-          day_of_week,
-          is_active,
-          start_time,
-          end_time,
-          break_enabled,
-          break_start_time,
-          break_end_time,
-          created_at,
-          updated_at
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
-        ON CONFLICT (professional_id, day_of_week)
-        DO UPDATE SET
-          is_active = EXCLUDED.is_active,
-          start_time = EXCLUDED.start_time,
-          end_time = EXCLUDED.end_time,
-          break_enabled = EXCLUDED.break_enabled,
-          break_start_time = EXCLUDED.break_start_time,
-          break_end_time = EXCLUDED.break_end_time,
-          updated_at = NOW()
-        `,
-        [professionalId, dayOfWeek, isActive, startTime, endTime, breakEnabled, breakStartTime, breakEndTime]
+        `INSERT INTO professional_availability
+           (professional_id, day_of_week, is_active, start_time, end_time,
+            slot_duration_minutes, break_enabled, break_start, break_end)
+         VALUES ($1, $2, $3, $4::time, $5::time, 30, $6, $7, $8)
+         ON CONFLICT (professional_id, day_of_week)
+         DO UPDATE SET
+           is_active             = EXCLUDED.is_active,
+           start_time            = EXCLUDED.start_time,
+           end_time              = EXCLUDED.end_time,
+           break_enabled         = EXCLUDED.break_enabled,
+           break_start           = EXCLUDED.break_start,
+           break_end             = EXCLUDED.break_end,
+           updated_at            = CURRENT_TIMESTAMP`,
+        [profId, dow, isActive, startTime, endTime, breakEnabled, breakStart, breakEnd]
       );
     }
 
-    const result = await db.query(
-      `
-      SELECT *
-      FROM professional_availability
-      WHERE professional_id = $1
-      ORDER BY day_of_week ASC
-      `,
-      [professionalId]
-    );
+    const updated = (await db.query(
+      `SELECT id, professional_id, day_of_week,
+              is_active,
+              start_time::text  AS start_time,
+              end_time::text    AS end_time,
+              break_enabled,
+              break_start::text AS break_start,
+              break_end::text   AS break_end
+       FROM professional_availability
+       WHERE professional_id = $1
+       ORDER BY day_of_week`,
+      [profId]
+    )).rows;
 
-    res.json({ success: true, availability: result.rows.map(normalizeAvailabilityRow) });
-  } catch (error) {
-    res.status(error.status || 500).json({ error: error.message || "Error guardando disponibilidad" });
+    const availability = mergeAvailWithDefaults(updated, profId);
+    res.json({ availability });
+  } catch (err) {
+    console.error('PATCH /me/availability error:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 
-router.get("/me/services", async (req, res) => {
+// ══════════════════════════════════════════════════════════════
+// SERVICIOS
+// ══════════════════════════════════════════════════════════════
+
+// GET /api/professionals/me/services
+router.get('/me/services', authMiddleware, async (req, res) => {
   try {
-    const professionalId = getProfessionalIdFromRequest(req);
-    const services = await ensureDefaultServices(professionalId);
-    res.json({ services: services.map(normalizeService) });
-  } catch (error) {
-    res.status(error.status || 500).json({ error: error.message || "Error obteniendo servicios" });
-  }
-});
+    const profId = req.professional.id;
 
-router.post("/me/services", async (req, res) => {
-  try {
-    const professionalId = getProfessionalIdFromRequest(req);
-    const serviceName = String(req.body.name || "").trim();
-    const description = req.body.description || null;
-    const duration = Number(req.body.durationMinutes ?? req.body.duration_minutes ?? 30);
-    const price = req.body.price === undefined || req.body.price === "" ? null : Number(req.body.price);
+    const rows = (await db.query(
+      `SELECT id, professional_id, name, description, duration_minutes, price, is_active, created_at, updated_at
+       FROM professional_services
+       WHERE professional_id = $1
+       ORDER BY id ASC`,
+      [profId]
+    )).rows;
 
-    if (!serviceName) return res.status(400).json({ error: "El nombre del servicio es obligatorio" });
-    if (!duration || duration <= 0) return res.status(400).json({ error: "La duración del servicio es inválida" });
+    if (rows.length === 0) {
+      const prof = (await db.query(
+        'SELECT profession FROM professionals WHERE id = $1',
+        [profId]
+      )).rows[0];
 
-    const result = await db.query(
-      `
-      INSERT INTO professional_services (
-        professional_id,
-        name,
-        description,
-        duration_minutes,
-        price,
-        is_active,
-        created_at,
-        updated_at
-      )
-      VALUES ($1, $2, $3, $4, $5, true, NOW(), NOW())
-      RETURNING *
-      `,
-      [professionalId, serviceName, description, duration, price]
-    );
+      const defaults = getDefaultServices(prof ? prof.profession : '').map(s => ({
+        id:               null,
+        professional_id:  profId,
+        name:             s.name,
+        description:      s.description,
+        duration_minutes: s.duration_minutes,
+        price:            s.price,
+        is_active:        1,
+        created_at:       null,
+        updated_at:       null,
+        _is_default:      true,
+      }));
 
-    res.status(201).json({ success: true, service: normalizeService(result.rows[0]) });
-  } catch (error) {
-    res.status(error.status || 500).json({ error: error.message || "Error creando servicio" });
-  }
-});
-
-router.patch("/me/services/:id", async (req, res) => {
-  try {
-    const professionalId = getProfessionalIdFromRequest(req);
-    const serviceId = Number(req.params.id);
-
-    const current = await db.query(
-      `
-      SELECT *
-      FROM professional_services
-      WHERE id = $1 AND professional_id = $2
-      `,
-      [serviceId, professionalId]
-    );
-
-    if (current.rows.length === 0) return res.status(404).json({ error: "Servicio no encontrado" });
-
-    const existing = current.rows[0];
-    const name = req.body.name ?? existing.name;
-    const description = req.body.description ?? existing.description;
-    const durationMinutes = Number(req.body.durationMinutes ?? req.body.duration_minutes ?? existing.duration_minutes);
-    const price = req.body.price === undefined || req.body.price === "" ? existing.price : Number(req.body.price);
-    const isActive =
-      req.body.isActive === undefined && req.body.is_active === undefined
-        ? existing.is_active
-        : Boolean(req.body.isActive ?? req.body.is_active);
-
-    const result = await db.query(
-      `
-      UPDATE professional_services
-      SET
-        name = $1,
-        description = $2,
-        duration_minutes = $3,
-        price = $4,
-        is_active = $5,
-        updated_at = NOW()
-      WHERE id = $6 AND professional_id = $7
-      RETURNING *
-      `,
-      [name, description || null, durationMinutes, price, isActive, serviceId, professionalId]
-    );
-
-    res.json({ success: true, service: normalizeService(result.rows[0]) });
-  } catch (error) {
-    res.status(error.status || 500).json({ error: error.message || "Error actualizando servicio" });
-  }
-});
-
-router.delete("/me/services/:id", async (req, res) => {
-  try {
-    const professionalId = getProfessionalIdFromRequest(req);
-    const serviceId = Number(req.params.id);
-
-    if (!serviceId || Number.isNaN(serviceId)) {
-      return res.status(400).json({
-        error: "Servicio inválido",
-      });
+      return res.json({ services: defaults });
     }
 
-    const result = await db.query(
-      `
-      DELETE FROM professional_services
-      WHERE id = $1 AND professional_id = $2
-      RETURNING id, name
-      `,
-      [serviceId, professionalId]
-    );
+    res.json({ services: rows });
+  } catch (err) {
+    console.error('GET /me/services error:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        error: "Servicio no encontrado",
-      });
+// POST /api/professionals/me/services
+router.post('/me/services', authMiddleware, async (req, res) => {
+  const profId = req.professional.id;
+  const { name, description, duration_minutes, price, is_active } = req.body;
+
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: 'El nombre del servicio es requerido' });
+  }
+  if (!duration_minutes || parseInt(duration_minutes) < 1) {
+    return res.status(400).json({ error: 'La duración debe ser mayor a 0 minutos' });
+  }
+
+  try {
+    const result = await db.query(
+      `INSERT INTO professional_services
+         (professional_id, name, description, duration_minutes, price, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [
+        profId,
+        name.trim(),
+        description ? description.trim() : null,
+        parseInt(duration_minutes),
+        parseFloat(price) || 0,
+        toBoolInt(is_active !== undefined ? is_active : 1),
+      ]
+    );
+    res.status(201).json({ service: result.rows[0] });
+  } catch (err) {
+    console.error('POST /me/services error:', err);
+    res.status(500).json({ error: 'Error al crear el servicio' });
+  }
+});
+
+// PATCH /api/professionals/me/services/:id
+router.patch('/me/services/:id', authMiddleware, async (req, res) => {
+  const profId    = req.professional.id;
+  const serviceId = parseInt(req.params.id);
+
+  if (isNaN(serviceId)) {
+    return res.status(400).json({ error: 'ID de servicio inválido' });
+  }
+
+  try {
+    const existing = (await db.query(
+      'SELECT * FROM professional_services WHERE id = $1 AND professional_id = $2',
+      [serviceId, profId]
+    )).rows[0];
+
+    if (!existing) {
+      return res.status(404).json({ error: 'Servicio no encontrado' });
     }
 
-    res.json({
-      success: true,
-      deletedService: result.rows[0],
-    });
-  } catch (error) {
-    res.status(error.status || 500).json({
-      error: error.message || "Error eliminando servicio",
-    });
-  }
-});
+    const { name, description, duration_minutes, price, is_active } = req.body;
 
+    const newName     = name             !== undefined ? name.trim()                   : existing.name;
+    const newDesc     = description      !== undefined ? (description ? description.trim() : null) : existing.description;
+    const newDuration = duration_minutes !== undefined ? parseInt(duration_minutes)    : existing.duration_minutes;
+    const newPrice    = price            !== undefined ? parseFloat(price) || 0        : existing.price;
+    const newActive   = is_active        !== undefined ? toBoolInt(is_active)          : existing.is_active;
 
-router.get("/me/client-notes", async (req, res) => {
-  try {
-    const professionalId = getProfessionalIdFromRequest(req);
-
-    await ensureClientNotesTable();
-
-    const result = await db.query(
-      `
-      SELECT *
-      FROM client_notes
-      WHERE professional_id = $1
-      ORDER BY updated_at DESC, id DESC
-      `,
-      [professionalId]
-    );
-
-    res.json({
-      notes: result.rows.map(normalizeClientNote),
-    });
-  } catch (error) {
-    res.status(error.status || 500).json({
-      error: error.message || "Error obteniendo notas de clientes",
-    });
-  }
-});
-
-router.patch("/me/client-notes/:clientKey", async (req, res) => {
-  try {
-    const professionalId = getProfessionalIdFromRequest(req);
-    const clientKey = String(req.params.clientKey || "").trim();
-    const clientName = String(req.body.clientName ?? req.body.client_name ?? "").trim();
-    const clientPhone = String(req.body.clientPhone ?? req.body.client_phone ?? "").trim();
-    const notes = String(req.body.notes ?? "").trim();
-
-    if (!clientKey) {
-      return res.status(400).json({ error: "Cliente inválido" });
+    if (!newName) {
+      return res.status(400).json({ error: 'El nombre no puede estar vacío' });
+    }
+    if (newDuration < 1) {
+      return res.status(400).json({ error: 'La duración debe ser mayor a 0 minutos' });
     }
 
-    if (notes.length > 3000) {
-      return res.status(400).json({
-        error: "La nota es demasiado larga. Máximo 3000 caracteres.",
-      });
+    const updated = (await db.query(
+      `UPDATE professional_services
+       SET name = $1, description = $2, duration_minutes = $3, price = $4,
+           is_active = $5, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $6 AND professional_id = $7
+       RETURNING *`,
+      [newName, newDesc, newDuration, newPrice, newActive, serviceId, profId]
+    )).rows[0];
+
+    res.json({ service: updated });
+  } catch (err) {
+    console.error('PATCH /me/services/:id error:', err);
+    res.status(500).json({ error: 'Error al actualizar el servicio' });
+  }
+});
+
+// DELETE /api/professionals/me/services/:id
+// Soft delete — preserva integridad referencial con reservas existentes
+router.delete('/me/services/:id', authMiddleware, async (req, res) => {
+  const profId    = req.professional.id;
+  const serviceId = parseInt(req.params.id);
+
+  if (isNaN(serviceId)) {
+    return res.status(400).json({ error: 'ID de servicio inválido' });
+  }
+
+  try {
+    const existing = (await db.query(
+      'SELECT id FROM professional_services WHERE id = $1 AND professional_id = $2',
+      [serviceId, profId]
+    )).rows[0];
+
+    if (!existing) {
+      return res.status(404).json({ error: 'Servicio no encontrado' });
     }
 
-    await ensureClientNotesTable();
-
-    const result = await db.query(
-      `
-      INSERT INTO client_notes (
-        professional_id,
-        client_key,
-        client_name,
-        client_phone,
-        notes,
-        created_at,
-        updated_at
-      )
-      VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
-      ON CONFLICT (professional_id, client_key)
-      DO UPDATE SET
-        client_name = EXCLUDED.client_name,
-        client_phone = EXCLUDED.client_phone,
-        notes = EXCLUDED.notes,
-        updated_at = NOW()
-      RETURNING *
-      `,
-      [professionalId, clientKey, clientName || null, clientPhone || null, notes || null]
+    await db.query(
+      `UPDATE professional_services
+       SET is_active = 0, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1 AND professional_id = $2`,
+      [serviceId, profId]
     );
 
-    res.json({
-      success: true,
-      note: normalizeClientNote(result.rows[0]),
-    });
-  } catch (error) {
-    res.status(error.status || 500).json({
-      error: error.message || "Error guardando nota de cliente",
-    });
-  }
-});
-
-router.get("/public/:slug/services", async (req, res) => {
-  try {
-    const { slug } = req.params;
-
-    const professionalResult = await db.query(
-      `
-      SELECT id
-      FROM professionals
-      WHERE slug = $1 AND status = 'active'
-      `,
-      [slug]
-    );
-
-    if (professionalResult.rows.length === 0) {
-      return res.status(404).json({ error: "Profesional no encontrado" });
-    }
-
-    const professionalId = professionalResult.rows[0].id;
-    const services = await ensureDefaultServices(professionalId);
-
-    res.json({ services: services.filter((service) => service.is_active).map(normalizeService) });
-  } catch (error) {
-    res.status(500).json({ error: error.message || "Error obteniendo servicios públicos" });
-  }
-});
-
-router.get("/", async (req, res) => {
-  try {
-    const result = await db.query(
-      `
-      SELECT
-        id,
-        name,
-        business_name,
-        email,
-        phone,
-        profession,
-        address,
-        slug,
-        logo_url,
-        status,
-        created_at,
-        updated_at
-      FROM professionals
-      ORDER BY created_at DESC
-      `
-    );
-
-    res.json({ professionals: result.rows.map(normalizeProfessionalProfile) });
-  } catch (error) {
-    res.status(500).json({ error: "Error obteniendo profesionales" });
-  }
-});
-
-router.get("/:id", async (req, res) => {
-  try {
-    const result = await db.query(
-      `
-      SELECT
-        id,
-        name,
-        business_name,
-        email,
-        phone,
-        profession,
-        address,
-        slug,
-        logo_url,
-        status,
-        created_at,
-        updated_at
-      FROM professionals
-      WHERE id = $1
-      `,
-      [req.params.id]
-    );
-
-    if (result.rows.length === 0) return res.status(404).json({ error: "Profesional no encontrado" });
-
-    res.json({ professional: normalizeProfessionalProfile(result.rows[0]) });
-  } catch (error) {
-    res.status(500).json({ error: "Error obteniendo profesional" });
+    res.json({ success: true, message: 'Servicio desactivado' });
+  } catch (err) {
+    console.error('DELETE /me/services/:id error:', err);
+    res.status(500).json({ error: 'Error al eliminar el servicio' });
   }
 });
 
