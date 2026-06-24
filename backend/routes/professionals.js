@@ -55,6 +55,29 @@ function normalizeText(value) {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
+
+function parseBooleanValue(value, fallback = false) {
+  if (value === true || value === 1 || value === "1" || value === "true" || value === "on") return true;
+  if (value === false || value === 0 || value === "0" || value === "false" || value === "off") return false;
+  return fallback;
+}
+
+function parsePositiveInteger(value, fallback = 30) {
+  if (value === false || value === true || value === "false" || value === "true" || value === "") {
+    return fallback;
+  }
+
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) return fallback;
+
+  return Math.round(number);
+}
+
+function normalizeTimeValue(value, fallback) {
+  const text = String(value || fallback || "").slice(0, 5);
+  return /^\d{2}:\d{2}$/.test(text) ? text : fallback;
+}
+
 function normalizeProfessionalProfile(row) {
   if (!row) return null;
 
@@ -571,13 +594,13 @@ router.patch("/me/availability", async (req, res) => {
 
     for (const item of incoming) {
       const dayOfWeek = Number(item.dayOfWeek ?? item.day_of_week);
-      const isActive = Boolean(item.isActive ?? item.is_active);
-      const startTime = String(item.startTime ?? item.start_time ?? "09:00").slice(0, 5);
-      const endTime = String(item.endTime ?? item.end_time ?? "18:00").slice(0, 5);
-      const slotDurationMinutes = Number(item.slotDurationMinutes ?? item.slot_duration_minutes ?? 30);
-      const breakEnabled = Boolean(item.breakEnabled ?? item.break_enabled ?? false);
-      const breakStartTime = String(item.breakStartTime ?? item.break_start_time ?? "13:00").slice(0, 5);
-      const breakEndTime = String(item.breakEndTime ?? item.break_end_time ?? "14:00").slice(0, 5);
+      const isActive = parseBooleanValue(item.isActive ?? item.is_active, false);
+      const startTime = normalizeTimeValue(item.startTime ?? item.start_time, "09:00");
+      const endTime = normalizeTimeValue(item.endTime ?? item.end_time, "18:00");
+      const slotDurationMinutes = parsePositiveInteger(item.slotDurationMinutes ?? item.slot_duration_minutes, 30);
+      const breakEnabled = parseBooleanValue(item.breakEnabled ?? item.break_enabled, false);
+      const breakStartTime = normalizeTimeValue(item.breakStartTime ?? item.break_start_time, "13:00");
+      const breakEndTime = normalizeTimeValue(item.breakEndTime ?? item.break_end_time, "14:00");
 
       if (Number.isNaN(dayOfWeek) || dayOfWeek < 0 || dayOfWeek > 6) continue;
 

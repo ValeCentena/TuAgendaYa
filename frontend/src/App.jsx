@@ -593,6 +593,35 @@ function normalizeAvailabilityItem(item) {
   };
 }
 
+
+function parseBooleanValue(value, fallback = false) {
+  if (value === true || value === 'true' || value === 1 || value === '1') return true;
+  if (value === false || value === 'false' || value === 0 || value === '0') return false;
+  return fallback;
+}
+
+function normalizeTimeValue(value, fallback) {
+  const text = String(value || fallback || '').slice(0, 5);
+  return /^\d{2}:\d{2}$/.test(text) ? text : fallback;
+}
+
+function sanitizeAvailabilityForSave(items) {
+  return (Array.isArray(items) ? items : []).map((item, index) => {
+    const dayOfWeek = Number(item.dayOfWeek ?? item.day_of_week ?? index);
+
+    return {
+      dayOfWeek: Number.isInteger(dayOfWeek) && dayOfWeek >= 0 && dayOfWeek <= 6 ? dayOfWeek : index,
+      isActive: parseBooleanValue(item.isActive ?? item.is_active, false),
+      startTime: normalizeTimeValue(item.startTime ?? item.start_time, '09:00'),
+      endTime: normalizeTimeValue(item.endTime ?? item.end_time, '18:00'),
+      slotDurationMinutes: 30,
+      breakEnabled: parseBooleanValue(item.breakEnabled ?? item.break_enabled, false),
+      breakStartTime: normalizeTimeValue(item.breakStartTime ?? item.break_start_time, '13:00'),
+      breakEndTime: normalizeTimeValue(item.breakEndTime ?? item.break_end_time, '14:00'),
+    };
+  });
+}
+
 function normalizeService(item) {
   return {
     id: item.id,
@@ -4386,7 +4415,7 @@ function AvailabilitySection() {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ availability }),
+        body: JSON.stringify({ availability: sanitizeAvailabilityForSave(availability) }),
       });
 
       const data = await res.json();
@@ -4693,7 +4722,7 @@ function StaffSection() {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ availability }),
+        body: JSON.stringify({ availability: sanitizeAvailabilityForSave(availability) }),
       });
 
       const data = await res.json();
