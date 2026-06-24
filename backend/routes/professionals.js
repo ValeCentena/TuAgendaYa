@@ -645,26 +645,24 @@ router.patch("/me/availability", async (req, res) => {
           is_active,
           start_time,
           end_time,
-          slot_duration_minutes,
           break_enabled,
           break_start_time,
           break_end_time,
           created_at,
           updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
         ON CONFLICT (professional_id, day_of_week)
         DO UPDATE SET
           is_active = EXCLUDED.is_active,
           start_time = EXCLUDED.start_time,
           end_time = EXCLUDED.end_time,
-          slot_duration_minutes = EXCLUDED.slot_duration_minutes,
           break_enabled = EXCLUDED.break_enabled,
           break_start_time = EXCLUDED.break_start_time,
           break_end_time = EXCLUDED.break_end_time,
           updated_at = NOW()
         `,
-        [professionalId, dayOfWeek, isActive, startTime, endTime, slotDurationMinutes, breakEnabled, breakStartTime, breakEndTime]
+        [professionalId, dayOfWeek, isActive, startTime, endTime, breakEnabled, breakStartTime, breakEndTime]
       );
     }
 
