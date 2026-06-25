@@ -8,6 +8,8 @@ const pool = new Pool({
 async function initDB() {
   const client = await pool.connect();
   try {
+
+    // ── Tablas principales ────────────────────────────────────────
     await client.query(`
       CREATE TABLE IF NOT EXISTS professionals (
         id                        SERIAL PRIMARY KEY,
@@ -180,6 +182,9 @@ async function initDB() {
         start_time             TIME    NOT NULL DEFAULT '09:00',
         end_time               TIME    NOT NULL DEFAULT '18:00',
         slot_duration_minutes  INTEGER NOT NULL DEFAULT 30,
+        break_enabled          INTEGER NOT NULL DEFAULT 0,
+        break_start            TIME,
+        break_end              TIME,
         created_at             TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at             TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE (professional_id, day_of_week)
@@ -220,45 +225,52 @@ async function initDB() {
         updated_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE (staff_member_id, day_of_week)
       );
-
-      CREATE INDEX IF NOT EXISTS idx_prof_availability_professional
-        ON professional_availability(professional_id);
-      CREATE INDEX IF NOT EXISTS idx_prof_services_professional
-        ON professional_services(professional_id);
-      CREATE INDEX IF NOT EXISTS idx_appointments_professional_time
-        ON appointments(professional_id, start_time);
-      CREATE INDEX IF NOT EXISTS idx_appointments_status
-        ON appointments(professional_id, status);
-      CREATE INDEX IF NOT EXISTS idx_appointments_public_token
-        ON appointments(public_token);
-      CREATE INDEX IF NOT EXISTS idx_clients_professional
-        ON clients(professional_id);
-      CREATE INDEX IF NOT EXISTS idx_availability_professional
-        ON availability(professional_id, day_of_week);
-      CREATE INDEX IF NOT EXISTS idx_bookings_professional
-        ON bookings(professional_id);
-      CREATE INDEX IF NOT EXISTS idx_staff_members_professional
-        ON staff_members(professional_id);
-      CREATE INDEX IF NOT EXISTS idx_staff_availability_member
-        ON staff_availability(staff_member_id);
     `);
 
-    // Columnas añadidas después del despliegue inicial — siempre seguras con IF NOT EXISTS
-    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS booking_date DATE;`);
-    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS start_time TIME;`);
-    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS end_time TIME;`);
-    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS service_id INTEGER;`);
-    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS staff_id INTEGER;`);
+    // ── Índices — cada uno en su propia llamada para que un fallo
+    //   no interrumpa el resto del init ────────────────────────────
+    const indices = [
+      `CREATE INDEX IF NOT EXISTS idx_appointments_professional_time ON appointments(professional_id, start_time)`,
+      `CREATE INDEX IF NOT EXISTS idx_appointments_status            ON appointments(professional_id, status)`,
+      `CREATE INDEX IF NOT EXISTS idx_appointments_public_token      ON appointments(public_token)`,
+      `CREATE INDEX IF NOT EXISTS idx_clients_professional           ON clients(professional_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_bookings_professional          ON bookings(professional_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_staff_availability_member      ON staff_availability(staff_member_id)`,
+    ];
 
-    // Columnas de negocio en professionals
-    await client.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS business_name TEXT;`);
-    await client.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS address TEXT;`);
-    await client.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS logo_url TEXT;`);
+    for (const sql of indices) {
+      try {
+        await client.query(sql);
+      } catch (e) {
+        console.warn('Index creation skipped (tabla o columna no disponible):', e.message);
+      }
+    }
 
-    // Columnas de pausa en professional_availability
-    await client.query(`ALTER TABLE professional_availability ADD COLUMN IF NOT EXISTS break_enabled INTEGER NOT NULL DEFAULT 0;`);
-    await client.query(`ALTER TABLE professional_availability ADD COLUMN IF NOT EXISTS break_start TIME;`);
-    await client.query(`ALTER TABLE professional_availability ADD COLUMN IF NOT EXISTS break_end TIME;`);
+    // ── Migraciones seguras — columnas añadidas después del deploy inicial ──
+    const migrations = [
+      // bookings
+      `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS booking_date DATE`,
+      `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS start_time  TIME`,
+      `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS end_time    TIME`,
+      `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS service_id  INTEGER`,
+      `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS staff_id    INTEGER`,
+      // professionals
+      `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS business_name TEXT`,
+      `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS address       TEXT`,
+      `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS logo_url      TEXT`,
+      // professional_availability — pausas
+      `ALTER TABLE professional_availability ADD COLUMN IF NOT EXISTS break_enabled INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE professional_availability ADD COLUMN IF NOT EXISTS break_start   TIME`,
+      `ALTER TABLE professional_availability ADD COLUMN IF NOT EXISTS break_end     TIME`,
+    ];
+
+    for (const sql of migrations) {
+      try {
+        await client.query(sql);
+      } catch (e) {
+        console.warn('Migration skipped:', e.message);
+      }
+    }
 
     console.log('✓ Base de datos PostgreSQL lista');
   } finally {
