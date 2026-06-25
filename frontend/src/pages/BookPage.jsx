@@ -860,7 +860,20 @@ export default function BookPage() {
               {calendarOpen && renderCalendar()}
 
               {bookingDate && canChooseDate && (
-                <div style={{ marginTop: 10, maxWidth: 390, marginLeft: 'auto', marginRight: 'auto' }}>
+                <div
+                  style={{
+                    marginTop: 10,
+                    maxWidth: 390,
+                    marginLeft: 'auto',
+                    marginRight: 'auto',
+                    background: 'linear-gradient(180deg, #ffffff 0%, #fbfbfd 100%)',
+                    border: '1px solid rgba(0,0,0,0.06)',
+                    borderRadius: 20,
+                    padding: 12,
+                    boxShadow: '0 8px 18px rgba(0,0,0,0.04)',
+                    boxSizing: 'border-box',
+                  }}
+                >
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
                     <div>
                       <div style={{ fontSize: 12.5, fontWeight: 850, color: '#1a1a1a' }}>Horarios disponibles</div>
@@ -887,7 +900,17 @@ export default function BookPage() {
                       No hay horarios disponibles para esta fecha.
                     </div>
                   ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 6, maxHeight: 132, overflowY: slots.length > 12 ? 'auto' : 'visible', paddingRight: slots.length > 12 ? 3 : 0, WebkitOverflowScrolling: 'touch' }}>
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+                        gap: 6,
+                        maxHeight: 112,
+                        overflowY: slots.length > 12 ? 'auto' : 'visible',
+                        paddingRight: slots.length > 12 ? 3 : 0,
+                        WebkitOverflowScrolling: 'touch',
+                      }}
+                    >
                       {slots.map((slot) => {
                         const isSelected = selectedTime === slot.time;
                         const isAvailable = slot.available;
@@ -900,9 +923,9 @@ export default function BookPage() {
                             disabled={!isAvailable}
                             onClick={() => isAvailable && setSelectedTime(slot.time)}
                             style={{
-                              height: 34,
+                              height: 31,
                               padding: '0 6px',
-                              borderRadius: 14,
+                              borderRadius: 13,
                               border: isSelected
                                 ? '2px solid #0071e3'
                                 : isAvailable
