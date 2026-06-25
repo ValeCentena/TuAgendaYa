@@ -128,6 +128,27 @@ function getDefaultServices(profession) {
   ];
 }
 
+
+function parsePositiveInt(v, fallback = null) {
+  if (v === null || v === undefined || v === false || v === '' ||
+      v === 'false' || v === 'null' || v === 'undefined') {
+    return fallback;
+  }
+  const n = parseInt(v, 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+function getServiceDurationFromBody(body, fallback = null) {
+  return parsePositiveInt(
+    body.duration_minutes !== undefined ? body.duration_minutes :
+    body.durationMinutes !== undefined ? body.durationMinutes :
+    body.duration !== undefined ? body.duration :
+    body.service_duration !== undefined ? body.service_duration :
+    body.serviceDuration,
+    fallback
+  );
+}
+
 // ══════════════════════════════════════════════════════════════
 // DISPONIBILIDAD
 // ══════════════════════════════════════════════════════════════
@@ -241,34 +262,45 @@ router.get('/me/services', authMiddleware, async (req, res) => {
   try {
     const profId = req.professional.id;
 
+    // Mostramos solo servicios activos. Los eliminados quedan desactivados
+    // para no romper reservas viejas que los referencian.
     const rows = (await db.query(
       `SELECT id, professional_id, name, description, duration_minutes, price, is_active, created_at, updated_at
        FROM professional_services
-       WHERE professional_id = $1
+       WHERE professional_id = $1 AND COALESCE(is_active, 1) = 1
        ORDER BY id ASC`,
       [profId]
     )).rows;
 
     if (rows.length === 0) {
-      const prof = (await db.query(
-        'SELECT profession FROM professionals WHERE id = $1',
+      const total = parseInt((await db.query(
+        'SELECT COUNT(*) AS total FROM professional_services WHERE professional_id = $1',
         [profId]
-      )).rows[0];
+      )).rows[0].total, 10);
 
-      const defaults = getDefaultServices(prof ? prof.profession : '').map(s => ({
-        id:               null,
-        professional_id:  profId,
-        name:             s.name,
-        description:      s.description,
-        duration_minutes: s.duration_minutes,
-        price:            s.price,
-        is_active:        1,
-        created_at:       null,
-        updated_at:       null,
-        _is_default:      true,
-      }));
+      // Solo sugerimos defaults si la cuenta nunca tuvo servicios creados.
+      // Si el usuario eliminó servicios, no los hacemos reaparecer.
+      if (total === 0) {
+        const prof = (await db.query(
+          'SELECT profession FROM professionals WHERE id = $1',
+          [profId]
+        )).rows[0];
 
-      return res.json({ services: defaults });
+        const defaults = getDefaultServices(prof ? prof.profession : '').map(s => ({
+          id:               null,
+          professional_id:  profId,
+          name:             s.name,
+          description:      s.description,
+          duration_minutes: s.duration_minutes,
+          price:            s.price,
+          is_active:        1,
+          created_at:       null,
+          updated_at:       null,
+          _is_default:      true,
+        }));
+
+        return res.json({ services: defaults });
+      }
     }
 
     res.json({ services: rows });
@@ -281,12 +313,13 @@ router.get('/me/services', authMiddleware, async (req, res) => {
 // POST /api/professionals/me/services
 router.post('/me/services', authMiddleware, async (req, res) => {
   const profId = req.professional.id;
-  const { name, description, duration_minutes, price, is_active } = req.body;
+  const { name, description, price, is_active } = req.body;
+  const duration = getServiceDurationFromBody(req.body);
 
   if (!name || !name.trim()) {
     return res.status(400).json({ error: 'El nombre del servicio es requerido' });
   }
-  if (!duration_minutes || parseInt(duration_minutes) < 1) {
+  if (!duration) {
     return res.status(400).json({ error: 'La duración debe ser mayor a 0 minutos' });
   }
 
@@ -300,7 +333,7 @@ router.post('/me/services', authMiddleware, async (req, res) => {
         profId,
         name.trim(),
         description ? description.trim() : null,
-        parseInt(duration_minutes),
+        duration,
         parseFloat(price) || 0,
         toBoolInt(is_active !== undefined ? is_active : 1),
       ]
@@ -331,13 +364,13 @@ router.patch('/me/services/:id', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Servicio no encontrado' });
     }
 
-    const { name, description, duration_minutes, price, is_active } = req.body;
+    const { name, description, price, is_active } = req.body;
 
-    const newName     = name             !== undefined ? name.trim()                   : existing.name;
-    const newDesc     = description      !== undefined ? (description ? description.trim() : null) : existing.description;
-    const newDuration = duration_minutes !== undefined ? parseInt(duration_minutes)    : existing.duration_minutes;
-    const newPrice    = price            !== undefined ? parseFloat(price) || 0        : existing.price;
-    const newActive   = is_active        !== undefined ? toBoolInt(is_active)          : existing.is_active;
+    const newName     = name        !== undefined ? name.trim() : existing.name;
+    const newDesc     = description !== undefined ? (description ? description.trim() : null) : existing.description;
+    const newDuration = getServiceDurationFromBody(req.body, existing.duration_minutes);
+    const newPrice    = price       !== undefined ? parseFloat(price) || 0 : existing.price;
+    const newActive   = is_active   !== undefined ? toBoolInt(is_active) : existing.is_active;
 
     if (!newName) {
       return res.status(400).json({ error: 'El nombre no puede estar vacío' });
