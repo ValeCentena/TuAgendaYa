@@ -327,24 +327,27 @@ export default function BookPage() {
     return (
       <div
         style={{
-          marginTop: 10,
+          marginTop: 8,
           background: 'linear-gradient(180deg, #ffffff 0%, #fbfbfd 100%)',
-          borderRadius: 24,
-          padding: 12,
+          borderRadius: 22,
+          padding: 10,
           border: '1px solid rgba(0,0,0,0.06)',
-          boxShadow: '0 18px 36px rgba(0,0,0,0.08)',
+          boxShadow: '0 12px 26px rgba(0,0,0,0.06)',
+          maxWidth: 390,
+          marginLeft: 'auto',
+          marginRight: 'auto',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
           <button
             type="button"
             onClick={goToPreviousMonth}
             disabled={!canGoPrevious}
             aria-label="Mes anterior"
             style={{
-              width: 28,
-              height: 28,
-              borderRadius: 14,
+              width: 26,
+              height: 26,
+              borderRadius: 13,
               border: '1px solid rgba(0,0,0,0.05)',
               background: canGoPrevious ? '#f5f5f7' : '#fbfbfd',
               color: canGoPrevious ? '#1a1a1a' : '#c7c7cc',
@@ -357,10 +360,10 @@ export default function BookPage() {
           </button>
 
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 14, fontWeight: 850, color: '#111827', letterSpacing: '-0.03em' }}>
+            <div style={{ fontSize: 13, fontWeight: 850, color: '#111827', letterSpacing: '-0.03em' }}>
               {MONTH_NAMES[calendarMonth.getMonth()]} {calendarMonth.getFullYear()}
             </div>
-            <div style={{ fontSize: 11, color: '#8e8e93', marginTop: 1 }}>
+            <div style={{ fontSize: 10.5, color: '#8e8e93', marginTop: 1 }}>
               Solo fechas disponibles desde hoy
             </div>
           </div>
@@ -370,9 +373,9 @@ export default function BookPage() {
             onClick={goToNextMonth}
             aria-label="Mes siguiente"
             style={{
-              width: 28,
-              height: 28,
-              borderRadius: 14,
+              width: 26,
+              height: 26,
+              borderRadius: 13,
               border: '1px solid rgba(0,0,0,0.05)',
               background: '#f5f5f7',
               color: '#1a1a1a',
@@ -385,7 +388,7 @@ export default function BookPage() {
           </button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5, marginBottom: 4 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 4, marginBottom: 3 }}>
           {WEEK_DAYS.map((day, index) => (
             <div
               key={`${day}-${index}`}
@@ -394,7 +397,7 @@ export default function BookPage() {
                 fontSize: 10,
                 fontWeight: 800,
                 color: '#8e8e93',
-                padding: '4px 0',
+                padding: '3px 0',
               }}
             >
               {day}
@@ -402,10 +405,10 @@ export default function BookPage() {
           ))}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 4 }}>
           {days.map((date, index) => {
             if (!date) {
-              return <div key={`empty-${index}`} style={{ height: 34 }} />;
+              return <div key={`empty-${index}`} style={{ height: 30 }} />;
             }
 
             const isPast = date < todayDate;
@@ -419,13 +422,13 @@ export default function BookPage() {
                 disabled={isPast}
                 onClick={() => selectCalendarDate(date)}
                 style={{
-                  height: 32,
-                  borderRadius: 14,
+                  height: 30,
+                  borderRadius: 12,
                   border: isSelected ? '1px solid #0071e3' : isToday ? '1px solid #0071e3' : '1px solid rgba(0,0,0,0.06)',
                   background: isSelected ? '#0071e3' : isPast ? '#fbfbfd' : '#ffffff',
                   color: isSelected ? '#fff' : isPast ? '#c7c7cc' : '#1a1a1a',
-                  fontSize: 13,
-                  fontWeight: isSelected || isToday ? 800 : 650,
+                  fontSize: 12.5,
+                  fontWeight: isSelected || isToday ? 850 : 700,
                   fontFamily: 'inherit',
                   cursor: isPast ? 'not-allowed' : 'pointer',
                   transition: 'transform 0.12s, background 0.12s, color 0.12s',
@@ -713,7 +716,7 @@ export default function BookPage() {
                             </div>
 
                             {service.price && (
-                              <div style={{ fontSize: 12, color: '#6e6e73', marginTop: 3 }}>
+                              <div style={{ fontSize: 11.5, color: '#6e6e73', marginTop: 2 }}>
                                 ${service.price}
                               </div>
                             )}
@@ -794,8 +797,8 @@ export default function BookPage() {
                   width: '100%',
                   border: calendarOpen ? '1.5px solid #0071e3' : '1px solid rgba(0,0,0,0.07)',
                   background: canChooseDate ? 'linear-gradient(180deg, #ffffff 0%, #fbfbfd 100%)' : '#f7f7f9',
-                  borderRadius: 22,
-                  padding: '13px 14px',
+                  borderRadius: 20,
+                  padding: '11px 13px',
                   fontFamily: 'inherit',
                   cursor: canChooseDate ? 'pointer' : 'not-allowed',
                   textAlign: 'left',
@@ -817,9 +820,9 @@ export default function BookPage() {
 
                 <div
                   style={{
-                    width: 30,
-                    height: 30,
-                    borderRadius: 15,
+                    width: 28,
+                    height: 28,
+                    borderRadius: 14,
                     background: calendarOpen ? '#0071e3' : '#f2f2f7',
                     color: calendarOpen ? '#fff' : '#0071e3',
                     display: 'flex',
@@ -836,12 +839,12 @@ export default function BookPage() {
               {calendarOpen && renderCalendar()}
 
               {bookingDate && canChooseDate && (
-                <div style={{ marginTop: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 10 }}>
+                <div style={{ marginTop: 10, maxWidth: 390, marginLeft: 'auto', marginRight: 'auto' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
                     <div>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: '#1a1a1a' }}>Horarios disponibles</div>
+                      <div style={{ fontSize: 12.5, fontWeight: 850, color: '#1a1a1a' }}>Horarios disponibles</div>
                       {selectedService && selectedStaff && (
-                        <div style={{ fontSize: 12, color: '#6e6e73', marginTop: 3 }}>
+                        <div style={{ fontSize: 11.5, color: '#6e6e73', marginTop: 2 }}>
                           {selectedService.name} · {selectedStaff.name} · {selectedService.durationMinutes} min
                         </div>
                       )}
@@ -863,7 +866,7 @@ export default function BookPage() {
                       No hay horarios disponibles para esta fecha.
                     </div>
                   ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 7, maxHeight: 150, overflowY: slots.length > 12 ? 'auto' : 'visible', paddingRight: slots.length > 12 ? 4 : 0, WebkitOverflowScrolling: 'touch' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 6, maxHeight: 132, overflowY: slots.length > 12 ? 'auto' : 'visible', paddingRight: slots.length > 12 ? 3 : 0, WebkitOverflowScrolling: 'touch' }}>
                       {slots.map((slot) => {
                         const isSelected = selectedTime === slot.time;
                         const isAvailable = slot.available;
@@ -876,8 +879,9 @@ export default function BookPage() {
                             disabled={!isAvailable}
                             onClick={() => isAvailable && setSelectedTime(slot.time)}
                             style={{
-                              padding: '8px 6px',
-                              borderRadius: 16,
+                              height: 34,
+                              padding: '0 6px',
+                              borderRadius: 14,
                               border: isSelected
                                 ? '2px solid #0071e3'
                                 : isAvailable
@@ -893,12 +897,12 @@ export default function BookPage() {
                                 : isAvailable
                                   ? '#1a1a1a'
                                   : '#c7c7cc',
-                              fontSize: 13,
-                              fontWeight: 800,
+                              fontSize: 12.5,
+                              fontWeight: 850,
                               fontFamily: 'inherit',
                               cursor: isAvailable ? 'pointer' : 'not-allowed',
                               textDecoration: isAvailable ? 'none' : 'line-through',
-                              boxShadow: isSelected ? '0 8px 18px rgba(0,113,227,0.18)' : '0 4px 10px rgba(0,0,0,0.035)',
+                              boxShadow: isSelected ? '0 6px 14px rgba(0,113,227,0.16)' : '0 3px 8px rgba(0,0,0,0.028)',
                             }}
                           >
                             {slot.time}
