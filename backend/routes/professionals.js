@@ -149,6 +149,67 @@ function getServiceDurationFromBody(body, fallback = null) {
   );
 }
 
+function normalizeServiceRow(row) {
+  if (!row) return row;
+  const duration = parsePositiveInt(row.duration_minutes, 30);
+  const priceNumber = row.price === null || row.price === undefined ? 0 : Number(row.price);
+  return {
+    ...row,
+    duration_minutes: duration,
+    durationMinutes: duration,
+    duration,
+    price: Number.isFinite(priceNumber) ? priceNumber : 0,
+    is_active: toBoolInt(row.is_active),
+    isActive: toBoolInt(row.is_active),
+  };
+}
+
+// Mantiene compatibilidad con pantallas/rutas viejas que todavía leen la tabla `services`.
+// La tabla principal nueva es `professional_services`, pero el link público puede consultar `services`.
+async function syncActiveServicesToLegacyTable(professionalId) {
+  const activeServices = (await db.query(
+    `SELECT id, name, description, duration_minutes, price, is_active
+     FROM professional_services
+     WHERE professional_id = $1 AND COALESCE(is_active, 1) = 1
+     ORDER BY id ASC`,
+    [professionalId]
+  )).rows;
+
+  for (const service of activeServices) {
+    const exists = (await db.query(
+      `SELECT id FROM services
+       WHERE professional_id = $1 AND LOWER(name) = LOWER($2)
+       LIMIT 1`,
+      [professionalId, service.name]
+    )).rows[0];
+
+    if (exists) {
+      await db.query(
+        `UPDATE services
+         SET duration = $1,
+             price = $2,
+             description = $3,
+             active = 1
+         WHERE id = $4`,
+        [parsePositiveInt(service.duration_minutes, 30), Number(service.price) || 0, service.description || null, exists.id]
+      );
+    } else {
+      await db.query(
+        `INSERT INTO services
+           (professional_id, name, duration, price, description, active)
+         VALUES ($1, $2, $3, $4, $5, 1)`,
+        [
+          professionalId,
+          service.name,
+          parsePositiveInt(service.duration_minutes, 30),
+          Number(service.price) || 0,
+          service.description || null,
+        ]
+      );
+    }
+  }
+}
+
 // ══════════════════════════════════════════════════════════════
 // DISPONIBILIDAD
 // ══════════════════════════════════════════════════════════════
@@ -286,7 +347,7 @@ router.get('/me/services', authMiddleware, async (req, res) => {
           [profId]
         )).rows[0];
 
-        const defaults = getDefaultServices(prof ? prof.profession : '').map(s => ({
+        const defaults = getDefaultServices(prof ? prof.profession : '').map(s => normalizeServiceRow({
           id:               null,
           professional_id:  profId,
           name:             s.name,
@@ -303,7 +364,12 @@ router.get('/me/services', authMiddleware, async (req, res) => {
       }
     }
 
-    res.json({ services: rows });
+    // Sincronizamos con la tabla legacy `services` para que el link público vea lo mismo.
+    await syncActiveServicesToLegacyTable(profId).catch(err => {
+      console.warn('syncActiveServicesToLegacyTable skipped:', err.message);
+    });
+
+    res.json({ services: rows.map(normalizeServiceRow) });
   } catch (err) {
     console.error('GET /me/services error:', err);
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -338,7 +404,12 @@ router.post('/me/services', authMiddleware, async (req, res) => {
         toBoolInt(is_active !== undefined ? is_active : 1),
       ]
     );
-    res.status(201).json({ service: result.rows[0] });
+
+    await syncActiveServicesToLegacyTable(profId).catch(err => {
+      console.warn('syncActiveServicesToLegacyTable skipped:', err.message);
+    });
+
+    res.status(201).json({ service: normalizeServiceRow(result.rows[0]) });
   } catch (err) {
     console.error('POST /me/services error:', err);
     res.status(500).json({ error: 'Error al crear el servicio' });
@@ -388,7 +459,11 @@ router.patch('/me/services/:id', authMiddleware, async (req, res) => {
       [newName, newDesc, newDuration, newPrice, newActive, serviceId, profId]
     )).rows[0];
 
-    res.json({ service: updated });
+    await syncActiveServicesToLegacyTable(profId).catch(err => {
+      console.warn('syncActiveServicesToLegacyTable skipped:', err.message);
+    });
+
+    res.json({ service: normalizeServiceRow(updated) });
   } catch (err) {
     console.error('PATCH /me/services/:id error:', err);
     res.status(500).json({ error: 'Error al actualizar el servicio' });
@@ -415,17 +490,66 @@ router.delete('/me/services/:id', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Servicio no encontrado' });
     }
 
-    await db.query(
+    const service = (await db.query(
       `UPDATE professional_services
        SET is_active = 0, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $1 AND professional_id = $2`,
+       WHERE id = $1 AND professional_id = $2
+       RETURNING name`,
       [serviceId, profId]
-    );
+    )).rows[0];
+
+    if (service && service.name) {
+      await db.query(
+        `UPDATE services
+         SET active = 0
+         WHERE professional_id = $1 AND LOWER(name) = LOWER($2)`,
+        [profId, service.name]
+      ).catch(err => {
+        console.warn('Legacy service deactivate skipped:', err.message);
+      });
+    }
 
     res.json({ success: true, message: 'Servicio desactivado' });
   } catch (err) {
     console.error('DELETE /me/services/:id error:', err);
     res.status(500).json({ error: 'Error al eliminar el servicio' });
+  }
+});
+
+
+// GET público de servicios por slug.
+// Sirve para la página pública de reservas si consulta /api/professionals/public/:slug/services.
+router.get('/public/:slug/services', async (req, res) => {
+  try {
+    const slug = String(req.params.slug || '').trim();
+    const prof = (await db.query(
+      `SELECT id, name, business_name, profession, slug, logo_url
+       FROM professionals
+       WHERE slug = $1 AND COALESCE(status, 'active') = 'active'
+       LIMIT 1`,
+      [slug]
+    )).rows[0];
+
+    if (!prof) {
+      return res.status(404).json({ error: 'Profesional no encontrado' });
+    }
+
+    await syncActiveServicesToLegacyTable(prof.id).catch(err => {
+      console.warn('syncActiveServicesToLegacyTable skipped:', err.message);
+    });
+
+    const services = (await db.query(
+      `SELECT id, professional_id, name, description, duration_minutes, price, is_active, created_at, updated_at
+       FROM professional_services
+       WHERE professional_id = $1 AND COALESCE(is_active, 1) = 1
+       ORDER BY id ASC`,
+      [prof.id]
+    )).rows.map(normalizeServiceRow);
+
+    return res.json({ professional: prof, services });
+  } catch (err) {
+    console.error('GET /public/:slug/services error:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 
