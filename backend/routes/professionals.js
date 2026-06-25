@@ -29,6 +29,16 @@ function toBoolInt(v) {
   return v ? 1 : 0;
 }
 
+// Para professional_services.is_active.
+// En la base real esta columna puede estar como BOOLEAN por migraciones anteriores.
+// Usamos boolean real para no volver a mezclar boolean con integer.
+function toServiceBool(v, fallback = true) {
+  if (v === undefined || v === null || v === '') return fallback;
+  if (v === true || v === 1 || v === '1' || v === 'true' || v === 't') return true;
+  if (v === false || v === 0 || v === '0' || v === 'false' || v === 'f') return false;
+  return Boolean(v);
+}
+
 // Devuelve "HH:MM" si el valor parece una hora válida, o null en otro caso.
 // Nunca devuelve false, "false", undefined ni cadenas inválidas.
 function toTimeOrNull(v) {
@@ -159,8 +169,8 @@ function normalizeServiceRow(row) {
     durationMinutes: duration,
     duration,
     price: Number.isFinite(priceNumber) ? priceNumber : 0,
-    is_active: toBoolInt(row.is_active),
-    isActive: toBoolInt(row.is_active),
+    is_active: toServiceBool(row.is_active, true),
+    isActive: toServiceBool(row.is_active, true),
   };
 }
 
@@ -401,7 +411,7 @@ router.post('/me/services', authMiddleware, async (req, res) => {
         description ? description.trim() : null,
         duration,
         parseFloat(price) || 0,
-        toBoolInt(is_active !== undefined ? is_active : 1),
+        toServiceBool(is_active, true),
       ]
     );
 
@@ -441,7 +451,7 @@ router.patch('/me/services/:id', authMiddleware, async (req, res) => {
     const newDesc     = description !== undefined ? (description ? description.trim() : null) : existing.description;
     const newDuration = getServiceDurationFromBody(req.body, existing.duration_minutes);
     const newPrice    = price       !== undefined ? parseFloat(price) || 0 : existing.price;
-    const newActive   = is_active   !== undefined ? toBoolInt(is_active) : existing.is_active;
+    const newActive   = is_active   !== undefined ? toServiceBool(is_active, true) : toServiceBool(existing.is_active, true);
 
     if (!newName) {
       return res.status(400).json({ error: 'El nombre no puede estar vacío' });
@@ -492,7 +502,7 @@ router.delete('/me/services/:id', authMiddleware, async (req, res) => {
 
     const service = (await db.query(
       `UPDATE professional_services
-       SET is_active = 0, updated_at = CURRENT_TIMESTAMP
+       SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP
        WHERE id = $1 AND professional_id = $2
        RETURNING name`,
       [serviceId, profId]
