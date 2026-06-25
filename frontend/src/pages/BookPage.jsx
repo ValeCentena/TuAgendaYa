@@ -123,6 +123,7 @@ export default function BookPage() {
 
   const selectedService = services.find((service) => String(service.id) === String(selectedServiceId));
   const selectedStaff = staff.find((member) => String(member.id) === String(selectedStaffId));
+  const hasStaffChoice = staff.length > 1;
 
   const selectedDuration = selectedService?.durationMinutes || 30;
   const selectedEndTime = selectedTime ? addMinutes(selectedTime, selectedDuration) : '';
@@ -166,8 +167,10 @@ export default function BookPage() {
         setBusiness(data.business || null);
         setStaff(activeStaff);
 
-        if (activeStaff.length > 0) {
+        if (activeStaff.length > 1) {
           setSelectedStaffId(String(activeStaff[0].id));
+        } else {
+          setSelectedStaffId('');
         }
       })
       .catch(() => {
@@ -179,7 +182,9 @@ export default function BookPage() {
   }, [slug]);
 
   useEffect(() => {
-    if (!bookingDate || !selectedServiceId || !selectedStaffId) {
+    const needsStaffChoice = staff.length > 1;
+
+    if (!bookingDate || !selectedServiceId || (needsStaffChoice && !selectedStaffId)) {
       setSlots([]);
       setSelectedTime('');
       return;
@@ -189,12 +194,21 @@ export default function BookPage() {
     setSlots([]);
     setLoadingSlots(true);
 
-    fetch(`${API_BASE}/bookings/public/${slug}/slots?date=${bookingDate}&serviceId=${selectedServiceId}&staffId=${selectedStaffId}`)
+    const params = new URLSearchParams({
+      date: bookingDate,
+      serviceId: String(selectedServiceId),
+    });
+
+    if (needsStaffChoice && selectedStaffId) {
+      params.set('staffId', String(selectedStaffId));
+    }
+
+    fetch(`${API_BASE}/bookings/public/${slug}/slots?${params.toString()}`)
       .then((r) => r.json())
       .then((data) => setSlots(data.slots || []))
       .catch(() => setSlots([]))
       .finally(() => setLoadingSlots(false));
-  }, [bookingDate, selectedServiceId, selectedStaffId, slug]);
+  }, [bookingDate, selectedServiceId, selectedStaffId, staff.length, slug]);
 
   const inputStyle = {
     width: '100%',
@@ -236,12 +250,23 @@ export default function BookPage() {
   };
 
   const refreshSlots = () => {
-    if (!bookingDate || !selectedServiceId || !selectedStaffId) return;
+    const needsStaffChoice = staff.length > 1;
+
+    if (!bookingDate || !selectedServiceId || (needsStaffChoice && !selectedStaffId)) return;
 
     setSelectedTime('');
     setLoadingSlots(true);
 
-    fetch(`${API_BASE}/bookings/public/${slug}/slots?date=${bookingDate}&serviceId=${selectedServiceId}&staffId=${selectedStaffId}`)
+    const params = new URLSearchParams({
+      date: bookingDate,
+      serviceId: String(selectedServiceId),
+    });
+
+    if (needsStaffChoice && selectedStaffId) {
+      params.set('staffId', String(selectedStaffId));
+    }
+
+    fetch(`${API_BASE}/bookings/public/${slug}/slots?${params.toString()}`)
       .then((r) => r.json())
       .then((data) => setSlots(data.slots || []))
       .catch(() => {})
@@ -452,7 +477,7 @@ export default function BookPage() {
       return;
     }
 
-    if (!selectedStaffId) {
+    if (hasStaffChoice && !selectedStaffId) {
       setError('Seleccioná un profesional.');
       return;
     }
@@ -490,7 +515,7 @@ export default function BookPage() {
           bookingDate,
           startTime: selectedTime,
           serviceId: Number(selectedServiceId),
-          staffId: Number(selectedStaffId),
+          ...(hasStaffChoice && selectedStaffId ? { staffId: Number(selectedStaffId) } : {}),
         }),
       });
 
@@ -536,8 +561,10 @@ export default function BookPage() {
       setSelectedServiceId(String(services[0].id));
     }
 
-    if (staff.length > 0) {
+    if (staff.length > 1) {
       setSelectedStaffId(String(staff[0].id));
+    } else {
+      setSelectedStaffId('');
     }
   };
 
@@ -545,7 +572,7 @@ export default function BookPage() {
   const hasSlots = slots.length > 0;
   const businessName = business?.businessName || business?.name || 'TuAgendaYa';
 
-  const canChooseDate = Boolean(selectedServiceId && selectedStaffId);
+  const canChooseDate = Boolean(selectedServiceId && (!hasStaffChoice || selectedStaffId));
 
   return (
     <div
@@ -729,7 +756,7 @@ export default function BookPage() {
               )}
             </div>
 
-            {staff.length > 1 && (
+            {hasStaffChoice && (
               <div style={sectionStyle}>
                 <div style={sectionTitleStyle}>Elegí un profesional</div>
 
@@ -774,12 +801,6 @@ export default function BookPage() {
                     })}
                   </div>
                 )}
-              </div>
-            )}
-
-            {staff.length === 0 && !loadingStaff && (
-              <div style={{ background: '#fff2f2', border: '1px solid #ffcdd2', borderRadius: 18, padding: '12px 14px', fontSize: 13, color: '#c62828', marginBottom: 14 }}>
-                Este negocio todavía no tiene profesionales activos para reservar.
               </div>
             )}
 
@@ -843,9 +864,9 @@ export default function BookPage() {
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
                     <div>
                       <div style={{ fontSize: 12.5, fontWeight: 850, color: '#1a1a1a' }}>Horarios disponibles</div>
-                      {selectedService && selectedStaff && (
+                      {selectedService && (
                         <div style={{ fontSize: 11.5, color: '#6e6e73', marginTop: 2 }}>
-                          {selectedService.name} · {selectedStaff.name} · {selectedService.durationMinutes} min
+                          {selectedService.name}{selectedStaff ? ` · ${selectedStaff.name}` : ''} · {selectedService.durationMinutes} min
                         </div>
                       )}
                     </div>
@@ -962,19 +983,19 @@ export default function BookPage() {
 
             <button
               type="submit"
-              disabled={loading || !selectedServiceId || !selectedStaffId || !selectedTime}
+              disabled={loading || !selectedServiceId || (hasStaffChoice && !selectedStaffId) || !selectedTime}
               style={{
                 width: '100%',
                 padding: '15px',
                 borderRadius: 18,
                 border: 'none',
-                background: loading || !selectedServiceId || !selectedStaffId || !selectedTime ? '#aeaeb2' : '#0071e3',
+                background: loading || !selectedServiceId || (hasStaffChoice && !selectedStaffId) || !selectedTime ? '#aeaeb2' : '#0071e3',
                 color: '#fff',
                 fontSize: 16,
                 fontWeight: 850,
                 fontFamily: 'inherit',
-                cursor: loading || !selectedServiceId || !selectedStaffId || !selectedTime ? 'not-allowed' : 'pointer',
-                boxShadow: loading || !selectedServiceId || !selectedStaffId || !selectedTime ? 'none' : '0 12px 24px rgba(0,113,227,0.18)',
+                cursor: loading || !selectedServiceId || (hasStaffChoice && !selectedStaffId) || !selectedTime ? 'not-allowed' : 'pointer',
+                boxShadow: loading || !selectedServiceId || (hasStaffChoice && !selectedStaffId) || !selectedTime ? 'none' : '0 12px 24px rgba(0,113,227,0.18)',
               }}
             >
               {loading ? 'Reservando...' : 'Confirmar reserva'}

@@ -405,6 +405,25 @@ function normalizePublicStaff(row) {
   };
 }
 
+function isTruthyDatabaseValue(value) {
+  return value === true || value === 1 || value === "1" || String(value).toLowerCase() === "true";
+}
+
+function isAvailabilityActive(availability) {
+  if (!availability) return false;
+
+  const value = availability.is_active ?? availability.isActive ?? availability.active;
+  return isTruthyDatabaseValue(value);
+}
+
+function getAvailabilityBreakStart(availability) {
+  return availability?.break_start_time ?? availability?.break_start ?? availability?.breakStartTime ?? availability?.breakStart ?? null;
+}
+
+function getAvailabilityBreakEnd(availability) {
+  return availability?.break_end_time ?? availability?.break_end ?? availability?.breakEndTime ?? availability?.breakEnd ?? null;
+}
+
 async function getProfessionalBySlug(slug) {
   const result = await db.query(
     `
@@ -524,8 +543,6 @@ async function ensureDefaultStaff(professional) {
 }
 
 async function getPublicStaffForProfessional(professional) {
-  await ensureDefaultStaff(professional);
-
   const result = await db.query(
     `
     SELECT *
@@ -536,6 +553,12 @@ async function getPublicStaffForProfessional(professional) {
     `,
     [professional.id]
   );
+
+  // Si hay 0 o 1 profesional interno, no se muestra selector en el link público.
+  // En ese caso, la agenda pública usa la disponibilidad general del negocio.
+  if (result.rows.length <= 1) {
+    return [];
+  }
 
   return result.rows;
 }
@@ -573,8 +596,9 @@ async function getAvailabilityForDate(professionalId, staffId, bookingDate) {
       end_time: "18:00",
       slot_duration_minutes: 30,
       break_enabled: false,
-      break_start_time: "13:00",
-      break_end_time: "14:00",
+      break_enabled: false,
+      break_start: "13:00",
+      break_end: "14:00",
     };
   }
 
@@ -602,6 +626,9 @@ async function getAvailabilityForDate(professionalId, staffId, bookingDate) {
     start_time: "09:00",
     end_time: "18:00",
     slot_duration_minutes: 30,
+    break_enabled: false,
+    break_start: "13:00",
+    break_end: "14:00",
   };
 }
 
@@ -639,12 +666,12 @@ async function getBusyBookings(professionalId, bookingDate, staffId) {
 }
 
 function rangeOverlapsPause(availability, start, end) {
-  if (!availability || !availability.break_enabled) {
+  if (!availability || !isTruthyDatabaseValue(availability.break_enabled ?? availability.breakEnabled)) {
     return false;
   }
 
-  const pauseStart = timeToMinutes(availability.break_start_time);
-  const pauseEnd = timeToMinutes(availability.break_end_time);
+  const pauseStart = timeToMinutes(getAvailabilityBreakStart(availability));
+  const pauseEnd = timeToMinutes(getAvailabilityBreakEnd(availability));
 
   if (pauseStart === null || pauseEnd === null || pauseEnd <= pauseStart) {
     return false;
@@ -753,7 +780,7 @@ router.get("/public/:slug/slots", async (req, res) => {
       bookingDate
     );
 
-    if (!availability || availability.is_active === false) {
+    if (!availability || !isAvailabilityActive(availability)) {
       return res.json({ slots: [] });
     }
 
@@ -894,7 +921,7 @@ router.post("/public/:slug/book", async (req, res) => {
       normalizeDate(bookingDate)
     );
 
-    if (!availability || availability.is_active === false) {
+    if (!availability || !isAvailabilityActive(availability)) {
       return res.status(409).json({
         error: "Este profesional no trabaja en esa fecha",
       });
