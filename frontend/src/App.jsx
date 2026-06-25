@@ -3303,6 +3303,94 @@ function CashSection() {
   );
 }
 
+
+function TimePickerField({ value, disabled = false, onChange, compact = false }) {
+  const cleanValue = String(value || '09:00').slice(0, 5);
+  const [rawHour, rawMinute] = cleanValue.split(':').map(Number);
+  const hour24 = Number.isFinite(rawHour) ? rawHour : 9;
+  const minute = Number.isFinite(rawMinute) ? rawMinute : 0;
+  const period = hour24 >= 12 ? 'PM' : 'AM';
+  const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
+
+  const hourOptions = Array.from({ length: 12 }, (_, index) => String(index + 1).padStart(2, '0'));
+  const minuteOptions = ['00', '15', '30', '45'];
+
+  const emitValue = (nextHour12, nextMinute, nextPeriod) => {
+    let nextHour = Number(nextHour12);
+
+    if (nextPeriod === 'AM') {
+      if (nextHour === 12) nextHour = 0;
+    } else if (nextHour !== 12) {
+      nextHour += 12;
+    }
+
+    onChange(`${String(nextHour).padStart(2, '0')}:${String(nextMinute).padStart(2, '0')}`);
+  };
+
+  const selectStyle = {
+    appearance: 'none',
+    WebkitAppearance: 'none',
+    border: 'none',
+    outline: 'none',
+    background: 'transparent',
+    color: disabled ? '#b8b8bd' : '#1d1d1f',
+    fontFamily: 'inherit',
+    fontSize: compact ? 13 : 14,
+    fontWeight: 900,
+    textAlign: 'center',
+    textAlignLast: 'center',
+    padding: '8px 4px',
+    cursor: disabled ? 'not-allowed' : 'pointer',
+  };
+
+  return (
+    <div
+      style={{
+        width: '100%',
+        minWidth: 0,
+        height: compact ? 42 : 46,
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr 1fr',
+        alignItems: 'center',
+        borderRadius: compact ? 14 : 16,
+        border: '0.5px solid #d8d8de',
+        background: disabled ? '#fafafa' : '#fff',
+        boxShadow: disabled ? 'none' : 'inset 0 1px 0 rgba(255,255,255,0.9), 0 1px 4px rgba(0,0,0,0.035)',
+        overflow: 'hidden',
+        opacity: disabled ? 0.55 : 1,
+      }}
+    >
+      <select
+        value={String(hour12).padStart(2, '0')}
+        disabled={disabled}
+        onChange={(event) => emitValue(event.target.value, minute, period)}
+        style={selectStyle}
+      >
+        {hourOptions.map((hour) => <option key={hour} value={hour}>{hour}</option>)}
+      </select>
+
+      <select
+        value={String(minute).padStart(2, '0')}
+        disabled={disabled}
+        onChange={(event) => emitValue(hour12, event.target.value, period)}
+        style={{ ...selectStyle, borderLeft: '0.5px solid #eeeeef', borderRight: '0.5px solid #eeeeef' }}
+      >
+        {minuteOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+      </select>
+
+      <select
+        value={period}
+        disabled={disabled}
+        onChange={(event) => emitValue(hour12, minute, event.target.value)}
+        style={selectStyle}
+      >
+        <option value="AM">a.m.</option>
+        <option value="PM">p.m.</option>
+      </select>
+    </div>
+  );
+}
+
 function AvailabilityTable({ availability, onChange }) {
   const timeInputStyle = {
     ...inputStyle,
@@ -3520,22 +3608,20 @@ function AvailabilityTable({ availability, onChange }) {
                   </td>
 
                   <td style={{ padding: '12px 8px 12px 0', borderBottom: '1px solid #f5f5f5' }}>
-                    <input
-                      type="time"
+                    <TimePickerField
                       value={day.startTime}
                       disabled={!day.isActive}
-                      onChange={(e) => onChange(day.dayOfWeek, 'startTime', e.target.value)}
-                      style={{ ...inputStyle, margin: 0, opacity: day.isActive ? 1 : 0.45 }}
+                      onChange={(value) => onChange(day.dayOfWeek, 'startTime', value)}
+                      compact
                     />
                   </td>
 
                   <td style={{ padding: '12px 8px 12px 0', borderBottom: '1px solid #f5f5f5' }}>
-                    <input
-                      type="time"
+                    <TimePickerField
                       value={day.endTime}
                       disabled={!day.isActive}
-                      onChange={(e) => onChange(day.dayOfWeek, 'endTime', e.target.value)}
-                      style={{ ...inputStyle, margin: 0, opacity: day.isActive ? 1 : 0.45 }}
+                      onChange={(value) => onChange(day.dayOfWeek, 'endTime', value)}
+                      compact
                     />
                   </td>
 
@@ -3553,19 +3639,17 @@ function AvailabilityTable({ availability, onChange }) {
 
                       {day.breakEnabled && (
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                          <input
-                            type="time"
+                          <TimePickerField
                             value={day.breakStartTime || '13:00'}
                             disabled={!day.isActive}
-                            onChange={(e) => onChange(day.dayOfWeek, 'breakStartTime', e.target.value)}
-                            style={{ ...inputStyle, margin: 0, opacity: day.isActive ? 1 : 0.45 }}
+                            onChange={(value) => onChange(day.dayOfWeek, 'breakStartTime', value)}
+                            compact
                           />
-                          <input
-                            type="time"
+                          <TimePickerField
                             value={day.breakEndTime || '14:00'}
                             disabled={!day.isActive}
-                            onChange={(e) => onChange(day.dayOfWeek, 'breakEndTime', e.target.value)}
-                            style={{ ...inputStyle, margin: 0, opacity: day.isActive ? 1 : 0.45 }}
+                            onChange={(value) => onChange(day.dayOfWeek, 'breakEndTime', value)}
+                            compact
                           />
                         </div>
                       )}
@@ -3606,23 +3690,19 @@ function AvailabilityTable({ availability, onChange }) {
               <div className="availability-mobile-grid">
                 <div className="availability-mobile-field availability-time-box">
                   <span className="availability-mobile-label">Apertura</span>
-                  <input
-                    type="time"
+                  <TimePickerField
                     value={day.startTime}
                     disabled={!day.isActive}
-                    onChange={(e) => onChange(day.dayOfWeek, 'startTime', e.target.value)}
-                    style={{ ...timeInputStyle, opacity: day.isActive ? 1 : 0.45 }}
+                    onChange={(value) => onChange(day.dayOfWeek, 'startTime', value)}
                   />
                 </div>
 
                 <div className="availability-mobile-field availability-time-box">
                   <span className="availability-mobile-label">Cierre</span>
-                  <input
-                    type="time"
+                  <TimePickerField
                     value={day.endTime}
                     disabled={!day.isActive}
-                    onChange={(e) => onChange(day.dayOfWeek, 'endTime', e.target.value)}
-                    style={{ ...timeInputStyle, opacity: day.isActive ? 1 : 0.45 }}
+                    onChange={(value) => onChange(day.dayOfWeek, 'endTime', value)}
                   />
                 </div>
 
@@ -3649,23 +3729,19 @@ function AvailabilityTable({ availability, onChange }) {
                     <div className="availability-pause-times">
                       <div className="availability-mobile-field">
                         <span className="availability-mobile-label">Desde</span>
-                        <input
-                          type="time"
+                        <TimePickerField
                           value={day.breakStartTime || '13:00'}
                           disabled={!day.isActive}
-                          onChange={(e) => onChange(day.dayOfWeek, 'breakStartTime', e.target.value)}
-                          style={{ ...timeInputStyle, opacity: day.isActive ? 1 : 0.45 }}
+                          onChange={(value) => onChange(day.dayOfWeek, 'breakStartTime', value)}
                         />
                       </div>
 
                       <div className="availability-mobile-field">
                         <span className="availability-mobile-label">Hasta</span>
-                        <input
-                          type="time"
+                        <TimePickerField
                           value={day.breakEndTime || '14:00'}
                           disabled={!day.isActive}
-                          onChange={(e) => onChange(day.dayOfWeek, 'breakEndTime', e.target.value)}
-                          style={{ ...timeInputStyle, opacity: day.isActive ? 1 : 0.45 }}
+                          onChange={(value) => onChange(day.dayOfWeek, 'breakEndTime', value)}
                         />
                       </div>
                     </div>

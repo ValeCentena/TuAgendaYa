@@ -120,7 +120,7 @@ function generateSlotsFromConfig(startTime, endTime, stepMinutes, serviceDuratio
 
   const slots = [];
 
-  for (let current = start; current + duration <= end; current += step) {
+  for (let current = start; current <= end; current += step) {
     slots.push(minutesToTime(current));
   }
 
