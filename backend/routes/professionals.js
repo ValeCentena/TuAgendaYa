@@ -24,8 +24,8 @@ function authMiddleware(req, res, next) {
 // Convierte CUALQUIER valor truthy a 1 y cualquier falsy a 0.
 // Maneja: true, false, 1, 0, "true", "false", "1", "0", null, undefined.
 function toBoolInt(v) {
-  if (v === true  || v === 1 || v === '1' || v === 'true')  return 1;
-  if (v === false || v === 0 || v === '0' || v === 'false') return 0;
+  if (v === true  || v === 1 || v === '1' || v === 'true' || v === 't')  return 1;
+  if (v === false || v === 0 || v === '0' || v === 'false' || v === 'f') return 0;
   return v ? 1 : 0;
 }
 
@@ -170,7 +170,7 @@ async function syncActiveServicesToLegacyTable(professionalId) {
   const activeServices = (await db.query(
     `SELECT id, name, description, duration_minutes, price, is_active
      FROM professional_services
-     WHERE professional_id = $1 AND COALESCE(is_active, 1) = 1
+     WHERE professional_id = $1 AND (is_active IS NULL OR is_active::text IN ('1','true','t'))
      ORDER BY id ASC`,
     [professionalId]
   )).rows;
@@ -208,19 +208,6 @@ async function syncActiveServicesToLegacyTable(professionalId) {
       );
     }
   }
-}
-
-
-async function getActiveServicesForProfessional(professionalId) {
-  const rows = (await db.query(
-    `SELECT id, professional_id, name, description, duration_minutes, price, is_active, created_at, updated_at
-     FROM professional_services
-     WHERE professional_id = $1 AND COALESCE(is_active, 1) = 1
-     ORDER BY id ASC`,
-    [professionalId]
-  )).rows;
-
-  return rows.map(normalizeServiceRow);
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -341,7 +328,7 @@ router.get('/me/services', authMiddleware, async (req, res) => {
     const rows = (await db.query(
       `SELECT id, professional_id, name, description, duration_minutes, price, is_active, created_at, updated_at
        FROM professional_services
-       WHERE professional_id = $1 AND COALESCE(is_active, 1) = 1
+       WHERE professional_id = $1 AND (is_active IS NULL OR is_active::text IN ('1','true','t'))
        ORDER BY id ASC`,
       [profId]
     )).rows;
@@ -422,8 +409,7 @@ router.post('/me/services', authMiddleware, async (req, res) => {
       console.warn('syncActiveServicesToLegacyTable skipped:', err.message);
     });
 
-    const services = await getActiveServicesForProfessional(profId);
-    res.status(201).json({ service: normalizeServiceRow(result.rows[0]), services });
+    res.status(201).json({ service: normalizeServiceRow(result.rows[0]) });
   } catch (err) {
     console.error('POST /me/services error:', err);
     res.status(500).json({ error: 'Error al crear el servicio' });
@@ -477,8 +463,7 @@ router.patch('/me/services/:id', authMiddleware, async (req, res) => {
       console.warn('syncActiveServicesToLegacyTable skipped:', err.message);
     });
 
-    const services = await getActiveServicesForProfessional(profId);
-    res.json({ service: normalizeServiceRow(updated), services });
+    res.json({ service: normalizeServiceRow(updated) });
   } catch (err) {
     console.error('PATCH /me/services/:id error:', err);
     res.status(500).json({ error: 'Error al actualizar el servicio' });
@@ -524,8 +509,7 @@ router.delete('/me/services/:id', authMiddleware, async (req, res) => {
       });
     }
 
-    const services = await getActiveServicesForProfessional(profId);
-    res.json({ success: true, message: 'Servicio desactivado', services });
+    res.json({ success: true, message: 'Servicio desactivado' });
   } catch (err) {
     console.error('DELETE /me/services/:id error:', err);
     res.status(500).json({ error: 'Error al eliminar el servicio' });
@@ -541,7 +525,7 @@ router.get('/public/:slug/services', async (req, res) => {
     const prof = (await db.query(
       `SELECT id, name, business_name, profession, slug, logo_url
        FROM professionals
-       WHERE slug = $1 AND COALESCE(status, 'active') = 'active'
+       WHERE slug = $1 AND (status IS NULL OR status = 'active')
        LIMIT 1`,
       [slug]
     )).rows[0];
@@ -557,7 +541,7 @@ router.get('/public/:slug/services', async (req, res) => {
     const services = (await db.query(
       `SELECT id, professional_id, name, description, duration_minutes, price, is_active, created_at, updated_at
        FROM professional_services
-       WHERE professional_id = $1 AND COALESCE(is_active, 1) = 1
+       WHERE professional_id = $1 AND (is_active IS NULL OR is_active::text IN ('1','true','t'))
        ORDER BY id ASC`,
       [prof.id]
     )).rows.map(normalizeServiceRow);
