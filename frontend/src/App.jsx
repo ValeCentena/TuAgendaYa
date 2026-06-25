@@ -5011,8 +5011,11 @@ function ServicesSection() {
     setLoading(true);
     setError('');
 
-    fetch(`${API_BASE}/professionals/me/services`, {
-      headers: { Authorization: `Bearer ${token}` },
+    fetch(`${API_BASE}/professionals/me/services?t=${Date.now()}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Cache-Control': 'no-cache',
+      },
     })
       .then((r) => r.json())
       .then((data) => setServices((data.services || []).map(normalizeService)))
@@ -5059,7 +5062,11 @@ function ServicesSection() {
           name: form.name.trim(),
           description: form.description.trim(),
           durationMinutes: Number(form.durationMinutes),
+          duration_minutes: Number(form.durationMinutes),
+          duration: Number(form.durationMinutes),
           price: form.price === '' ? null : Number(form.price),
+          isActive: true,
+          is_active: 1,
         }),
       });
 
@@ -5069,8 +5076,11 @@ function ServicesSection() {
         setError(data.error || 'No se pudo crear el servicio.');
       } else {
         setMessage('Servicio creado correctamente.');
+        if (data.service) {
+          setServices((current) => [...current.filter((item) => String(item.id) !== String(data.service.id)), normalizeService(data.service)]);
+        }
         resetForm();
-        fetchServices();
+        setTimeout(fetchServices, 350);
       }
     } catch {
       setError('No se pudo conectar con el servidor.');
@@ -5111,8 +5121,11 @@ function ServicesSection() {
           name: String(editing.name || '').trim(),
           description: String(editing.description || '').trim(),
           durationMinutes: Number(editing.durationMinutes),
+          duration_minutes: Number(editing.durationMinutes),
+          duration: Number(editing.durationMinutes),
           price: editing.price === '' ? null : Number(editing.price),
           isActive: Boolean(editing.isActive),
+          is_active: editing.isActive ? 1 : 0,
         }),
       });
 
@@ -5122,8 +5135,11 @@ function ServicesSection() {
         setError(data.error || 'No se pudo actualizar el servicio.');
       } else {
         setMessage('Servicio actualizado correctamente.');
+        if (data.service) {
+          setServices((current) => current.map((item) => String(item.id) === String(serviceId) ? normalizeService(data.service) : item));
+        }
         cancelEditing();
-        fetchServices();
+        setTimeout(fetchServices, 350);
       }
     } catch {
       setError('No se pudo conectar con el servidor.');
@@ -5152,7 +5168,8 @@ function ServicesSection() {
         setError(data.error || 'No se pudo eliminar el servicio.');
       } else {
         setMessage('Servicio eliminado correctamente.');
-        fetchServices();
+        setServices((current) => current.filter((item) => String(item.id) !== String(serviceId)));
+        setTimeout(fetchServices, 350);
       }
     } catch {
       setError('No se pudo conectar con el servidor.');
