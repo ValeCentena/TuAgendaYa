@@ -210,6 +210,19 @@ async function syncActiveServicesToLegacyTable(professionalId) {
   }
 }
 
+
+async function getActiveServicesForProfessional(professionalId) {
+  const rows = (await db.query(
+    `SELECT id, professional_id, name, description, duration_minutes, price, is_active, created_at, updated_at
+     FROM professional_services
+     WHERE professional_id = $1 AND COALESCE(is_active, 1) = 1
+     ORDER BY id ASC`,
+    [professionalId]
+  )).rows;
+
+  return rows.map(normalizeServiceRow);
+}
+
 // ══════════════════════════════════════════════════════════════
 // DISPONIBILIDAD
 // ══════════════════════════════════════════════════════════════
@@ -409,7 +422,8 @@ router.post('/me/services', authMiddleware, async (req, res) => {
       console.warn('syncActiveServicesToLegacyTable skipped:', err.message);
     });
 
-    res.status(201).json({ service: normalizeServiceRow(result.rows[0]) });
+    const services = await getActiveServicesForProfessional(profId);
+    res.status(201).json({ service: normalizeServiceRow(result.rows[0]), services });
   } catch (err) {
     console.error('POST /me/services error:', err);
     res.status(500).json({ error: 'Error al crear el servicio' });
@@ -463,7 +477,8 @@ router.patch('/me/services/:id', authMiddleware, async (req, res) => {
       console.warn('syncActiveServicesToLegacyTable skipped:', err.message);
     });
 
-    res.json({ service: normalizeServiceRow(updated) });
+    const services = await getActiveServicesForProfessional(profId);
+    res.json({ service: normalizeServiceRow(updated), services });
   } catch (err) {
     console.error('PATCH /me/services/:id error:', err);
     res.status(500).json({ error: 'Error al actualizar el servicio' });
@@ -509,7 +524,8 @@ router.delete('/me/services/:id', authMiddleware, async (req, res) => {
       });
     }
 
-    res.json({ success: true, message: 'Servicio desactivado' });
+    const services = await getActiveServicesForProfessional(profId);
+    res.json({ success: true, message: 'Servicio desactivado', services });
   } catch (err) {
     console.error('DELETE /me/services/:id error:', err);
     res.status(500).json({ error: 'Error al eliminar el servicio' });

@@ -5011,11 +5011,8 @@ function ServicesSection() {
     setLoading(true);
     setError('');
 
-    fetch(`${API_BASE}/professionals/me/services?t=${Date.now()}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Cache-Control': 'no-cache',
-      },
+    fetch(`${API_BASE}/professionals/me/services`, {
+      headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.json())
       .then((data) => setServices((data.services || []).map(normalizeService)))
@@ -5065,8 +5062,6 @@ function ServicesSection() {
           duration_minutes: Number(form.durationMinutes),
           duration: Number(form.durationMinutes),
           price: form.price === '' ? null : Number(form.price),
-          isActive: true,
-          is_active: 1,
         }),
       });
 
@@ -5076,11 +5071,19 @@ function ServicesSection() {
         setError(data.error || 'No se pudo crear el servicio.');
       } else {
         setMessage('Servicio creado correctamente.');
-        if (data.service) {
-          setServices((current) => [...current.filter((item) => String(item.id) !== String(data.service.id)), normalizeService(data.service)]);
-        }
         resetForm();
-        setTimeout(fetchServices, 350);
+
+        if (Array.isArray(data.services)) {
+          setServices(data.services.map(normalizeService));
+        } else if (data.service) {
+          setServices((current) => {
+            const created = normalizeService(data.service);
+            const withoutDuplicate = current.filter((service) => String(service.id) !== String(created.id));
+            return [created, ...withoutDuplicate];
+          });
+        } else {
+          fetchServices();
+        }
       }
     } catch {
       setError('No se pudo conectar con el servidor.');
@@ -5125,7 +5128,7 @@ function ServicesSection() {
           duration: Number(editing.durationMinutes),
           price: editing.price === '' ? null : Number(editing.price),
           isActive: Boolean(editing.isActive),
-          is_active: editing.isActive ? 1 : 0,
+          is_active: Boolean(editing.isActive),
         }),
       });
 
@@ -5135,11 +5138,16 @@ function ServicesSection() {
         setError(data.error || 'No se pudo actualizar el servicio.');
       } else {
         setMessage('Servicio actualizado correctamente.');
-        if (data.service) {
-          setServices((current) => current.map((item) => String(item.id) === String(serviceId) ? normalizeService(data.service) : item));
-        }
         cancelEditing();
-        setTimeout(fetchServices, 350);
+
+        if (Array.isArray(data.services)) {
+          setServices(data.services.map(normalizeService));
+        } else if (data.service) {
+          const updated = normalizeService(data.service);
+          setServices((current) => current.map((service) => String(service.id) === String(updated.id) ? updated : service));
+        } else {
+          fetchServices();
+        }
       }
     } catch {
       setError('No se pudo conectar con el servidor.');
@@ -5168,8 +5176,12 @@ function ServicesSection() {
         setError(data.error || 'No se pudo eliminar el servicio.');
       } else {
         setMessage('Servicio eliminado correctamente.');
-        setServices((current) => current.filter((item) => String(item.id) !== String(serviceId)));
-        setTimeout(fetchServices, 350);
+
+        if (Array.isArray(data.services)) {
+          setServices(data.services.map(normalizeService));
+        } else {
+          setServices((current) => current.filter((service) => String(service.id) !== String(serviceId)));
+        }
       }
     } catch {
       setError('No se pudo conectar con el servidor.');
