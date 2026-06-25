@@ -187,22 +187,26 @@ router.patch('/me/availability', authMiddleware, async (req, res) => {
       const breakStart = toTimeOrNull(item.break_start || item.breakStart);
       const breakEnd   = toTimeOrNull(item.break_end   || item.breakEnd);
 
-      // slot_duration_minutes se mantiene en 30 (la duración real viene de professional_services)
+      // No guardamos slot_duration_minutes desde disponibilidad.
+      // La duración real del turno se toma desde el servicio.
+      const safeBreakStart = breakEnabled ? breakStart : null;
+      const safeBreakEnd = breakEnabled ? breakEnd : null;
+
       await db.query(
         `INSERT INTO professional_availability
            (professional_id, day_of_week, is_active, start_time, end_time,
-            slot_duration_minutes, break_enabled, break_start, break_end)
-         VALUES ($1, $2, $3, $4::time, $5::time, 30, $6, $7, $8)
+            break_enabled, break_start, break_end)
+         VALUES ($1, $2, $3, $4::time, $5::time, $6, $7::time, $8::time)
          ON CONFLICT (professional_id, day_of_week)
          DO UPDATE SET
-           is_active             = EXCLUDED.is_active,
-           start_time            = EXCLUDED.start_time,
-           end_time              = EXCLUDED.end_time,
-           break_enabled         = EXCLUDED.break_enabled,
-           break_start           = EXCLUDED.break_start,
-           break_end             = EXCLUDED.break_end,
-           updated_at            = CURRENT_TIMESTAMP`,
-        [profId, dow, isActive, startTime, endTime, breakEnabled, breakStart, breakEnd]
+           is_active     = EXCLUDED.is_active,
+           start_time    = EXCLUDED.start_time,
+           end_time      = EXCLUDED.end_time,
+           break_enabled = EXCLUDED.break_enabled,
+           break_start   = EXCLUDED.break_start,
+           break_end     = EXCLUDED.break_end,
+           updated_at    = CURRENT_TIMESTAMP`,
+        [profId, dow, isActive, startTime, endTime, breakEnabled, safeBreakStart, safeBreakEnd]
       );
     }
 
