@@ -2,6 +2,7 @@ const express = require("express");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const db = require("../db");
+const { sendBookingConfirmationMessage } = require("../services/whatsappService");
 
 const router = express.Router();
 
@@ -980,18 +981,44 @@ router.post("/public/:slug/book", async (req, res) => {
 
     const confirmationUrl = `${getFrontendUrl()}/confirmar-reserva/${confirmationToken}`;
 
+    const normalizedBooking = normalizeBooking({
+      ...result.rows[0],
+      staff_name: staff ? staff.name : null,
+      service_name: service ? service.name : null,
+      service_duration_minutes: service ? service.duration_minutes : null,
+      service_price: service ? service.price : null,
+    });
+
+    let whatsapp = { attempted: false, sent: false };
+
+    try {
+      whatsapp = await sendBookingConfirmationMessage({
+        booking: normalizedBooking,
+        businessName: professional.business_name || professional.name || "TuAgendaYa",
+        clientName,
+        clientPhone,
+        serviceName: service ? service.name : "Servicio",
+        staffName: staff ? staff.name : null,
+        bookingDate: normalizeDate(bookingDate),
+        startTime: normalizeTime(startTime),
+        confirmationToken,
+      });
+    } catch (whatsappError) {
+      console.warn("WhatsApp confirmation skipped:", whatsappError.message);
+      whatsapp = {
+        attempted: true,
+        sent: false,
+        error: whatsappError.message || "No se pudo enviar WhatsApp",
+      };
+    }
+
     res.status(201).json({
       success: true,
       bookingId: result.rows[0].id,
       confirmationToken,
       confirmationUrl,
-      booking: normalizeBooking({
-        ...result.rows[0],
-        staff_name: staff ? staff.name : null,
-        service_name: service ? service.name : null,
-        service_duration_minutes: service ? service.duration_minutes : null,
-        service_price: service ? service.price : null,
-      }),
+      whatsapp,
+      booking: normalizedBooking,
     });
   } catch (error) {
     res.status(500).json({

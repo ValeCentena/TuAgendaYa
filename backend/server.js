@@ -9,6 +9,7 @@ const professionalsRoutes = require("./routes/professionals");
 const bookingsRoutes = require("./routes/bookings");
 const staffRoutes = require("./routes/staff");
 const adminRoutes = require("./routes/admin");
+const whatsappRoutes = require("./routes/whatsapp");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -52,6 +53,7 @@ app.use("/api/professionals", professionalsRoutes);
 app.use("/api/bookings", bookingsRoutes);
 app.use("/api/staff", staffRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/whatsapp", whatsappRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ error: "Ruta no encontrada" });
