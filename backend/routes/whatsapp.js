@@ -54,32 +54,6 @@ function parseBookingAction(payload) {
     };
   }
 
-  if (
-    text.includes("sí") ||
-    text.includes("si, confirmo") ||
-    text.includes("confirmo")
-  ) {
-    return {
-      action: "confirm",
-      token: null,
-      id: null,
-      fallbackText: true,
-    };
-  }
-
-  if (
-    text.includes("no puedo") ||
-    text.includes("cancel") ||
-    text.includes("no asistir")
-  ) {
-    return {
-      action: "cancel",
-      token: null,
-      id: null,
-      fallbackText: true,
-    };
-  }
-
   return null;
 }
 
@@ -94,8 +68,14 @@ async function updateBookingFromWhatsApp(action, token, id) {
       UPDATE bookings
       SET
         status = $2,
-        client_confirmed_at = CASE WHEN $2 = 'confirmed' THEN NOW() ELSE client_confirmed_at END,
-        client_cancelled_at = CASE WHEN $2 = 'cancelled' THEN NOW() ELSE client_cancelled_at END,
+        client_confirmed_at = CASE
+          WHEN $2 = 'confirmed' THEN NOW()
+          ELSE client_confirmed_at
+        END,
+        client_cancelled_at = CASE
+          WHEN $2 = 'cancelled' THEN NOW()
+          ELSE client_cancelled_at
+        END,
         updated_at = NOW()
       WHERE confirmation_token = $1
       RETURNING *
@@ -112,8 +92,14 @@ async function updateBookingFromWhatsApp(action, token, id) {
       UPDATE bookings
       SET
         status = $2,
-        client_confirmed_at = CASE WHEN $2 = 'confirmed' THEN NOW() ELSE client_confirmed_at END,
-        client_cancelled_at = CASE WHEN $2 = 'cancelled' THEN NOW() ELSE client_cancelled_at END,
+        client_confirmed_at = CASE
+          WHEN $2 = 'confirmed' THEN NOW()
+          ELSE client_confirmed_at
+        END,
+        client_cancelled_at = CASE
+          WHEN $2 = 'cancelled' THEN NOW()
+          ELSE client_cancelled_at
+        END,
         updated_at = NOW()
       WHERE id = $1
       RETURNING *
@@ -162,13 +148,6 @@ router.post("/webhook", async (req, res) => {
             continue;
           }
 
-          if (parsed.fallbackText) {
-            console.warn(
-              "WhatsApp webhook recibió texto de botón, pero no recibió token. No se puede sincronizar esta respuesta vieja."
-            );
-            continue;
-          }
-
           const booking = await updateBookingFromWhatsApp(
             parsed.action,
             parsed.token,
@@ -181,7 +160,9 @@ router.post("/webhook", async (req, res) => {
             );
           } else {
             console.warn(
-              `WhatsApp ${parsed.action} sin reserva. Token: ${parsed.token || "-"} ID: ${parsed.id || "-"}`
+              `WhatsApp ${parsed.action} sin reserva. Token: ${
+                parsed.token || "-"
+              } ID: ${parsed.id || "-"}`
             );
           }
         }
