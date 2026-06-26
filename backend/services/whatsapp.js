@@ -57,6 +57,7 @@ function getActiveProvider() {
 module.exports = {
   sendWhatsApp,
   sendBookingConfirmation,
+  sendBookingConfirmationMessage: sendBookingConfirmation,
   sendReminder,
   getActiveProvider,
 };
