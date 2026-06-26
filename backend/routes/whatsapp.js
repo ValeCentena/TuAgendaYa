@@ -8,65 +8,117 @@ function getButtonPayload(message) {
 
   return (
     message?.interactive?.button_reply?.id ||
+    message?.interactive?.button_reply?.title ||
     message?.button?.payload ||
     message?.button?.text ||
+    message?.text?.body ||
     ""
   );
 }
 
 function parseBookingAction(payload) {
-  const text = String(payload || "").trim();
+  const raw = String(payload || "").trim();
+  const text = raw.toLowerCase();
 
-  if (text.startsWith("CONFIRM_BOOKING:")) {
+  if (!text) return null;
+
+  if (text.startsWith("confirm_booking:")) {
     return {
       action: "confirm",
-      token: text.replace("CONFIRM_BOOKING:", "").trim(),
+      token: raw.split(":").slice(1).join(":").trim(),
+      id: null,
     };
   }
 
-  if (text.startsWith("CANCEL_BOOKING:")) {
+  if (text.startsWith("cancel_booking:")) {
     return {
       action: "cancel",
-      token: text.replace("CANCEL_BOOKING:", "").trim(),
+      token: raw.split(":").slice(1).join(":").trim(),
+      id: null,
+    };
+  }
+
+  if (text.startsWith("confirm_booking_id:")) {
+    return {
+      action: "confirm",
+      token: null,
+      id: raw.split(":").slice(1).join(":").trim(),
+    };
+  }
+
+  if (text.startsWith("cancel_booking_id:")) {
+    return {
+      action: "cancel",
+      token: null,
+      id: raw.split(":").slice(1).join(":").trim(),
+    };
+  }
+
+  if (
+    text.includes("sí") ||
+    text.includes("si, confirmo") ||
+    text.includes("confirmo")
+  ) {
+    return {
+      action: "confirm",
+      token: null,
+      id: null,
+      fallbackText: true,
+    };
+  }
+
+  if (
+    text.includes("no puedo") ||
+    text.includes("cancel") ||
+    text.includes("no asistir")
+  ) {
+    return {
+      action: "cancel",
+      token: null,
+      id: null,
+      fallbackText: true,
     };
   }
 
   return null;
 }
 
-async function updateBookingFromWhatsApp(action, token) {
-  if (!token) return null;
+async function updateBookingFromWhatsApp(action, token, id) {
+  if (!action) return null;
 
-  if (action === "confirm") {
+  const nextStatus = action === "confirm" ? "confirmed" : "cancelled";
+
+  if (token) {
     const result = await db.query(
       `
       UPDATE bookings
       SET
-        status = 'confirmed',
-        client_confirmed_at = NOW(),
-        client_cancelled_at = NULL,
+        status = $2,
+        client_confirmed_at = CASE WHEN $2 = 'confirmed' THEN NOW() ELSE client_confirmed_at END,
+        client_cancelled_at = CASE WHEN $2 = 'cancelled' THEN NOW() ELSE client_cancelled_at END,
         updated_at = NOW()
       WHERE confirmation_token = $1
       RETURNING *
       `,
-      [token]
+      [token, nextStatus]
     );
 
     return result.rows[0] || null;
   }
 
-  if (action === "cancel") {
+  if (id) {
     const result = await db.query(
       `
       UPDATE bookings
       SET
-        status = 'cancelled',
-        client_cancelled_at = NOW(),
+        status = $2,
+        client_confirmed_at = CASE WHEN $2 = 'confirmed' THEN NOW() ELSE client_confirmed_at END,
+        client_cancelled_at = CASE WHEN $2 = 'cancelled' THEN NOW() ELSE client_cancelled_at END,
         updated_at = NOW()
-      WHERE confirmation_token = $1
+      WHERE id = $1
       RETURNING *
       `,
-      [token]
+      [id, nextStatus]
     );
 
     return result.rows[0] || null;
@@ -95,20 +147,42 @@ router.post("/webhook", async (req, res) => {
       const changes = Array.isArray(entry?.changes) ? entry.changes : [];
 
       for (const change of changes) {
-        const messages = Array.isArray(change?.value?.messages) ? change.value.messages : [];
+        const messages = Array.isArray(change?.value?.messages)
+          ? change.value.messages
+          : [];
 
         for (const message of messages) {
           const payload = getButtonPayload(message);
           const parsed = parseBookingAction(payload);
 
-          if (!parsed) continue;
+          console.log("WhatsApp webhook payload recibido:", payload);
 
-          const booking = await updateBookingFromWhatsApp(parsed.action, parsed.token);
+          if (!parsed) {
+            console.log("WhatsApp webhook ignorado: acción no reconocida");
+            continue;
+          }
+
+          if (parsed.fallbackText) {
+            console.warn(
+              "WhatsApp webhook recibió texto de botón, pero no recibió token. No se puede sincronizar esta respuesta vieja."
+            );
+            continue;
+          }
+
+          const booking = await updateBookingFromWhatsApp(
+            parsed.action,
+            parsed.token,
+            parsed.id
+          );
 
           if (booking) {
-            console.log(`WhatsApp ${parsed.action} aplicado a reserva ${booking.id}`);
+            console.log(
+              `WhatsApp ${parsed.action} aplicado a reserva ${booking.id}`
+            );
           } else {
-            console.warn(`WhatsApp ${parsed.action} sin reserva para token ${parsed.token}`);
+            console.warn(
+              `WhatsApp ${parsed.action} sin reserva. Token: ${parsed.token || "-"} ID: ${parsed.id || "-"}`
+            );
           }
         }
       }
