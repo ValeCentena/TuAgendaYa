@@ -2,7 +2,7 @@ const express = require("express");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const db = require("../db");
-const { sendBookingConfirmationMessage } = require("../services/whatsappService");
+const { sendBookingConfirmationMessage } = require("../services/whatsapp");
 
 const router = express.Router();
 
