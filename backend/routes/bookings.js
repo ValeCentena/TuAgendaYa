@@ -992,17 +992,30 @@ router.post("/public/:slug/book", async (req, res) => {
     let whatsapp = { attempted: false, sent: false };
 
     try {
-      whatsapp = await sendBookingConfirmationMessage({
-        booking: normalizedBooking,
-        businessName: professional.business_name || professional.name || "TuAgendaYa",
-        clientName,
-        clientPhone,
-        serviceName: service ? service.name : "Servicio",
-        staffName: staff ? staff.name : null,
-        bookingDate: normalizeDate(bookingDate),
-        startTime: normalizeTime(startTime),
-        confirmationToken,
-      });
+      whatsapp = await sendBookingConfirmationMessage(
+  {
+    ...normalizedBooking,
+    client_phone: clientPhone,
+    clientPhone,
+    client_name: clientName,
+    clientName,
+    service_name: service ? service.name : "Servicio",
+    serviceName: service ? service.name : "Servicio",
+    staff_name: staff ? staff.name : null,
+    staffName: staff ? staff.name : null,
+    booking_date: normalizeDate(bookingDate),
+    bookingDate: normalizeDate(bookingDate),
+    start_time: normalizeTime(startTime),
+    startTime: normalizeTime(startTime),
+    confirmation_token: confirmationToken,
+    confirmationToken,
+  },
+  {
+    ...professional,
+    business_name: professional.business_name || professional.name || "TuAgendaYa",
+    businessName: professional.business_name || professional.name || "TuAgendaYa",
+  }
+);
     } catch (whatsappError) {
       console.warn("WhatsApp confirmation skipped:", whatsappError.message);
       whatsapp = {
