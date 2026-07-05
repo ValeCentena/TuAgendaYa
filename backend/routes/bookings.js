@@ -2,7 +2,10 @@ const express = require("express");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const db = require("../db");
-const { sendBookingConfirmationMessage } = require("../services/whatsapp");
+const {
+  sendBookingConfirmationMessage,
+  sendBusinessBookingNotification,
+} = require("../services/whatsapp");
 
 const router = express.Router();
 
@@ -109,13 +112,24 @@ function getDayOfWeekFromDateString(dateString) {
   return utcDate.getUTCDay();
 }
 
-function generateSlotsFromConfig(startTime, endTime, stepMinutes, serviceDurationMinutes) {
+function generateSlotsFromConfig(
+  startTime,
+  endTime,
+  stepMinutes,
+  serviceDurationMinutes
+) {
   const start = timeToMinutes(startTime);
   const end = timeToMinutes(endTime);
   const step = Number(stepMinutes || 30);
   const duration = Number(serviceDurationMinutes || step || 30);
 
-  if (start === null || end === null || end <= start || step <= 0 || duration <= 0) {
+  if (
+    start === null ||
+    end === null ||
+    end <= start ||
+    step <= 0 ||
+    duration <= 0
+  ) {
     return [];
   }
 
@@ -133,12 +147,19 @@ function rangesOverlap(startA, endA, startB, endB) {
 }
 
 async function ensurePaymentColumns() {
-  await db.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_status TEXT DEFAULT 'pending';`);
-  await db.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_method TEXT DEFAULT 'cash';`);
-  await db.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS amount_paid NUMERIC(10, 2);`);
-  await db.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_updated_at TIMESTAMP;`);
+  await db.query(
+    `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_status TEXT DEFAULT 'pending';`
+  );
+  await db.query(
+    `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_method TEXT DEFAULT 'cash';`
+  );
+  await db.query(
+    `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS amount_paid NUMERIC(10, 2);`
+  );
+  await db.query(
+    `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_updated_at TIMESTAMP;`
+  );
 }
-
 
 async function ensureCashClosuresTable() {
   await db.query(`
@@ -164,23 +185,55 @@ async function ensureCashClosuresTable() {
     );
   `);
 
-  await db.query(`ALTER TABLE cash_closures ADD COLUMN IF NOT EXISTS professional_id INTEGER;`);
-  await db.query(`ALTER TABLE cash_closures ADD COLUMN IF NOT EXISTS closure_date DATE;`);
-  await db.query(`ALTER TABLE cash_closures ADD COLUMN IF NOT EXISTS total_bookings INTEGER DEFAULT 0;`);
-  await db.query(`ALTER TABLE cash_closures ADD COLUMN IF NOT EXISTS completed_bookings INTEGER DEFAULT 0;`);
-  await db.query(`ALTER TABLE cash_closures ADD COLUMN IF NOT EXISTS pending_bookings INTEGER DEFAULT 0;`);
-  await db.query(`ALTER TABLE cash_closures ADD COLUMN IF NOT EXISTS cancelled_bookings INTEGER DEFAULT 0;`);
-  await db.query(`ALTER TABLE cash_closures ADD COLUMN IF NOT EXISTS total_generated NUMERIC(10, 2) DEFAULT 0;`);
-  await db.query(`ALTER TABLE cash_closures ADD COLUMN IF NOT EXISTS total_collected NUMERIC(10, 2) DEFAULT 0;`);
-  await db.query(`ALTER TABLE cash_closures ADD COLUMN IF NOT EXISTS total_pending NUMERIC(10, 2) DEFAULT 0;`);
-  await db.query(`ALTER TABLE cash_closures ADD COLUMN IF NOT EXISTS cash_total NUMERIC(10, 2) DEFAULT 0;`);
-  await db.query(`ALTER TABLE cash_closures ADD COLUMN IF NOT EXISTS transfer_total NUMERIC(10, 2) DEFAULT 0;`);
-  await db.query(`ALTER TABLE cash_closures ADD COLUMN IF NOT EXISTS card_total NUMERIC(10, 2) DEFAULT 0;`);
-  await db.query(`ALTER TABLE cash_closures ADD COLUMN IF NOT EXISTS other_total NUMERIC(10, 2) DEFAULT 0;`);
-  await db.query(`ALTER TABLE cash_closures ADD COLUMN IF NOT EXISTS services_summary JSONB DEFAULT '[]'::jsonb;`);
+  await db.query(
+    `ALTER TABLE cash_closures ADD COLUMN IF NOT EXISTS professional_id INTEGER;`
+  );
+  await db.query(
+    `ALTER TABLE cash_closures ADD COLUMN IF NOT EXISTS closure_date DATE;`
+  );
+  await db.query(
+    `ALTER TABLE cash_closures ADD COLUMN IF NOT EXISTS total_bookings INTEGER DEFAULT 0;`
+  );
+  await db.query(
+    `ALTER TABLE cash_closures ADD COLUMN IF NOT EXISTS completed_bookings INTEGER DEFAULT 0;`
+  );
+  await db.query(
+    `ALTER TABLE cash_closures ADD COLUMN IF NOT EXISTS pending_bookings INTEGER DEFAULT 0;`
+  );
+  await db.query(
+    `ALTER TABLE cash_closures ADD COLUMN IF NOT EXISTS cancelled_bookings INTEGER DEFAULT 0;`
+  );
+  await db.query(
+    `ALTER TABLE cash_closures ADD COLUMN IF NOT EXISTS total_generated NUMERIC(10, 2) DEFAULT 0;`
+  );
+  await db.query(
+    `ALTER TABLE cash_closures ADD COLUMN IF NOT EXISTS total_collected NUMERIC(10, 2) DEFAULT 0;`
+  );
+  await db.query(
+    `ALTER TABLE cash_closures ADD COLUMN IF NOT EXISTS total_pending NUMERIC(10, 2) DEFAULT 0;`
+  );
+  await db.query(
+    `ALTER TABLE cash_closures ADD COLUMN IF NOT EXISTS cash_total NUMERIC(10, 2) DEFAULT 0;`
+  );
+  await db.query(
+    `ALTER TABLE cash_closures ADD COLUMN IF NOT EXISTS transfer_total NUMERIC(10, 2) DEFAULT 0;`
+  );
+  await db.query(
+    `ALTER TABLE cash_closures ADD COLUMN IF NOT EXISTS card_total NUMERIC(10, 2) DEFAULT 0;`
+  );
+  await db.query(
+    `ALTER TABLE cash_closures ADD COLUMN IF NOT EXISTS other_total NUMERIC(10, 2) DEFAULT 0;`
+  );
+  await db.query(
+    `ALTER TABLE cash_closures ADD COLUMN IF NOT EXISTS services_summary JSONB DEFAULT '[]'::jsonb;`
+  );
   await db.query(`ALTER TABLE cash_closures ADD COLUMN IF NOT EXISTS notes TEXT;`);
-  await db.query(`ALTER TABLE cash_closures ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();`);
-  await db.query(`ALTER TABLE cash_closures ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();`);
+  await db.query(
+    `ALTER TABLE cash_closures ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();`
+  );
+  await db.query(
+    `ALTER TABLE cash_closures ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();`
+  );
 
   await db.query(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_cash_closures_professional_date
@@ -254,28 +307,50 @@ async function calculateCashClosure(professionalId, closureDate) {
   );
 
   const bookings = bookingsResult.rows;
-  const activeBookings = bookings.filter((booking) => booking.status !== "cancelled");
+  const activeBookings = bookings.filter(
+    (booking) => booking.status !== "cancelled"
+  );
 
   const getPrice = (booking) => Number(booking.service_price || 0) || 0;
   const getPaid = (booking) => Number(booking.amount_paid || 0) || 0;
 
   const totalBookings = bookings.length;
-  const completedBookings = bookings.filter((booking) => booking.status === "completed").length;
-  const cancelledBookings = bookings.filter((booking) => booking.status === "cancelled").length;
-  const pendingBookings = bookings.filter((booking) => booking.status === "pending" || booking.status === "confirmed").length;
+  const completedBookings = bookings.filter(
+    (booking) => booking.status === "completed"
+  ).length;
+  const cancelledBookings = bookings.filter(
+    (booking) => booking.status === "cancelled"
+  ).length;
+  const pendingBookings = bookings.filter(
+    (booking) =>
+      booking.status === "pending" || booking.status === "confirmed"
+  ).length;
 
-  const totalGenerated = activeBookings.reduce((sum, booking) => sum + getPrice(booking), 0);
-  const totalCollected = activeBookings.reduce((sum, booking) => sum + getPaid(booking), 0);
-  const totalPending = activeBookings.reduce((sum, booking) => sum + Math.max(getPrice(booking) - getPaid(booking), 0), 0);
+  const totalGenerated = activeBookings.reduce(
+    (sum, booking) => sum + getPrice(booking),
+    0
+  );
+  const totalCollected = activeBookings.reduce(
+    (sum, booking) => sum + getPaid(booking),
+    0
+  );
+  const totalPending = activeBookings.reduce(
+    (sum, booking) => sum + Math.max(getPrice(booking) - getPaid(booking), 0),
+    0
+  );
 
-  const methodTotal = (method) => activeBookings
-    .filter((booking) => (booking.payment_method || "cash") === method)
-    .reduce((sum, booking) => sum + getPaid(booking), 0);
+  const methodTotal = (method) =>
+    activeBookings
+      .filter((booking) => (booking.payment_method || "cash") === method)
+      .reduce((sum, booking) => sum + getPaid(booking), 0);
 
   const servicesMap = new Map();
 
   activeBookings.forEach((booking) => {
-    const name = String(booking.service_name || "Servicio sin nombre").trim() || "Servicio sin nombre";
+    const name =
+      String(booking.service_name || "Servicio sin nombre").trim() ||
+      "Servicio sin nombre";
+
     const current = servicesMap.get(name) || {
       name,
       count: 0,
@@ -289,7 +364,9 @@ async function calculateCashClosure(professionalId, closureDate) {
     servicesMap.set(name, current);
   });
 
-  const servicesSummary = Array.from(servicesMap.values()).sort((a, b) => b.generated - a.generated);
+  const servicesSummary = Array.from(servicesMap.values()).sort(
+    (a, b) => b.generated - a.generated
+  );
 
   return {
     totalBookings,
@@ -310,71 +387,48 @@ async function calculateCashClosure(professionalId, closureDate) {
 function normalizeBooking(row) {
   return {
     id: row.id,
-
     professional_id: row.professional_id,
     professionalId: row.professional_id,
-
     staff_id: row.staff_id,
     staffId: row.staff_id,
-
     staff_name: row.staff_name,
     staffName: row.staff_name,
-
     service_id: row.service_id,
     serviceId: row.service_id,
-
     service_name: row.service_name,
     serviceName: row.service_name,
-
     service_duration_minutes: row.service_duration_minutes,
     serviceDurationMinutes: row.service_duration_minutes,
-
     service_price: row.service_price,
     servicePrice: row.service_price,
-
     client_name: row.client_name,
     clientName: row.client_name,
-
     client_phone: row.client_phone,
     clientPhone: row.client_phone,
-
     comment: row.comment,
-
     booking_date: row.booking_date,
     bookingDate: row.booking_date,
-
     start_time: row.start_time,
     startTime: row.start_time,
-
     end_time: row.end_time,
     endTime: row.end_time,
-
     status: row.status,
-
-    payment_status: row.payment_status || 'pending',
-    paymentStatus: row.payment_status || 'pending',
-
-    payment_method: row.payment_method || 'cash',
-    paymentMethod: row.payment_method || 'cash',
-
+    payment_status: row.payment_status || "pending",
+    paymentStatus: row.payment_status || "pending",
+    payment_method: row.payment_method || "cash",
+    paymentMethod: row.payment_method || "cash",
     amount_paid: row.amount_paid,
     amountPaid: row.amount_paid,
-
     payment_updated_at: row.payment_updated_at,
     paymentUpdatedAt: row.payment_updated_at,
-
     confirmation_token: row.confirmation_token,
     confirmationToken: row.confirmation_token,
-
     client_confirmed_at: row.client_confirmed_at,
     clientConfirmedAt: row.client_confirmed_at,
-
     client_cancelled_at: row.client_cancelled_at,
     clientCancelledAt: row.client_cancelled_at,
-
     created_at: row.created_at,
     createdAt: row.created_at,
-
     updated_at: row.updated_at,
     updatedAt: row.updated_at,
   };
@@ -407,7 +461,12 @@ function normalizePublicStaff(row) {
 }
 
 function isTruthyDatabaseValue(value) {
-  return value === true || value === 1 || value === "1" || String(value).toLowerCase() === "true";
+  return (
+    value === true ||
+    value === 1 ||
+    value === "1" ||
+    String(value).toLowerCase() === "true"
+  );
 }
 
 function isAvailabilityActive(availability) {
@@ -418,11 +477,23 @@ function isAvailabilityActive(availability) {
 }
 
 function getAvailabilityBreakStart(availability) {
-  return availability?.break_start_time ?? availability?.break_start ?? availability?.breakStartTime ?? availability?.breakStart ?? null;
+  return (
+    availability?.break_start_time ??
+    availability?.break_start ??
+    availability?.breakStartTime ??
+    availability?.breakStart ??
+    null
+  );
 }
 
 function getAvailabilityBreakEnd(availability) {
-  return availability?.break_end_time ?? availability?.break_end ?? availability?.breakEndTime ?? availability?.breakEnd ?? null;
+  return (
+    availability?.break_end_time ??
+    availability?.break_end ??
+    availability?.breakEndTime ??
+    availability?.breakEnd ??
+    null
+  );
 }
 
 async function getProfessionalBySlug(slug) {
@@ -555,8 +626,6 @@ async function getPublicStaffForProfessional(professional) {
     [professional.id]
   );
 
-  // Si hay 0 o 1 profesional interno, no se muestra selector en el link público.
-  // En ese caso, la agenda pública usa la disponibilidad general del negocio.
   if (result.rows.length <= 1) {
     return [];
   }
@@ -596,7 +665,6 @@ async function getAvailabilityForDate(professionalId, staffId, bookingDate) {
       start_time: "09:00",
       end_time: "18:00",
       slot_duration_minutes: 30,
-      break_enabled: false,
       break_enabled: false,
       break_start: "13:00",
       break_end: "14:00",
@@ -667,7 +735,10 @@ async function getBusyBookings(professionalId, bookingDate, staffId) {
 }
 
 function rangeOverlapsPause(availability, start, end) {
-  if (!availability || !isTruthyDatabaseValue(availability.break_enabled ?? availability.breakEnabled)) {
+  if (
+    !availability ||
+    !isTruthyDatabaseValue(availability.break_enabled ?? availability.breakEnabled)
+  ) {
     return false;
   }
 
@@ -681,7 +752,14 @@ function rangeOverlapsPause(availability, start, end) {
   return rangesOverlap(start, end, pauseStart, pauseEnd);
 }
 
-async function isTimeRangeAvailable(professionalId, staffId, bookingDate, startTime, endTime, availability = null) {
+async function isTimeRangeAvailable(
+  professionalId,
+  staffId,
+  bookingDate,
+  startTime,
+  endTime,
+  availability = null
+) {
   const start = timeToMinutes(startTime);
   const end = timeToMinutes(endTime);
 
@@ -788,7 +866,10 @@ router.get("/public/:slug/slots", async (req, res) => {
     let serviceDuration = Number(availability.slot_duration_minutes || 30);
 
     if (serviceId) {
-      const service = await getServiceForProfessional(professional.id, serviceId);
+      const service = await getServiceForProfessional(
+        professional.id,
+        serviceId
+      );
 
       if (!service) {
         return res.status(404).json({
@@ -904,7 +985,10 @@ router.post("/public/:slug/book", async (req, res) => {
     }
 
     if (finalStaffId) {
-      staff = await getStaffForProfessional(professional.id, Number(finalStaffId));
+      staff = await getStaffForProfessional(
+        professional.id,
+        Number(finalStaffId)
+      );
 
       if (!staff) {
         return res.status(404).json({
@@ -993,35 +1077,74 @@ router.post("/public/:slug/book", async (req, res) => {
 
     try {
       whatsapp = await sendBookingConfirmationMessage(
-  {
-    ...normalizedBooking,
-    client_phone: clientPhone,
-    clientPhone,
-    client_name: clientName,
-    clientName,
-    service_name: service ? service.name : "Servicio",
-    serviceName: service ? service.name : "Servicio",
-    staff_name: staff ? staff.name : null,
-    staffName: staff ? staff.name : null,
-    booking_date: normalizeDate(bookingDate),
-    bookingDate: normalizeDate(bookingDate),
-    start_time: normalizeTime(startTime),
-    startTime: normalizeTime(startTime),
-    confirmation_token: confirmationToken,
-    confirmationToken,
-  },
-  {
-    ...professional,
-    business_name: professional.business_name || professional.name || "TuAgendaYa",
-    businessName: professional.business_name || professional.name || "TuAgendaYa",
-  }
-);
+        {
+          ...normalizedBooking,
+          client_phone: clientPhone,
+          clientPhone,
+          client_name: clientName,
+          clientName,
+          service_name: service ? service.name : "Servicio",
+          serviceName: service ? service.name : "Servicio",
+          staff_name: staff ? staff.name : null,
+          staffName: staff ? staff.name : null,
+          booking_date: normalizeDate(bookingDate),
+          bookingDate: normalizeDate(bookingDate),
+          start_time: normalizeTime(startTime),
+          startTime: normalizeTime(startTime),
+          confirmation_token: confirmationToken,
+          confirmationToken,
+        },
+        {
+          ...professional,
+          business_name:
+            professional.business_name || professional.name || "TuAgendaYa",
+          businessName:
+            professional.business_name || professional.name || "TuAgendaYa",
+        }
+      );
     } catch (whatsappError) {
       console.warn("WhatsApp confirmation skipped:", whatsappError.message);
+
       whatsapp = {
         attempted: true,
         sent: false,
         error: whatsappError.message || "No se pudo enviar WhatsApp",
+      };
+    }
+
+    let businessWhatsapp = { attempted: false, sent: false };
+
+    try {
+      businessWhatsapp = await sendBusinessBookingNotification(
+        {
+          ...normalizedBooking,
+          client_phone: clientPhone,
+          clientPhone,
+          client_name: clientName,
+          clientName,
+          service_name: service ? service.name : "Servicio",
+          serviceName: service ? service.name : "Servicio",
+          staff_name: staff ? staff.name : null,
+          staffName: staff ? staff.name : null,
+          booking_date: normalizeDate(bookingDate),
+          bookingDate: normalizeDate(bookingDate),
+          start_time: normalizeTime(startTime),
+          startTime: normalizeTime(startTime),
+        },
+        professional
+      );
+    } catch (businessWhatsappError) {
+      console.warn(
+        "WhatsApp business notification skipped:",
+        businessWhatsappError.message
+      );
+
+      businessWhatsapp = {
+        attempted: true,
+        sent: false,
+        error:
+          businessWhatsappError.message ||
+          "No se pudo enviar WhatsApp al negocio",
       };
     }
 
@@ -1031,6 +1154,7 @@ router.post("/public/:slug/book", async (req, res) => {
       confirmationToken,
       confirmationUrl,
       whatsapp,
+      businessWhatsapp,
       booking: normalizedBooking,
     });
   } catch (error) {
@@ -1302,8 +1426,12 @@ router.patch("/:id/payment", async (req, res) => {
     const allowedPaymentStatuses = ["pending", "paid", "deposit", "cancelled"];
     const allowedPaymentMethods = ["cash", "transfer", "card", "other"];
 
-    const paymentStatus = String(req.body.paymentStatus ?? req.body.payment_status ?? "pending").trim();
-    const paymentMethod = String(req.body.paymentMethod ?? req.body.payment_method ?? "cash").trim();
+    const paymentStatus = String(
+      req.body.paymentStatus ?? req.body.payment_status ?? "pending"
+    ).trim();
+    const paymentMethod = String(
+      req.body.paymentMethod ?? req.body.payment_method ?? "cash"
+    ).trim();
     const amountValue = req.body.amountPaid ?? req.body.amount_paid;
 
     if (!allowedPaymentStatuses.includes(paymentStatus)) {
@@ -1362,7 +1490,6 @@ router.patch("/:id/payment", async (req, res) => {
   }
 });
 
-
 router.get("/cash-closures", async (req, res) => {
   try {
     await ensureCashClosuresTable();
@@ -1409,8 +1536,11 @@ router.post("/cash-closures", async (req, res) => {
     await ensureCashClosuresTable();
 
     const professionalId = getProfessionalIdFromRequest(req);
-    const closureDate = normalizeDate(req.body.closureDate ?? req.body.closure_date);
-    const notes = req.body.notes === undefined ? null : String(req.body.notes || "").trim();
+    const closureDate = normalizeDate(
+      req.body.closureDate ?? req.body.closure_date
+    );
+    const notes =
+      req.body.notes === undefined ? null : String(req.body.notes || "").trim();
 
     if (!closureDate) {
       return res.status(400).json({

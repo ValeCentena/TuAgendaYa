@@ -1,7 +1,9 @@
 const WHATSAPP_API_VERSION = process.env.WHATSAPP_API_VERSION || "v25.0";
 
 function isConfigured() {
-  return Boolean(process.env.WHATSAPP_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID);
+  return Boolean(
+    process.env.WHATSAPP_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID
+  );
 }
 
 function getActiveProvider() {
@@ -60,7 +62,9 @@ function formatTimeForMessage(value) {
 
 async function sendCloudMessage(payload) {
   if (!isConfigured()) {
-    console.warn("WhatsApp skipped: WHATSAPP_TOKEN o WHATSAPP_PHONE_NUMBER_ID no configurados");
+    console.warn(
+      "WhatsApp skipped: WHATSAPP_TOKEN o WHATSAPP_PHONE_NUMBER_ID no configurados"
+    );
 
     return {
       skipped: true,
@@ -125,7 +129,105 @@ async function sendWhatsApp(phone, text) {
   return sendCloudMessage(payload);
 }
 
-async function sendBookingConfirmationMessage(booking = {}, professional = {}) {
+async function sendTemplateMessage(phone, templateName, languageCode, parameters = []) {
+  const to = normalizePhone(phone);
+
+  if (!to) {
+    console.warn("WhatsApp template skipped: teléfono vacío");
+
+    return {
+      skipped: true,
+      reason: "empty_phone",
+    };
+  }
+
+  const payload = {
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to,
+    type: "template",
+    template: {
+      name: templateName,
+      language: {
+        code: languageCode || process.env.WHATSAPP_TEMPLATE_LANGUAGE || "es_UY",
+      },
+      components: [
+        {
+          type: "body",
+          parameters: parameters.map((value) => ({
+            type: "text",
+            text: String(value || ""),
+          })),
+        },
+      ],
+    },
+  };
+
+  return sendCloudMessage(payload);
+}
+
+async function sendBookingConfirmationTemplate(booking = {}, professional = {}) {
+  const templateName =
+    process.env.WHATSAPP_CONFIRMATION_TEMPLATE ||
+    process.env.WHATSAPP_BOOKING_TEMPLATE ||
+    "";
+
+  if (!templateName) {
+    return {
+      skipped: true,
+      reason: "template_not_configured",
+    };
+  }
+
+  const clientPhone = getBookingValue(
+    booking,
+    "client_phone",
+    "clientPhone",
+    "phone",
+    "telefono"
+  );
+
+  const clientName =
+    getBookingValue(booking, "client_name", "clientName", "name", "nombre") ||
+    "cliente";
+
+  const businessName =
+    professional?.business_name ||
+    professional?.businessName ||
+    professional?.name ||
+    getBookingValue(
+      booking,
+      "business_name",
+      "businessName",
+      "professional_name",
+      "professionalName"
+    ) ||
+    "TuAgendaYa";
+
+  const serviceName =
+    getBookingValue(booking, "service_name", "serviceName") || "Servicio";
+
+  const bookingDate = formatDateForMessage(
+    getBookingValue(booking, "booking_date", "bookingDate", "date")
+  );
+
+  const startTime = formatTimeForMessage(
+    getBookingValue(booking, "start_time", "startTime", "time")
+  );
+
+  const result = await sendTemplateMessage(
+    clientPhone,
+    templateName,
+    process.env.WHATSAPP_TEMPLATE_LANGUAGE || "es_UY",
+    [clientName, businessName, serviceName, bookingDate, startTime]
+  );
+
+  console.log(`WhatsApp booking template sent to ${normalizePhone(clientPhone)}`);
+
+  return result;
+}
+
+async function sendBookingConfirmationInteractive(booking = {}, professional = {}) {
   const to = normalizePhone(
     getBookingValue(booking, "client_phone", "clientPhone", "phone", "telefono")
   );
@@ -247,8 +349,95 @@ async function sendBookingConfirmationMessage(booking = {}, professional = {}) {
   return result;
 }
 
+async function sendBookingConfirmationMessage(booking = {}, professional = {}) {
+  const templateName =
+    process.env.WHATSAPP_CONFIRMATION_TEMPLATE ||
+    process.env.WHATSAPP_BOOKING_TEMPLATE ||
+    "";
+
+  if (templateName) {
+    return sendBookingConfirmationTemplate(booking, professional);
+  }
+
+  return sendBookingConfirmationInteractive(booking, professional);
+}
+
 // Alias por compatibilidad con código viejo
 const sendBookingConfirmation = sendBookingConfirmationMessage;
+
+async function sendBusinessBookingNotification(booking = {}, professional = {}) {
+  const businessPhone =
+    professional?.phone ||
+    professional?.business_phone ||
+    professional?.businessPhone ||
+    professional?.whatsapp ||
+    professional?.whatsapp_phone ||
+    professional?.whatsappPhone ||
+    "";
+
+  const to = normalizePhone(businessPhone);
+
+  if (!to) {
+    console.warn("WhatsApp business notification skipped: negocio sin teléfono");
+
+    return {
+      skipped: true,
+      reason: "empty_business_phone",
+    };
+  }
+
+  const businessName =
+    professional?.business_name ||
+    professional?.businessName ||
+    professional?.name ||
+    getBookingValue(booking, "business_name", "businessName") ||
+    "TuAgendaYa";
+
+  const clientName =
+    getBookingValue(booking, "client_name", "clientName", "name", "nombre") ||
+    "Cliente";
+
+  const clientPhone =
+    getBookingValue(booking, "client_phone", "clientPhone", "phone", "telefono") ||
+    "Sin teléfono";
+
+  const serviceName =
+    getBookingValue(booking, "service_name", "serviceName") || "Servicio";
+
+  const staffName =
+    getBookingValue(booking, "staff_name", "staffName") ||
+    getBookingValue(booking, "professional_name", "professionalName") ||
+    "";
+
+  const bookingDate = formatDateForMessage(
+    getBookingValue(booking, "booking_date", "bookingDate", "date")
+  );
+
+  const startTime = formatTimeForMessage(
+    getBookingValue(booking, "start_time", "startTime", "time")
+  );
+
+  const body = [
+    `Nueva reserva en ${businessName}`,
+    "",
+    `Cliente: ${clientName}`,
+    `Teléfono: ${clientPhone}`,
+    `Servicio: ${serviceName}`,
+    staffName ? `Profesional: ${staffName}` : "",
+    `Fecha: ${bookingDate}`,
+    `Hora: ${startTime}`,
+    "",
+    "Entrá al panel para gestionar el turno.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const result = await sendWhatsApp(to, body);
+
+  console.log(`WhatsApp business notification sent to ${to}`);
+
+  return result;
+}
 
 async function sendReminder(booking = {}, professional = {}) {
   const clientName =
@@ -286,8 +475,12 @@ async function sendReminder(booking = {}, professional = {}) {
 
 module.exports = {
   sendWhatsApp,
+  sendTemplateMessage,
   sendBookingConfirmation,
   sendBookingConfirmationMessage,
+  sendBookingConfirmationTemplate,
+  sendBookingConfirmationInteractive,
+  sendBusinessBookingNotification,
   sendReminder,
   getActiveProvider,
   normalizePhone,
