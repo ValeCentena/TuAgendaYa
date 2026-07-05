@@ -20,6 +20,56 @@ const MONTH_NAMES = [
 
 const WEEK_DAYS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 
+
+const PHONE_COUNTRIES = [
+  { code: 'UY', flag: '🇺🇾', name: 'Uruguay', dialCode: '598', placeholder: '93405195' },
+  { code: 'AR', flag: '🇦🇷', name: 'Argentina', dialCode: '54', placeholder: '91123456789' },
+  { code: 'BR', flag: '🇧🇷', name: 'Brasil', dialCode: '55', placeholder: '11987654321' },
+  { code: 'PY', flag: '🇵🇾', name: 'Paraguay', dialCode: '595', placeholder: '981123456' },
+  { code: 'CL', flag: '🇨🇱', name: 'Chile', dialCode: '56', placeholder: '912345678' },
+  { code: 'BO', flag: '🇧🇴', name: 'Bolivia', dialCode: '591', placeholder: '71234567' },
+  { code: 'PE', flag: '🇵🇪', name: 'Perú', dialCode: '51', placeholder: '912345678' },
+  { code: 'CO', flag: '🇨🇴', name: 'Colombia', dialCode: '57', placeholder: '3001234567' },
+  { code: 'EC', flag: '🇪🇨', name: 'Ecuador', dialCode: '593', placeholder: '991234567' },
+  { code: 'VE', flag: '🇻🇪', name: 'Venezuela', dialCode: '58', placeholder: '4121234567' },
+  { code: 'MX', flag: '🇲🇽', name: 'México', dialCode: '52', placeholder: '5512345678' },
+  { code: 'US', flag: '🇺🇸', name: 'Estados Unidos', dialCode: '1', placeholder: '3051234567' },
+  { code: 'ES', flag: '🇪🇸', name: 'España', dialCode: '34', placeholder: '612345678' },
+  { code: 'PT', flag: '🇵🇹', name: 'Portugal', dialCode: '351', placeholder: '912345678' },
+  { code: 'IT', flag: '🇮🇹', name: 'Italia', dialCode: '39', placeholder: '3123456789' },
+  { code: 'FR', flag: '🇫🇷', name: 'Francia', dialCode: '33', placeholder: '612345678' },
+  { code: 'DE', flag: '🇩🇪', name: 'Alemania', dialCode: '49', placeholder: '15123456789' },
+  { code: 'GB', flag: '🇬🇧', name: 'Reino Unido', dialCode: '44', placeholder: '7123456789' },
+  { code: 'CA', flag: '🇨🇦', name: 'Canadá', dialCode: '1', placeholder: '4161234567' },
+];
+
+function getPhoneCountry(countryCode) {
+  return PHONE_COUNTRIES.find((country) => country.code === countryCode) || PHONE_COUNTRIES[0];
+}
+
+function onlyDigits(value) {
+  return String(value || '').replace(/\D/g, '');
+}
+
+function buildInternationalPhone(countryCode, localPhone) {
+  const country = getPhoneCountry(countryCode);
+  let digits = onlyDigits(localPhone);
+
+  if (!digits) return '';
+
+  // Si el cliente pegó el número completo con prefijo, lo dejamos bien armado.
+  if (digits.startsWith(country.dialCode)) {
+    return digits;
+  }
+
+  // Uruguay: si escribe 093405195, sacamos el 0 para WhatsApp: 59893405195.
+  if (country.code === 'UY' && digits.startsWith('0')) {
+    digits = digits.slice(1);
+  }
+
+  return `${country.dialCode}${digits}`;
+}
+
 function addMinutes(timeStr, minutes) {
   const [h, m] = timeStr.split(':').map(Number);
   const total = h * 60 + m + Number(minutes || 30);
@@ -107,6 +157,7 @@ export default function BookPage() {
   const [loadingStaff, setLoadingStaff] = useState(true);
 
   const [clientName, setClientName] = useState('');
+  const [clientPhoneCountry, setClientPhoneCountry] = useState('UY');
   const [clientPhone, setClientPhone] = useState('');
   const [clientComment, setClientComment] = useState('');
   const [bookingDate, setBookingDate] = useState('');
@@ -128,6 +179,8 @@ export default function BookPage() {
   const selectedDuration = selectedService?.durationMinutes || 30;
   const selectedEndTime = selectedTime ? addMinutes(selectedTime, selectedDuration) : '';
   const selectedDateObject = parseLocalDate(bookingDate);
+  const selectedPhoneCountry = getPhoneCountry(clientPhoneCountry);
+  const fullClientPhone = buildInternationalPhone(clientPhoneCountry, clientPhone);
 
   useEffect(() => {
     setLoadingServices(true);
@@ -492,6 +545,11 @@ export default function BookPage() {
       return;
     }
 
+    if (!fullClientPhone || fullClientPhone.length < 8) {
+      setError('Revisá el teléfono. Elegí el prefijo del país y escribí el número sin el prefijo.');
+      return;
+    }
+
     if (!bookingDate) {
       setError('La fecha del turno es requerida.');
       return;
@@ -510,7 +568,7 @@ export default function BookPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           clientName: clientName.trim(),
-          clientPhone: clientPhone.trim(),
+          clientPhone: fullClientPhone,
           comment: clientComment.trim(),
           bookingDate,
           startTime: selectedTime,
@@ -544,6 +602,7 @@ export default function BookPage() {
   const handleReset = () => {
     setSuccess(false);
     setClientName('');
+    setClientPhoneCountry('UY');
     setClientPhone('');
     setClientComment('');
     setBookingDate('');
@@ -980,13 +1039,49 @@ export default function BookPage() {
 
               <label style={labelStyle}>Teléfono *</label>
 
-              <input
-                style={inputStyle}
-                value={clientPhone}
-                onChange={(e) => setClientPhone(e.target.value)}
-                placeholder="099 123 456"
-                required
-              />
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'minmax(128px, 0.9fr) minmax(0, 1.4fr)',
+                  gap: 8,
+                  alignItems: 'stretch',
+                  marginBottom: 8,
+                }}
+              >
+                <select
+                  value={clientPhoneCountry}
+                  onChange={(e) => setClientPhoneCountry(e.target.value)}
+                  aria-label="Prefijo del país"
+                  style={{
+                    ...inputStyle,
+                    marginBottom: 0,
+                    padding: '12px 10px',
+                    cursor: 'pointer',
+                    fontWeight: 800,
+                    appearance: 'auto',
+                  }}
+                >
+                  {PHONE_COUNTRIES.map((country) => (
+                    <option key={country.code} value={country.code}>
+                      {country.flag} +{country.dialCode} · {country.name}
+                    </option>
+                  ))}
+                </select>
+
+                <input
+                  style={{ ...inputStyle, marginBottom: 0 }}
+                  value={clientPhone}
+                  onChange={(e) => setClientPhone(onlyDigits(e.target.value))}
+                  placeholder={selectedPhoneCountry.placeholder}
+                  inputMode="numeric"
+                  autoComplete="tel-national"
+                  required
+                />
+              </div>
+
+              <div style={{ fontSize: 11.5, color: '#8e8e93', margin: '-1px 0 10px', lineHeight: 1.35 }}>
+                Prefijo seleccionado: {selectedPhoneCountry.flag} +{selectedPhoneCountry.dialCode}. Escribí solo el número, sin el prefijo.
+              </div>
 
               <label style={labelStyle}>Comentario opcional</label>
 
