@@ -249,6 +249,8 @@ async function initDB() {
       `CREATE INDEX IF NOT EXISTS idx_clients_professional           ON clients(professional_id)`,
       `CREATE INDEX IF NOT EXISTS idx_bookings_professional          ON bookings(professional_id)`,
       `CREATE INDEX IF NOT EXISTS idx_staff_availability_member      ON staff_availability(staff_member_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_staff_members_owner            ON staff_members(owner_professional_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_staff_availability_staff_id    ON staff_availability(staff_id)`,
       `CREATE INDEX IF NOT EXISTS idx_push_subscriptions_professional ON push_subscriptions(professional_id)`,
     ];
 
@@ -272,10 +274,21 @@ async function initDB() {
       `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS business_name TEXT`,
       `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS address       TEXT`,
       `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS logo_url      TEXT`,
-      // professional_availability — pausas
+      // professional_availability — se conserva por compatibilidad, pero la agenda pública usa staff_availability
       `ALTER TABLE professional_availability ADD COLUMN IF NOT EXISTS break_enabled INTEGER NOT NULL DEFAULT 0`,
       `ALTER TABLE professional_availability ADD COLUMN IF NOT EXISTS break_start   TIME`,
       `ALTER TABLE professional_availability ADD COLUMN IF NOT EXISTS break_end     TIME`,
+      // staff_members — columnas usadas por el módulo unificado de profesionales
+      `ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS owner_professional_id INTEGER`,
+      `UPDATE staff_members SET owner_professional_id = professional_id WHERE owner_professional_id IS NULL AND professional_id IS NOT NULL`,
+      `ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS phone TEXT`,
+      `ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS email TEXT`,
+      `ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS color TEXT DEFAULT '#0071e3'`,
+      // staff_availability — alias staff_id para unificar horarios visibles y públicos
+      `ALTER TABLE staff_availability ADD COLUMN IF NOT EXISTS staff_id INTEGER`,
+      `UPDATE staff_availability SET staff_id = staff_member_id WHERE staff_id IS NULL AND staff_member_id IS NOT NULL`,
+      `UPDATE staff_availability SET staff_member_id = staff_id WHERE staff_member_id IS NULL AND staff_id IS NOT NULL`,
+      `ALTER TABLE staff_availability ALTER COLUMN staff_member_id DROP NOT NULL`,
       // push_subscriptions
       `ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS user_agent TEXT`,
     ];

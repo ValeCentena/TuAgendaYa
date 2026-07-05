@@ -2173,7 +2173,7 @@ function ReservationsSection() {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
             <div style={{ background: '#f2f2f7', borderRadius: 16, padding: '14px 16px', border: '0.5px solid #e8e8ed' }}>
               <div style={{ fontSize: 24, fontWeight: 900, color: '#1a1a1a' }}>{todayBookings.length}</div>
               <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 2, fontWeight: 700 }}>Reservas hoy</div>
@@ -2648,7 +2648,7 @@ function ReservationsSection() {
                       <div
                         style={{
                           display: 'grid',
-                          gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                          gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
                           gap: 10,
                           marginBottom: 12,
                         }}
@@ -3216,7 +3216,7 @@ function CashSection() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 9, marginBottom: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 9, marginBottom: 10 }}>
         <div style={periodMetricStyle}>
           <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 950 }}>Cobrado</div>
           <div style={{ fontSize: 16, color: '#188038', fontWeight: 950, marginTop: 4 }}>{formatMoney(summary.collected)}</div>
@@ -3357,7 +3357,7 @@ function CashSection() {
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
           <div style={cashCardStyle('#f7f7fb')}>
             <div style={{ fontSize: 13, color: '#8e8e93', fontWeight: 900 }}>Total generado</div>
             <div style={{ fontSize: 26, fontWeight: 950, color: '#1a1a1a', marginTop: 6 }}>{formatMoney(totalGenerated)}</div>
@@ -4600,7 +4600,7 @@ function ClientsSection() {
                   {isExpanded && (
                     <div style={{ padding: '0 16px 16px 16px' }}>
                       <div style={{ borderTop: '0.5px solid #eeeeef', paddingTop: 14 }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10, marginBottom: 12 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10, marginBottom: 12 }}>
                           <div style={{ background: '#fafafa', borderRadius: 14, padding: 12 }}>
                             <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800 }}>Total</div>
                             <div style={{ fontSize: 18, color: '#1a1a1a', fontWeight: 900, marginTop: 4 }}>{client.bookings.length}</div>
@@ -5139,7 +5139,7 @@ function StaffSection() {
         <div style={{ marginBottom: 18 }}>
           <div style={{ fontSize: 17, fontWeight: 700, color: '#1a1a1a' }}>Profesionales del negocio</div>
           <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 4 }}>
-            Agregá profesionales internos y configurá horarios independientes para cada uno.
+            Configurá los profesionales y sus horarios. Estos son los horarios que verá el cliente al reservar.
           </div>
         </div>
 
@@ -6335,7 +6335,7 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10, marginBottom: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10, marginBottom: 14 }}>
           <div style={{ background: '#f2f2f7', borderRadius: 16, padding: '14px 16px', border: '0.5px solid #e8e8ed' }}>
             <div style={{ fontSize: 12, color: '#6e6e73', fontWeight: 800 }}>Plan actual</div>
             <div style={{ fontSize: 20, fontWeight: 900, color: '#1a1a1a', marginTop: 4 }}>{planName}</div>
@@ -6639,14 +6639,8 @@ function ConfigurationSection() {
     {
       key: 'staff',
       title: 'Profesionales',
-      description: 'Agregá integrantes del negocio y configurá su disponibilidad individual.',
+      description: 'Agregá integrantes y configurá ahí el único horario que verá el cliente al reservar.',
       action: 'Gestionar profesionales',
-    },
-    {
-      key: 'availability',
-      title: 'Disponibilidad',
-      description: 'Definí días, horarios y duración base de los turnos.',
-      action: 'Gestionar horarios',
     },
   ];
 
@@ -6696,10 +6690,6 @@ function ConfigurationSection() {
       return <StaffSection />;
     }
 
-    if (openPanel === 'availability') {
-      return <AvailabilitySection />;
-    }
-
     return null;
   };
 
@@ -6713,7 +6703,7 @@ function ConfigurationSection() {
           Elegí qué querés configurar. Todo queda ordenado en un solo lugar, sin llenar la pantalla de información innecesaria.
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12, marginTop: 18 }} className="config-summary-grid">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12, marginTop: 18 }} className="config-summary-grid">
           {panels.map((panel) => (
             <button
               key={panel.key}

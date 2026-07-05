@@ -570,6 +570,7 @@ async function ensureDefaultStaff(professional) {
   const created = await db.query(
     `
     INSERT INTO staff_members (
+      professional_id,
       owner_professional_id,
       name,
       phone,
@@ -579,7 +580,7 @@ async function ensureDefaultStaff(professional) {
       created_at,
       updated_at
     )
-    VALUES ($1, $2, $3, $4, '#0071e3', true, NOW(), NOW())
+    VALUES ($1, $1, $2, $3, $4, '#0071e3', true, NOW(), NOW())
     RETURNING *
     `,
     [
@@ -599,6 +600,7 @@ async function ensureDefaultStaff(professional) {
       `
       INSERT INTO staff_availability (
         staff_id,
+        staff_member_id,
         day_of_week,
         is_active,
         start_time,
@@ -607,8 +609,8 @@ async function ensureDefaultStaff(professional) {
         created_at,
         updated_at
       )
-      VALUES ($1, $2, $3, '09:00', '18:00', 30, NOW(), NOW())
-      ON CONFLICT (staff_id, day_of_week)
+      VALUES ($1, $1, $2, $3, '09:00', '18:00', 30, NOW(), NOW())
+      ON CONFLICT (staff_member_id, day_of_week)
       DO NOTHING
       `,
       [staffId, dayOfWeek, isWeekday]
@@ -616,6 +618,12 @@ async function ensureDefaultStaff(professional) {
   }
 
   return created.rows;
+}
+
+async function getPrimaryStaffForProfessional(professional) {
+  const staffRows = await ensureDefaultStaff(professional);
+  const activeStaff = staffRows.find((member) => isTruthyDatabaseValue(member.is_active ?? member.isActive));
+  return activeStaff || staffRows[0] || null;
 }
 
 async function getPublicStaffForProfessional(professional) {
@@ -637,23 +645,30 @@ async function getPublicStaffForProfessional(professional) {
   return result.rows;
 }
 
-async function getAvailabilityForDate(professionalId, staffId, bookingDate) {
+async function getAvailabilityForDate(professional, staffId, bookingDate) {
   const dayOfWeek = getDayOfWeekFromDateString(bookingDate);
 
   if (dayOfWeek === null) {
     return null;
   }
 
-  if (staffId) {
+  let effectiveStaffId = staffId ? Number(staffId) : null;
+
+  if (!effectiveStaffId && professional) {
+    const primaryStaff = await getPrimaryStaffForProfessional(professional);
+    effectiveStaffId = primaryStaff ? Number(primaryStaff.id) : null;
+  }
+
+  if (effectiveStaffId) {
     const staffAvailability = await db.query(
       `
       SELECT *
       FROM staff_availability
-      WHERE staff_id = $1
+      WHERE COALESCE(staff_id, staff_member_id) = $1
         AND day_of_week = $2
       LIMIT 1
       `,
-      [staffId, dayOfWeek]
+      [effectiveStaffId, dayOfWeek]
     );
 
     if (staffAvailability.rows.length > 0) {
@@ -663,7 +678,8 @@ async function getAvailabilityForDate(professionalId, staffId, bookingDate) {
     const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
 
     return {
-      staff_id: staffId,
+      staff_id: effectiveStaffId,
+      staff_member_id: effectiveStaffId,
       day_of_week: dayOfWeek,
       is_active: isWeekday,
       start_time: "09:00",
@@ -675,25 +691,10 @@ async function getAvailabilityForDate(professionalId, staffId, bookingDate) {
     };
   }
 
-  const result = await db.query(
-    `
-    SELECT *
-    FROM professional_availability
-    WHERE professional_id = $1
-      AND day_of_week = $2
-    LIMIT 1
-    `,
-    [professionalId, dayOfWeek]
-  );
-
-  if (result.rows.length > 0) {
-    return result.rows[0];
-  }
-
   const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
 
   return {
-    professional_id: professionalId,
+    professional_id: professional?.id || null,
     day_of_week: dayOfWeek,
     is_active: isWeekday,
     start_time: "09:00",
@@ -911,7 +912,7 @@ router.get("/public/:slug/slots", async (req, res) => {
     }
 
     const availability = await getAvailabilityForDate(
-      professional.id,
+      professional,
       staff ? staff.id : null,
       bookingDate
     );
@@ -1057,8 +1058,12 @@ router.post("/public/:slug/book", async (req, res) => {
     const durationMinutes = service ? Number(service.duration_minutes || 30) : 30;
     const finalEndTime = endTime || addMinutesToTime(startTime, durationMinutes);
 
+    if (!staff && !finalStaffId) {
+      staff = await getPrimaryStaffForProfessional(professional);
+    }
+
     const availability = await getAvailabilityForDate(
-      professional.id,
+      professional,
       staff ? staff.id : null,
       normalizeDate(bookingDate)
     );
