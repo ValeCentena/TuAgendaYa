@@ -1403,6 +1403,78 @@ function ReservationsSection() {
   const [archivedFromDate, setArchivedFromDate] = useState('');
   const [archivedToDate, setArchivedToDate] = useState('');
   const [paymentDrafts, setPaymentDrafts] = useState({});
+  const [bookingNotification, setBookingNotification] = useState(null);
+  const [newBookingCount, setNewBookingCount] = useState(0);
+  const knownBookingIdsRef = useRef(new Set());
+  const bookingsBootstrappedRef = useRef(false);
+  const notificationTimeoutRef = useRef(null);
+
+  const playPanelNotificationSound = () => {
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+
+      if (!AudioContext) return;
+
+      const audioContext = new AudioContext();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(880, audioContext.currentTime);
+      oscillator.frequency.setValueAtTime(660, audioContext.currentTime + 0.12);
+
+      gainNode.gain.setValueAtTime(0.0001, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.12, audioContext.currentTime + 0.02);
+      gainNode.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.28);
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.3);
+
+      window.setTimeout(() => {
+        audioContext.close().catch(() => {});
+      }, 450);
+    } catch {
+      // Algunos navegadores bloquean sonido si el usuario no interactuó con la página.
+    }
+  };
+
+  const showNewBookingNotification = useCallback((booking, totalNew = 1) => {
+    const clientName = String(booking?.clientName ?? booking?.client_name ?? 'Cliente').trim() || 'Cliente';
+    const serviceName = String(booking?.serviceName ?? booking?.service_name ?? 'Reserva').trim() || 'Reserva';
+    const dateText = formatDate(getBookingDateValue(booking));
+    const timeText = formatTime(booking?.startTime ?? booking?.start_time) || 'Sin hora';
+
+    setBookingNotification({
+      id: booking?.id || Date.now(),
+      clientName,
+      serviceName,
+      dateText,
+      timeText,
+      totalNew,
+    });
+
+    setNewBookingCount((current) => current + Number(totalNew || 1));
+    playPanelNotificationSound();
+
+    if (notificationTimeoutRef.current) {
+      window.clearTimeout(notificationTimeoutRef.current);
+    }
+
+    notificationTimeoutRef.current = window.setTimeout(() => {
+      setBookingNotification(null);
+    }, 6500);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (notificationTimeoutRef.current) {
+        window.clearTimeout(notificationTimeoutRef.current);
+      }
+    };
+  }, []);
 
   let storedProfessional = {};
 
@@ -1427,6 +1499,34 @@ function ReservationsSection() {
       .then((r) => r.json())
       .then((data) => {
         const nextBookings = Array.isArray(data.bookings) ? data.bookings : [];
+        const nextIds = new Set(
+          nextBookings
+            .map((booking) => (booking?.id === undefined || booking?.id === null ? '' : String(booking.id)))
+            .filter(Boolean)
+        );
+
+        if (!bookingsBootstrappedRef.current) {
+          knownBookingIdsRef.current = nextIds;
+          bookingsBootstrappedRef.current = true;
+        } else {
+          const newBookings = nextBookings.filter((booking) => {
+            if (booking?.id === undefined || booking?.id === null) return false;
+            return !knownBookingIdsRef.current.has(String(booking.id));
+          });
+
+          if (newBookings.length > 0) {
+            const newestBooking = [...newBookings].sort((a, b) => {
+              const dateA = new Date(a.createdAt ?? a.created_at ?? 0).getTime() || 0;
+              const dateB = new Date(b.createdAt ?? b.created_at ?? 0).getTime() || 0;
+              return dateB - dateA;
+            })[0];
+
+            showNewBookingNotification(newestBooking, newBookings.length);
+          }
+
+          knownBookingIdsRef.current = nextIds;
+        }
+
         setBookings(nextBookings);
       })
       .catch(() => {
@@ -1439,7 +1539,7 @@ function ReservationsSection() {
           setLoadingBookings(false);
         }
       });
-  }, []);
+  }, [showNewBookingNotification]);
 
   useEffect(() => {
     fetchBookings(true);
@@ -1817,6 +1917,79 @@ function ReservationsSection() {
 
   return (
     <>
+      {bookingNotification && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: 'fixed',
+            top: 18,
+            right: 18,
+            zIndex: 9999,
+            width: 'min(360px, calc(100vw - 28px))',
+            background: 'rgba(255,255,255,0.98)',
+            border: '0.5px solid rgba(0,113,227,0.22)',
+            borderRadius: 22,
+            boxShadow: '0 18px 50px rgba(15,23,42,0.18)',
+            padding: 16,
+            display: 'grid',
+            gridTemplateColumns: '42px 1fr auto',
+            gap: 12,
+            alignItems: 'center',
+            animation: 'slideUp 220ms cubic-bezier(0.16,1,0.3,1) both',
+          }}
+        >
+          <div
+            style={{
+              width: 42,
+              height: 42,
+              borderRadius: 16,
+              background: '#eaf3ff',
+              color: '#0071e3',
+              display: 'grid',
+              placeItems: 'center',
+              fontSize: 20,
+              fontWeight: 900,
+            }}
+          >
+            🔔
+          </div>
+
+          <div style={{ minWidth: 0 }}>
+            <div style={{ color: '#111827', fontSize: 14, fontWeight: 900, letterSpacing: '-0.02em' }}>
+              {bookingNotification.totalNew > 1 ? `${bookingNotification.totalNew} nuevas reservas` : 'Nueva reserva'}
+            </div>
+            <div style={{ color: '#4b5563', fontSize: 13, lineHeight: 1.35, marginTop: 3, fontWeight: 650 }}>
+              {bookingNotification.clientName} reservó {bookingNotification.serviceName}
+            </div>
+            <div style={{ color: '#0071e3', fontSize: 12, marginTop: 4, fontWeight: 800 }}>
+              {bookingNotification.dateText} · {bookingNotification.timeText}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setBookingNotification(null)}
+            aria-label="Cerrar notificación"
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: 14,
+              border: 'none',
+              background: '#f2f2f7',
+              color: '#6e6e73',
+              fontSize: 18,
+              fontWeight: 800,
+              lineHeight: 1,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       {!loadingBookings && (
         <div style={{ background: '#fff', borderRadius: 22, padding: '18px 20px', marginBottom: 16, boxShadow: '0 1px 8px rgba(0,0,0,0.05)' }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
@@ -1827,7 +2000,7 @@ function ReservationsSection() {
               </div>
             </div>
             <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800, whiteSpace: 'nowrap' }}>
-              Actualiza cada 5 s
+              {newBookingCount > 0 ? `🔔 ${newBookingCount} nuevas` : 'Actualiza cada 5 s'}
             </div>
           </div>
 
