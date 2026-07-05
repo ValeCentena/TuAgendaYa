@@ -228,7 +228,7 @@ async function initDB() {
 
       CREATE TABLE IF NOT EXISTS staff_availability (
         id                    SERIAL PRIMARY KEY,
-        staff_member_id       INTEGER NOT NULL REFERENCES staff_members(id) ON DELETE CASCADE,
+        staff_id              INTEGER NOT NULL REFERENCES staff_members(id) ON DELETE CASCADE,
         day_of_week           INTEGER NOT NULL CHECK (day_of_week BETWEEN 0 AND 6),
         is_active             INTEGER NOT NULL DEFAULT 1,
         start_time            TIME    NOT NULL DEFAULT '09:00',
@@ -236,7 +236,7 @@ async function initDB() {
         slot_duration_minutes INTEGER NOT NULL DEFAULT 30,
         created_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE (staff_member_id, day_of_week)
+        UNIQUE (staff_id, day_of_week)
       );
     `);
 
@@ -248,9 +248,7 @@ async function initDB() {
       `CREATE INDEX IF NOT EXISTS idx_appointments_public_token      ON appointments(public_token)`,
       `CREATE INDEX IF NOT EXISTS idx_clients_professional           ON clients(professional_id)`,
       `CREATE INDEX IF NOT EXISTS idx_bookings_professional          ON bookings(professional_id)`,
-      `CREATE INDEX IF NOT EXISTS idx_staff_availability_member      ON staff_availability(staff_member_id)`,
-      `CREATE INDEX IF NOT EXISTS idx_staff_members_owner            ON staff_members(owner_professional_id)`,
-      `CREATE INDEX IF NOT EXISTS idx_staff_availability_staff_id    ON staff_availability(staff_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_staff_availability_member      ON staff_availability(staff_id)`,
       `CREATE INDEX IF NOT EXISTS idx_push_subscriptions_professional ON push_subscriptions(professional_id)`,
     ];
 
@@ -274,21 +272,14 @@ async function initDB() {
       `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS business_name TEXT`,
       `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS address       TEXT`,
       `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS logo_url      TEXT`,
-      // professional_availability — se conserva por compatibilidad, pero la agenda pública usa staff_availability
+      // professional_availability — pausas
       `ALTER TABLE professional_availability ADD COLUMN IF NOT EXISTS break_enabled INTEGER NOT NULL DEFAULT 0`,
       `ALTER TABLE professional_availability ADD COLUMN IF NOT EXISTS break_start   TIME`,
       `ALTER TABLE professional_availability ADD COLUMN IF NOT EXISTS break_end     TIME`,
-      // staff_members — columnas usadas por el módulo unificado de profesionales
-      `ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS owner_professional_id INTEGER`,
-      `UPDATE staff_members SET owner_professional_id = professional_id WHERE owner_professional_id IS NULL AND professional_id IS NOT NULL`,
-      `ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS phone TEXT`,
-      `ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS email TEXT`,
-      `ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS color TEXT DEFAULT '#0071e3'`,
-      // staff_availability — alias staff_id para unificar horarios visibles y públicos
+      // staff_availability — columna oficial usada por el panel y la reserva pública
       `ALTER TABLE staff_availability ADD COLUMN IF NOT EXISTS staff_id INTEGER`,
-      `UPDATE staff_availability SET staff_id = staff_member_id WHERE staff_id IS NULL AND staff_member_id IS NOT NULL`,
-      `UPDATE staff_availability SET staff_member_id = staff_id WHERE staff_member_id IS NULL AND staff_id IS NOT NULL`,
-      `ALTER TABLE staff_availability ALTER COLUMN staff_member_id DROP NOT NULL`,
+      `ALTER TABLE staff_availability ADD COLUMN IF NOT EXISTS slot_duration_minutes INTEGER NOT NULL DEFAULT 30`,
+      `UPDATE staff_availability SET staff_id = staff_member_id WHERE staff_id IS NULL`,
       // push_subscriptions
       `ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS user_agent TEXT`,
     ];
@@ -299,6 +290,16 @@ async function initDB() {
       } catch (e) {
         console.warn('Migration skipped:', e.message);
       }
+    }
+
+    try {
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_staff_availability_staff_day
+        ON staff_availability (staff_id, day_of_week)
+        WHERE staff_id IS NOT NULL
+      `);
+    } catch (e) {
+      console.warn('Staff availability index skipped:', e.message);
     }
 
     console.log('✓ Base de datos PostgreSQL lista');

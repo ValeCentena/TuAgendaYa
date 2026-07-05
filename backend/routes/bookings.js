@@ -619,8 +619,6 @@ async function ensureDefaultStaff(professional) {
 }
 
 async function getPublicStaffForProfessional(professional) {
-  await ensureDefaultStaff(professional);
-
   const result = await db.query(
     `
     SELECT *
@@ -633,11 +631,6 @@ async function getPublicStaffForProfessional(professional) {
   );
 
   return result.rows;
-}
-
-async function getPrimaryStaffForProfessional(professional) {
-  const staff = await getPublicStaffForProfessional(professional);
-  return staff[0] || null;
 }
 
 async function getAvailabilityForDate(professionalId, staffId, bookingDate) {
@@ -912,7 +905,8 @@ router.get("/public/:slug/slots", async (req, res) => {
         });
       }
     } else {
-      staff = await getPrimaryStaffForProfessional(professional);
+      const staffRows = await ensureDefaultStaff(professional);
+      staff = staffRows.find((item) => item.is_active === true || item.is_active === 1 || item.is_active === "1") || staffRows[0] || null;
     }
 
     const availability = await getAvailabilityForDate(
@@ -1058,7 +1052,8 @@ router.post("/public/:slug/book", async (req, res) => {
         });
       }
     } else {
-      staff = await getPrimaryStaffForProfessional(professional);
+      const staffRows = await ensureDefaultStaff(professional);
+      staff = staffRows.find((item) => item.is_active === true || item.is_active === 1 || item.is_active === "1") || staffRows[0] || null;
     }
 
     const durationMinutes = service ? Number(service.duration_minutes || 30) : 30;

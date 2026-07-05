@@ -638,7 +638,7 @@ export default function BookPage() {
       setSelectedServiceId(String(services[0].id));
     }
 
-    if (staff.length > 0) {
+    if (staff.length > 1) {
       setSelectedStaffId(String(staff[0].id));
     } else {
       setSelectedStaffId('');

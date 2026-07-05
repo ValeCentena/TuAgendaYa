@@ -66,12 +66,10 @@ function normalizeStaff(row) {
 }
 
 function normalizeAvailabilityRow(row) {
-  const resolvedStaffId = row.staff_id ?? row.staff_member_id;
-
   return {
     id: row.id,
-    staffId: resolvedStaffId,
-    staff_id: resolvedStaffId,
+    staffId: row.staff_id,
+    staff_id: row.staff_id,
     dayOfWeek: row.day_of_week,
     day_of_week: row.day_of_week,
     isActive: row.is_active,
@@ -151,7 +149,7 @@ async function ensureDefaultAvailability(staffId) {
     `
     SELECT *
     FROM staff_availability
-    WHERE COALESCE(staff_id, staff_member_id) = $1
+    WHERE staff_id = $1
     ORDER BY day_of_week ASC
     `,
     [staffId]
@@ -168,7 +166,6 @@ async function ensureDefaultAvailability(staffId) {
       `
       INSERT INTO staff_availability (
         staff_id,
-        staff_member_id,
         day_of_week,
         is_active,
         start_time,
@@ -177,8 +174,8 @@ async function ensureDefaultAvailability(staffId) {
         created_at,
         updated_at
       )
-      VALUES ($1, $1, $2, $3, $4, $5, $6, NOW(), NOW())
-      ON CONFLICT (staff_member_id, day_of_week)
+      VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+      ON CONFLICT (staff_id, day_of_week)
       DO NOTHING
       `,
       [
@@ -196,7 +193,7 @@ async function ensureDefaultAvailability(staffId) {
     `
     SELECT *
     FROM staff_availability
-    WHERE COALESCE(staff_id, staff_member_id) = $1
+    WHERE staff_id = $1
     ORDER BY day_of_week ASC
     `,
     [staffId]
@@ -235,7 +232,6 @@ async function ensureDefaultStaff(ownerProfessionalId) {
   const created = await db.query(
     `
     INSERT INTO staff_members (
-      professional_id,
       owner_professional_id,
       name,
       phone,
@@ -245,7 +241,7 @@ async function ensureDefaultStaff(ownerProfessionalId) {
       created_at,
       updated_at
     )
-    VALUES ($1, $1, $2, $3, $4, $5, true, NOW(), NOW())
+    VALUES ($1, $2, $3, $4, $5, true, NOW(), NOW())
     RETURNING *
     `,
     [
@@ -321,7 +317,6 @@ router.post("/", async (req, res) => {
     const result = await db.query(
       `
       INSERT INTO staff_members (
-        professional_id,
         owner_professional_id,
         name,
         phone,
@@ -331,7 +326,7 @@ router.post("/", async (req, res) => {
         created_at,
         updated_at
       )
-      VALUES ($1, $1, $2, $3, $4, $5, true, NOW(), NOW())
+      VALUES ($1, $2, $3, $4, $5, true, NOW(), NOW())
       RETURNING *
       `,
       [
@@ -521,7 +516,6 @@ router.patch("/:id/availability", async (req, res) => {
         `
         INSERT INTO staff_availability (
           staff_id,
-          staff_member_id,
           day_of_week,
           is_active,
           start_time,
@@ -530,8 +524,8 @@ router.patch("/:id/availability", async (req, res) => {
           created_at,
           updated_at
         )
-        VALUES ($1, $1, $2, $3, $4, $5, $6, NOW(), NOW())
-        ON CONFLICT (staff_member_id, day_of_week)
+        VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+        ON CONFLICT (staff_id, day_of_week)
         DO UPDATE SET
           is_active = EXCLUDED.is_active,
           start_time = EXCLUDED.start_time,
@@ -554,7 +548,7 @@ router.patch("/:id/availability", async (req, res) => {
       `
       SELECT *
       FROM staff_availability
-      WHERE COALESCE(staff_id, staff_member_id) = $1
+      WHERE staff_id = $1
       ORDER BY day_of_week ASC
       `,
       [staffId]
