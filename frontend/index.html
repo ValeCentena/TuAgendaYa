@@ -10,13 +10,25 @@
 
     <link id="app-manifest" rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" href="/icons/icon-192.png" />
 
     <meta name="theme-color" content="#0071e3" />
+    <meta name="color-scheme" content="light" />
+
+    <meta name="application-name" content="TuAgendaYa" />
+    <meta name="description" content="Agenda online para negocios, profesionales y clientes." />
+
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="Tu Agenda Ya" />
+    <meta name="apple-mobile-web-app-title" content="TuAgendaYa" />
 
-    <title>Tu AgendaYa</title>
+    <meta property="og:title" content="TuAgendaYa" />
+    <meta property="og:description" content="Agenda online para negocios, profesionales y clientes." />
+    <meta property="og:image" content="/icons/icon-512.png" />
+    <meta property="og:type" content="website" />
+
+    <title>TuAgendaYa</title>
 
     <style>
       html {
@@ -82,7 +94,7 @@
         }
 
         if (isAdmin) {
-          document.title = "Tu AgendaYa Admin";
+          document.title = "TuAgendaYa Admin";
         }
       })();
     </script>
@@ -95,8 +107,8 @@
 
     <script>
       if ("serviceWorker" in navigator) {
-        window.addEventListener("load", () => {
-          navigator.serviceWorker.register("/sw.js").catch(() => {});
+        window.addEventListener("load", function () {
+          navigator.serviceWorker.register("/sw.js").catch(function () {});
         });
       }
     </script>
