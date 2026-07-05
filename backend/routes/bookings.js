@@ -6,6 +6,10 @@ const {
   sendBookingConfirmationMessage,
   sendBusinessBookingNotification,
 } = require("../services/whatsapp");
+const {
+  savePushSubscription,
+  sendPushToProfessional,
+} = require("../services/push");
 
 const router = express.Router();
 
@@ -789,6 +793,59 @@ async function isTimeRangeAvailable(
   return true;
 }
 
+
+router.get("/push/public-key", (req, res) => {
+  res.json({
+    publicKey: process.env.VAPID_PUBLIC_KEY || "",
+  });
+});
+
+router.post("/push/subscribe", async (req, res) => {
+  try {
+    const professionalId = getProfessionalIdFromRequest(req);
+    const subscription = req.body.subscription || req.body;
+    const userAgent = req.headers["user-agent"] || "";
+
+    await savePushSubscription(professionalId, subscription, userAgent);
+
+
+
+    let pushNotification = { attempted: false, sent: 0 };
+
+    try {
+      pushNotification = await sendPushToProfessional(professional.id, {
+        title: "Nueva reserva en TuAgendaYa",
+        body: `${clientName} reservó ${service ? service.name : "un servicio"} para el ${normalizeDate(bookingDate)} a las ${normalizeTime(startTime)}`,
+        icon: "/tuagendaya-logo.png",
+        badge: "/tuagendaya-logo.png",
+        url: "/profesional/dashboard",
+        bookingId: result.rows[0].id,
+        clientName,
+        serviceName: service ? service.name : "Servicio",
+        bookingDate: normalizeDate(bookingDate),
+        startTime: normalizeTime(startTime),
+      });
+    } catch (pushError) {
+      console.warn("Push notification skipped:", pushError.message);
+
+      pushNotification = {
+        attempted: true,
+        sent: 0,
+        error: pushError.message || "No se pudo enviar la notificación push",
+      };
+    }
+
+    res.status(201).json({
+      success: true,
+      message: "Notificaciones activadas",
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({
+      error: error.message || "Error activando notificaciones",
+    });
+  }
+});
+
 router.get("/public/:slug/staff", async (req, res) => {
   try {
     const { slug } = req.params;
@@ -1148,6 +1205,33 @@ router.post("/public/:slug/book", async (req, res) => {
       };
     }
 
+
+
+    let pushNotification = { attempted: false, sent: 0 };
+
+    try {
+      pushNotification = await sendPushToProfessional(professional.id, {
+        title: "Nueva reserva en TuAgendaYa",
+        body: `${clientName} reservó ${service ? service.name : "un servicio"} para el ${normalizeDate(bookingDate)} a las ${normalizeTime(startTime)}`,
+        icon: "/tuagendaya-logo.png",
+        badge: "/tuagendaya-logo.png",
+        url: "/profesional/dashboard",
+        bookingId: result.rows[0].id,
+        clientName,
+        serviceName: service ? service.name : "Servicio",
+        bookingDate: normalizeDate(bookingDate),
+        startTime: normalizeTime(startTime),
+      });
+    } catch (pushError) {
+      console.warn("Push notification skipped:", pushError.message);
+
+      pushNotification = {
+        attempted: true,
+        sent: 0,
+        error: pushError.message || "No se pudo enviar la notificación push",
+      };
+    }
+
     res.status(201).json({
       success: true,
       bookingId: result.rows[0].id,
@@ -1155,6 +1239,7 @@ router.post("/public/:slug/book", async (req, res) => {
       confirmationUrl,
       whatsapp,
       businessWhatsapp,
+      pushNotification,
       booking: normalizedBooking,
     });
   } catch (error) {
@@ -1608,6 +1693,33 @@ router.post("/cash-closures", async (req, res) => {
         notes,
       ]
     );
+
+
+
+    let pushNotification = { attempted: false, sent: 0 };
+
+    try {
+      pushNotification = await sendPushToProfessional(professional.id, {
+        title: "Nueva reserva en TuAgendaYa",
+        body: `${clientName} reservó ${service ? service.name : "un servicio"} para el ${normalizeDate(bookingDate)} a las ${normalizeTime(startTime)}`,
+        icon: "/tuagendaya-logo.png",
+        badge: "/tuagendaya-logo.png",
+        url: "/profesional/dashboard",
+        bookingId: result.rows[0].id,
+        clientName,
+        serviceName: service ? service.name : "Servicio",
+        bookingDate: normalizeDate(bookingDate),
+        startTime: normalizeTime(startTime),
+      });
+    } catch (pushError) {
+      console.warn("Push notification skipped:", pushError.message);
+
+      pushNotification = {
+        attempted: true,
+        sent: 0,
+        error: pushError.message || "No se pudo enviar la notificación push",
+      };
+    }
 
     res.status(201).json({
       success: true,

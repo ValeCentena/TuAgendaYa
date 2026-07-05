@@ -99,6 +99,40 @@ const smallLabelStyle = {
   fontWeight: 600,
 };
 
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = `${base64String}${padding}`.replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+
+  for (let i = 0; i < rawData.length; i += 1) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+
+  return outputArray;
+}
+
+function getPushBrowserSupport() {
+  if (typeof window === 'undefined') {
+    return { supported: false, reason: 'browser_unavailable' };
+  }
+
+  if (!('serviceWorker' in navigator)) {
+    return { supported: false, reason: 'service_worker_unavailable' };
+  }
+
+  if (!('PushManager' in window)) {
+    return { supported: false, reason: 'push_manager_unavailable' };
+  }
+
+  if (!('Notification' in window)) {
+    return { supported: false, reason: 'notification_unavailable' };
+  }
+
+  return { supported: true, reason: '' };
+}
+
 function formatDate(d) {
   if (!d) return 'Sin fecha';
 
@@ -1403,6 +1437,9 @@ function ReservationsSection() {
   const [archivedFromDate, setArchivedFromDate] = useState('');
   const [archivedToDate, setArchivedToDate] = useState('');
   const [paymentDrafts, setPaymentDrafts] = useState({});
+  const [pushStatus, setPushStatus] = useState('checking');
+  const [pushMessage, setPushMessage] = useState('');
+  const [pushLoading, setPushLoading] = useState(false);
   const [bookingNotification, setBookingNotification] = useState(null);
   const [newBookingCount, setNewBookingCount] = useState(0);
   const knownBookingIdsRef = useRef(new Set());
@@ -1475,6 +1512,101 @@ function ReservationsSection() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    const support = getPushBrowserSupport();
+
+    if (!support.supported) {
+      setPushStatus('unsupported');
+      setPushMessage('Este navegador no permite notificaciones push web.');
+      return;
+    }
+
+    if (Notification.permission === 'granted') {
+      setPushStatus('enabled');
+      setPushMessage('Notificaciones activadas en este dispositivo.');
+    } else if (Notification.permission === 'denied') {
+      setPushStatus('blocked');
+      setPushMessage('Las notificaciones están bloqueadas en el navegador.');
+    } else {
+      setPushStatus('idle');
+      setPushMessage('Activá las notificaciones para recibir reservas aunque no tengas el panel abierto.');
+    }
+  }, []);
+
+  const enablePushNotifications = async () => {
+    setPushLoading(true);
+    setPushMessage('Preparando notificaciones...');
+
+    try {
+      const support = getPushBrowserSupport();
+
+      if (!support.supported) {
+        setPushStatus('unsupported');
+        setPushMessage('Este navegador no permite notificaciones push web.');
+        return;
+      }
+
+      const permission = await Notification.requestPermission();
+
+      if (permission !== 'granted') {
+        setPushStatus(permission === 'denied' ? 'blocked' : 'idle');
+        setPushMessage('Tenés que permitir las notificaciones para recibir avisos de nuevas reservas.');
+        return;
+      }
+
+      const token = localStorage.getItem('tuagendaya_token');
+
+      if (!token) {
+        setPushStatus('idle');
+        setPushMessage('Iniciá sesión de nuevo para activar las notificaciones.');
+        return;
+      }
+
+      const keyResponse = await fetch(`${API_BASE}/bookings/push/public-key`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const keyData = await keyResponse.json();
+      const publicKey = keyData.publicKey;
+
+      if (!keyResponse.ok || !publicKey) {
+        throw new Error(keyData.error || 'Falta configurar VAPID_PUBLIC_KEY en Render.');
+      }
+
+      const registration = await navigator.serviceWorker.register('/sw.js');
+      await navigator.serviceWorker.ready;
+
+      const existingSubscription = await registration.pushManager.getSubscription();
+      const subscription = existingSubscription || await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      });
+
+      const saveResponse = await fetch(`${API_BASE}/bookings/push/subscribe`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ subscription }),
+      });
+
+      const saveData = await saveResponse.json();
+
+      if (!saveResponse.ok) {
+        throw new Error(saveData.error || 'No se pudo guardar la suscripción push.');
+      }
+
+      setPushStatus('enabled');
+      setPushMessage('Listo. Este dispositivo va a recibir avisos cuando entre una reserva nueva.');
+    } catch (error) {
+      setPushStatus('error');
+      setPushMessage(error.message || 'No se pudieron activar las notificaciones.');
+    } finally {
+      setPushLoading(false);
+    }
+  };
+
 
   let storedProfessional = {};
 
@@ -1989,6 +2121,41 @@ function ReservationsSection() {
           </button>
         </div>
       )}
+
+      <div style={{ background: pushStatus === 'enabled' ? '#edfff3' : '#fff', borderRadius: 22, padding: '16px 18px', marginBottom: 16, border: pushStatus === 'enabled' ? '0.5px solid rgba(48,209,88,0.35)' : '0.5px solid #e5e5ea', boxShadow: '0 1px 8px rgba(0,0,0,0.05)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
+          <div style={{ minWidth: 220, flex: 1 }}>
+            <div style={{ fontSize: 15, fontWeight: 900, color: '#1a1a1a', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span>🔔</span>
+              <span>Notificaciones de nuevas reservas</span>
+            </div>
+            <div style={{ fontSize: 12.5, color: '#6e6e73', fontWeight: 650, marginTop: 4, lineHeight: 1.4 }}>
+              {pushMessage || 'Activá las notificaciones para recibir avisos aunque no tengas TuAgendaYa abierto.'}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={enablePushNotifications}
+            disabled={pushLoading || pushStatus === 'enabled' || pushStatus === 'unsupported'}
+            style={{
+              border: 'none',
+              borderRadius: 999,
+              background: pushStatus === 'enabled' ? '#30d158' : pushStatus === 'unsupported' ? '#c7c7cc' : '#0071e3',
+              color: '#fff',
+              padding: '11px 15px',
+              fontSize: 13,
+              fontWeight: 900,
+              fontFamily: 'inherit',
+              cursor: pushLoading || pushStatus === 'enabled' || pushStatus === 'unsupported' ? 'default' : 'pointer',
+              whiteSpace: 'nowrap',
+              boxShadow: pushStatus === 'enabled' ? 'none' : '0 10px 24px rgba(0,113,227,0.18)',
+            }}
+          >
+            {pushLoading ? 'Activando...' : pushStatus === 'enabled' ? 'Activadas' : 'Activar notificaciones'}
+          </button>
+        </div>
+      </div>
 
       {!loadingBookings && (
         <div style={{ background: '#fff', borderRadius: 22, padding: '18px 20px', marginBottom: 16, boxShadow: '0 1px 8px rgba(0,0,0,0.05)' }}>

@@ -1,49 +1,48 @@
-const CACHE_NAME = "tuagendaya-cache-v1";
+self.addEventListener("push", (event) => {
+  let data = {};
 
-const urlsToCache = [
-  "/",
-  "/profesional/login",
-  "/admin/login",
-  "/manifest.webmanifest",
-  "/tuagendaya-logo.png",
-  "/icons/icon-192.png",
-  "/icons/icon-512.png",
-];
-
-self.addEventListener("install", (event) => {
-  self.skipWaiting();
-
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(urlsToCache).catch(() => {
-        return Promise.resolve();
-      });
-    })
-  );
-});
-
-self.addEventListener("activate", (event) => {
-  event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames
-          .filter((cacheName) => cacheName !== CACHE_NAME)
-          .map((cacheName) => caches.delete(cacheName))
-      );
-    })
-  );
-
-  self.clients.claim();
-});
-
-self.addEventListener("fetch", (event) => {
-  if (event.request.method !== "GET") {
-    return;
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = {};
   }
 
-  event.respondWith(
-    fetch(event.request).catch(() => {
-      return caches.match(event.request);
+  const title = data.title || "Nueva reserva en TuAgendaYa";
+  const options = {
+    body: data.body || "Tenés una nueva reserva pendiente.",
+    icon: data.icon || "/tuagendaya-logo.png",
+    badge: data.badge || "/tuagendaya-logo.png",
+    data: {
+      url: data.url || "/profesional/dashboard",
+      bookingId: data.bookingId || null,
+    },
+    tag: data.bookingId ? `booking-${data.bookingId}` : "tuagendaya-booking",
+    renotify: true,
+    requireInteraction: false,
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+
+  const targetUrl = new URL(event.notification?.data?.url || "/profesional/dashboard", self.location.origin).href;
+
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url.includes("/profesional") && "focus" in client) {
+          client.navigate(targetUrl);
+          return client.focus();
+        }
+      }
+
+      if (clients.openWindow) {
+        return clients.openWindow(targetUrl);
+      }
+
+      return null;
     })
   );
 });

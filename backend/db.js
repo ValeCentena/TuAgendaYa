@@ -213,6 +213,19 @@ async function initDB() {
         updated_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
+
+
+      CREATE TABLE IF NOT EXISTS push_subscriptions (
+        id                SERIAL PRIMARY KEY,
+        professional_id   INTEGER NOT NULL REFERENCES professionals(id) ON DELETE CASCADE,
+        endpoint          TEXT    UNIQUE NOT NULL,
+        p256dh            TEXT    NOT NULL,
+        auth              TEXT    NOT NULL,
+        user_agent        TEXT,
+        created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
       CREATE TABLE IF NOT EXISTS staff_availability (
         id                    SERIAL PRIMARY KEY,
         staff_member_id       INTEGER NOT NULL REFERENCES staff_members(id) ON DELETE CASCADE,
@@ -236,6 +249,7 @@ async function initDB() {
       `CREATE INDEX IF NOT EXISTS idx_clients_professional           ON clients(professional_id)`,
       `CREATE INDEX IF NOT EXISTS idx_bookings_professional          ON bookings(professional_id)`,
       `CREATE INDEX IF NOT EXISTS idx_staff_availability_member      ON staff_availability(staff_member_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_push_subscriptions_professional ON push_subscriptions(professional_id)`,
     ];
 
     for (const sql of indices) {
@@ -262,6 +276,8 @@ async function initDB() {
       `ALTER TABLE professional_availability ADD COLUMN IF NOT EXISTS break_enabled INTEGER NOT NULL DEFAULT 0`,
       `ALTER TABLE professional_availability ADD COLUMN IF NOT EXISTS break_start   TIME`,
       `ALTER TABLE professional_availability ADD COLUMN IF NOT EXISTS break_end     TIME`,
+      // push_subscriptions
+      `ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS user_agent TEXT`,
     ];
 
     for (const sql of migrations) {
