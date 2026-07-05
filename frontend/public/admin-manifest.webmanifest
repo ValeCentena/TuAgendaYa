@@ -1,13 +1,23 @@
 {
-  "name": "Tu Agenda Ya Admin",
-  "short_name": "Admin",
-  "description": "Panel dueño de Tu Agenda Ya.",
-  "start_url": "/admin-install.html",
-  "scope": "/",
+  "name": "TuAgendaYa Admin",
+  "short_name": "TY Admin",
+  "description": "Panel de administración de TuAgendaYa.",
+  "start_url": "/admin/login",
+  "scope": "/admin/",
   "display": "standalone",
+  "display_override": [
+    "standalone",
+    "minimal-ui",
+    "browser"
+  ],
   "background_color": "#f5f5f7",
-  "theme_color": "#0071e3",
+  "theme_color": "#111827",
   "orientation": "portrait",
+  "categories": [
+    "business",
+    "productivity"
+  ],
+  "lang": "es-UY",
   "icons": [
     {
       "src": "/apple-touch-icon.png",
@@ -19,13 +29,25 @@
       "src": "/icons/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
     },
     {
       "src": "/icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
