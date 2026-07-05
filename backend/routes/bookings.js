@@ -552,6 +552,47 @@ async function getStaffForProfessional(professionalId, staffId) {
   return result.rows[0] || null;
 }
 
+
+async function ensureDefaultStaffAvailability(staffId) {
+  const existing = await db.query(
+    `
+    SELECT *
+    FROM staff_availability
+    WHERE COALESCE(staff_id, staff_member_id) = $1
+    ORDER BY day_of_week ASC
+    `,
+    [staffId]
+  );
+
+  const existingDays = new Set(existing.rows.map((row) => Number(row.day_of_week)));
+
+  for (let dayOfWeek = 0; dayOfWeek <= 6; dayOfWeek += 1) {
+    if (existingDays.has(dayOfWeek)) continue;
+
+    const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
+
+    await db.query(
+      `
+      INSERT INTO staff_availability (
+        staff_id,
+        staff_member_id,
+        day_of_week,
+        is_active,
+        start_time,
+        end_time,
+        slot_duration_minutes,
+        created_at,
+        updated_at
+      )
+      VALUES ($1, $1, $2, $3, '09:00', '18:00', 30, NOW(), NOW())
+      ON CONFLICT (staff_member_id, day_of_week)
+      DO NOTHING
+      `,
+      [staffId, dayOfWeek, isWeekday]
+    );
+  }
+}
+
 async function ensureDefaultStaff(professional) {
   const existing = await db.query(
     `
@@ -564,6 +605,10 @@ async function ensureDefaultStaff(professional) {
   );
 
   if (existing.rows.length > 0) {
+    for (const member of existing.rows) {
+      await ensureDefaultStaffAvailability(member.id);
+    }
+
     return existing.rows;
   }
 
