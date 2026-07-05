@@ -2122,40 +2122,42 @@ function ReservationsSection() {
         </div>
       )}
 
-      <div style={{ background: pushStatus === 'enabled' ? '#edfff3' : '#fff', borderRadius: 22, padding: '16px 18px', marginBottom: 16, border: pushStatus === 'enabled' ? '0.5px solid rgba(48,209,88,0.35)' : '0.5px solid #e5e5ea', boxShadow: '0 1px 8px rgba(0,0,0,0.05)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
-          <div style={{ minWidth: 220, flex: 1 }}>
-            <div style={{ fontSize: 15, fontWeight: 900, color: '#1a1a1a', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span>🔔</span>
-              <span>Notificaciones de nuevas reservas</span>
+      {pushStatus !== 'enabled' && (
+        <div style={{ background: '#fff', borderRadius: 22, padding: '16px 18px', marginBottom: 16, border: '0.5px solid #e5e5ea', boxShadow: '0 1px 8px rgba(0,0,0,0.05)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
+            <div style={{ minWidth: 220, flex: 1 }}>
+              <div style={{ fontSize: 15, fontWeight: 900, color: '#1a1a1a', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>🔔</span>
+                <span>Notificaciones de nuevas reservas</span>
+              </div>
+              <div style={{ fontSize: 12.5, color: '#6e6e73', fontWeight: 650, marginTop: 4, lineHeight: 1.4 }}>
+                {pushMessage || 'Activá las notificaciones para recibir avisos aunque no tengas TuAgendaYa abierto.'}
+              </div>
             </div>
-            <div style={{ fontSize: 12.5, color: '#6e6e73', fontWeight: 650, marginTop: 4, lineHeight: 1.4 }}>
-              {pushMessage || 'Activá las notificaciones para recibir avisos aunque no tengas TuAgendaYa abierto.'}
-            </div>
-          </div>
 
-          <button
-            type="button"
-            onClick={enablePushNotifications}
-            disabled={pushLoading || pushStatus === 'enabled' || pushStatus === 'unsupported'}
-            style={{
-              border: 'none',
-              borderRadius: 999,
-              background: pushStatus === 'enabled' ? '#30d158' : pushStatus === 'unsupported' ? '#c7c7cc' : '#0071e3',
-              color: '#fff',
-              padding: '11px 15px',
-              fontSize: 13,
-              fontWeight: 900,
-              fontFamily: 'inherit',
-              cursor: pushLoading || pushStatus === 'enabled' || pushStatus === 'unsupported' ? 'default' : 'pointer',
-              whiteSpace: 'nowrap',
-              boxShadow: pushStatus === 'enabled' ? 'none' : '0 10px 24px rgba(0,113,227,0.18)',
-            }}
-          >
-            {pushLoading ? 'Activando...' : pushStatus === 'enabled' ? 'Activadas' : 'Activar notificaciones'}
-          </button>
+            <button
+              type="button"
+              onClick={enablePushNotifications}
+              disabled={pushLoading || pushStatus === 'unsupported'}
+              style={{
+                border: 'none',
+                borderRadius: 999,
+                background: pushStatus === 'unsupported' ? '#c7c7cc' : '#0071e3',
+                color: '#fff',
+                padding: '11px 15px',
+                fontSize: 13,
+                fontWeight: 900,
+                fontFamily: 'inherit',
+                cursor: pushLoading || pushStatus === 'unsupported' ? 'default' : 'pointer',
+                whiteSpace: 'nowrap',
+                boxShadow: pushStatus === 'unsupported' ? 'none' : '0 10px 24px rgba(0,113,227,0.18)',
+              }}
+            >
+              {pushLoading ? 'Activando...' : 'Activar notificaciones'}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {!loadingBookings && (
         <div style={{ background: '#fff', borderRadius: 22, padding: '18px 20px', marginBottom: 16, boxShadow: '0 1px 8px rgba(0,0,0,0.05)' }}>
@@ -5796,7 +5798,7 @@ function ServicesSection() {
                       </div>
                     </div>
 
-                    <div style={{ fontSize: 11, fontWeight: 700, color: service.isActive ? '#188038' : '#ff453a', background: service.isActive ? '#edfff3' : '#fff2f2', padding: '5px 10px', borderRadius: 20, height: 18 }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: service.isActive ? '#188038' : '#ff453a', background: service.isActive ? '#edfff3' : '#fff2f2', padding: '6px 12px', borderRadius: 999, minHeight: 24, lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-start', whiteSpace: 'nowrap', boxSizing: 'border-box' }}>
                       {service.isActive ? 'Activo' : 'Inactivo'}
                     </div>
                   </div>
@@ -6016,6 +6018,9 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
   const [previewLogoMode, setPreviewLogoMode] = useState('square');
   const [planBookings, setPlanBookings] = useState([]);
   const [loadingPlan, setLoadingPlan] = useState(true);
+  const [profilePushStatus, setProfilePushStatus] = useState('checking');
+  const [profilePushMessage, setProfilePushMessage] = useState('');
+  const [profilePushLoading, setProfilePushLoading] = useState(false);
 
   const token = localStorage.getItem('tuagendaya_token');
 
@@ -6228,6 +6233,82 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
       setMessage('Link público copiado correctamente.');
     } catch {
       setError('No se pudo copiar el link.');
+    }
+  };
+
+  const refreshProfilePushStatus = useCallback(async () => {
+    const support = getPushBrowserSupport();
+
+    if (!support.supported) {
+      setProfilePushStatus('unsupported');
+      setProfilePushMessage('Este navegador no permite notificaciones push web.');
+      return;
+    }
+
+    try {
+      const registration = await navigator.serviceWorker.getRegistration('/sw.js');
+
+      if (!registration) {
+        setProfilePushStatus(Notification.permission === 'denied' ? 'blocked' : 'disabled');
+        setProfilePushMessage(Notification.permission === 'denied' ? 'Las notificaciones están bloqueadas en el navegador.' : 'No hay notificaciones activas en este dispositivo.');
+        return;
+      }
+
+      const subscription = await registration.pushManager.getSubscription();
+
+      if (subscription) {
+        setProfilePushStatus('enabled');
+        setProfilePushMessage('Las notificaciones están activas en este dispositivo.');
+      } else {
+        setProfilePushStatus(Notification.permission === 'denied' ? 'blocked' : 'disabled');
+        setProfilePushMessage(Notification.permission === 'denied' ? 'Las notificaciones están bloqueadas en el navegador.' : 'No hay notificaciones activas en este dispositivo.');
+      }
+    } catch {
+      setProfilePushStatus('disabled');
+      setProfilePushMessage('No se pudo revisar el estado de las notificaciones.');
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshProfilePushStatus();
+  }, [refreshProfilePushStatus]);
+
+  const disableProfilePushNotifications = async () => {
+    setProfilePushLoading(true);
+    setProfilePushMessage('');
+
+    try {
+      const support = getPushBrowserSupport();
+
+      if (!support.supported) {
+        setProfilePushStatus('unsupported');
+        setProfilePushMessage('Este navegador no permite notificaciones push web.');
+        return;
+      }
+
+      const registration = await navigator.serviceWorker.getRegistration('/sw.js');
+
+      if (!registration) {
+        setProfilePushStatus('disabled');
+        setProfilePushMessage('No hay notificaciones activas en este dispositivo.');
+        return;
+      }
+
+      const subscription = await registration.pushManager.getSubscription();
+
+      if (!subscription) {
+        setProfilePushStatus('disabled');
+        setProfilePushMessage('No hay notificaciones activas en este dispositivo.');
+        return;
+      }
+
+      await subscription.unsubscribe();
+      setProfilePushStatus('disabled');
+      setProfilePushMessage('Notificaciones desactivadas en este dispositivo.');
+    } catch {
+      setProfilePushMessage('No se pudieron desactivar las notificaciones.');
+    } finally {
+      setProfilePushLoading(false);
     }
   };
 
@@ -6506,6 +6587,37 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
             }}
           >
             Enlazar próximamente
+          </button>
+        </div>
+      </div>
+
+      <div style={{ background: '#fff', borderRadius: 20, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 16, alignItems: 'center' }}>
+          <div>
+            <div style={{ fontSize: 17, fontWeight: 800, color: '#1a1a1a' }}>Notificaciones</div>
+            <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 5, lineHeight: 1.45 }}>
+              {profilePushMessage || 'Gestioná las notificaciones de nuevas reservas en este dispositivo.'}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={disableProfilePushNotifications}
+            disabled={profilePushLoading || profilePushStatus !== 'enabled'}
+            style={{
+              padding: '11px 16px',
+              borderRadius: 14,
+              border: profilePushStatus === 'enabled' ? 'none' : '0.5px solid #d0d0d5',
+              background: profilePushStatus === 'enabled' ? '#ff453a' : '#f2f2f7',
+              color: profilePushStatus === 'enabled' ? '#fff' : '#8e8e93',
+              fontSize: 13,
+              fontWeight: 800,
+              fontFamily: 'inherit',
+              cursor: profilePushLoading || profilePushStatus !== 'enabled' ? 'not-allowed' : 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {profilePushLoading ? 'Desactivando...' : 'Desactivar notificaciones'}
           </button>
         </div>
       </div>
