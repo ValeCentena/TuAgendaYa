@@ -980,11 +980,11 @@ export default function BookPage() {
                     <div
                       style={{
                         display: 'grid',
-                        gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-                        gap: 6,
-                        maxHeight: 112,
+                        gridTemplateColumns: 'repeat(3, minmax(78px, 1fr))',
+                        gap: 8,
+                        maxHeight: 158,
                         overflowY: slots.length > 12 ? 'auto' : 'visible',
-                        paddingRight: slots.length > 12 ? 3 : 0,
+                        paddingRight: slots.length > 12 ? 4 : 0,
                         WebkitOverflowScrolling: 'touch',
                       }}
                     >
@@ -1000,9 +1000,9 @@ export default function BookPage() {
                             disabled={!isAvailable}
                             onClick={() => isAvailable && setSelectedTime(slot.time)}
                             style={{
-                              height: 31,
-                              padding: '0 6px',
-                              borderRadius: 13,
+                              height: 42,
+                              padding: '0 10px',
+                              borderRadius: 16,
                               border: isSelected
                                 ? '2px solid #0071e3'
                                 : isAvailable
@@ -1018,12 +1018,18 @@ export default function BookPage() {
                                 : isAvailable
                                   ? '#1a1a1a'
                                   : '#c7c7cc',
-                              fontSize: 12.5,
-                              fontWeight: 850,
+                              fontSize: 14,
+                              fontWeight: 760,
                               fontFamily: 'inherit',
                               cursor: isAvailable ? 'pointer' : 'not-allowed',
                               textDecoration: isAvailable ? 'none' : 'line-through',
-                              boxShadow: isSelected ? '0 6px 14px rgba(0,113,227,0.16)' : '0 3px 8px rgba(0,0,0,0.028)',
+                              boxShadow: isSelected ? '0 8px 18px rgba(0,113,227,0.18)' : '0 4px 10px rgba(0,0,0,0.035)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              lineHeight: 1,
+                              letterSpacing: '-0.02em',
+                              boxSizing: 'border-box',
                             }}
                           >
                             {slot.time}

@@ -5606,6 +5606,8 @@ function ServicesSection() {
     }
   };
 
+  const visibleServices = services.filter((service) => String(service.name || '').trim());
+
   return (
     <div style={{ background: '#fff', borderRadius: 20, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
       <div style={{ marginBottom: 18 }}>
@@ -5686,10 +5688,8 @@ function ServicesSection() {
 
       {loading ? (
         <div style={{ textAlign: 'center', color: '#aeaeb2', padding: 28 }}>Cargando servicios...</div>
-      ) : services.length === 0 ? (
-        <div style={{ textAlign: 'center', color: '#aeaeb2', padding: 28 }}>Todavía no tenés servicios.</div>
-      ) : (
-        services.map((service) => {
+      ) : visibleServices.length === 0 ? null : (
+        visibleServices.map((service) => {
           const isEditing = editingId === service.id;
 
           return (
