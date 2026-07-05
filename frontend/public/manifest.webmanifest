@@ -1,13 +1,23 @@
 {
-  "name": "Tu Agenda Ya",
+  "name": "TuAgendaYa",
   "short_name": "TuAgendaYa",
-  "description": "Panel profesional de gestión de reservas, clientes y agenda.",
+  "description": "Agenda online para negocios, profesionales y clientes.",
   "start_url": "/profesional/login",
   "scope": "/",
   "display": "standalone",
+  "display_override": [
+    "standalone",
+    "minimal-ui",
+    "browser"
+  ],
   "background_color": "#f5f5f7",
   "theme_color": "#0071e3",
   "orientation": "portrait",
+  "categories": [
+    "business",
+    "productivity"
+  ],
+  "lang": "es-UY",
   "icons": [
     {
       "src": "/apple-touch-icon.png",
@@ -19,13 +29,53 @@
       "src": "/icons/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
     },
     {
       "src": "/icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Panel profesional",
+      "short_name": "Panel",
+      "description": "Abrir el panel profesional",
+      "url": "/profesional/dashboard",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Reservas",
+      "short_name": "Reservas",
+      "description": "Ver reservas del negocio",
+      "url": "/profesional/dashboard",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
     }
   ]
 }
