@@ -1081,7 +1081,7 @@ export default function BookPage() {
                       background: '#fff',
                       color: '#1a1a1a',
                       fontSize: 14,
-                      fontWeight: 900,
+                      fontWeight: 500,
                       fontFamily: 'inherit',
                       outline: 'none',
                       boxSizing: 'border-box',
@@ -1146,11 +1146,11 @@ export default function BookPage() {
                           >
                             <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                               <span>{country.flag}</span>
-                              <span style={{ fontSize: 13, fontWeight: 850, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <span style={{ fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {country.name}
                               </span>
                             </span>
-                            <span style={{ color: '#0071e3', fontSize: 13, fontWeight: 950, flexShrink: 0 }}>
+                            <span style={{ color: '#0071e3', fontSize: 13, fontWeight: 600, flexShrink: 0 }}>
                               +{country.dialCode}
                             </span>
                           </button>
