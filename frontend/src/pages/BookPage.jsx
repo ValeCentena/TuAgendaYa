@@ -238,7 +238,7 @@ export default function BookPage() {
         setBusiness(data.business || null);
         setStaff(activeStaff);
 
-        if (activeStaff.length > 1) {
+        if (activeStaff.length > 0) {
           setSelectedStaffId(String(activeStaff[0].id));
         } else {
           setSelectedStaffId('');
@@ -270,7 +270,7 @@ export default function BookPage() {
       serviceId: String(selectedServiceId),
     });
 
-    if (needsStaffChoice && selectedStaffId) {
+    if (selectedStaffId) {
       params.set('staffId', String(selectedStaffId));
     }
 
@@ -333,7 +333,7 @@ export default function BookPage() {
       serviceId: String(selectedServiceId),
     });
 
-    if (needsStaffChoice && selectedStaffId) {
+    if (selectedStaffId) {
       params.set('staffId', String(selectedStaffId));
     }
 
@@ -591,7 +591,7 @@ export default function BookPage() {
           bookingDate,
           startTime: selectedTime,
           serviceId: Number(selectedServiceId),
-          ...(hasStaffChoice && selectedStaffId ? { staffId: Number(selectedStaffId) } : {}),
+          ...(selectedStaffId ? { staffId: Number(selectedStaffId) } : {}),
         }),
       });
 
@@ -638,7 +638,7 @@ export default function BookPage() {
       setSelectedServiceId(String(services[0].id));
     }
 
-    if (staff.length > 1) {
+    if (staff.length > 0) {
       setSelectedStaffId(String(staff[0].id));
     } else {
       setSelectedStaffId('');
