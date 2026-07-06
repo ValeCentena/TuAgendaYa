@@ -2,8 +2,8 @@
   "name": "TuAgendaYa Admin",
   "short_name": "TY Admin",
   "description": "Panel de administración de TuAgendaYa.",
-  "start_url": "/admin/login",
-  "scope": "/admin/",
+  "start_url": "/admin-app",
+  "scope": "/admin-app/",
   "display": "standalone",
   "display_override": [
     "standalone",
