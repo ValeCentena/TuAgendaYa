@@ -51,6 +51,22 @@ function onlyDigits(value) {
   return String(value || '').replace(/\D/g, '');
 }
 
+
+function getCompactCountryLabel(country) {
+  const iso =
+    country?.iso ||
+    country?.code2 ||
+    country?.countryCode ||
+    country?.shortCode ||
+    country?.abbreviation ||
+    'UY';
+
+  const flag = country?.flag || '🇺🇾';
+  const dialCode = country?.dialCode || country?.code || country?.phoneCode || '+598';
+
+  return `${String(iso).toUpperCase()} ${flag} ${dialCode}`;
+}
+
 function buildInternationalPhone(countryCode, localPhone) {
   const country = getPhoneCountry(countryCode);
   let digits = onlyDigits(localPhone);
