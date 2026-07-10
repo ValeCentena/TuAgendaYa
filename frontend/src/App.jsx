@@ -133,50 +133,6 @@ function getPushBrowserSupport() {
   return { supported: true, reason: '' };
 }
 
-
-function isStandaloneApp() {
-  if (typeof window === 'undefined') return false;
-
-  return (
-    window.matchMedia?.('(display-mode: standalone)')?.matches ||
-    window.navigator?.standalone === true
-  );
-}
-
-function isIosDevice() {
-  if (typeof window === 'undefined') return false;
-
-  return /iphone|ipad|ipod/i.test(window.navigator.userAgent || '');
-}
-
-function getPushActivationMessage() {
-  const pushActivationMessage = getPushActivationMessage();
-    if (pushActivationMessage) {
-      alert(pushActivationMessage);
-      return;
-    }
-
-    const support = getPushBrowserSupport();
-
-  if (!support.supported) {
-    if (isIosDevice() && !isStandaloneApp()) {
-      return 'En iPhone, abrí TuAgendaYa desde el ícono de pantalla de inicio para activar notificaciones.';
-    }
-
-    return 'Este navegador no permite activar notificaciones push.';
-  }
-
-  if (isIosDevice() && !isStandaloneApp()) {
-    return 'En iPhone, primero agregá TuAgendaYa a la pantalla de inicio y abrila desde el ícono para activar notificaciones.';
-  }
-
-  if (Notification.permission === 'denied') {
-    return 'Las notificaciones están bloqueadas. Activá el permiso desde la configuración del navegador o del teléfono.';
-  }
-
-  return '';
-}
-
 function formatDate(d) {
   if (!d) return 'Sin fecha';
 
@@ -1817,12 +1773,6 @@ function ReservationsSection() {
   }, []);
 
   useEffect(() => {
-    const pushActivationMessage = getPushActivationMessage();
-    if (pushActivationMessage) {
-      alert(pushActivationMessage);
-      return;
-    }
-
     const support = getPushBrowserSupport();
 
     if (!support.supported) {
@@ -1848,13 +1798,7 @@ function ReservationsSection() {
     setPushMessage('Preparando notificaciones...');
 
     try {
-      const pushActivationMessage = getPushActivationMessage();
-    if (pushActivationMessage) {
-      alert(pushActivationMessage);
-      return;
-    }
-
-    const support = getPushBrowserSupport();
+      const support = getPushBrowserSupport();
 
       if (!support.supported) {
         setPushStatus('unsupported');
@@ -1916,7 +1860,7 @@ function ReservationsSection() {
       setPushMessage('Listo. Este dispositivo va a recibir avisos cuando entre una reserva nueva.');
     } catch (error) {
       setPushStatus('error');
-      setPushMessage(error.message || 'No se pudieron activar las notificaciones. Revisá que la app esté instalada y que el permiso esté habilitado.');
+      setPushMessage(error.message || 'No se pudieron activar las notificaciones.');
     } finally {
       setPushLoading(false);
     }
@@ -6668,12 +6612,6 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
   };
 
   const refreshProfilePushStatus = useCallback(async () => {
-    const pushActivationMessage = getPushActivationMessage();
-    if (pushActivationMessage) {
-      alert(pushActivationMessage);
-      return;
-    }
-
     const support = getPushBrowserSupport();
 
     if (!support.supported) {
@@ -6715,13 +6653,7 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
     setProfilePushMessage('');
 
     try {
-      const pushActivationMessage = getPushActivationMessage();
-    if (pushActivationMessage) {
-      alert(pushActivationMessage);
-      return;
-    }
-
-    const support = getPushBrowserSupport();
+      const support = getPushBrowserSupport();
 
       if (!support.supported) {
         setProfilePushStatus('unsupported');
