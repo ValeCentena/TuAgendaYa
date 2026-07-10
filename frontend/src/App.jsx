@@ -1701,6 +1701,8 @@ function ReservationsSection() {
   const [pushLoading, setPushLoading] = useState(false);
   const [bookingNotification, setBookingNotification] = useState(null);
   const [newBookingCount, setNewBookingCount] = useState(0);
+  const [lastBookingsSyncAt, setLastBookingsSyncAt] = useState(null);
+  const [bookingsSyncing, setBookingsSyncing] = useState(false);
   const knownBookingIdsRef = useRef(new Set());
   const bookingsBootstrappedRef = useRef(false);
   const notificationTimeoutRef = useRef(null);
@@ -1882,6 +1884,8 @@ function ReservationsSection() {
 
     if (showLoading) {
       setLoadingBookings(true);
+    } else {
+      setBookingsSyncing(true);
     }
 
     return fetch(`${API_BASE}/bookings/me`, {
@@ -1928,7 +1932,11 @@ function ReservationsSection() {
       .finally(() => {
         if (showLoading) {
           setLoadingBookings(false);
+        } else {
+          setBookingsSyncing(false);
         }
+
+        setLastBookingsSyncAt(new Date());
       });
   }, [showNewBookingNotification]);
 
@@ -1936,10 +1944,28 @@ function ReservationsSection() {
     fetchBookings(true);
 
     const intervalId = window.setInterval(() => {
-      fetchBookings(false);
-    }, 5000);
+      if (!document.hidden) {
+        fetchBookings(false);
+      }
+    }, 15000);
 
     return () => window.clearInterval(intervalId);
+  }, [fetchBookings]);
+
+  useEffect(() => {
+    const refreshWhenVisible = () => {
+      if (!document.hidden) {
+        fetchBookings(false);
+      }
+    };
+
+    window.addEventListener('focus', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+
+    return () => {
+      window.removeEventListener('focus', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
   }, [fetchBookings]);
 
   const handleAction = async (id, action) => {
@@ -2424,11 +2450,17 @@ function ReservationsSection() {
             <div>
               <div style={{ fontSize: 16, fontWeight: 900, color: '#1a1a1a' }}>Resumen del negocio</div>
               <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 600, marginTop: 3 }}>
-                Las confirmadas y canceladas se actualizan en el momento y se reinician cada día.
+                El panel se sincroniza solo cada 15 segundos y también al volver a abrir la app.
               </div>
             </div>
             <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800, whiteSpace: 'nowrap' }}>
-              {newBookingCount > 0 ? ` ${newBookingCount} nuevas` : 'Actualiza cada 5 s'}
+              {bookingsSyncing
+                ? 'Sincronizando...'
+                : newBookingCount > 0
+                  ? `${newBookingCount} nuevas`
+                  : lastBookingsSyncAt
+                    ? `Actualizado ${lastBookingsSyncAt.toLocaleTimeString('es-UY', { hour: '2-digit', minute: '2-digit' })}`
+                    : 'Sincronización activa'}
             </div>
           </div>
 
