@@ -835,6 +835,7 @@ function LoginForm({ onLogin } = {}) {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -911,62 +912,331 @@ function LoginForm({ onLogin } = {}) {
   };
 
   return (
-    <AuthLayout>
-      <div style={{ textAlign: 'center', marginBottom: 24 }}>
-        <TuAgendaLogo height={52} centered />
-        <div style={{ fontSize: 14, color: '#6e6e73' }}>Accedé a tu panel</div>
-      </div>
+    <div className="unified-login-page">
+      <style>
+        {`
+          @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap');
 
-      <form onSubmit={handleSubmit}>
-        <label style={smallLabelStyle}>Email</label>
-        <input
-          style={{ ...inputStyle, marginBottom: 12 }}
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="Email"
-          required
-          autoComplete="email"
-        />
+          .unified-login-page {
+            min-height: 100vh;
+            min-height: 100dvh;
+            width: 100%;
+            background:
+              radial-gradient(circle at 18% 12%, rgba(0,113,227,0.14), transparent 28%),
+              radial-gradient(circle at 82% 0%, rgba(48,209,88,0.11), transparent 24%),
+              linear-gradient(180deg, #f8fbff 0%, #f4f5f8 48%, #ffffff 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: max(20px, env(safe-area-inset-top)) 14px max(22px, env(safe-area-inset-bottom));
+            font-family: ${APP_FONT};
+            overflow-x: hidden;
+            box-sizing: border-box;
+          }
 
-        <label style={smallLabelStyle}>Contraseña</label>
-        <input
-          style={{ ...inputStyle, marginBottom: 12 }}
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Contraseña"
-          required
-          autoComplete="current-password"
-        />
+          .unified-login-shell {
+            width: min(430px, 100%);
+          }
 
-        {error && (
-          <div style={{ background: '#fff2f2', border: '0.5px solid #ffcdd2', borderRadius: 10, padding: '10px 12px', fontSize: 13, color: '#c62828', marginBottom: 12 }}>
-            {error}
+          .unified-login-card {
+            width: 100%;
+            background: rgba(255,255,255,0.94);
+            border: 0.5px solid rgba(225,229,236,0.9);
+            border-radius: 34px;
+            box-shadow: 0 22px 65px rgba(15,23,42,0.10);
+            padding: 30px 22px 22px;
+            box-sizing: border-box;
+            animation: loginSlideUp 280ms cubic-bezier(0.16,1,0.3,1) both;
+          }
+
+          @keyframes loginSlideUp {
+            from { opacity: 0; transform: translateY(14px) scale(0.99); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+          }
+
+          .unified-login-logo {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 18px;
+          }
+
+          .unified-login-title {
+            margin: 0;
+            text-align: center;
+            color: #101828;
+            font-size: 30px;
+            line-height: 1.02;
+            font-weight: 950;
+            letter-spacing: -0.055em;
+          }
+
+          .unified-login-subtitle {
+            margin: 12px auto 0;
+            max-width: 315px;
+            text-align: center;
+            color: #667085;
+            font-size: 14.5px;
+            line-height: 1.45;
+            font-weight: 750;
+          }
+
+          .unified-login-form {
+            margin-top: 24px;
+            display: grid;
+            gap: 13px;
+          }
+
+          .unified-field {
+            display: grid;
+            gap: 6px;
+          }
+
+          .unified-field label {
+            color: #344054;
+            font-size: 12.5px;
+            font-weight: 900;
+            padding-left: 3px;
+          }
+
+          .unified-input-wrap {
+            position: relative;
+            width: 100%;
+          }
+
+          .unified-input {
+            width: 100%;
+            height: 52px;
+            border-radius: 17px;
+            border: 1px solid #e4e7ec;
+            background: #f9fafb;
+            outline: none;
+            padding: 0 14px;
+            font-size: 16px;
+            color: #101828;
+            font-weight: 800;
+            font-family: ${APP_FONT};
+            box-sizing: border-box;
+            transition: border-color 150ms ease, box-shadow 150ms ease, background 150ms ease;
+          }
+
+          .unified-input.password {
+            padding-right: 74px;
+          }
+
+          .unified-input:focus {
+            border-color: #0071e3;
+            background: #fff;
+            box-shadow: 0 0 0 4px rgba(0,113,227,0.11);
+          }
+
+          .unified-show-password {
+            position: absolute;
+            right: 8px;
+            top: 8px;
+            height: 36px;
+            border: none;
+            border-radius: 12px;
+            background: #eef6ff;
+            color: #0071e3;
+            font-size: 12px;
+            font-weight: 950;
+            padding: 0 10px;
+            cursor: pointer;
+            font-family: ${APP_FONT};
+          }
+
+          .unified-error {
+            background: #fff1f1;
+            border: 1px solid #ffd0d0;
+            color: #c62828;
+            border-radius: 16px;
+            padding: 11px 12px;
+            font-size: 13px;
+            font-weight: 800;
+            line-height: 1.35;
+          }
+
+          .unified-submit {
+            width: 100%;
+            min-height: 52px;
+            border: none;
+            border-radius: 17px;
+            background: #0071e3;
+            color: #fff;
+            font-size: 16px;
+            font-weight: 950;
+            font-family: ${APP_FONT};
+            cursor: pointer;
+            box-shadow: 0 13px 28px rgba(0,113,227,0.24);
+            transition: transform 150ms ease, opacity 150ms ease;
+          }
+
+          .unified-submit:active {
+            transform: scale(0.99);
+          }
+
+          .unified-submit:disabled {
+            background: #a7b4c5;
+            box-shadow: none;
+            cursor: not-allowed;
+            opacity: 0.88;
+          }
+
+          .unified-register {
+            width: 100%;
+            min-height: 50px;
+            border-radius: 17px;
+            border: 1px solid #d7dce5;
+            background: #fff;
+            color: #0071e3;
+            font-size: 15px;
+            font-weight: 950;
+            font-family: ${APP_FONT};
+            cursor: pointer;
+            margin-top: 11px;
+          }
+
+          .unified-login-note {
+            margin: 16px auto 0;
+            max-width: 315px;
+            color: #98a2b3;
+            text-align: center;
+            font-size: 12px;
+            line-height: 1.38;
+            font-weight: 800;
+          }
+
+          .unified-login-badges {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 9px;
+            margin-top: 18px;
+          }
+
+          .unified-login-badge {
+            background: #f7f8fb;
+            border: 1px solid #edf0f5;
+            border-radius: 16px;
+            padding: 11px 10px;
+            color: #667085;
+            font-size: 12px;
+            line-height: 1.3;
+            font-weight: 850;
+            text-align: center;
+          }
+
+          .unified-login-badge strong {
+            display: block;
+            color: #101828;
+            font-size: 13px;
+            margin-bottom: 2px;
+          }
+
+          @media (max-width: 420px) {
+            .unified-login-page {
+              align-items: flex-start;
+              padding-top: max(18px, env(safe-area-inset-top));
+            }
+
+            .unified-login-card {
+              border-radius: 30px;
+              padding: 26px 18px 20px;
+            }
+
+            .unified-login-title {
+              font-size: 28px;
+            }
+
+            .unified-login-subtitle {
+              font-size: 14px;
+            }
+
+            .unified-login-badges {
+              grid-template-columns: 1fr;
+            }
+          }
+        `}
+      </style>
+
+      <div className="unified-login-shell">
+        <div className="unified-login-card">
+          <div className="unified-login-logo">
+            <TuAgendaLogo height={58} centered />
           </div>
-        )}
 
-        <button
-          type="submit"
-          disabled={loading}
-          style={{ width: '100%', padding: '13px', borderRadius: 12, border: 'none', background: loading ? '#aeaeb2' : '#0071e3', color: '#fff', fontSize: 15, fontWeight: 600, fontFamily: 'inherit', cursor: loading ? 'not-allowed' : 'pointer', marginTop: 4 }}
-        >
-          {loading ? 'Ingresando...' : 'Ingresar'}
-        </button>
-      </form>
+          <h1 className="unified-login-title">Entrá a TuAgendaYa</h1>
+          <p className="unified-login-subtitle">
+            Gestioná reservas, clientes, horarios y negocios desde un solo lugar.
+          </p>
 
-      <button
-        type="button"
-        onClick={() => navigate('/profesional/register')}
-        style={{ width: '100%', marginTop: 12, padding: '12px', borderRadius: 12, border: '0.5px solid #d0d0d5', background: '#fff', color: '#0071e3', fontSize: 14, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer' }}
-      >
-        Crear cuenta profesional
-      </button>
+          <form className="unified-login-form" onSubmit={handleSubmit}>
+            <div className="unified-field">
+              <label>Email</label>
+              <input
+                className="unified-input"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="tu@email.com"
+                required
+                autoComplete="email"
+              />
+            </div>
 
-      <div style={{ textAlign: 'center', fontSize: 11, color: '#aeaeb2', marginTop: 16 }}>
-        Admin y profesionales entran desde este mismo acceso
+            <div className="unified-field">
+              <label>Contraseña</label>
+              <div className="unified-input-wrap">
+                <input
+                  className="unified-input password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Tu contraseña"
+                  required
+                  autoComplete="current-password"
+                />
+                <button
+                  type="button"
+                  className="unified-show-password"
+                  onClick={() => setShowPassword((current) => !current)}
+                >
+                  {showPassword ? 'Ocultar' : 'Ver'}
+                </button>
+              </div>
+            </div>
+
+            {error && <div className="unified-error">{error}</div>}
+
+            <button type="submit" disabled={loading} className="unified-submit">
+              {loading ? 'Ingresando...' : 'Ingresar'}
+            </button>
+          </form>
+
+          <button
+            type="button"
+            onClick={() => navigate('/profesional/register')}
+            className="unified-register"
+          >
+            Crear cuenta profesional
+          </button>
+
+          <div className="unified-login-badges">
+            <div className="unified-login-badge">
+              <strong>Admin</strong>
+              Panel dueño SaaS
+            </div>
+            <div className="unified-login-badge">
+              <strong>Profesional</strong>
+              Panel del negocio
+            </div>
+          </div>
+
+          <p className="unified-login-note">
+            Dueños y profesionales acceden desde este mismo lugar. La app detecta automáticamente el tipo de cuenta.
+          </p>
+        </div>
       </div>
-    </AuthLayout>
+    </div>
   );
 }
 
