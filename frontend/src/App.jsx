@@ -3919,7 +3919,16 @@ function AvailabilityTable({ availability, onChange }) {
           margin: 0 0 6px 2px;
         }
 
+        
         @media (max-width: 760px) {
+          html,
+          body,
+          #root {
+            width: 100% !important;
+            max-width: 100vw !important;
+            overflow-x: hidden !important;
+          }
+
           .availability-desktop {
             display: none;
           }
@@ -7669,6 +7678,9 @@ function AdminDashboardPage() {
         .admin-list {
           display: grid;
           gap: 12px;
+          width: 100%;
+          max-width: 100%;
+          overflow: hidden;
         }
 
         .admin-business-card {
@@ -7678,6 +7690,10 @@ function AdminDashboardPage() {
           background: #fff;
           display: grid;
           gap: 12px;
+          width: 100%;
+          max-width: 100%;
+          min-width: 0;
+          overflow: hidden;
         }
 
         .admin-card-topline {
@@ -7857,7 +7873,16 @@ function AdminDashboardPage() {
 
         @media (max-width: 760px) {
           .admin-mobile-page {
-            padding: max(12px, env(safe-area-inset-top)) 10px 28px !important;
+            padding: max(16px, env(safe-area-inset-top)) 12px 28px !important;
+            width: 100% !important;
+            max-width: 100vw !important;
+            overflow-x: hidden !important;
+          }
+
+          .admin-shell {
+            width: 100% !important;
+            max-width: 100% !important;
+            overflow-x: hidden !important;
           }
 
           .admin-top {
@@ -7896,6 +7921,9 @@ function AdminDashboardPage() {
           .admin-panel-card {
             border-radius: 24px;
             padding: 14px;
+            width: 100% !important;
+            max-width: 100% !important;
+            overflow: hidden !important;
           }
 
           .admin-panel-header {
@@ -7908,13 +7936,62 @@ function AdminDashboardPage() {
 
           .admin-search-box {
             top: env(safe-area-inset-top);
-            margin-left: -4px;
-            margin-right: -4px;
+            margin-left: 0;
+            margin-right: 0;
+            width: 100% !important;
+            max-width: 100% !important;
+            overflow: hidden !important;
+            border-radius: 20px;
+          }
+
+          .admin-search-box input {
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+          }
+
+          .admin-filter-chips {
+            width: 100% !important;
+            max-width: 100% !important;
+            overflow-x: auto !important;
+            padding-bottom: 3px;
+          }
+
+          .admin-filter-chip {
+            flex: 0 0 auto;
           }
 
           .admin-business-card {
             border-radius: 22px;
             padding: 14px;
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            overflow: hidden !important;
+          }
+
+          .admin-card-topline {
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+          }
+
+          .admin-card-topline > div:first-child {
+            min-width: 0 !important;
+            max-width: calc(100% - 86px) !important;
+          }
+
+          .admin-card-link {
+            display: block;
+            max-width: 100% !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            white-space: nowrap !important;
+          }
+
+          .admin-status-badge {
+            max-width: 80px;
+            text-align: center;
           }
 
           .admin-card-title {
@@ -7923,10 +8000,32 @@ function AdminDashboardPage() {
 
           .admin-mobile-metrics {
             grid-template-columns: repeat(2, minmax(0, 1fr));
+            width: 100% !important;
+            max-width: 100% !important;
+            gap: 8px;
+          }
+
+          .admin-mobile-metrics div {
+            min-width: 0 !important;
+            overflow: hidden !important;
           }
 
           .admin-action-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr));
+            width: 100% !important;
+            max-width: 100% !important;
+            gap: 8px;
+          }
+
+          .admin-action-grid button {
+            min-width: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            padding-left: 8px !important;
+            padding-right: 8px !important;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
           }
 
           .admin-action-grid button.primary {
