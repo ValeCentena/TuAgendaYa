@@ -831,35 +831,77 @@ function ProfessionCombobox({ value, onChange }) {
   );
 }
 
-function LoginForm({ onLogin }) {
+function LoginForm({ onLogin } = {}) {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    const adminToken = localStorage.getItem('tuagendaya_admin_token');
+    const professionalToken = localStorage.getItem('tuagendaya_token');
+
+    if (adminToken) {
+      navigate('/admin/dashboard', { replace: true });
+      return;
+    }
+
+    if (professionalToken && !onLogin) {
+      navigate('/profesional/dashboard', { replace: true });
+    }
+  }, [navigate, onLogin]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
+    const cleanEmail = String(email || '').trim().toLowerCase();
+    const cleanPassword = String(password || '');
+
     try {
-      const res = await fetch(`${API_BASE}/auth/login`, {
+      const adminResponse = await fetch(`${API_BASE}/admin/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: cleanEmail, password: cleanPassword }),
       });
 
-      const data = await res.json();
+      const adminData = await adminResponse.json().catch(() => ({}));
 
-      if (!res.ok) {
-        setError(data.error || 'Error al ingresar');
+      if (adminResponse.ok && adminData.token) {
+        localStorage.setItem('tuagendaya_admin_token', adminData.token);
+        localStorage.setItem('tuagendaya_admin_user', JSON.stringify(adminData.admin || { email: cleanEmail, role: 'admin' }));
+        localStorage.removeItem('tuagendaya_token');
+        localStorage.removeItem('tuagendaya_professional');
+        navigate('/admin/dashboard', { replace: true });
+        return;
+      }
+
+      const professionalResponse = await fetch(`${API_BASE}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleanEmail, password: cleanPassword }),
+      });
+
+      const professionalData = await professionalResponse.json().catch(() => ({}));
+
+      if (!professionalResponse.ok) {
+        setError(professionalData.error || 'Email o contraseña incorrectos');
+        return;
+      }
+
+      localStorage.setItem('tuagendaya_token', professionalData.token);
+      if (professionalData.professional) {
+        localStorage.setItem('tuagendaya_professional', JSON.stringify(professionalData.professional));
+      }
+      localStorage.removeItem('tuagendaya_admin_token');
+      localStorage.removeItem('tuagendaya_admin_user');
+
+      if (typeof onLogin === 'function') {
+        onLogin(professionalData.professional || {});
       } else {
-        localStorage.setItem('tuagendaya_token', data.token);
-        if (data.professional) {
-          localStorage.setItem('tuagendaya_professional', JSON.stringify(data.professional));
-        }
-        onLogin(data.professional || {});
+        navigate('/profesional/dashboard', { replace: true });
       }
     } catch {
       setError('No se pudo conectar con el servidor');
@@ -872,7 +914,7 @@ function LoginForm({ onLogin }) {
     <AuthLayout>
       <div style={{ textAlign: 'center', marginBottom: 24 }}>
         <TuAgendaLogo height={52} centered />
-        <div style={{ fontSize: 14, color: '#6e6e73' }}>Accedé a tu panel profesional</div>
+        <div style={{ fontSize: 14, color: '#6e6e73' }}>Accedé a tu panel</div>
       </div>
 
       <form onSubmit={handleSubmit}>
@@ -922,11 +964,12 @@ function LoginForm({ onLogin }) {
       </button>
 
       <div style={{ textAlign: 'center', fontSize: 11, color: '#aeaeb2', marginTop: 16 }}>
-        Tus datos están cifrados y protegidos
+        Admin y profesionales entran desde este mismo acceso
       </div>
     </AuthLayout>
   );
 }
+
 
 function RegisterPage() {
   const navigate = useNavigate();
@@ -1296,7 +1339,7 @@ function RegisterPage() {
 
         <button
           type="button"
-          onClick={() => navigate('/profesional/login')}
+          onClick={() => navigate('/login')}
           style={{
             border: '0.5px solid #d7dce5',
             background: '#fff',
@@ -1414,7 +1457,7 @@ function RegisterPage() {
 
           <button
             type="button"
-            onClick={() => navigate('/profesional/login')}
+            onClick={() => navigate('/login')}
             style={{ width: '100%', marginTop: 12, padding: '13px', borderRadius: 18, border: '0.5px solid #d0d0d5', background: '#fff', color: '#0071e3', fontSize: 14, fontWeight: 900, fontFamily: 'inherit', cursor: 'pointer' }}
           >
             Ya tengo cuenta
@@ -7158,8 +7201,7 @@ function AdminLoginPage() {
 function AdminDashboardPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const isAdminApp = location.pathname.startsWith('/admin-app');
-  const adminLoginPath = isAdminApp ? '/admin-app' : '/admin/login';
+  const adminLoginPath = '/login';
   const [stats, setStats] = useState(null);
   const [professionals, setProfessionals] = useState([]);
   const [search, setSearch] = useState('');
@@ -7950,7 +7992,7 @@ function LandingPage() {
           <div className="landing-nav-actions" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <button
               type="button"
-              onClick={() => navigate('/profesional/login')}
+              onClick={() => navigate('/login')}
               style={{
                 border: '1px solid #d7dce5',
                 background: '#fff',
@@ -8062,7 +8104,7 @@ function LandingPage() {
               <button
                 className="landing-button-secondary"
                 type="button"
-                onClick={() => navigate('/profesional/login')}
+                onClick={() => navigate('/login')}
                 style={{
                   border: '1px solid #d7dce5',
                   background: '#fff',
@@ -8250,7 +8292,7 @@ function LandingPage() {
             </button>
             <button
               type="button"
-              onClick={() => navigate('/profesional/login')}
+              onClick={() => navigate('/login')}
               style={{ border: '1px solid rgba(255,255,255,0.55)', borderRadius: 18, background: 'rgba(255,255,255,0.12)', color: '#fff', padding: '15px 20px', fontSize: 16, fontWeight: 900, fontFamily: 'inherit', cursor: 'pointer' }}
             >
               Ya tengo cuenta
@@ -8277,7 +8319,7 @@ function LandingPage() {
       >
         <button
           type="button"
-          onClick={() => navigate('/profesional/login')}
+          onClick={() => navigate('/login')}
           style={{ border: '1px solid #d7dce5', borderRadius: 16, background: '#fff', color: '#111827', padding: '12px 10px', fontSize: 14, fontWeight: 900, fontFamily: 'inherit' }}
         >
           Ingresar
@@ -8300,16 +8342,17 @@ export default function App() {
       <MobileViewportController />
       <Routes>
       <Route path="/" element={<LandingPage />} />
-      <Route path="/profesional/login" element={<ProfesionalPage />} />
+      <Route path="/login" element={<LoginForm />} />
+      <Route path="/profesional/login" element={<Navigate to="/login" replace />} />
       <Route path="/profesional/register" element={<RegisterPage />} />
       <Route path="/profesional/dashboard" element={<ProfesionalPage />} />
-      <Route path="/admin-app" element={<AdminLoginPage />} />
+      <Route path="/admin-app" element={<Navigate to="/login" replace />} />
       <Route path="/admin-app/dashboard" element={<AdminDashboardPage />} />
-      <Route path="/admin/login" element={<AdminLoginPage />} />
+      <Route path="/admin/login" element={<Navigate to="/login" replace />} />
       <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
       <Route path="/reservar/:slug" element={<BookPage />} />
-        <Route path="/:slug" element={<BookPage />} />
-      </Routes>
+      <Route path="/:slug" element={<BookPage />} />
+    </Routes>
     </>
   );
 }

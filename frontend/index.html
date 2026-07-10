@@ -8,20 +8,20 @@
       content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
     />
 
-    <link id="app-manifest" rel="manifest" href="/manifest.webmanifest" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="icon" type="image/png" href="/icons/icon-192.png" />
 
-    <meta id="theme-color-meta" name="theme-color" content="#0071e3" />
+    <meta name="theme-color" content="#0071e3" />
     <meta name="color-scheme" content="light" />
 
-    <meta id="application-name-meta" name="application-name" content="TuAgendaYa" />
+    <meta name="application-name" content="TuAgendaYa" />
     <meta name="description" content="Agenda online para negocios, profesionales y clientes." />
 
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta id="apple-title-meta" name="apple-mobile-web-app-title" content="TuAgendaYa" />
+    <meta name="apple-mobile-web-app-title" content="TuAgendaYa" />
 
     <meta property="og:title" content="TuAgendaYa" />
     <meta property="og:description" content="Agenda online para negocios, profesionales y clientes." />
@@ -80,40 +80,6 @@
         box-sizing: border-box;
       }
     </style>
-
-    <script>
-      (function () {
-        var pathname = window.location.pathname;
-        var isAdminApp = pathname.startsWith("/admin-app");
-        var isAdminWeb = pathname.startsWith("/admin");
-        var manifest = document.getElementById("app-manifest");
-        var theme = document.getElementById("theme-color-meta");
-        var appName = document.getElementById("application-name-meta");
-        var appleTitle = document.getElementById("apple-title-meta");
-
-        if (isAdminApp || isAdminWeb) {
-          document.title = "TuAgendaYa Admin";
-
-          if (manifest) {
-            manifest.setAttribute("href", "/admin-manifest.webmanifest");
-          }
-
-          if (theme) {
-            theme.setAttribute("content", "#111827");
-          }
-
-          if (appName) {
-            appName.setAttribute("content", "TuAgendaYa Admin");
-          }
-
-          if (appleTitle) {
-            appleTitle.setAttribute("content", "TuAgendaYa Admin");
-          }
-        } else if (manifest) {
-          manifest.setAttribute("href", "/manifest.webmanifest");
-        }
-      })();
-    </script>
   </head>
 
   <body>

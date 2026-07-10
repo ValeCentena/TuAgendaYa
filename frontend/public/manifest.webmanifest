@@ -2,7 +2,7 @@
   "name": "TuAgendaYa",
   "short_name": "TuAgendaYa",
   "description": "Agenda online para negocios, profesionales y clientes.",
-  "start_url": "/profesional/login",
+  "start_url": "/login",
   "scope": "/",
   "display": "standalone",
   "display_override": [
@@ -52,10 +52,10 @@
   ],
   "shortcuts": [
     {
-      "name": "Panel profesional",
-      "short_name": "Panel",
-      "description": "Abrir el panel profesional",
-      "url": "/profesional/dashboard",
+      "name": "Ingresar",
+      "short_name": "Login",
+      "description": "Entrar a TuAgendaYa",
+      "url": "/login",
       "icons": [
         {
           "src": "/icons/icon-192.png",
@@ -65,9 +65,9 @@
       ]
     },
     {
-      "name": "Reservas",
-      "short_name": "Reservas",
-      "description": "Ver reservas del negocio",
+      "name": "Panel profesional",
+      "short_name": "Panel",
+      "description": "Abrir el panel profesional",
       "url": "/profesional/dashboard",
       "icons": [
         {
