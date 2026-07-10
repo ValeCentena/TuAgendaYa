@@ -133,6 +133,50 @@ function getPushBrowserSupport() {
   return { supported: true, reason: '' };
 }
 
+
+function isStandaloneApp() {
+  if (typeof window === 'undefined') return false;
+
+  return (
+    window.matchMedia?.('(display-mode: standalone)')?.matches ||
+    window.navigator?.standalone === true
+  );
+}
+
+function isIosDevice() {
+  if (typeof window === 'undefined') return false;
+
+  return /iphone|ipad|ipod/i.test(window.navigator.userAgent || '');
+}
+
+function getPushActivationMessage() {
+  const pushActivationMessage = getPushActivationMessage();
+    if (pushActivationMessage) {
+      alert(pushActivationMessage);
+      return;
+    }
+
+    const support = getPushBrowserSupport();
+
+  if (!support.supported) {
+    if (isIosDevice() && !isStandaloneApp()) {
+      return 'En iPhone, abrí TuAgendaYa desde el ícono de pantalla de inicio para activar notificaciones.';
+    }
+
+    return 'Este navegador no permite activar notificaciones push.';
+  }
+
+  if (isIosDevice() && !isStandaloneApp()) {
+    return 'En iPhone, primero agregá TuAgendaYa a la pantalla de inicio y abrila desde el ícono para activar notificaciones.';
+  }
+
+  if (Notification.permission === 'denied') {
+    return 'Las notificaciones están bloqueadas. Activá el permiso desde la configuración del navegador o del teléfono.';
+  }
+
+  return '';
+}
+
 function formatDate(d) {
   if (!d) return 'Sin fecha';
 
@@ -965,9 +1009,9 @@ function LoginForm({ onLogin } = {}) {
             text-align: center;
             color: #101828;
             font-size: 30px;
-            line-height: 1.02;
+            line-height: 1.12;
             font-weight: 950;
-            letter-spacing: -0.055em;
+            letter-spacing: -0.018em;
           }
 
           .unified-login-subtitle {
@@ -976,7 +1020,7 @@ function LoginForm({ onLogin } = {}) {
             text-align: center;
             color: #667085;
             font-size: 14.5px;
-            line-height: 1.45;
+            line-height: 1.55;
             font-weight: 750;
           }
 
@@ -1096,42 +1140,6 @@ function LoginForm({ onLogin } = {}) {
             margin-top: 11px;
           }
 
-          .unified-login-note {
-            margin: 16px auto 0;
-            max-width: 315px;
-            color: #98a2b3;
-            text-align: center;
-            font-size: 12px;
-            line-height: 1.38;
-            font-weight: 800;
-          }
-
-          .unified-login-badges {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 9px;
-            margin-top: 18px;
-          }
-
-          .unified-login-badge {
-            background: #f7f8fb;
-            border: 1px solid #edf0f5;
-            border-radius: 16px;
-            padding: 11px 10px;
-            color: #667085;
-            font-size: 12px;
-            line-height: 1.3;
-            font-weight: 850;
-            text-align: center;
-          }
-
-          .unified-login-badge strong {
-            display: block;
-            color: #101828;
-            font-size: 13px;
-            margin-bottom: 2px;
-          }
-
           @media (max-width: 420px) {
             .unified-login-page {
               align-items: flex-start;
@@ -1144,15 +1152,11 @@ function LoginForm({ onLogin } = {}) {
             }
 
             .unified-login-title {
-              font-size: 28px;
+              font-size: 27px;
             }
 
             .unified-login-subtitle {
               font-size: 14px;
-            }
-
-            .unified-login-badges {
-              grid-template-columns: 1fr;
             }
           }
         `}
@@ -1220,20 +1224,6 @@ function LoginForm({ onLogin } = {}) {
             Crear cuenta profesional
           </button>
 
-          <div className="unified-login-badges">
-            <div className="unified-login-badge">
-              <strong>Admin</strong>
-              Panel dueño SaaS
-            </div>
-            <div className="unified-login-badge">
-              <strong>Profesional</strong>
-              Panel del negocio
-            </div>
-          </div>
-
-          <p className="unified-login-note">
-            Dueños y profesionales acceden desde este mismo lugar. La app detecta automáticamente el tipo de cuenta.
-          </p>
         </div>
       </div>
     </div>
@@ -1827,6 +1817,12 @@ function ReservationsSection() {
   }, []);
 
   useEffect(() => {
+    const pushActivationMessage = getPushActivationMessage();
+    if (pushActivationMessage) {
+      alert(pushActivationMessage);
+      return;
+    }
+
     const support = getPushBrowserSupport();
 
     if (!support.supported) {
@@ -1852,7 +1848,13 @@ function ReservationsSection() {
     setPushMessage('Preparando notificaciones...');
 
     try {
-      const support = getPushBrowserSupport();
+      const pushActivationMessage = getPushActivationMessage();
+    if (pushActivationMessage) {
+      alert(pushActivationMessage);
+      return;
+    }
+
+    const support = getPushBrowserSupport();
 
       if (!support.supported) {
         setPushStatus('unsupported');
@@ -1914,7 +1916,7 @@ function ReservationsSection() {
       setPushMessage('Listo. Este dispositivo va a recibir avisos cuando entre una reserva nueva.');
     } catch (error) {
       setPushStatus('error');
-      setPushMessage(error.message || 'No se pudieron activar las notificaciones.');
+      setPushMessage(error.message || 'No se pudieron activar las notificaciones. Revisá que la app esté instalada y que el permiso esté habilitado.');
     } finally {
       setPushLoading(false);
     }
@@ -2397,7 +2399,7 @@ function ReservationsSection() {
               fontWeight: 900,
             }}
           >
-            🔔
+            
           </div>
 
           <div style={{ minWidth: 0 }}>
@@ -2440,7 +2442,7 @@ function ReservationsSection() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
             <div style={{ minWidth: 220, flex: 1 }}>
               <div style={{ fontSize: 15, fontWeight: 900, color: '#1a1a1a', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span>🔔</span>
+                <span></span>
                 <span>Notificaciones de nuevas reservas</span>
               </div>
               <div style={{ fontSize: 12.5, color: '#6e6e73', fontWeight: 650, marginTop: 4, lineHeight: 1.4 }}>
@@ -2482,7 +2484,7 @@ function ReservationsSection() {
               </div>
             </div>
             <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800, whiteSpace: 'nowrap' }}>
-              {newBookingCount > 0 ? `🔔 ${newBookingCount} nuevas` : 'Actualiza cada 5 s'}
+              {newBookingCount > 0 ? ` ${newBookingCount} nuevas` : 'Actualiza cada 5 s'}
             </div>
           </div>
 
@@ -6666,6 +6668,12 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
   };
 
   const refreshProfilePushStatus = useCallback(async () => {
+    const pushActivationMessage = getPushActivationMessage();
+    if (pushActivationMessage) {
+      alert(pushActivationMessage);
+      return;
+    }
+
     const support = getPushBrowserSupport();
 
     if (!support.supported) {
@@ -6707,7 +6715,13 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
     setProfilePushMessage('');
 
     try {
-      const support = getPushBrowserSupport();
+      const pushActivationMessage = getPushActivationMessage();
+    if (pushActivationMessage) {
+      alert(pushActivationMessage);
+      return;
+    }
+
+    const support = getPushBrowserSupport();
 
       if (!support.supported) {
         setProfilePushStatus('unsupported');
@@ -7897,14 +7911,14 @@ function AdminDashboardPage() {
           color: #1a1a1a;
           font-size: 25px;
           font-weight: 950;
-          letter-spacing: -0.04em;
+          letter-spacing: -0.018em;
         }
 
         .admin-muted {
           margin: 0;
           color: #6e6e73;
           font-size: 14px;
-          line-height: 1.45;
+          line-height: 1.55;
           font-weight: 650;
         }
 
@@ -7981,7 +7995,7 @@ function AdminDashboardPage() {
           color: #1a1a1a;
           font-size: 21px;
           font-weight: 950;
-          letter-spacing: -0.03em;
+          letter-spacing: -0.012em;
         }
 
         .admin-refresh {
@@ -8084,7 +8098,7 @@ function AdminDashboardPage() {
           color: #1a1a1a;
           font-size: 17px;
           font-weight: 950;
-          letter-spacing: -0.03em;
+          letter-spacing: -0.012em;
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
