@@ -3965,7 +3965,114 @@ function AvailabilityTable({ availability, onChange }) {
           .availability-mobile-field-full {
             grid-column: auto;
           }
+
         }
+
+        @media (max-width: 760px) {
+          .admin-panel-card {
+            padding-left: 10px !important;
+            padding-right: 10px !important;
+          }
+
+          .admin-list {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            overflow: visible !important;
+          }
+
+          .admin-business-card {
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            margin: 0 auto !important;
+            padding: 12px !important;
+            border-radius: 20px !important;
+            overflow: hidden !important;
+          }
+
+          .admin-card-topline {
+            display: grid !important;
+            grid-template-columns: minmax(0, 1fr) auto !important;
+            align-items: start !important;
+            gap: 8px !important;
+          }
+
+          .admin-card-topline > div:first-child {
+            min-width: 0 !important;
+            max-width: 100% !important;
+            overflow: hidden !important;
+          }
+
+          .admin-card-title,
+          .admin-card-subtitle,
+          .admin-card-link {
+            max-width: 100% !important;
+            min-width: 0 !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            white-space: nowrap !important;
+          }
+
+          .admin-card-title {
+            font-size: 15.5px !important;
+          }
+
+          .admin-card-subtitle {
+            font-size: 12.5px !important;
+          }
+
+          .admin-card-link {
+            font-size: 12px !important;
+          }
+
+          .admin-status-badge {
+            max-width: 72px !important;
+            padding: 6px 8px !important;
+            font-size: 11.5px !important;
+          }
+
+          .admin-mobile-metrics {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 7px !important;
+          }
+
+          .admin-mobile-metrics div {
+            padding: 10px 9px !important;
+            border-radius: 14px !important;
+          }
+
+          .admin-progress {
+            width: 100% !important;
+            max-width: 100% !important;
+          }
+
+          .admin-action-grid {
+            display: grid !important;
+            grid-template-columns: 1fr !important;
+            gap: 8px !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            overflow: hidden !important;
+          }
+
+          .admin-action-grid button,
+          .admin-action-grid button.primary {
+            grid-column: auto !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            min-height: 48px !important;
+            border-radius: 15px !important;
+            padding: 12px 10px !important;
+            font-size: 14px !important;
+            text-align: center !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            white-space: nowrap !important;
+          }
       `}</style>
 
       <div className="availability-desktop">
