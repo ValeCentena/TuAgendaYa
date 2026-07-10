@@ -457,6 +457,14 @@ async function sendReminder(booking = {}, professional = {}) {
     ) ||
     "TuAgendaYa";
 
+  const serviceName =
+    getBookingValue(booking, "service_name", "serviceName") || "Servicio";
+
+  const staffName =
+    getBookingValue(booking, "staff_name", "staffName") ||
+    getBookingValue(booking, "professional_name", "professionalName") ||
+    "";
+
   const bookingDate = formatDateForMessage(
     getBookingValue(booking, "booking_date", "bookingDate", "date")
   );
@@ -465,7 +473,19 @@ async function sendReminder(booking = {}, professional = {}) {
     getBookingValue(booking, "start_time", "startTime", "time")
   );
 
-  const text = `Hola ${clientName}. Te recordamos tu reserva en ${businessName} para el ${bookingDate} a las ${startTime}.`;
+  const text = [
+    `Hola ${clientName}.`,
+    `Te recordamos tu reserva en ${businessName}.`,
+    "",
+    `Servicio: ${serviceName}`,
+    staffName ? `Profesional: ${staffName}` : "",
+    `Fecha: ${bookingDate}`,
+    `Hora: ${startTime}`,
+    "",
+    "Te esperamos.",
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   return sendWhatsApp(
     getBookingValue(booking, "client_phone", "clientPhone", "phone", "telefono"),

@@ -10,6 +10,7 @@ const bookingsRoutes = require("./routes/bookings");
 const staffRoutes = require("./routes/staff");
 const adminRoutes = require("./routes/admin");
 const whatsappRoutes = require("./routes/whatsapp");
+const { startBookingReminderWorker } = require("./services/reminders");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -68,4 +69,5 @@ app.use((error, req, res, next) => {
 
 app.listen(PORT, () => {
   console.log(`TuAgendaYa API escuchando en puerto ${PORT}`);
+  startBookingReminderWorker();
 });

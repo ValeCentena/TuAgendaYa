@@ -171,6 +171,9 @@ async function initDB() {
         end_time          TIME,
         service_id        INTEGER,
         staff_id          INTEGER,
+        reminder_2h_sent_at       TIMESTAMP,
+        reminder_2h_attempted_at  TIMESTAMP,
+        reminder_2h_error         TEXT,
         created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
@@ -248,6 +251,7 @@ async function initDB() {
       `CREATE INDEX IF NOT EXISTS idx_appointments_public_token      ON appointments(public_token)`,
       `CREATE INDEX IF NOT EXISTS idx_clients_professional           ON clients(professional_id)`,
       `CREATE INDEX IF NOT EXISTS idx_bookings_professional          ON bookings(professional_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_bookings_reminder_2h            ON bookings(reminder_2h_sent_at, booking_date, start_time)`,
       `CREATE INDEX IF NOT EXISTS idx_staff_availability_member      ON staff_availability(staff_id)`,
       `CREATE INDEX IF NOT EXISTS idx_push_subscriptions_professional ON push_subscriptions(professional_id)`,
     ];
@@ -268,6 +272,9 @@ async function initDB() {
       `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS end_time    TIME`,
       `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS service_id  INTEGER`,
       `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS staff_id    INTEGER`,
+      `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS reminder_2h_sent_at TIMESTAMP`,
+      `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS reminder_2h_attempted_at TIMESTAMP`,
+      `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS reminder_2h_error TEXT`,
       // professionals
       `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS business_name TEXT`,
       `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS address       TEXT`,
