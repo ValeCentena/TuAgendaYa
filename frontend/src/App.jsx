@@ -7200,13 +7200,13 @@ function AdminLoginPage() {
 
 function AdminDashboardPage() {
   const navigate = useNavigate();
-  const location = useLocation();
   const adminLoginPath = '/login';
   const [stats, setStats] = useState(null);
   const [professionals, setProfessionals] = useState([]);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('all');
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [selectedBusiness, setSelectedBusiness] = useState(null);
   const [selectedBusinessBookings, setSelectedBusinessBookings] = useState([]);
@@ -7241,15 +7241,16 @@ function AdminDashboardPage() {
     }
 
     return data;
-  }, [navigate]);
+  }, [navigate, adminLoginPath]);
 
-  const loadAdminData = useCallback(async () => {
+  const loadAdminData = useCallback(async ({ silent = false } = {}) => {
     setError('');
+    if (silent) setRefreshing(true);
 
     try {
       const params = new URLSearchParams();
       if (search.trim()) params.set('search', search.trim());
-      if (status !== 'all') params.set('status', status);
+      if (status !== 'all' && status !== 'new') params.set('status', status);
 
       const [statsData, professionalsData] = await Promise.all([
         adminFetch('/admin/stats'),
@@ -7262,6 +7263,7 @@ function AdminDashboardPage() {
       setError(err.message || 'Error cargando panel admin');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [adminFetch, search, status]);
 
@@ -7276,7 +7278,7 @@ function AdminDashboardPage() {
 
   useEffect(() => {
     if (!token) return;
-    const timer = setInterval(loadAdminData, 10000);
+    const timer = setInterval(() => loadAdminData({ silent: true }), 15000);
     return () => clearInterval(timer);
   }, [token, loadAdminData]);
 
@@ -7304,7 +7306,7 @@ function AdminDashboardPage() {
         return { ...current, status: nextStatus };
       });
 
-      await loadAdminData();
+      await loadAdminData({ silent: true });
     } catch (err) {
       alert(err.message || 'No se pudo actualizar el negocio');
     }
@@ -7345,174 +7347,692 @@ function AdminDashboardPage() {
     }
   };
 
-  const statCards = [
-    { label: 'Negocios', value: stats?.professionals?.total || 0, color: '#0071e3', bg: '#eef6ff' },
-    { label: 'Activos', value: stats?.professionals?.active || 0, color: '#21c55d', bg: '#edfff3' },
-    { label: 'Suspendidos', value: stats?.professionals?.suspended || 0, color: '#ff3b30', bg: '#fff0f0' },
-    { label: 'Reservas totales', value: stats?.bookings?.total || 0, color: '#5856d6', bg: '#f1f0ff' },
-    { label: 'Reservas este mes', value: stats?.bookings?.monthly || 0, color: '#0071e3', bg: '#eef6ff' },
-    { label: 'Reservas hoy', value: stats?.bookings?.today || 0, color: '#ff9500', bg: '#fff7e8' },
-    { label: 'Clientes', value: stats?.clients?.total || 0, color: '#111827', bg: '#f4f4f8' },
+  const buildPublicUrl = (professional) => {
+    const slug = professional?.slug;
+    return slug ? `https://tuagendaya.com/reservar/${slug}` : '';
+  };
+
+  const openPublicUrl = (professional) => {
+    const publicUrl = buildPublicUrl(professional);
+    if (!publicUrl) return;
+    window.open(publicUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const openWhatsApp = (professional) => {
+    const phone = normalizePhoneForWhatsApp(professional?.phone);
+    if (!phone) {
+      alert('Este negocio no tiene teléfono cargado');
+      return;
+    }
+
+    const businessName = professional.businessName || professional.name || 'tu negocio';
+    const message = `Hola, te escribo por tu cuenta de TuAgendaYa (${businessName}).`;
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
+  };
+
+  const isNewBusiness = (professional) => {
+    const value = professional?.createdAt || professional?.created_at;
+    if (!value) return false;
+
+    const created = new Date(value);
+    if (Number.isNaN(created.getTime())) return false;
+
+    const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    return created.getTime() >= thirtyDaysAgo;
+  };
+
+  const visibleProfessionals = status === 'new'
+    ? professionals.filter(isNewBusiness)
+    : professionals;
+
+  const activeCount = Number(stats?.professionals?.active || 0);
+  const suspendedCount = Number(stats?.professionals?.suspended || 0);
+  const totalCount = Number(stats?.professionals?.total || 0);
+  const todayBookings = Number(stats?.bookings?.today || 0);
+  const monthlyBookings = Number(stats?.bookings?.monthly || stats?.bookings?.upcoming || 0);
+  const clientsCount = Number(stats?.clients?.total || 0);
+
+  const primaryCards = [
+    { label: 'Activos', value: activeCount, color: '#188038', bg: '#edfff3', note: 'negocios usando la app' },
+    { label: 'Reservas hoy', value: todayBookings, color: '#ff9500', bg: '#fff7e8', note: 'actividad del día' },
+    { label: 'Reservas mes', value: monthlyBookings, color: '#0071e3', bg: '#eef6ff', note: 'uso reciente' },
+    { label: 'Clientes', value: clientsCount, color: '#111827', bg: '#f4f4f8', note: 'base total' },
   ];
 
+  const filterOptions = [
+    { value: 'all', label: 'Todos', count: totalCount },
+    { value: 'active', label: 'Activos', count: activeCount },
+    { value: 'suspended', label: 'Suspendidos', count: suspendedCount },
+    { value: 'new', label: 'Nuevos', count: professionals.filter(isNewBusiness).length },
+  ];
+
+  const renderBusinessCard = (professional) => {
+    const publicUrl = buildPublicUrl(professional);
+    const isActive = professional.status !== 'suspended';
+    const planName = professional.plan || 'Gratis';
+    const monthlyLimit = Number(professional.monthlyLimit || professional.monthly_limit || 1000);
+    const monthlyUsed = Number(professional.monthlyBookingsCount || professional.monthly_bookings_count || 0);
+    const monthlyPercent = monthlyLimit > 0 ? Math.min(100, Math.round((monthlyUsed / monthlyLimit) * 100)) : 0;
+    const businessName = professional.businessName || professional.name || 'Negocio sin nombre';
+
+    return (
+      <article key={professional.id} className="admin-business-card">
+        <div className="admin-card-topline">
+          <div style={{ minWidth: 0 }}>
+            <div className="admin-card-title">{businessName}</div>
+            <div className="admin-card-subtitle">
+              {professional.profession || 'Sin rubro'} · {professional.email || 'Sin email'}
+            </div>
+            <div className="admin-card-link">
+              {publicUrl || 'Sin link público'}
+            </div>
+          </div>
+
+          <span className={`admin-status-badge ${isActive ? 'active' : 'suspended'}`}>
+            {isActive ? 'Activo' : 'Suspendido'}
+          </span>
+        </div>
+
+        <div className="admin-mobile-metrics">
+          <div>
+            <strong>{planName}</strong>
+            <span>Plan</span>
+          </div>
+          <div>
+            <strong>{professional.bookingsCount || 0}</strong>
+            <span>Reservas</span>
+          </div>
+          <div>
+            <strong>{professional.clientsCount || 0}</strong>
+            <span>Clientes</span>
+          </div>
+          <div>
+            <strong>{monthlyUsed}/{monthlyLimit}</strong>
+            <span>Mes</span>
+          </div>
+        </div>
+
+        <div className="admin-progress">
+          <div style={{ width: `${monthlyPercent}%` }} />
+        </div>
+
+        <div className="admin-action-grid">
+          <button type="button" className="primary" onClick={() => openBusinessDetail(professional)}>
+            Ver detalle
+          </button>
+          <button type="button" onClick={() => openPublicUrl(professional)} disabled={!publicUrl}>
+            Abrir reserva
+          </button>
+          <button type="button" onClick={() => copyText(publicUrl, 'Link público copiado')} disabled={!publicUrl}>
+            Copiar link
+          </button>
+          <button type="button" onClick={() => openWhatsApp(professional)}>
+            WhatsApp
+          </button>
+          <button
+            type="button"
+            className={isActive ? 'danger' : 'success'}
+            onClick={() => updateStatus(professional, isActive ? 'suspended' : 'active')}
+          >
+            {isActive ? 'Suspender' : 'Activar'}
+          </button>
+        </div>
+      </article>
+    );
+  };
+
   return (
-    <div style={{ minHeight: '100vh', background: '#f2f2f7', padding: '22px 16px', fontFamily: APP_FONT }}>
+    <div className="admin-mobile-page" style={{ minHeight: '100vh', background: '#f2f2f7', padding: '16px 14px 28px', fontFamily: APP_FONT }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap');
         * { box-sizing: border-box; }
         button, input, select { font-family: ${APP_FONT}; }
+
+        .admin-shell {
+          max-width: 1080px;
+          margin: 0 auto;
+        }
+
+        .admin-top {
+          background: #fff;
+          border: 0.5px solid rgba(0,0,0,0.05);
+          border-radius: 28px;
+          padding: 22px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 18px;
+          box-shadow: 0 1px 10px rgba(0,0,0,0.06);
+          margin-bottom: 14px;
+        }
+
+        .admin-title {
+          margin: 14px 0 4px;
+          color: #1a1a1a;
+          font-size: 25px;
+          font-weight: 950;
+          letter-spacing: -0.04em;
+        }
+
+        .admin-muted {
+          margin: 0;
+          color: #6e6e73;
+          font-size: 14px;
+          line-height: 1.45;
+          font-weight: 650;
+        }
+
+        .admin-logout {
+          border: 1px solid #e0e0e5;
+          background: #fff;
+          border-radius: 14px;
+          padding: 10px 16px;
+          color: #6e6e73;
+          font-size: 14px;
+          font-weight: 850;
+          cursor: pointer;
+          white-space: nowrap;
+        }
+
+        .admin-summary-grid {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 10px;
+          margin-bottom: 14px;
+        }
+
+        .admin-summary-card {
+          border-radius: 20px;
+          padding: 15px;
+          border: 1px solid rgba(0,0,0,0.04);
+          min-height: 92px;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+        }
+
+        .admin-summary-card strong {
+          display: block;
+          font-size: 27px;
+          line-height: 1;
+          font-weight: 950;
+          margin-bottom: 5px;
+        }
+
+        .admin-summary-card span {
+          display: block;
+          color: #1a1a1a;
+          font-size: 12.5px;
+          font-weight: 950;
+        }
+
+        .admin-summary-card small {
+          display: block;
+          margin-top: 3px;
+          color: #6e6e73;
+          font-size: 11px;
+          font-weight: 750;
+        }
+
+        .admin-panel-card {
+          background: #fff;
+          border: 0.5px solid rgba(0,0,0,0.05);
+          border-radius: 28px;
+          padding: 20px;
+          box-shadow: 0 1px 10px rgba(0,0,0,0.06);
+        }
+
+        .admin-panel-header {
+          display: flex;
+          justify-content: space-between;
+          gap: 12px;
+          align-items: flex-start;
+          margin-bottom: 14px;
+        }
+
+        .admin-panel-header h2 {
+          margin: 0 0 5px;
+          color: #1a1a1a;
+          font-size: 21px;
+          font-weight: 950;
+          letter-spacing: -0.03em;
+        }
+
+        .admin-refresh {
+          border: 1px solid #dcdce3;
+          background: #fff;
+          border-radius: 14px;
+          padding: 10px 13px;
+          color: #0071e3;
+          font-size: 13px;
+          font-weight: 900;
+          cursor: pointer;
+          white-space: nowrap;
+        }
+
+        .admin-search-box {
+          position: sticky;
+          top: 0;
+          z-index: 8;
+          background: rgba(255,255,255,0.94);
+          backdrop-filter: blur(18px);
+          -webkit-backdrop-filter: blur(18px);
+          border: 0.5px solid rgba(220,220,227,0.9);
+          border-radius: 22px;
+          padding: 10px;
+          margin-bottom: 14px;
+          box-shadow: 0 10px 30px rgba(15,23,42,0.07);
+        }
+
+        .admin-search-box input {
+          width: 100%;
+          border: none;
+          background: #f5f5f7;
+          border-radius: 16px;
+          padding: 13px 14px;
+          outline: none;
+          font-size: 15px;
+          color: #1a1a1a;
+          font-weight: 750;
+        }
+
+        .admin-filter-chips {
+          display: flex;
+          gap: 8px;
+          overflow-x: auto;
+          padding: 10px 0 1px;
+          -webkit-overflow-scrolling: touch;
+        }
+
+        .admin-filter-chips::-webkit-scrollbar {
+          display: none;
+        }
+
+        .admin-filter-chip {
+          border: 1px solid #e0e0e5;
+          background: #fff;
+          color: #6e6e73;
+          border-radius: 999px;
+          padding: 9px 12px;
+          font-size: 13px;
+          font-weight: 900;
+          cursor: pointer;
+          white-space: nowrap;
+        }
+
+        .admin-filter-chip.active {
+          border-color: #0071e3;
+          background: #0071e3;
+          color: #fff;
+        }
+
+        .admin-list {
+          display: grid;
+          gap: 12px;
+        }
+
+        .admin-business-card {
+          border: 1px solid #e8e8ed;
+          border-radius: 22px;
+          padding: 16px;
+          background: #fff;
+          display: grid;
+          gap: 12px;
+        }
+
+        .admin-card-topline {
+          display: flex;
+          justify-content: space-between;
+          gap: 12px;
+          align-items: flex-start;
+        }
+
+        .admin-card-title {
+          color: #1a1a1a;
+          font-size: 17px;
+          font-weight: 950;
+          letter-spacing: -0.03em;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .admin-card-subtitle {
+          color: #6e6e73;
+          font-size: 13px;
+          margin-top: 4px;
+          font-weight: 750;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .admin-card-link {
+          color: #0071e3;
+          font-size: 12.5px;
+          margin-top: 6px;
+          font-weight: 850;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .admin-status-badge {
+          flex: 0 0 auto;
+          border-radius: 999px;
+          padding: 7px 10px;
+          font-size: 12px;
+          font-weight: 950;
+        }
+
+        .admin-status-badge.active {
+          background: #edfff3;
+          color: #188038;
+        }
+
+        .admin-status-badge.suspended {
+          background: #fff0f0;
+          color: #ff3b30;
+        }
+
+        .admin-mobile-metrics {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 8px;
+        }
+
+        .admin-mobile-metrics div {
+          background: #f7f7fb;
+          border-radius: 15px;
+          padding: 11px 9px;
+          min-width: 0;
+        }
+
+        .admin-mobile-metrics strong {
+          display: block;
+          color: #1a1a1a;
+          font-size: 16px;
+          font-weight: 950;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .admin-mobile-metrics span {
+          display: block;
+          color: #8e8e93;
+          font-size: 11.5px;
+          font-weight: 850;
+          margin-top: 2px;
+        }
+
+        .admin-progress {
+          height: 6px;
+          border-radius: 999px;
+          background: #e5e5ea;
+          overflow: hidden;
+        }
+
+        .admin-progress div {
+          height: 100%;
+          border-radius: 999px;
+          background: #0071e3;
+        }
+
+        .admin-action-grid {
+          display: grid;
+          grid-template-columns: repeat(5, minmax(0, 1fr));
+          gap: 8px;
+        }
+
+        .admin-action-grid button {
+          border: 1px solid #dcdce3;
+          border-radius: 15px;
+          padding: 11px 9px;
+          background: #fff;
+          color: #0071e3;
+          font-size: 13px;
+          font-weight: 950;
+          cursor: pointer;
+          min-height: 43px;
+        }
+
+        .admin-action-grid button.primary {
+          border: none;
+          background: #0071e3;
+          color: #fff;
+        }
+
+        .admin-action-grid button.danger {
+          border: none;
+          background: #ff3b30;
+          color: #fff;
+        }
+
+        .admin-action-grid button.success {
+          border: none;
+          background: #21c55d;
+          color: #fff;
+        }
+
+        .admin-action-grid button:disabled {
+          opacity: 0.45;
+          cursor: not-allowed;
+        }
+
+        .admin-detail-actions {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 10px;
+          margin-top: 14px;
+        }
+
+        .admin-detail-actions button {
+          border: 1px solid #dcdce3;
+          border-radius: 14px;
+          padding: 11px 12px;
+          background: #fff;
+          color: #0071e3;
+          font-weight: 900;
+          cursor: pointer;
+        }
+
+        .admin-detail-actions button.primary {
+          border: none;
+          background: #0071e3;
+          color: #fff;
+        }
+
+        .admin-detail-actions button.danger {
+          border: none;
+          background: #ff3b30;
+          color: #fff;
+        }
+
+        .admin-detail-actions button.success {
+          border: none;
+          background: #21c55d;
+          color: #fff;
+        }
+
         @media (max-width: 760px) {
-          .admin-grid { grid-template-columns: 1fr !important; }
-          .admin-header { flex-direction: column !important; align-items: stretch !important; }
-          .admin-filters { grid-template-columns: 1fr !important; }
-          .admin-business-metrics { grid-template-columns: 1fr !important; }
-          .admin-business-actions { grid-template-columns: 1fr !important; }
-          .admin-detail-grid { grid-template-columns: 1fr !important; }
+          .admin-mobile-page {
+            padding: max(12px, env(safe-area-inset-top)) 10px 28px !important;
+          }
+
+          .admin-top {
+            border-radius: 24px;
+            padding: 18px;
+            align-items: flex-start;
+          }
+
+          .admin-title {
+            font-size: 21px;
+            margin-top: 12px;
+          }
+
+          .admin-muted {
+            font-size: 13px;
+          }
+
+          .admin-logout {
+            padding: 9px 11px;
+            font-size: 12.5px;
+          }
+
+          .admin-summary-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+
+          .admin-summary-card {
+            min-height: 86px;
+            padding: 14px;
+          }
+
+          .admin-summary-card strong {
+            font-size: 25px;
+          }
+
+          .admin-panel-card {
+            border-radius: 24px;
+            padding: 14px;
+          }
+
+          .admin-panel-header {
+            align-items: center;
+          }
+
+          .admin-panel-header h2 {
+            font-size: 18px;
+          }
+
+          .admin-search-box {
+            top: env(safe-area-inset-top);
+            margin-left: -4px;
+            margin-right: -4px;
+          }
+
+          .admin-business-card {
+            border-radius: 22px;
+            padding: 14px;
+          }
+
+          .admin-card-title {
+            font-size: 16px;
+          }
+
+          .admin-mobile-metrics {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+
+          .admin-action-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+
+          .admin-action-grid button.primary {
+            grid-column: span 2;
+          }
+
+          .admin-detail-actions {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+
+          .admin-business-metrics,
+          .admin-detail-grid {
+            grid-template-columns: 1fr 1fr !important;
+          }
+
+          .admin-modal-card {
+            border-radius: 24px !important;
+            padding: 18px !important;
+            max-height: 90vh !important;
+          }
         }
       `}</style>
 
-      <div style={{ maxWidth: 1040, margin: '0 auto' }}>
-        <div className="admin-header" style={{ background: '#fff', borderRadius: 26, padding: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18, boxShadow: '0 1px 10px rgba(0,0,0,0.06)', marginBottom: 18 }}>
+      <div className="admin-shell">
+        <header className="admin-top">
           <div>
-            <TuAgendaLogo height={42} />
-            <h1 style={{ margin: '18px 0 6px', color: '#1a1a1a', fontSize: 25, fontWeight: 900 }}>Panel dueño de TuAgendaYa</h1>
-            <p style={{ margin: 0, color: '#6e6e73', fontSize: 14, lineHeight: 1.45 }}>Control general de negocios, reservas y clientes registrados.</p>
+            <TuAgendaLogo height={40} />
+            <h1 className="admin-title">Panel dueño</h1>
+            <p className="admin-muted">Control rápido de negocios, reservas y clientes.</p>
           </div>
 
-          <button onClick={handleLogout} style={{ border: '1px solid #e0e0e5', background: '#fff', borderRadius: 14, padding: '10px 16px', color: '#6e6e73', fontSize: 14, fontWeight: 800, cursor: 'pointer' }}>
-            Cerrar sesión
+          <button type="button" onClick={handleLogout} className="admin-logout">
+            Salir
           </button>
-        </div>
+        </header>
 
         {error && (
-          <div style={{ background: '#fff0f0', color: '#d92d20', borderRadius: 18, padding: 14, fontSize: 14, fontWeight: 800, marginBottom: 16 }}>
+          <div style={{ background: '#fff0f0', color: '#d92d20', borderRadius: 18, padding: 14, fontSize: 14, fontWeight: 850, marginBottom: 14 }}>
             {error}
           </div>
         )}
 
-        <div className="admin-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginBottom: 18 }}>
-          {statCards.map((card) => (
-            <div key={card.label} style={{ background: card.bg, borderRadius: 18, padding: 16, border: '1px solid rgba(0,0,0,0.04)' }}>
-              <div style={{ color: card.color, fontSize: 24, fontWeight: 900, marginBottom: 6 }}>{card.value}</div>
-              <div style={{ color: '#6e6e73', fontSize: 12, fontWeight: 800 }}>{card.label}</div>
+        <section className="admin-summary-grid">
+          {primaryCards.map((card) => (
+            <div key={card.label} className="admin-summary-card" style={{ background: card.bg }}>
+              <div>
+                <strong style={{ color: card.color }}>{card.value}</strong>
+                <span>{card.label}</span>
+              </div>
+              <small>{card.note}</small>
             </div>
           ))}
-        </div>
+        </section>
 
-        <div style={{ background: '#fff', borderRadius: 24, padding: 22, boxShadow: '0 1px 10px rgba(0,0,0,0.06)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 16 }}>
+        <section className="admin-panel-card">
+          <div className="admin-panel-header">
             <div>
-              <h2 style={{ margin: '0 0 6px', color: '#1a1a1a', fontSize: 20, fontWeight: 900 }}>Negocios registrados</h2>
-              <p style={{ margin: 0, color: '#6e6e73', fontSize: 13 }}>Ver detalle, copiar link público, activar o suspender negocios.</p>
+              <h2>Negocios</h2>
+              <p className="admin-muted">Buscá, abrí el link público o accioná rápido.</p>
             </div>
+
+            <button
+              type="button"
+              className="admin-refresh"
+              onClick={() => loadAdminData({ silent: true })}
+              disabled={refreshing}
+            >
+              {refreshing ? 'Actualizando...' : 'Actualizar'}
+            </button>
           </div>
 
-          <div className="admin-filters" style={{ display: 'grid', gridTemplateColumns: '1fr 180px', gap: 10, marginBottom: 16 }}>
+          <div className="admin-search-box">
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Buscar por negocio, email, slug o rubro"
-              style={{ width: '100%', border: '1px solid #dcdce3', borderRadius: 14, padding: '12px 14px', outline: 'none', fontSize: 14 }}
+              placeholder="Buscar negocio, email, nombre o rubro"
             />
-            <select
-              value={status}
-              onChange={(event) => setStatus(event.target.value)}
-              style={{ width: '100%', border: '1px solid #dcdce3', borderRadius: 14, padding: '12px 14px', outline: 'none', fontSize: 14, background: '#fff' }}
-            >
-              <option value="all">Todos</option>
-              <option value="active">Activos</option>
-              <option value="suspended">Suspendidos</option>
-            </select>
+
+            <div className="admin-filter-chips">
+              {filterOptions.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setStatus(option.value)}
+                  className={`admin-filter-chip ${status === option.value ? 'active' : ''}`}
+                >
+                  {option.label} {option.count}
+                </button>
+              ))}
+            </div>
           </div>
 
           {loading ? (
-            <div style={{ padding: 40, textAlign: 'center', color: '#8e8e93', fontSize: 15 }}>Cargando negocios...</div>
-          ) : professionals.length === 0 ? (
-            <div style={{ padding: 40, textAlign: 'center', color: '#8e8e93', fontSize: 15 }}>No hay negocios para mostrar.</div>
+            <div style={{ padding: 40, textAlign: 'center', color: '#8e8e93', fontSize: 15, fontWeight: 850 }}>
+              Cargando negocios...
+            </div>
+          ) : visibleProfessionals.length === 0 ? (
+            <div style={{ padding: 40, textAlign: 'center', color: '#8e8e93', fontSize: 15, fontWeight: 850 }}>
+              No hay negocios para mostrar.
+            </div>
           ) : (
-            <div style={{ display: 'grid', gap: 12 }}>
-              {professionals.map((professional) => {
-                const publicUrl = professional.slug ? `https://tuagendaya-web.onrender.com/reservar/${professional.slug}` : '';
-                const isActive = professional.status !== 'suspended';
-                const planName = professional.plan || 'Profesional';
-                const monthlyLimit = Number(professional.monthlyLimit || professional.monthly_limit || 1000);
-                const monthlyUsed = Number(professional.monthlyBookingsCount || professional.monthly_bookings_count || 0);
-                const monthlyPercent = monthlyLimit > 0 ? Math.min(100, Math.round((monthlyUsed / monthlyLimit) * 100)) : 0;
-
-                return (
-                  <div key={professional.id} style={{ border: '1px solid #e8e8ed', borderRadius: 18, padding: 16, background: '#fff', display: 'grid', gap: 12 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                      <div>
-                        <div style={{ color: '#1a1a1a', fontSize: 16, fontWeight: 900 }}>
-                          {professional.businessName || professional.name || 'Negocio sin nombre'}
-                        </div>
-                        <div style={{ color: '#6e6e73', fontSize: 13, marginTop: 4 }}>
-                          {professional.email || 'Sin email'} · {professional.profession || 'Sin rubro'}
-                        </div>
-                        {publicUrl && (
-                          <a href={publicUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: 6, color: '#0071e3', fontSize: 13, fontWeight: 800, textDecoration: 'none' }}>
-                            Abrir link público
-                          </a>
-                        )}
-                      </div>
-
-                      <span style={{ borderRadius: 999, padding: '6px 10px', fontSize: 12, fontWeight: 900, background: isActive ? '#edfff3' : '#fff0f0', color: isActive ? '#188038' : '#ff3b30' }}>
-                        {isActive ? 'Activo' : 'Suspendido'}
-                      </span>
-                    </div>
-
-                    <div className="admin-business-metrics" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 10 }}>
-                      <div style={{ background: '#eef6ff', borderRadius: 14, padding: 12 }}>
-                        <div style={{ fontSize: 15, fontWeight: 900, color: '#0071e3' }}>{planName}</div>
-                        <div style={{ fontSize: 12, color: '#6e6e73', fontWeight: 800 }}>Plan</div>
-                      </div>
-                      <div style={{ background: '#f7f7fb', borderRadius: 14, padding: 12 }}>
-                        <div style={{ fontSize: 18, fontWeight: 900, color: '#1a1a1a' }}>{monthlyUsed}/{monthlyLimit}</div>
-                        <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 800 }}>Reservas del mes</div>
-                        <div style={{ marginTop: 8, height: 6, borderRadius: 999, background: '#e5e5ea', overflow: 'hidden' }}>
-                          <div style={{ width: `${monthlyPercent}%`, height: '100%', borderRadius: 999, background: monthlyPercent >= 90 ? '#ff3b30' : '#0071e3' }} />
-                        </div>
-                      </div>
-                      <div style={{ background: '#f7f7fb', borderRadius: 14, padding: 12 }}>
-                        <div style={{ fontSize: 18, fontWeight: 900, color: '#1a1a1a' }}>{professional.bookingsCount || 0}</div>
-                        <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 800 }}>Reservas totales</div>
-                      </div>
-                      <div style={{ background: '#f7f7fb', borderRadius: 14, padding: 12 }}>
-                        <div style={{ fontSize: 18, fontWeight: 900, color: '#1a1a1a' }}>{professional.clientsCount || 0}</div>
-                        <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 800 }}>Clientes</div>
-                      </div>
-                    </div>
-
-                    <div className="admin-business-actions" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-                      <button
-                        type="button"
-                        onClick={() => openBusinessDetail(professional)}
-                        style={{ border: 'none', borderRadius: 14, padding: '11px 14px', background: '#0071e3', color: '#fff', fontWeight: 900, cursor: 'pointer' }}
-                      >
-                        Ver detalle
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => updateStatus(professional, isActive ? 'suspended' : 'active')}
-                        style={{ border: 'none', borderRadius: 14, padding: '11px 14px', background: isActive ? '#ff3b30' : '#21c55d', color: '#fff', fontWeight: 900, cursor: 'pointer' }}
-                      >
-                        {isActive ? 'Suspender negocio' : 'Activar negocio'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => copyText(publicUrl, 'Link público copiado')}
-                        disabled={!publicUrl}
-                        style={{ border: '1px solid #dcdce3', borderRadius: 14, padding: '11px 14px', background: '#fff', color: '#0071e3', fontWeight: 900, cursor: publicUrl ? 'pointer' : 'not-allowed' }}
-                      >
-                        Copiar link
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+            <div className="admin-list">
+              {visibleProfessionals.map(renderBusinessCard)}
             </div>
           )}
-        </div>
+        </section>
       </div>
 
       {selectedBusiness && (
@@ -7524,13 +8044,14 @@ function AdminDashboardPage() {
             inset: 0,
             background: 'rgba(0,0,0,0.32)',
             zIndex: 9999,
-            padding: 18,
+            padding: 12,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
           }}
         >
           <div
+            className="admin-modal-card"
             role="presentation"
             onClick={(event) => event.stopPropagation()}
             style={{
@@ -7544,10 +8065,14 @@ function AdminDashboardPage() {
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'flex-start', marginBottom: 16 }}>
-              <div>
+              <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: 13, color: '#8e8e93', fontWeight: 900, marginBottom: 4 }}>Detalle del negocio</div>
-                <h2 style={{ margin: 0, fontSize: 24, color: '#1a1a1a', fontWeight: 900 }}>{selectedBusiness.businessName || selectedBusiness.name || 'Negocio'}</h2>
-                <p style={{ margin: '8px 0 0', color: '#6e6e73', fontSize: 14 }}>{selectedBusiness.email || 'Sin email'} · {selectedBusiness.profession || 'Sin rubro'}</p>
+                <h2 style={{ margin: 0, fontSize: 24, color: '#1a1a1a', fontWeight: 950, letterSpacing: '-0.04em', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {selectedBusiness.businessName || selectedBusiness.name || 'Negocio'}
+                </h2>
+                <p style={{ margin: '8px 0 0', color: '#6e6e73', fontSize: 14, fontWeight: 700 }}>
+                  {selectedBusiness.email || 'Sin email'} · {selectedBusiness.profession || 'Sin rubro'}
+                </p>
               </div>
               <button type="button" onClick={closeBusinessDetail} style={{ border: '1px solid #e1e1e8', background: '#fff', borderRadius: 14, padding: '9px 13px', fontWeight: 900, cursor: 'pointer' }}>
                 Cerrar
@@ -7566,82 +8091,77 @@ function AdminDashboardPage() {
               <>
                 <div className="admin-detail-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 10, marginBottom: 16 }}>
                   <div style={{ background: '#eef6ff', borderRadius: 16, padding: 14 }}>
-                    <div style={{ fontSize: 15, fontWeight: 900, color: '#0071e3' }}>{selectedBusiness.plan || 'Profesional'}</div>
-                    <div style={{ color: '#8e8e93', fontSize: 12, fontWeight: 800 }}>Plan</div>
+                    <div style={{ fontSize: 15, fontWeight: 950, color: '#0071e3' }}>{selectedBusiness.plan || 'Gratis'}</div>
+                    <div style={{ color: '#8e8e93', fontSize: 12, fontWeight: 850 }}>Plan</div>
                   </div>
                   <div style={{ background: '#f7f7fb', borderRadius: 16, padding: 14 }}>
-                    <div style={{ fontSize: 20, fontWeight: 900, color: '#1a1a1a' }}>{Number(selectedBusiness.monthlyBookingsCount || selectedBusiness.monthly_bookings_count || 0)}/{Number(selectedBusiness.monthlyLimit || selectedBusiness.monthly_limit || 1000)}</div>
-                    <div style={{ color: '#8e8e93', fontSize: 12, fontWeight: 800 }}>Reservas del mes</div>
+                    <div style={{ fontSize: 20, fontWeight: 950, color: '#1a1a1a' }}>{Number(selectedBusiness.monthlyBookingsCount || selectedBusiness.monthly_bookings_count || 0)}/{Number(selectedBusiness.monthlyLimit || selectedBusiness.monthly_limit || 1000)}</div>
+                    <div style={{ color: '#8e8e93', fontSize: 12, fontWeight: 850 }}>Mes</div>
                   </div>
                   <div style={{ background: '#f7f7fb', borderRadius: 16, padding: 14 }}>
-                    <div style={{ fontSize: 20, fontWeight: 900, color: '#0071e3' }}>{selectedBusiness.bookingsCount || 0}</div>
-                    <div style={{ color: '#8e8e93', fontSize: 12, fontWeight: 800 }}>Reservas totales</div>
+                    <div style={{ fontSize: 20, fontWeight: 950, color: '#0071e3' }}>{selectedBusiness.bookingsCount || 0}</div>
+                    <div style={{ color: '#8e8e93', fontSize: 12, fontWeight: 850 }}>Reservas</div>
                   </div>
                   <div style={{ background: '#f7f7fb', borderRadius: 16, padding: 14 }}>
-                    <div style={{ fontSize: 20, fontWeight: 900, color: '#111827' }}>{selectedBusiness.clientsCount || 0}</div>
-                    <div style={{ color: '#8e8e93', fontSize: 12, fontWeight: 800 }}>Clientes</div>
+                    <div style={{ fontSize: 20, fontWeight: 950, color: '#111827' }}>{selectedBusiness.clientsCount || 0}</div>
+                    <div style={{ color: '#8e8e93', fontSize: 12, fontWeight: 850 }}>Clientes</div>
                   </div>
                   <div style={{ background: selectedBusiness.status === 'suspended' ? '#fff0f0' : '#edfff3', borderRadius: 16, padding: 14 }}>
-                    <div style={{ fontSize: 15, fontWeight: 900, color: selectedBusiness.status === 'suspended' ? '#ff3b30' : '#188038' }}>{selectedBusiness.status === 'suspended' ? 'Suspendido' : 'Activo'}</div>
-                    <div style={{ color: '#8e8e93', fontSize: 12, fontWeight: 800 }}>Estado</div>
-                  </div>
-                  <div style={{ background: '#f7f7fb', borderRadius: 16, padding: 14 }}>
-                    <div style={{ fontSize: 15, fontWeight: 900, color: '#1a1a1a' }}>{selectedBusiness.createdAt ? new Date(selectedBusiness.createdAt).toLocaleDateString('es-UY') : '-'}</div>
-                    <div style={{ color: '#8e8e93', fontSize: 12, fontWeight: 800 }}>Registro</div>
+                    <div style={{ fontSize: 15, fontWeight: 950, color: selectedBusiness.status === 'suspended' ? '#ff3b30' : '#188038' }}>{selectedBusiness.status === 'suspended' ? 'Suspendido' : 'Activo'}</div>
+                    <div style={{ color: '#8e8e93', fontSize: 12, fontWeight: 850 }}>Estado</div>
                   </div>
                 </div>
 
                 <div style={{ border: '1px solid #e8e8ed', borderRadius: 18, padding: 16, marginBottom: 16 }}>
-                  <h3 style={{ margin: '0 0 10px', fontSize: 16, fontWeight: 900, color: '#1a1a1a' }}>Datos del negocio</h3>
+                  <h3 style={{ margin: '0 0 10px', fontSize: 16, fontWeight: 950, color: '#1a1a1a' }}>Datos del negocio</h3>
                   <div style={{ display: 'grid', gap: 7, color: '#6e6e73', fontSize: 14, lineHeight: 1.35 }}>
                     <div><strong style={{ color: '#1a1a1a' }}>Dueño:</strong> {selectedBusiness.name || '-'}</div>
                     <div><strong style={{ color: '#1a1a1a' }}>Teléfono:</strong> {selectedBusiness.phone || '-'}</div>
                     <div><strong style={{ color: '#1a1a1a' }}>Dirección:</strong> {selectedBusiness.address || '-'}</div>
                     <div><strong style={{ color: '#1a1a1a' }}>Slug:</strong> {selectedBusiness.slug || '-'}</div>
-                    <div><strong style={{ color: '#1a1a1a' }}>Plan:</strong> {selectedBusiness.plan || 'Profesional'}</div>
-                    <div><strong style={{ color: '#1a1a1a' }}>Límite mensual:</strong> {Number(selectedBusiness.monthlyLimit || selectedBusiness.monthly_limit || 1000)} reservas</div>
-                    <div><strong style={{ color: '#1a1a1a' }}>Reservas usadas este mes:</strong> {Number(selectedBusiness.monthlyBookingsCount || selectedBusiness.monthly_bookings_count || 0)}</div>
-                    <div><strong style={{ color: '#1a1a1a' }}>Link público:</strong> {selectedBusiness.slug ? `https://tuagendaya-web.onrender.com/reservar/${selectedBusiness.slug}` : '-'}</div>
+                    <div><strong style={{ color: '#1a1a1a' }}>Link público:</strong> {buildPublicUrl(selectedBusiness) || '-'}</div>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 14 }}>
-                    <button
-                      type="button"
-                      onClick={() => updateStatus(selectedBusiness, selectedBusiness.status === 'suspended' ? 'active' : 'suspended')}
-                      style={{ border: 'none', borderRadius: 14, padding: '11px 14px', background: selectedBusiness.status === 'suspended' ? '#21c55d' : '#ff3b30', color: '#fff', fontWeight: 900, cursor: 'pointer' }}
-                    >
-                      {selectedBusiness.status === 'suspended' ? 'Activar negocio' : 'Suspender negocio'}
+                  <div className="admin-detail-actions">
+                    <button type="button" className="primary" onClick={() => openPublicUrl(selectedBusiness)}>
+                      Abrir reserva
+                    </button>
+                    <button type="button" onClick={() => copyText(buildPublicUrl(selectedBusiness), 'Link público copiado')}>
+                      Copiar link
+                    </button>
+                    <button type="button" onClick={() => openWhatsApp(selectedBusiness)}>
+                      WhatsApp
                     </button>
                     <button
                       type="button"
-                      onClick={() => copyText(selectedBusiness.slug ? `https://tuagendaya-web.onrender.com/reservar/${selectedBusiness.slug}` : '', 'Link público copiado')}
-                      style={{ border: '1px solid #dcdce3', borderRadius: 14, padding: '11px 14px', background: '#fff', color: '#0071e3', fontWeight: 900, cursor: 'pointer' }}
+                      className={selectedBusiness.status === 'suspended' ? 'success' : 'danger'}
+                      onClick={() => updateStatus(selectedBusiness, selectedBusiness.status === 'suspended' ? 'active' : 'suspended')}
                     >
-                      Copiar link público
+                      {selectedBusiness.status === 'suspended' ? 'Activar' : 'Suspender'}
                     </button>
                   </div>
                 </div>
 
                 <div style={{ border: '1px solid #e8e8ed', borderRadius: 18, padding: 16 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', marginBottom: 12 }}>
-                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: '#1a1a1a' }}>Últimas reservas</h3>
-                    <span style={{ color: '#8e8e93', fontSize: 12, fontWeight: 800 }}>Máximo 50</span>
+                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 950, color: '#1a1a1a' }}>Últimas reservas</h3>
+                    <span style={{ color: '#8e8e93', fontSize: 12, fontWeight: 850 }}>Máximo 50</span>
                   </div>
 
                   {selectedBusinessBookings.length === 0 ? (
-                    <div style={{ padding: 20, color: '#8e8e93', fontSize: 14, textAlign: 'center' }}>Este negocio todavía no tiene reservas.</div>
+                    <div style={{ padding: 20, color: '#8e8e93', fontSize: 14, textAlign: 'center', fontWeight: 800 }}>Este negocio todavía no tiene reservas.</div>
                   ) : (
                     <div style={{ display: 'grid', gap: 8 }}>
                       {selectedBusinessBookings.map((booking) => (
                         <div key={booking.id} style={{ background: '#f7f7fb', borderRadius: 14, padding: 12, display: 'grid', gap: 4 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
                             <strong style={{ color: '#1a1a1a', fontSize: 14 }}>{booking.client_name || 'Cliente sin nombre'}</strong>
-                            <span style={{ fontSize: 12, color: '#6e6e73', fontWeight: 800 }}>{booking.status || 'pending'}</span>
+                            <span style={{ fontSize: 12, color: '#6e6e73', fontWeight: 850 }}>{booking.status || 'pending'}</span>
                           </div>
                           <div style={{ color: '#6e6e73', fontSize: 13 }}>
                             {booking.service_name || 'Servicio'} · {booking.staff_name || 'Sin profesional asignado'}
                           </div>
-                          <div style={{ color: '#8e8e93', fontSize: 12, fontWeight: 800 }}>
+                          <div style={{ color: '#8e8e93', fontSize: 12, fontWeight: 850 }}>
                             {formatDate(booking.booking_date)} · {formatTime(booking.start_time) || '--:--'} a {formatTime(booking.end_time) || '--:--'} · {booking.client_phone || 'Sin teléfono'}
                           </div>
                         </div>
@@ -7657,6 +8177,7 @@ function AdminDashboardPage() {
     </div>
   );
 }
+
 
 function ProfesionalPage() {
   const [professional, setProfessional] = useState(() => {
