@@ -9,7 +9,7 @@ const APP_FONT = '"Nunito", "Arial Rounded MT Bold", "Avenir Next", system-ui, -
 const brandTextStyle = {
   fontFamily: APP_FONT,
   fontWeight: 700,
-  letterSpacing: '-0.03em',
+  letterSpacing: '-0.008em',
   color: '#0071e3',
 };
 
@@ -733,7 +733,48 @@ function getProfessionExamples() {
 function AuthLayout({ children }) {
   return (
     <div style={{ minHeight: '100vh', background: '#f2f2f7', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, fontFamily: APP_FONT }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap');@keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}`}</style>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap');@keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}`}
+        html,
+        body,
+        #root {
+          font-family: "Nunito", "Avenir Next", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+          letter-spacing: normal;
+          text-rendering: geometricPrecision;
+          -webkit-font-smoothing: antialiased;
+          -moz-osx-font-smoothing: grayscale;
+        }
+
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6 {
+          letter-spacing: -0.01em !important;
+          line-height: 1.12 !important;
+        }
+
+        p,
+        span,
+        div,
+        label,
+        input,
+        textarea,
+        select,
+        button {
+          letter-spacing: normal;
+        }
+
+        button {
+          line-height: 1.2;
+        }
+
+        input,
+        textarea,
+        select {
+          line-height: 1.35;
+        }
+</style>
 
       <div style={{ background: '#fff', borderRadius: 24, padding: '36px 32px', border: '0.5px solid #e0e0e5', width: '100%', maxWidth: 460, animation: 'slideUp 250ms cubic-bezier(0.16,1,0.3,1) both', boxShadow: '0 2px 40px rgba(0,0,0,0.06)' }}>
         {children}
@@ -831,78 +872,35 @@ function ProfessionCombobox({ value, onChange }) {
   );
 }
 
-function LoginForm({ onLogin } = {}) {
+function LoginForm({ onLogin }) {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-
-  useEffect(() => {
-    const adminToken = localStorage.getItem('tuagendaya_admin_token');
-    const professionalToken = localStorage.getItem('tuagendaya_token');
-
-    if (adminToken) {
-      navigate('/admin/dashboard', { replace: true });
-      return;
-    }
-
-    if (professionalToken && !onLogin) {
-      navigate('/profesional/dashboard', { replace: true });
-    }
-  }, [navigate, onLogin]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    const cleanEmail = String(email || '').trim().toLowerCase();
-    const cleanPassword = String(password || '');
-
     try {
-      const adminResponse = await fetch(`${API_BASE}/admin/login`, {
+      const res = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: cleanEmail, password: cleanPassword }),
+        body: JSON.stringify({ email, password }),
       });
 
-      const adminData = await adminResponse.json().catch(() => ({}));
+      const data = await res.json();
 
-      if (adminResponse.ok && adminData.token) {
-        localStorage.setItem('tuagendaya_admin_token', adminData.token);
-        localStorage.setItem('tuagendaya_admin_user', JSON.stringify(adminData.admin || { email: cleanEmail, role: 'admin' }));
-        localStorage.removeItem('tuagendaya_token');
-        localStorage.removeItem('tuagendaya_professional');
-        navigate('/admin/dashboard', { replace: true });
-        return;
-      }
-
-      const professionalResponse = await fetch(`${API_BASE}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: cleanEmail, password: cleanPassword }),
-      });
-
-      const professionalData = await professionalResponse.json().catch(() => ({}));
-
-      if (!professionalResponse.ok) {
-        setError(professionalData.error || 'Email o contraseña incorrectos');
-        return;
-      }
-
-      localStorage.setItem('tuagendaya_token', professionalData.token);
-      if (professionalData.professional) {
-        localStorage.setItem('tuagendaya_professional', JSON.stringify(professionalData.professional));
-      }
-      localStorage.removeItem('tuagendaya_admin_token');
-      localStorage.removeItem('tuagendaya_admin_user');
-
-      if (typeof onLogin === 'function') {
-        onLogin(professionalData.professional || {});
+      if (!res.ok) {
+        setError(data.error || 'Error al ingresar');
       } else {
-        navigate('/profesional/dashboard', { replace: true });
+        localStorage.setItem('tuagendaya_token', data.token);
+        if (data.professional) {
+          localStorage.setItem('tuagendaya_professional', JSON.stringify(data.professional));
+        }
+        onLogin(data.professional || {});
       }
     } catch {
       setError('No se pudo conectar con el servidor');
@@ -912,280 +910,64 @@ function LoginForm({ onLogin } = {}) {
   };
 
   return (
-    <div className="unified-login-page">
-      <style>
-        {`
-          @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap');
-
-          .unified-login-page {
-            min-height: 100vh;
-            min-height: 100dvh;
-            width: 100%;
-            background:
-              radial-gradient(circle at 18% 12%, rgba(0,113,227,0.14), transparent 28%),
-              radial-gradient(circle at 82% 0%, rgba(48,209,88,0.11), transparent 24%),
-              linear-gradient(180deg, #f8fbff 0%, #f4f5f8 48%, #ffffff 100%);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: max(20px, env(safe-area-inset-top)) 14px max(22px, env(safe-area-inset-bottom));
-            font-family: ${APP_FONT};
-            overflow-x: hidden;
-            box-sizing: border-box;
-          }
-
-          .unified-login-shell {
-            width: min(430px, 100%);
-          }
-
-          .unified-login-card {
-            width: 100%;
-            background: rgba(255,255,255,0.94);
-            border: 0.5px solid rgba(225,229,236,0.9);
-            border-radius: 34px;
-            box-shadow: 0 22px 65px rgba(15,23,42,0.10);
-            padding: 30px 22px 22px;
-            box-sizing: border-box;
-            animation: loginSlideUp 280ms cubic-bezier(0.16,1,0.3,1) both;
-          }
-
-          @keyframes loginSlideUp {
-            from { opacity: 0; transform: translateY(14px) scale(0.99); }
-            to { opacity: 1; transform: translateY(0) scale(1); }
-          }
-
-          .unified-login-logo {
-            display: flex;
-            justify-content: center;
-            margin-bottom: 18px;
-          }
-
-          .unified-login-title {
-            margin: 0;
-            text-align: center;
-            color: #101828;
-            font-size: 30px;
-            line-height: 1.12;
-            font-weight: 950;
-            letter-spacing: -0.018em;
-          }
-
-          .unified-login-subtitle {
-            margin: 12px auto 0;
-            max-width: 315px;
-            text-align: center;
-            color: #667085;
-            font-size: 14.5px;
-            line-height: 1.55;
-            font-weight: 750;
-          }
-
-          .unified-login-form {
-            margin-top: 24px;
-            display: grid;
-            gap: 13px;
-          }
-
-          .unified-field {
-            display: grid;
-            gap: 6px;
-          }
-
-          .unified-field label {
-            color: #344054;
-            font-size: 12.5px;
-            font-weight: 900;
-            padding-left: 3px;
-          }
-
-          .unified-input-wrap {
-            position: relative;
-            width: 100%;
-          }
-
-          .unified-input {
-            width: 100%;
-            height: 52px;
-            border-radius: 17px;
-            border: 1px solid #e4e7ec;
-            background: #f9fafb;
-            outline: none;
-            padding: 0 14px;
-            font-size: 16px;
-            color: #101828;
-            font-weight: 800;
-            font-family: ${APP_FONT};
-            box-sizing: border-box;
-            transition: border-color 150ms ease, box-shadow 150ms ease, background 150ms ease;
-          }
-
-          .unified-input.password {
-            padding-right: 74px;
-          }
-
-          .unified-input:focus {
-            border-color: #0071e3;
-            background: #fff;
-            box-shadow: 0 0 0 4px rgba(0,113,227,0.11);
-          }
-
-          .unified-show-password {
-            position: absolute;
-            right: 8px;
-            top: 8px;
-            height: 36px;
-            border: none;
-            border-radius: 12px;
-            background: #eef6ff;
-            color: #0071e3;
-            font-size: 12px;
-            font-weight: 950;
-            padding: 0 10px;
-            cursor: pointer;
-            font-family: ${APP_FONT};
-          }
-
-          .unified-error {
-            background: #fff1f1;
-            border: 1px solid #ffd0d0;
-            color: #c62828;
-            border-radius: 16px;
-            padding: 11px 12px;
-            font-size: 13px;
-            font-weight: 800;
-            line-height: 1.35;
-          }
-
-          .unified-submit {
-            width: 100%;
-            min-height: 52px;
-            border: none;
-            border-radius: 17px;
-            background: #0071e3;
-            color: #fff;
-            font-size: 16px;
-            font-weight: 950;
-            font-family: ${APP_FONT};
-            cursor: pointer;
-            box-shadow: 0 13px 28px rgba(0,113,227,0.24);
-            transition: transform 150ms ease, opacity 150ms ease;
-          }
-
-          .unified-submit:active {
-            transform: scale(0.99);
-          }
-
-          .unified-submit:disabled {
-            background: #a7b4c5;
-            box-shadow: none;
-            cursor: not-allowed;
-            opacity: 0.88;
-          }
-
-          .unified-register {
-            width: 100%;
-            min-height: 50px;
-            border-radius: 17px;
-            border: 1px solid #d7dce5;
-            background: #fff;
-            color: #0071e3;
-            font-size: 15px;
-            font-weight: 950;
-            font-family: ${APP_FONT};
-            cursor: pointer;
-            margin-top: 11px;
-          }
-
-          @media (max-width: 420px) {
-            .unified-login-page {
-              align-items: flex-start;
-              padding-top: max(18px, env(safe-area-inset-top));
-            }
-
-            .unified-login-card {
-              border-radius: 30px;
-              padding: 26px 18px 20px;
-            }
-
-            .unified-login-title {
-              font-size: 27px;
-            }
-
-            .unified-login-subtitle {
-              font-size: 14px;
-            }
-          }
-        `}
-      </style>
-
-      <div className="unified-login-shell">
-        <div className="unified-login-card">
-          <div className="unified-login-logo">
-            <TuAgendaLogo height={58} centered />
-          </div>
-
-          <h1 className="unified-login-title">Entrá a TuAgendaYa</h1>
-          <p className="unified-login-subtitle">
-            Gestioná reservas, clientes, horarios y negocios desde un solo lugar.
-          </p>
-
-          <form className="unified-login-form" onSubmit={handleSubmit}>
-            <div className="unified-field">
-              <label>Email</label>
-              <input
-                className="unified-input"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="tu@email.com"
-                required
-                autoComplete="email"
-              />
-            </div>
-
-            <div className="unified-field">
-              <label>Contraseña</label>
-              <div className="unified-input-wrap">
-                <input
-                  className="unified-input password"
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Tu contraseña"
-                  required
-                  autoComplete="current-password"
-                />
-                <button
-                  type="button"
-                  className="unified-show-password"
-                  onClick={() => setShowPassword((current) => !current)}
-                >
-                  {showPassword ? 'Ocultar' : 'Ver'}
-                </button>
-              </div>
-            </div>
-
-            {error && <div className="unified-error">{error}</div>}
-
-            <button type="submit" disabled={loading} className="unified-submit">
-              {loading ? 'Ingresando...' : 'Ingresar'}
-            </button>
-          </form>
-
-          <button
-            type="button"
-            onClick={() => navigate('/profesional/register')}
-            className="unified-register"
-          >
-            Crear cuenta profesional
-          </button>
-
-        </div>
+    <AuthLayout>
+      <div style={{ textAlign: 'center', marginBottom: 24 }}>
+        <TuAgendaLogo height={52} centered />
+        <div style={{ fontSize: 14, color: '#6e6e73' }}>Accedé a tu panel profesional</div>
       </div>
-    </div>
+
+      <form onSubmit={handleSubmit}>
+        <label style={smallLabelStyle}>Email</label>
+        <input
+          style={{ ...inputStyle, marginBottom: 12 }}
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="Email"
+          required
+          autoComplete="email"
+        />
+
+        <label style={smallLabelStyle}>Contraseña</label>
+        <input
+          style={{ ...inputStyle, marginBottom: 12 }}
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="Contraseña"
+          required
+          autoComplete="current-password"
+        />
+
+        {error && (
+          <div style={{ background: '#fff2f2', border: '0.5px solid #ffcdd2', borderRadius: 10, padding: '10px 12px', fontSize: 13, color: '#c62828', marginBottom: 12 }}>
+            {error}
+          </div>
+        )}
+
+        <button
+          type="submit"
+          disabled={loading}
+          style={{ width: '100%', padding: '13px', borderRadius: 12, border: 'none', background: loading ? '#aeaeb2' : '#0071e3', color: '#fff', fontSize: 15, fontWeight: 600, fontFamily: 'inherit', cursor: loading ? 'not-allowed' : 'pointer', marginTop: 4 }}
+        >
+          {loading ? 'Ingresando...' : 'Ingresar'}
+        </button>
+      </form>
+
+      <button
+        type="button"
+        onClick={() => navigate('/profesional/register')}
+        style={{ width: '100%', marginTop: 12, padding: '12px', borderRadius: 12, border: '0.5px solid #d0d0d5', background: '#fff', color: '#0071e3', fontSize: 14, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer' }}
+      >
+        Crear cuenta profesional
+      </button>
+
+      <div style={{ textAlign: 'center', fontSize: 11, color: '#aeaeb2', marginTop: 16 }}>
+        Tus datos están cifrados y protegidos
+      </div>
+    </AuthLayout>
   );
 }
-
 
 function RegisterPage() {
   const navigate = useNavigate();
@@ -1462,7 +1244,7 @@ function RegisterPage() {
             <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 900, marginBottom: 5 }}>
               Vista previa del link público
             </div>
-            <div style={{ color: '#0071e3', fontWeight: 950, fontSize: 15, wordBreak: 'break-word' }}>
+            <div style={{ color: '#0071e3', fontWeight: 900, fontSize: 15, wordBreak: 'break-word' }}>
               {publicPreview}
             </div>
             <div style={{ color: '#64748b', fontSize: 12.5, lineHeight: 1.45, marginTop: 8, fontWeight: 650 }}>
@@ -1542,7 +1324,29 @@ function RegisterPage() {
             }
           }
         `}
-      </style>
+      
+          .register-card h1,
+          .register-shell h1 {
+            letter-spacing: -0.01em !important;
+            line-height: 1.12 !important;
+          }
+
+          .register-card p,
+          .register-shell p,
+          .register-card div,
+          .register-shell div {
+            letter-spacing: normal;
+          }
+
+          @media (max-width: 860px) {
+            .register-card h1,
+            .register-shell h1 {
+              font-size: clamp(30px, 9vw, 40px) !important;
+              line-height: 1.14 !important;
+              letter-spacing: -0.008em !important;
+            }
+          }
+</style>
 
       <div style={{ width: 'min(1080px, 100%)', margin: '0 auto 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
         <button
@@ -1555,7 +1359,7 @@ function RegisterPage() {
 
         <button
           type="button"
-          onClick={() => navigate('/login')}
+          onClick={() => navigate('/profesional/login')}
           style={{
             border: '0.5px solid #d7dce5',
             background: '#fff',
@@ -1575,10 +1379,10 @@ function RegisterPage() {
       <div className="register-shell">
         <aside className="register-card" style={{ padding: 26, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 18 }}>
           <div>
-            <div style={{ display: 'inline-flex', alignItems: 'center', borderRadius: 999, background: '#eaf4ff', color: '#0066cc', padding: '8px 12px', fontSize: 13, fontWeight: 950, marginBottom: 16 }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', borderRadius: 999, background: '#eaf4ff', color: '#0066cc', padding: '8px 12px', fontSize: 13, fontWeight: 900, marginBottom: 16 }}>
               Crear cuenta profesional
             </div>
-            <h1 style={{ margin: 0, color: '#0f172a', fontSize: 38, lineHeight: 1, letterSpacing: '-1.6px', fontWeight: 950 }}>
+            <h1 style={{ margin: 0, color: '#0f172a', fontSize: 38, lineHeight: 1, letterSpacing: '-0.4px', fontWeight: 900 }}>
               Configurá tu agenda en minutos.
             </h1>
             <p style={{ margin: '16px 0 0', color: '#64748b', fontSize: 15.5, lineHeight: 1.55, fontWeight: 650 }}>
@@ -1596,11 +1400,11 @@ function RegisterPage() {
                 }}
                 style={{ ...stepPillStyle(item.number), fontFamily: 'inherit', textAlign: 'left' }}
               >
-                <div style={{ width: 32, height: 32, borderRadius: 13, background: item.number === step ? '#0071e3' : '#dbeafe', color: item.number === step ? '#fff' : '#0071e3', display: 'grid', placeItems: 'center', fontWeight: 950, flex: '0 0 auto' }}>
+                <div style={{ width: 32, height: 32, borderRadius: 13, background: item.number === step ? '#0071e3' : '#dbeafe', color: item.number === step ? '#fff' : '#0071e3', display: 'grid', placeItems: 'center', fontWeight: 900, flex: '0 0 auto' }}>
                   {item.number}
                 </div>
                 <div>
-                  <div style={{ color: '#111827', fontSize: 14, fontWeight: 950 }}>{item.title}</div>
+                  <div style={{ color: '#111827', fontSize: 14, fontWeight: 900 }}>{item.title}</div>
                   <div style={{ color: '#64748b', fontSize: 13, lineHeight: 1.4, marginTop: 2, fontWeight: 650 }}>{item.text}</div>
                 </div>
               </button>
@@ -1609,17 +1413,17 @@ function RegisterPage() {
 
           <div style={{ background: '#fff', borderRadius: 24, border: '0.5px solid #e5e7eb', padding: 16 }}>
             <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 900, marginBottom: 4 }}>Tu link quedaría así</div>
-            <div style={{ color: '#0071e3', fontWeight: 950, fontSize: 14, wordBreak: 'break-word' }}>{publicPreview}</div>
+            <div style={{ color: '#0071e3', fontWeight: 900, fontSize: 14, wordBreak: 'break-word' }}>{publicPreview}</div>
           </div>
         </aside>
 
         <section className="register-card" style={{ padding: 24 }}>
           <div style={{ marginBottom: 18, display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
             <div>
-              <div style={{ color: '#0071e3', fontSize: 12, fontWeight: 950, marginBottom: 5 }}>
+              <div style={{ color: '#0071e3', fontSize: 12, fontWeight: 900, marginBottom: 5 }}>
                 Paso {step} de 4
               </div>
-              <h2 style={{ margin: 0, color: '#111827', fontSize: 24, letterSpacing: '-0.7px', fontWeight: 950 }}>{activeStep.title}</h2>
+              <h2 style={{ margin: 0, color: '#111827', fontSize: 24, letterSpacing: '-0.7px', fontWeight: 900 }}>{activeStep.title}</h2>
               <p style={{ margin: '6px 0 0', color: '#6e6e73', fontSize: 14, fontWeight: 650 }}>
                 {activeStep.text}
               </p>
@@ -1655,7 +1459,7 @@ function RegisterPage() {
                   type="button"
                   onClick={goNext}
                   disabled={loading}
-                  style={{ width: '100%', padding: '14px', borderRadius: 18, border: 'none', background: '#0071e3', color: '#fff', fontSize: 15, fontWeight: 950, fontFamily: 'inherit', cursor: loading ? 'not-allowed' : 'pointer', boxShadow: '0 14px 30px rgba(0,113,227,0.20)' }}
+                  style={{ width: '100%', padding: '14px', borderRadius: 18, border: 'none', background: '#0071e3', color: '#fff', fontSize: 15, fontWeight: 900, fontFamily: 'inherit', cursor: loading ? 'not-allowed' : 'pointer', boxShadow: '0 14px 30px rgba(0,113,227,0.20)' }}
                 >
                   Continuar
                 </button>
@@ -1663,7 +1467,7 @@ function RegisterPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  style={{ width: '100%', padding: '14px', borderRadius: 18, border: 'none', background: loading ? '#aeaeb2' : '#0071e3', color: '#fff', fontSize: 15, fontWeight: 950, fontFamily: 'inherit', cursor: loading ? 'not-allowed' : 'pointer', boxShadow: loading ? 'none' : '0 14px 30px rgba(0,113,227,0.20)' }}
+                  style={{ width: '100%', padding: '14px', borderRadius: 18, border: 'none', background: loading ? '#aeaeb2' : '#0071e3', color: '#fff', fontSize: 15, fontWeight: 900, fontFamily: 'inherit', cursor: loading ? 'not-allowed' : 'pointer', boxShadow: loading ? 'none' : '0 14px 30px rgba(0,113,227,0.20)' }}
                 >
                   {loading ? 'Creando cuenta...' : 'Crear cuenta profesional'}
                 </button>
@@ -1673,7 +1477,7 @@ function RegisterPage() {
 
           <button
             type="button"
-            onClick={() => navigate('/login')}
+            onClick={() => navigate('/profesional/login')}
             style={{ width: '100%', marginTop: 12, padding: '13px', borderRadius: 18, border: '0.5px solid #d0d0d5', background: '#fff', color: '#0071e3', fontSize: 14, fontWeight: 900, fontFamily: 'inherit', cursor: 'pointer' }}
           >
             Ya tengo cuenta
@@ -1701,8 +1505,6 @@ function ReservationsSection() {
   const [pushLoading, setPushLoading] = useState(false);
   const [bookingNotification, setBookingNotification] = useState(null);
   const [newBookingCount, setNewBookingCount] = useState(0);
-  const [lastBookingsSyncAt, setLastBookingsSyncAt] = useState(null);
-  const [bookingsSyncing, setBookingsSyncing] = useState(false);
   const knownBookingIdsRef = useRef(new Set());
   const bookingsBootstrappedRef = useRef(false);
   const notificationTimeoutRef = useRef(null);
@@ -1884,8 +1686,6 @@ function ReservationsSection() {
 
     if (showLoading) {
       setLoadingBookings(true);
-    } else {
-      setBookingsSyncing(true);
     }
 
     return fetch(`${API_BASE}/bookings/me`, {
@@ -1932,11 +1732,7 @@ function ReservationsSection() {
       .finally(() => {
         if (showLoading) {
           setLoadingBookings(false);
-        } else {
-          setBookingsSyncing(false);
         }
-
-        setLastBookingsSyncAt(new Date());
       });
   }, [showNewBookingNotification]);
 
@@ -1944,28 +1740,10 @@ function ReservationsSection() {
     fetchBookings(true);
 
     const intervalId = window.setInterval(() => {
-      if (!document.hidden) {
-        fetchBookings(false);
-      }
-    }, 15000);
+      fetchBookings(false);
+    }, 5000);
 
     return () => window.clearInterval(intervalId);
-  }, [fetchBookings]);
-
-  useEffect(() => {
-    const refreshWhenVisible = () => {
-      if (!document.hidden) {
-        fetchBookings(false);
-      }
-    };
-
-    window.addEventListener('focus', refreshWhenVisible);
-    document.addEventListener('visibilitychange', refreshWhenVisible);
-
-    return () => {
-      window.removeEventListener('focus', refreshWhenVisible);
-      document.removeEventListener('visibilitychange', refreshWhenVisible);
-    };
   }, [fetchBookings]);
 
   const handleAction = async (id, action) => {
@@ -2369,11 +2147,11 @@ function ReservationsSection() {
               fontWeight: 900,
             }}
           >
-            
+            🔔
           </div>
 
           <div style={{ minWidth: 0 }}>
-            <div style={{ color: '#111827', fontSize: 14, fontWeight: 900, letterSpacing: '-0.02em' }}>
+            <div style={{ color: '#111827', fontSize: 14, fontWeight: 900, letterSpacing: '-0.006em' }}>
               {bookingNotification.totalNew > 1 ? `${bookingNotification.totalNew} nuevas reservas` : 'Nueva reserva'}
             </div>
             <div style={{ color: '#4b5563', fontSize: 13, lineHeight: 1.35, marginTop: 3, fontWeight: 650 }}>
@@ -2412,7 +2190,7 @@ function ReservationsSection() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
             <div style={{ minWidth: 220, flex: 1 }}>
               <div style={{ fontSize: 15, fontWeight: 900, color: '#1a1a1a', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span></span>
+                <span>🔔</span>
                 <span>Notificaciones de nuevas reservas</span>
               </div>
               <div style={{ fontSize: 12.5, color: '#6e6e73', fontWeight: 650, marginTop: 4, lineHeight: 1.4 }}>
@@ -2450,17 +2228,11 @@ function ReservationsSection() {
             <div>
               <div style={{ fontSize: 16, fontWeight: 900, color: '#1a1a1a' }}>Resumen del negocio</div>
               <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 600, marginTop: 3 }}>
-                El panel se sincroniza solo cada 15 segundos y también al volver a abrir la app.
+                Las confirmadas y canceladas se actualizan en el momento y se reinician cada día.
               </div>
             </div>
             <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800, whiteSpace: 'nowrap' }}>
-              {bookingsSyncing
-                ? 'Sincronizando...'
-                : newBookingCount > 0
-                  ? `${newBookingCount} nuevas`
-                  : lastBookingsSyncAt
-                    ? `Actualizado ${lastBookingsSyncAt.toLocaleTimeString('es-UY', { hour: '2-digit', minute: '2-digit' })}`
-                    : 'Sincronización activa'}
+              {newBookingCount > 0 ? `🔔 ${newBookingCount} nuevas` : 'Actualiza cada 5 s'}
             </div>
           </div>
 
@@ -2916,7 +2688,7 @@ function ReservationsSection() {
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
                         <div>
-                          <div style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 950 }}>Pago y caja</div>
+                          <div style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 900 }}>Pago y caja</div>
                           <div style={{ fontSize: 11, color: '#6e6e73', fontWeight: 700, marginTop: 3 }}>
                             Registrá cobro, método de pago y montos para el cierre diario.
                           </div>
@@ -2946,15 +2718,15 @@ function ReservationsSection() {
                       >
                         <div style={{ background: '#fff', borderRadius: 14, padding: 11, border: '0.5px solid #edf0f5' }}>
                           <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900, marginBottom: 4 }}>PRECIO</div>
-                          <div style={{ fontSize: 14, color: '#1a1a1a', fontWeight: 950 }}>{formatMoney(servicePrice || 0)}</div>
+                          <div style={{ fontSize: 14, color: '#1a1a1a', fontWeight: 900 }}>{formatMoney(servicePrice || 0)}</div>
                         </div>
                         <div style={{ background: '#fff', borderRadius: 14, padding: 11, border: '0.5px solid #edf0f5' }}>
                           <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900, marginBottom: 4 }}>COBRADO</div>
-                          <div style={{ fontSize: 14, color: '#188038', fontWeight: 950 }}>{formatMoney(currentAmountPaid || 0)}</div>
+                          <div style={{ fontSize: 14, color: '#188038', fontWeight: 900 }}>{formatMoney(currentAmountPaid || 0)}</div>
                         </div>
                         <div style={{ background: '#fff', borderRadius: 14, padding: 11, border: '0.5px solid #edf0f5' }}>
                           <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900, marginBottom: 4 }}>PENDIENTE</div>
-                          <div style={{ fontSize: 14, color: pendingAmountNumber > 0 ? '#ff9f0a' : '#188038', fontWeight: 950 }}>{formatMoney(pendingAmountNumber)}</div>
+                          <div style={{ fontSize: 14, color: pendingAmountNumber > 0 ? '#ff9f0a' : '#188038', fontWeight: 900 }}>{formatMoney(pendingAmountNumber)}</div>
                         </div>
                       </div>
 
@@ -3502,31 +3274,31 @@ function CashSection() {
           <div style={{ fontSize: 17, fontWeight: 900, color: '#1a1a1a' }}>{title}</div>
           <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 750, marginTop: 3, lineHeight: 1.4 }}>{subtitle}</div>
         </div>
-        <div style={{ padding: '6px 10px', borderRadius: 999, background: '#f2f7ff', color: '#0071e3', fontSize: 11, fontWeight: 950 }}>
+        <div style={{ padding: '6px 10px', borderRadius: 999, background: '#f2f7ff', color: '#0071e3', fontSize: 11, fontWeight: 900 }}>
           {summary.days} {summary.days === 1 ? 'cierre' : 'cierres'}
         </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 9, marginBottom: 10 }}>
         <div style={periodMetricStyle}>
-          <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 950 }}>Cobrado</div>
-          <div style={{ fontSize: 16, color: '#188038', fontWeight: 950, marginTop: 4 }}>{formatMoney(summary.collected)}</div>
+          <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Cobrado</div>
+          <div style={{ fontSize: 16, color: '#188038', fontWeight: 900, marginTop: 4 }}>{formatMoney(summary.collected)}</div>
         </div>
         <div style={periodMetricStyle}>
-          <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 950 }}>Generado</div>
-          <div style={{ fontSize: 16, color: '#1a1a1a', fontWeight: 950, marginTop: 4 }}>{formatMoney(summary.generated)}</div>
+          <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Generado</div>
+          <div style={{ fontSize: 16, color: '#1a1a1a', fontWeight: 900, marginTop: 4 }}>{formatMoney(summary.generated)}</div>
         </div>
         <div style={periodMetricStyle}>
-          <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 950 }}>Pendiente</div>
-          <div style={{ fontSize: 16, color: '#ff9f0a', fontWeight: 950, marginTop: 4 }}>{formatMoney(summary.pending)}</div>
+          <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Pendiente</div>
+          <div style={{ fontSize: 16, color: '#ff9f0a', fontWeight: 900, marginTop: 4 }}>{formatMoney(summary.pending)}</div>
         </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8 }}>
-        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Citas</div><div style={{ fontSize: 13, fontWeight: 950 }}>{summary.bookings}</div></div>
-        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Efectivo</div><div style={{ fontSize: 13, fontWeight: 950 }}>{formatMoney(summary.cash)}</div></div>
-        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Transfer.</div><div style={{ fontSize: 13, fontWeight: 950 }}>{formatMoney(summary.transfer)}</div></div>
-        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Tarjeta</div><div style={{ fontSize: 13, fontWeight: 950 }}>{formatMoney(summary.card)}</div></div>
+        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Citas</div><div style={{ fontSize: 13, fontWeight: 900 }}>{summary.bookings}</div></div>
+        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Efectivo</div><div style={{ fontSize: 13, fontWeight: 900 }}>{formatMoney(summary.cash)}</div></div>
+        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Transfer.</div><div style={{ fontSize: 13, fontWeight: 900 }}>{formatMoney(summary.transfer)}</div></div>
+        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Tarjeta</div><div style={{ fontSize: 13, fontWeight: 900 }}>{formatMoney(summary.card)}</div></div>
       </div>
     </div>
   );
@@ -3631,19 +3403,19 @@ function CashSection() {
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 12 }}>
           <div style={cashCardStyle('#f7f7fb')}>
-            <div style={{ fontSize: 28, fontWeight: 950, color: '#1a1a1a' }}>{dayBookings.length}</div>
+            <div style={{ fontSize: 28, fontWeight: 900, color: '#1a1a1a' }}>{dayBookings.length}</div>
             <div style={smallStatStyle}>Citas del día</div>
           </div>
           <div style={cashCardStyle('#ecfff3')}>
-            <div style={{ fontSize: 28, fontWeight: 950, color: '#30d158' }}>{completedBookings.length}</div>
+            <div style={{ fontSize: 28, fontWeight: 900, color: '#30d158' }}>{completedBookings.length}</div>
             <div style={smallStatStyle}>Completadas</div>
           </div>
           <div style={cashCardStyle('#fff8eb')}>
-            <div style={{ fontSize: 28, fontWeight: 950, color: '#ff9f0a' }}>{pendingBookings.length}</div>
+            <div style={{ fontSize: 28, fontWeight: 900, color: '#ff9f0a' }}>{pendingBookings.length}</div>
             <div style={smallStatStyle}>Pendientes/confirmadas</div>
           </div>
           <div style={cashCardStyle('#fff1f0')}>
-            <div style={{ fontSize: 28, fontWeight: 950, color: '#ff453a' }}>{cancelledBookings.length}</div>
+            <div style={{ fontSize: 28, fontWeight: 900, color: '#ff453a' }}>{cancelledBookings.length}</div>
             <div style={smallStatStyle}>Canceladas</div>
           </div>
         </div>
@@ -3651,15 +3423,15 @@ function CashSection() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
           <div style={cashCardStyle('#f7f7fb')}>
             <div style={{ fontSize: 13, color: '#8e8e93', fontWeight: 900 }}>Total generado</div>
-            <div style={{ fontSize: 26, fontWeight: 950, color: '#1a1a1a', marginTop: 6 }}>{formatMoney(totalGenerated)}</div>
+            <div style={{ fontSize: 26, fontWeight: 900, color: '#1a1a1a', marginTop: 6 }}>{formatMoney(totalGenerated)}</div>
           </div>
           <div style={cashCardStyle('#ecfff3')}>
             <div style={{ fontSize: 13, color: '#8e8e93', fontWeight: 900 }}>Total cobrado</div>
-            <div style={{ fontSize: 26, fontWeight: 950, color: '#188038', marginTop: 6 }}>{formatMoney(totalCollected)}</div>
+            <div style={{ fontSize: 26, fontWeight: 900, color: '#188038', marginTop: 6 }}>{formatMoney(totalCollected)}</div>
           </div>
           <div style={cashCardStyle('#fff8eb')}>
             <div style={{ fontSize: 13, color: '#8e8e93', fontWeight: 900 }}>Pendiente de cobro</div>
-            <div style={{ fontSize: 26, fontWeight: 950, color: '#ff9f0a', marginTop: 6 }}>{formatMoney(totalPending)}</div>
+            <div style={{ fontSize: 26, fontWeight: 900, color: '#ff9f0a', marginTop: 6 }}>{formatMoney(totalPending)}</div>
           </div>
         </div>
       </div>
@@ -3694,7 +3466,7 @@ function CashSection() {
               background: closeLoading || dayBookings.length === 0 ? '#f2f2f7' : '#0071e3',
               color: closeLoading || dayBookings.length === 0 ? '#8e8e93' : '#fff',
               fontSize: 13,
-              fontWeight: 950,
+              fontWeight: 900,
               fontFamily: 'inherit',
               cursor: closeLoading || dayBookings.length === 0 ? 'not-allowed' : 'pointer',
               boxShadow: closeLoading || dayBookings.length === 0 ? 'none' : '0 10px 22px rgba(0,113,227,0.22)',
@@ -3735,7 +3507,7 @@ function CashSection() {
           {byMethod.map((method) => (
             <div key={method.value} style={{ background: '#f7f7fb', borderRadius: 16, padding: 14, border: '0.5px solid #ececf2' }}>
               <div style={{ fontSize: 13, fontWeight: 900, color: '#1a1a1a' }}>{method.label}</div>
-              <div style={{ fontSize: 21, fontWeight: 950, color: '#0071e3', marginTop: 6 }}>{formatMoney(method.total)}</div>
+              <div style={{ fontSize: 21, fontWeight: 900, color: '#0071e3', marginTop: 6 }}>{formatMoney(method.total)}</div>
             </div>
           ))}
         </div>
@@ -3790,11 +3562,11 @@ function CashSection() {
                 <div key={booking.id} style={{ border: '0.5px solid #ececf2', background: booking.status === 'cancelled' ? '#fffafa' : '#fff', borderRadius: 16, padding: 14 }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(0, 1fr) auto', gap: 12, alignItems: 'center' }}>
                     <div style={{ background: '#f2f2f7', borderRadius: 14, padding: 9, textAlign: 'center' }}>
-                      <div style={{ fontSize: 14, fontWeight: 950 }}>{formatTime(booking.startTime ?? booking.start_time) || '--:--'}</div>
+                      <div style={{ fontSize: 14, fontWeight: 900 }}>{formatTime(booking.startTime ?? booking.start_time) || '--:--'}</div>
                       <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 800, marginTop: 3 }}>{formatTime(booking.endTime ?? booking.end_time) || ''}</div>
                     </div>
                     <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 950, color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{booking.clientName ?? booking.client_name ?? 'Cliente sin nombre'}</div>
+                      <div style={{ fontSize: 13, fontWeight: 900, color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{booking.clientName ?? booking.client_name ?? 'Cliente sin nombre'}</div>
                       <div style={{ fontSize: 12, color: '#6e6e73', fontWeight: 700, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {booking.serviceName ?? booking.service_name ?? 'Servicio'}{booking.staffName || booking.staff_name ? ` · ${booking.staffName ?? booking.staff_name}` : ''}
                       </div>
@@ -3871,14 +3643,14 @@ function CashSection() {
                     }}
                   >
                     <div>
-                      <div style={{ fontSize: 14, fontWeight: 950, color: '#1a1a1a' }}>{formatDate(closure.closureDate ?? closure.closure_date)}</div>
+                      <div style={{ fontSize: 14, fontWeight: 900, color: '#1a1a1a' }}>{formatDate(closure.closureDate ?? closure.closure_date)}</div>
                       <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800, marginTop: 3 }}>
                         {(closure.totalBookings ?? closure.total_bookings ?? 0)} citas · {(closure.completedBookings ?? closure.completed_bookings ?? 0)} completadas
                       </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800 }}>Cobrado</div>
-                      <div style={{ fontSize: 14, color: '#188038', fontWeight: 950 }}>{formatMoney(closure.totalCollected ?? closure.total_collected ?? 0)}</div>
+                      <div style={{ fontSize: 14, color: '#188038', fontWeight: 900 }}>{formatMoney(closure.totalCollected ?? closure.total_collected ?? 0)}</div>
                     </div>
                     <div style={{ color: '#8e8e93', fontSize: 18 }}>{isExpanded ? '−' : '+'}</div>
                   </button>
@@ -3888,32 +3660,32 @@ function CashSection() {
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8 }}>
                         <div style={{ background: '#f7f7fb', borderRadius: 14, padding: 10 }}>
                           <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Generado</div>
-                          <div style={{ fontSize: 12, fontWeight: 950 }}>{formatMoney(closure.totalGenerated ?? closure.total_generated ?? 0)}</div>
+                          <div style={{ fontSize: 12, fontWeight: 900 }}>{formatMoney(closure.totalGenerated ?? closure.total_generated ?? 0)}</div>
                         </div>
                         <div style={{ background: '#ecfff3', borderRadius: 14, padding: 10 }}>
                           <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Cobrado</div>
-                          <div style={{ fontSize: 12, color: '#188038', fontWeight: 950 }}>{formatMoney(closure.totalCollected ?? closure.total_collected ?? 0)}</div>
+                          <div style={{ fontSize: 12, color: '#188038', fontWeight: 900 }}>{formatMoney(closure.totalCollected ?? closure.total_collected ?? 0)}</div>
                         </div>
                         <div style={{ background: '#fff8eb', borderRadius: 14, padding: 10 }}>
                           <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Pendiente</div>
-                          <div style={{ fontSize: 12, color: '#ff9f0a', fontWeight: 950 }}>{formatMoney(closure.totalPending ?? closure.total_pending ?? 0)}</div>
+                          <div style={{ fontSize: 12, color: '#ff9f0a', fontWeight: 900 }}>{formatMoney(closure.totalPending ?? closure.total_pending ?? 0)}</div>
                         </div>
                         <div style={{ background: '#fff1f0', borderRadius: 14, padding: 10 }}>
                           <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Canceladas</div>
-                          <div style={{ fontSize: 12, color: '#ff453a', fontWeight: 950 }}>{closure.cancelledBookings ?? closure.cancelled_bookings ?? 0}</div>
+                          <div style={{ fontSize: 12, color: '#ff453a', fontWeight: 900 }}>{closure.cancelledBookings ?? closure.cancelled_bookings ?? 0}</div>
                         </div>
                       </div>
 
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8 }}>
-                        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Efectivo</div><div style={{ fontSize: 12, fontWeight: 950 }}>{formatMoney(closure.cashTotal ?? closure.cash_total ?? 0)}</div></div>
-                        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Transferencia</div><div style={{ fontSize: 12, fontWeight: 950 }}>{formatMoney(closure.transferTotal ?? closure.transfer_total ?? 0)}</div></div>
-                        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Tarjeta</div><div style={{ fontSize: 12, fontWeight: 950 }}>{formatMoney(closure.cardTotal ?? closure.card_total ?? 0)}</div></div>
-                        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Otro</div><div style={{ fontSize: 12, fontWeight: 950 }}>{formatMoney(closure.otherTotal ?? closure.other_total ?? 0)}</div></div>
+                        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Efectivo</div><div style={{ fontSize: 12, fontWeight: 900 }}>{formatMoney(closure.cashTotal ?? closure.cash_total ?? 0)}</div></div>
+                        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Transferencia</div><div style={{ fontSize: 12, fontWeight: 900 }}>{formatMoney(closure.transferTotal ?? closure.transfer_total ?? 0)}</div></div>
+                        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Tarjeta</div><div style={{ fontSize: 12, fontWeight: 900 }}>{formatMoney(closure.cardTotal ?? closure.card_total ?? 0)}</div></div>
+                        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Otro</div><div style={{ fontSize: 12, fontWeight: 900 }}>{formatMoney(closure.otherTotal ?? closure.other_total ?? 0)}</div></div>
                       </div>
 
                       {services.length > 0 && (
                         <div style={{ background: '#fafafa', borderRadius: 15, padding: 12 }}>
-                          <div style={{ fontSize: 12, fontWeight: 950, marginBottom: 8 }}>Servicios incluidos</div>
+                          <div style={{ fontSize: 12, fontWeight: 900, marginBottom: 8 }}>Servicios incluidos</div>
                           <div style={{ display: 'grid', gap: 6 }}>
                             {services.map((service) => (
                               <div key={service.name} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 12, color: '#6e6e73', fontWeight: 800 }}>
@@ -4167,40 +3939,7 @@ function AvailabilityTable({ availability, onChange }) {
           margin: 0 0 6px 2px;
         }
 
-        
-
-        .booking-card-compact-info,
-        .appointment-card-compact-info,
-        .booking-header-compact-info,
-        .appointment-header-compact-info {
-          display: none !important;
-        }
-
-        .booking-card-header-name,
-        .appointment-card-header-name,
-        .booking-card-header-service,
-        .appointment-card-header-service {
-          display: none !important;
-        }
-
-        .booking-card-status-row,
-        .appointment-card-status-row {
-          display: flex !important;
-          justify-content: flex-end !important;
-          align-items: center !important;
-          gap: 8px !important;
-          min-width: 0 !important;
-        }
-
         @media (max-width: 760px) {
-          html,
-          body,
-          #root {
-            width: 100% !important;
-            max-width: 100vw !important;
-            overflow-x: hidden !important;
-          }
-
           .availability-desktop {
             display: none;
           }
@@ -4237,114 +3976,7 @@ function AvailabilityTable({ availability, onChange }) {
           .availability-mobile-field-full {
             grid-column: auto;
           }
-
         }
-
-        @media (max-width: 760px) {
-          .admin-panel-card {
-            padding-left: 10px !important;
-            padding-right: 10px !important;
-          }
-
-          .admin-list {
-            display: flex !important;
-            flex-direction: column !important;
-            align-items: center !important;
-            width: 100% !important;
-            max-width: 100% !important;
-            overflow: visible !important;
-          }
-
-          .admin-business-card {
-            width: 100% !important;
-            max-width: 100% !important;
-            min-width: 0 !important;
-            margin: 0 auto !important;
-            padding: 12px !important;
-            border-radius: 20px !important;
-            overflow: hidden !important;
-          }
-
-          .admin-card-topline {
-            display: grid !important;
-            grid-template-columns: minmax(0, 1fr) auto !important;
-            align-items: start !important;
-            gap: 8px !important;
-          }
-
-          .admin-card-topline > div:first-child {
-            min-width: 0 !important;
-            max-width: 100% !important;
-            overflow: hidden !important;
-          }
-
-          .admin-card-title,
-          .admin-card-subtitle,
-          .admin-card-link {
-            max-width: 100% !important;
-            min-width: 0 !important;
-            overflow: hidden !important;
-            text-overflow: ellipsis !important;
-            white-space: nowrap !important;
-          }
-
-          .admin-card-title {
-            font-size: 15.5px !important;
-          }
-
-          .admin-card-subtitle {
-            font-size: 12.5px !important;
-          }
-
-          .admin-card-link {
-            font-size: 12px !important;
-          }
-
-          .admin-status-badge {
-            max-width: 72px !important;
-            padding: 6px 8px !important;
-            font-size: 11.5px !important;
-          }
-
-          .admin-mobile-metrics {
-            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-            gap: 7px !important;
-          }
-
-          .admin-mobile-metrics div {
-            padding: 10px 9px !important;
-            border-radius: 14px !important;
-          }
-
-          .admin-progress {
-            width: 100% !important;
-            max-width: 100% !important;
-          }
-
-          .admin-action-grid {
-            display: grid !important;
-            grid-template-columns: 1fr !important;
-            gap: 8px !important;
-            width: 100% !important;
-            max-width: 100% !important;
-            overflow: hidden !important;
-          }
-
-          .admin-action-grid button,
-          .admin-action-grid button.primary {
-            grid-column: auto !important;
-            width: 100% !important;
-            max-width: 100% !important;
-            min-width: 0 !important;
-            min-height: 48px !important;
-            border-radius: 15px !important;
-            padding: 12px 10px !important;
-            font-size: 14px !important;
-            text-align: center !important;
-            overflow: hidden !important;
-            text-overflow: ellipsis !important;
-            white-space: nowrap !important;
-          }
       `}</style>
 
       <div className="availability-desktop">
@@ -4443,7 +4075,7 @@ function AvailabilityTable({ availability, onChange }) {
             <div key={dayInfo.dayOfWeek} className="availability-mobile-card">
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                 <div>
-                  <div style={{ fontSize: 16, color: '#1d1d1f', fontWeight: 900, letterSpacing: '-0.02em' }}>{dayInfo.label}</div>
+                  <div style={{ fontSize: 16, color: '#1d1d1f', fontWeight: 900, letterSpacing: '-0.006em' }}>{dayInfo.label}</div>
                   <div style={{ fontSize: 12, color: day.isActive ? '#188038' : '#8e8e93', fontWeight: 800, marginTop: 2 }}>
                     {day.isActive ? 'Disponible para reservas' : 'Día inactivo'}
                   </div>
@@ -5864,7 +5496,13 @@ function ServicesSection() {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.json())
-      .then((data) => setServices((data.services || []).map(normalizeService)))
+      .then((data) => {
+        const normalized = (data.services || [])
+          .map(normalizeService)
+          .filter((service) => String(service.name || '').trim());
+
+        setServices(normalized);
+      })
       .catch(() => {
         setServices([]);
         setError('No se pudieron cargar los servicios.');
@@ -5923,13 +5561,13 @@ function ServicesSection() {
         resetForm();
 
         if (Array.isArray(data.services)) {
-          setServices(data.services.map(normalizeService));
+          setServices(data.services.map(normalizeService).filter((service) => String(service.name || '').trim()));
         } else if (data.service) {
-          setServices((current) => {
-            const created = normalizeService(data.service);
-            const withoutDuplicate = current.filter((service) => String(service.id) !== String(created.id));
-            return [created, ...withoutDuplicate];
-          });
+          const created = normalizeService(data.service);
+          setServices((current) => [
+            created,
+            ...current.filter((service) => String(service.id) !== String(created.id)),
+          ].filter((service) => String(service.name || '').trim()));
         } else {
           fetchServices();
         }
@@ -5960,6 +5598,12 @@ function ServicesSection() {
   const saveEditing = async (serviceId) => {
     setError('');
     setMessage('');
+
+    if (!String(editing.name || '').trim()) {
+      setError('El nombre del servicio es obligatorio.');
+      return;
+    }
+
     setSaving(true);
 
     try {
@@ -5990,10 +5634,10 @@ function ServicesSection() {
         cancelEditing();
 
         if (Array.isArray(data.services)) {
-          setServices(data.services.map(normalizeService));
+          setServices(data.services.map(normalizeService).filter((service) => String(service.name || '').trim()));
         } else if (data.service) {
           const updated = normalizeService(data.service);
-          setServices((current) => current.map((service) => String(service.id) === String(updated.id) ? updated : service));
+          setServices((current) => current.map((service) => String(service.id) === String(updated.id) ? updated : service).filter((service) => String(service.name || '').trim()));
         } else {
           fetchServices();
         }
@@ -6027,7 +5671,7 @@ function ServicesSection() {
         setMessage('Servicio eliminado correctamente.');
 
         if (Array.isArray(data.services)) {
-          setServices(data.services.map(normalizeService));
+          setServices(data.services.map(normalizeService).filter((service) => String(service.name || '').trim()));
         } else {
           setServices((current) => current.filter((service) => String(service.id) !== String(serviceId)));
         }
@@ -6042,18 +5686,218 @@ function ServicesSection() {
   const visibleServices = services.filter((service) => String(service.name || '').trim());
 
   return (
-    <div style={{ background: '#fff', borderRadius: 20, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
-      <div style={{ marginBottom: 18 }}>
-        <div style={{ fontSize: 17, fontWeight: 700, color: '#1a1a1a' }}>Mis servicios</div>
-        <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 4 }}>
-          Agregá, modificá o eliminá servicios. La duración cambia automáticamente los horarios disponibles.
+    <section className="services-panel-clean">
+      <style>
+        {`
+          .services-panel-clean {
+            background: #fff;
+            border-radius: 22px;
+            padding: 20px 24px;
+            box-shadow: 0 1px 8px rgba(0,0,0,0.06);
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+            overflow: hidden;
+          }
+
+          .services-panel-clean-title {
+            font-size: 17px;
+            font-weight: 850;
+            color: #1a1a1a;
+            margin-bottom: 4px;
+            letter-spacing: -0.006em;
+          }
+
+          .services-panel-clean-subtitle {
+            font-size: 13px;
+            color: #6e6e73;
+            line-height: 1.45;
+            margin-bottom: 18px;
+            font-weight: 600;
+          }
+
+          .services-create-clean {
+            background: #f2f2f7;
+            border-radius: 18px;
+            padding: 16px;
+            margin-bottom: 14px;
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+            overflow: hidden;
+          }
+
+          .services-create-clean-title {
+            font-size: 14px;
+            font-weight: 850;
+            color: #1a1a1a;
+            margin-bottom: 12px;
+            letter-spacing: -0.004em;
+          }
+
+          .services-form-clean-grid {
+            display: grid;
+            grid-template-columns: 1.5fr 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 10px;
+          }
+
+          .services-created-clean-list {
+            display: grid;
+            gap: 10px;
+            margin-top: 12px;
+          }
+
+          .services-created-clean-item {
+            border: 1px solid #e8e8ed;
+            border-radius: 18px;
+            padding: 15px;
+            background: #fff;
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+            overflow: hidden;
+          }
+
+          .services-created-clean-item.inactive {
+            background: #fffafa;
+            opacity: 0.76;
+          }
+
+          .services-created-clean-top {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 10px;
+            align-items: start;
+          }
+
+          .services-created-clean-name {
+            font-size: 15px;
+            font-weight: 850;
+            color: #1a1a1a;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            letter-spacing: normal;
+          }
+
+          .services-created-clean-description {
+            font-size: 12px;
+            color: #6e6e73;
+            margin-top: 3px;
+            line-height: 1.35;
+          }
+
+          .services-created-clean-meta {
+            font-size: 12px;
+            color: #0071e3;
+            margin-top: 6px;
+            font-weight: 750;
+          }
+
+          .services-created-clean-status {
+            font-size: 11px;
+            font-weight: 850;
+            color: #188038;
+            background: #edfff3;
+            padding: 7px 11px;
+            border-radius: 999px;
+            min-height: 26px;
+            line-height: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            white-space: nowrap;
+            box-sizing: border-box;
+          }
+
+          .services-created-clean-status.inactive {
+            color: #ff453a;
+            background: #fff2f2;
+          }
+
+          .services-actions-clean {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 12px;
+          }
+
+          .services-actions-clean button {
+            width: 100%;
+            min-height: 42px;
+            border-radius: 12px;
+            font-weight: 800;
+            cursor: pointer;
+            font-family: inherit;
+          }
+
+          .services-edit-clean-grid {
+            display: grid;
+            grid-template-columns: 1.5fr 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 10px;
+          }
+
+          @media (max-width: 760px) {
+            .services-panel-clean {
+              padding: 16px 14px;
+              border-radius: 24px;
+            }
+
+            .services-panel-clean-title {
+              font-size: 18px;
+            }
+
+            .services-panel-clean-subtitle {
+              font-size: 12.5px;
+              margin-bottom: 14px;
+            }
+
+            .services-create-clean {
+              padding: 14px;
+              border-radius: 20px;
+              margin-bottom: 12px;
+            }
+
+            .services-form-clean-grid,
+            .services-edit-clean-grid {
+              grid-template-columns: 1fr !important;
+              gap: 9px;
+            }
+
+            .services-created-clean-item {
+              padding: 14px;
+              border-radius: 20px;
+            }
+
+            .services-created-clean-name {
+              font-size: 16px;
+            }
+
+            .services-actions-clean {
+              grid-template-columns: 1fr;
+            }
+
+            .services-actions-clean button {
+              min-height: 46px;
+              font-size: 14px;
+            }
+          }
+        `}
+      </style>
+
+      <div>
+        <div className="services-panel-clean-title">Mis servicios</div>
+        <div className="services-panel-clean-subtitle">
+          Agregá, modificá o eliminá servicios. Los servicios creados aparecen debajo.
         </div>
       </div>
 
-      <form onSubmit={handleCreate} style={{ background: '#f2f2f7', borderRadius: 16, padding: 16, marginBottom: 18 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>Agregar servicio</div>
+      <form onSubmit={handleCreate} className="services-create-clean">
+        <div className="services-create-clean-title">Agregar servicio</div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
+        <div className="services-form-clean-grid">
           <div>
             <label style={smallLabelStyle}>Nombre *</label>
             <input
@@ -6101,164 +5945,154 @@ function ServicesSection() {
         <button
           type="submit"
           disabled={saving}
-          style={{ width: '100%', padding: '12px', borderRadius: 12, border: 'none', background: saving ? '#aeaeb2' : '#0071e3', color: '#fff', fontSize: 14, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}
+          style={{ width: '100%', padding: '12px', borderRadius: 13, border: 'none', background: saving ? '#aeaeb2' : '#0071e3', color: '#fff', fontSize: 14, fontWeight: 850, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}
         >
           {saving ? 'Guardando...' : 'Crear servicio'}
         </button>
       </form>
 
       {message && (
-        <div style={{ background: '#edfff3', border: '0.5px solid #b7f5c8', borderRadius: 10, padding: '10px 12px', fontSize: 13, color: '#188038', marginBottom: 12 }}>
+        <div style={{ background: '#edfff3', border: '0.5px solid #b7f5c8', borderRadius: 12, padding: '10px 12px', fontSize: 13, color: '#188038', marginBottom: 12, fontWeight: 700 }}>
           {message}
         </div>
       )}
 
       {error && (
-        <div style={{ background: '#fff2f2', border: '0.5px solid #ffcdd2', borderRadius: 10, padding: '10px 12px', fontSize: 13, color: '#c62828', marginBottom: 12 }}>
+        <div style={{ background: '#fff2f2', border: '0.5px solid #ffcdd2', borderRadius: 12, padding: '10px 12px', fontSize: 13, color: '#c62828', marginBottom: 12, fontWeight: 700 }}>
           {error}
         </div>
       )}
 
       {loading ? (
-        <div style={{ textAlign: 'center', color: '#aeaeb2', padding: 28 }}>Cargando servicios...</div>
+        <div style={{ textAlign: 'center', color: '#aeaeb2', padding: 24, fontWeight: 750 }}>
+          Cargando servicios...
+        </div>
       ) : visibleServices.length === 0 ? null : (
-        visibleServices.map((service) => {
-          const isEditing = editingId === service.id;
+        <div className="services-created-clean-list">
+          {visibleServices.map((service) => {
+            const isEditing = editingId === service.id;
 
-          return (
-            <div
-              key={service.id}
-              style={{
-                border: '1px solid #e8e8ed',
-                borderRadius: 16,
-                padding: 16,
-                marginBottom: 10,
-                background: service.isActive ? '#fafafa' : '#fffafa',
-                opacity: service.isActive ? 1 : 0.65,
-              }}
-            >
-              {isEditing ? (
-                <>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
-                    <div>
-                      <label style={smallLabelStyle}>Nombre</label>
-                      <input
-                        style={inputStyle}
-                        value={editing.name}
-                        onChange={(e) => setEditing({ ...editing, name: e.target.value })}
-                      />
+            return (
+              <div key={service.id} className={`services-created-clean-item ${service.isActive ? '' : 'inactive'}`}>
+                {isEditing ? (
+                  <>
+                    <div className="services-edit-clean-grid">
+                      <div>
+                        <label style={smallLabelStyle}>Nombre</label>
+                        <input
+                          style={inputStyle}
+                          value={editing.name}
+                          onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+                        />
+                      </div>
+
+                      <div>
+                        <label style={smallLabelStyle}>Duración</label>
+                        <input
+                          style={inputStyle}
+                          type="number"
+                          min="5"
+                          step="5"
+                          value={editing.durationMinutes}
+                          onChange={(e) => setEditing({ ...editing, durationMinutes: e.target.value })}
+                        />
+                      </div>
+
+                      <div>
+                        <label style={smallLabelStyle}>Precio</label>
+                        <input
+                          style={inputStyle}
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={editing.price}
+                          onChange={(e) => setEditing({ ...editing, price: e.target.value })}
+                        />
+                      </div>
                     </div>
 
-                    <div>
-                      <label style={smallLabelStyle}>Duración</label>
-                      <input
-                        style={inputStyle}
-                        type="number"
-                        min="5"
-                        step="5"
-                        value={editing.durationMinutes}
-                        onChange={(e) => setEditing({ ...editing, durationMinutes: e.target.value })}
-                      />
-                    </div>
-
-                    <div>
-                      <label style={smallLabelStyle}>Precio</label>
-                      <input
-                        style={inputStyle}
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={editing.price}
-                        onChange={(e) => setEditing({ ...editing, price: e.target.value })}
-                      />
-                    </div>
-                  </div>
-
-                  <label style={smallLabelStyle}>Descripción</label>
-                  <input
-                    style={{ ...inputStyle, marginBottom: 10 }}
-                    value={editing.description}
-                    onChange={(e) => setEditing({ ...editing, description: e.target.value })}
-                  />
-
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#1a1a1a', marginBottom: 12 }}>
+                    <label style={smallLabelStyle}>Descripción</label>
                     <input
-                      type="checkbox"
-                      checked={editing.isActive}
-                      onChange={(e) => setEditing({ ...editing, isActive: e.target.checked })}
+                      style={{ ...inputStyle, marginBottom: 10 }}
+                      value={editing.description}
+                      onChange={(e) => setEditing({ ...editing, description: e.target.value })}
                     />
-                    Servicio activo
-                  </label>
 
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button
-                      type="button"
-                      onClick={() => saveEditing(service.id)}
-                      disabled={saving}
-                      style={{ flex: 1, padding: '10px', borderRadius: 10, border: 'none', background: '#0071e3', color: '#fff', fontWeight: 700, cursor: 'pointer' }}
-                    >
-                      Guardar
-                    </button>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#1a1a1a', marginBottom: 12, fontWeight: 700 }}>
+                      <input
+                        type="checkbox"
+                        checked={editing.isActive}
+                        onChange={(e) => setEditing({ ...editing, isActive: e.target.checked })}
+                      />
+                      Servicio activo
+                    </label>
 
-                    <button
-                      type="button"
-                      onClick={cancelEditing}
-                      style={{ flex: 1, padding: '10px', borderRadius: 10, border: '0.5px solid #d0d0d5', background: '#fff', color: '#6e6e73', fontWeight: 700, cursor: 'pointer' }}
-                    >
-                      Cancelar
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>
-                        {service.name}
-                      </div>
+                    <div className="services-actions-clean">
+                      <button
+                        type="button"
+                        onClick={() => saveEditing(service.id)}
+                        disabled={saving}
+                        style={{ border: 'none', background: '#0071e3', color: '#fff' }}
+                      >
+                        Guardar
+                      </button>
 
-                      {service.description && (
-                        <div style={{ fontSize: 12, color: '#6e6e73', marginTop: 3 }}>
-                          {service.description}
+                      <button
+                        type="button"
+                        onClick={cancelEditing}
+                        style={{ border: '0.5px solid #d0d0d5', background: '#fff', color: '#6e6e73' }}
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="services-created-clean-top">
+                      <div style={{ minWidth: 0 }}>
+                        <div className="services-created-clean-name">{service.name}</div>
+
+                        {service.description && (
+                          <div className="services-created-clean-description">{service.description}</div>
+                        )}
+
+                        <div className="services-created-clean-meta">
+                          {service.durationMinutes} min
+                          {service.price !== '' && service.price !== null && service.price !== undefined ? ` · $${service.price}` : ''}
                         </div>
-                      )}
+                      </div>
 
-                      <div style={{ fontSize: 12, color: '#0071e3', marginTop: 6 }}>
-                        Duración: {service.durationMinutes} min
-                        {service.price !== '' && service.price !== null && service.price !== undefined ? ` · $${service.price}` : ''}
+                      <div className={`services-created-clean-status ${service.isActive ? '' : 'inactive'}`}>
+                        {service.isActive ? 'Activo' : 'Inactivo'}
                       </div>
                     </div>
 
-                    <div style={{ fontSize: 11, fontWeight: 800, color: service.isActive ? '#188038' : '#ff453a', background: service.isActive ? '#edfff3' : '#fff2f2', padding: '6px 12px', borderRadius: 999, minHeight: 24, lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-start', whiteSpace: 'nowrap', boxSizing: 'border-box' }}>
-                      {service.isActive ? 'Activo' : 'Inactivo'}
+                    <div className="services-actions-clean">
+                      <button
+                        type="button"
+                        onClick={() => startEditing(service)}
+                        style={{ border: '0.5px solid #d0d0d5', background: '#fff', color: '#1a1a1a' }}
+                      >
+                        Editar
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => deleteService(service.id)}
+                        disabled={saving}
+                        style={{ border: 'none', background: '#ff453a', color: '#fff', cursor: saving ? 'not-allowed' : 'pointer' }}
+                      >
+                        Eliminar
+                      </button>
                     </div>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                    <button
-                      type="button"
-                      onClick={() => startEditing(service)}
-                      style={{ flex: 1, padding: '9px', borderRadius: 10, border: '0.5px solid #d0d0d5', background: '#fff', color: '#1a1a1a', fontWeight: 700, cursor: 'pointer' }}
-                    >
-                      Editar
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => deleteService(service.id)}
-                      disabled={saving}
-                      style={{ flex: 1, padding: '9px', borderRadius: 10, border: 'none', background: '#ff453a', color: '#fff', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}
-                    >
-                      Eliminar
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          );
-        })
+                  </>
+                )}
+              </div>
+            );
+          })}
+        </div>
       )}
-    </div>
+    </section>
   );
 }
 
@@ -7588,13 +7422,14 @@ function AdminLoginPage() {
 
 function AdminDashboardPage() {
   const navigate = useNavigate();
-  const adminLoginPath = '/login';
+  const location = useLocation();
+  const isAdminApp = location.pathname.startsWith('/admin-app');
+  const adminLoginPath = isAdminApp ? '/admin-app' : '/admin/login';
   const [stats, setStats] = useState(null);
   const [professionals, setProfessionals] = useState([]);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('all');
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [selectedBusiness, setSelectedBusiness] = useState(null);
   const [selectedBusinessBookings, setSelectedBusinessBookings] = useState([]);
@@ -7629,16 +7464,15 @@ function AdminDashboardPage() {
     }
 
     return data;
-  }, [navigate, adminLoginPath]);
+  }, [navigate]);
 
-  const loadAdminData = useCallback(async ({ silent = false } = {}) => {
+  const loadAdminData = useCallback(async () => {
     setError('');
-    if (silent) setRefreshing(true);
 
     try {
       const params = new URLSearchParams();
       if (search.trim()) params.set('search', search.trim());
-      if (status !== 'all' && status !== 'new') params.set('status', status);
+      if (status !== 'all') params.set('status', status);
 
       const [statsData, professionalsData] = await Promise.all([
         adminFetch('/admin/stats'),
@@ -7651,7 +7485,6 @@ function AdminDashboardPage() {
       setError(err.message || 'Error cargando panel admin');
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   }, [adminFetch, search, status]);
 
@@ -7666,7 +7499,7 @@ function AdminDashboardPage() {
 
   useEffect(() => {
     if (!token) return;
-    const timer = setInterval(() => loadAdminData({ silent: true }), 15000);
+    const timer = setInterval(loadAdminData, 10000);
     return () => clearInterval(timer);
   }, [token, loadAdminData]);
 
@@ -7694,7 +7527,7 @@ function AdminDashboardPage() {
         return { ...current, status: nextStatus };
       });
 
-      await loadAdminData({ silent: true });
+      await loadAdminData();
     } catch (err) {
       alert(err.message || 'No se pudo actualizar el negocio');
     }
@@ -7735,782 +7568,174 @@ function AdminDashboardPage() {
     }
   };
 
-  const buildPublicUrl = (professional) => {
-    const slug = professional?.slug;
-    return slug ? `https://tuagendaya.com/reservar/${slug}` : '';
-  };
-
-  const openPublicUrl = (professional) => {
-    const publicUrl = buildPublicUrl(professional);
-    if (!publicUrl) return;
-    window.open(publicUrl, '_blank', 'noopener,noreferrer');
-  };
-
-  const openWhatsApp = (professional) => {
-    const phone = normalizePhoneForWhatsApp(professional?.phone);
-    if (!phone) {
-      alert('Este negocio no tiene teléfono cargado');
-      return;
-    }
-
-    const businessName = professional.businessName || professional.name || 'tu negocio';
-    const message = `Hola, te escribo por tu cuenta de TuAgendaYa (${businessName}).`;
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
-  };
-
-  const isNewBusiness = (professional) => {
-    const value = professional?.createdAt || professional?.created_at;
-    if (!value) return false;
-
-    const created = new Date(value);
-    if (Number.isNaN(created.getTime())) return false;
-
-    const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
-    return created.getTime() >= thirtyDaysAgo;
-  };
-
-  const visibleProfessionals = status === 'new'
-    ? professionals.filter(isNewBusiness)
-    : professionals;
-
-  const activeCount = Number(stats?.professionals?.active || 0);
-  const suspendedCount = Number(stats?.professionals?.suspended || 0);
-  const totalCount = Number(stats?.professionals?.total || 0);
-  const todayBookings = Number(stats?.bookings?.today || 0);
-  const monthlyBookings = Number(stats?.bookings?.monthly || stats?.bookings?.upcoming || 0);
-  const clientsCount = Number(stats?.clients?.total || 0);
-
-  const primaryCards = [
-    { label: 'Activos', value: activeCount, color: '#188038', bg: '#edfff3', note: 'negocios usando la app' },
-    { label: 'Reservas hoy', value: todayBookings, color: '#ff9500', bg: '#fff7e8', note: 'actividad del día' },
-    { label: 'Reservas mes', value: monthlyBookings, color: '#0071e3', bg: '#eef6ff', note: 'uso reciente' },
-    { label: 'Clientes', value: clientsCount, color: '#111827', bg: '#f4f4f8', note: 'base total' },
+  const statCards = [
+    { label: 'Negocios', value: stats?.professionals?.total || 0, color: '#0071e3', bg: '#eef6ff' },
+    { label: 'Activos', value: stats?.professionals?.active || 0, color: '#21c55d', bg: '#edfff3' },
+    { label: 'Suspendidos', value: stats?.professionals?.suspended || 0, color: '#ff3b30', bg: '#fff0f0' },
+    { label: 'Reservas totales', value: stats?.bookings?.total || 0, color: '#5856d6', bg: '#f1f0ff' },
+    { label: 'Reservas este mes', value: stats?.bookings?.monthly || 0, color: '#0071e3', bg: '#eef6ff' },
+    { label: 'Reservas hoy', value: stats?.bookings?.today || 0, color: '#ff9500', bg: '#fff7e8' },
+    { label: 'Clientes', value: stats?.clients?.total || 0, color: '#111827', bg: '#f4f4f8' },
   ];
-
-  const filterOptions = [
-    { value: 'all', label: 'Todos', count: totalCount },
-    { value: 'active', label: 'Activos', count: activeCount },
-    { value: 'suspended', label: 'Suspendidos', count: suspendedCount },
-    { value: 'new', label: 'Nuevos', count: professionals.filter(isNewBusiness).length },
-  ];
-
-  const renderBusinessCard = (professional) => {
-    const publicUrl = buildPublicUrl(professional);
-    const isActive = professional.status !== 'suspended';
-    const planName = professional.plan || 'Gratis';
-    const monthlyLimit = Number(professional.monthlyLimit || professional.monthly_limit || 1000);
-    const monthlyUsed = Number(professional.monthlyBookingsCount || professional.monthly_bookings_count || 0);
-    const monthlyPercent = monthlyLimit > 0 ? Math.min(100, Math.round((monthlyUsed / monthlyLimit) * 100)) : 0;
-    const businessName = professional.businessName || professional.name || 'Negocio sin nombre';
-
-    return (
-      <article key={professional.id} className="admin-business-card">
-        <div className="admin-card-topline">
-          <div style={{ minWidth: 0 }}>
-            <div className="admin-card-title">{businessName}</div>
-            <div className="admin-card-subtitle">
-              {professional.profession || 'Sin rubro'} · {professional.email || 'Sin email'}
-            </div>
-            <div className="admin-card-link">
-              {publicUrl || 'Sin link público'}
-            </div>
-          </div>
-
-          <span className={`admin-status-badge ${isActive ? 'active' : 'suspended'}`}>
-            {isActive ? 'Activo' : 'Suspendido'}
-          </span>
-        </div>
-
-        <div className="admin-mobile-metrics">
-          <div>
-            <strong>{planName}</strong>
-            <span>Plan</span>
-          </div>
-          <div>
-            <strong>{professional.bookingsCount || 0}</strong>
-            <span>Reservas</span>
-          </div>
-          <div>
-            <strong>{professional.clientsCount || 0}</strong>
-            <span>Clientes</span>
-          </div>
-          <div>
-            <strong>{monthlyUsed}/{monthlyLimit}</strong>
-            <span>Mes</span>
-          </div>
-        </div>
-
-        <div className="admin-progress">
-          <div style={{ width: `${monthlyPercent}%` }} />
-        </div>
-
-        <div className="admin-action-grid">
-          <button type="button" className="primary" onClick={() => openBusinessDetail(professional)}>
-            Ver detalle
-          </button>
-          <button type="button" onClick={() => openPublicUrl(professional)} disabled={!publicUrl}>
-            Abrir reserva
-          </button>
-          <button type="button" onClick={() => copyText(publicUrl, 'Link público copiado')} disabled={!publicUrl}>
-            Copiar link
-          </button>
-          <button type="button" onClick={() => openWhatsApp(professional)}>
-            WhatsApp
-          </button>
-          <button
-            type="button"
-            className={isActive ? 'danger' : 'success'}
-            onClick={() => updateStatus(professional, isActive ? 'suspended' : 'active')}
-          >
-            {isActive ? 'Suspender' : 'Activar'}
-          </button>
-        </div>
-      </article>
-    );
-  };
 
   return (
-    <div className="admin-mobile-page" style={{ minHeight: '100vh', background: '#f2f2f7', padding: '16px 14px 28px', fontFamily: APP_FONT }}>
+    <div style={{ minHeight: '100vh', background: '#f2f2f7', padding: '22px 16px', fontFamily: APP_FONT }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap');
         * { box-sizing: border-box; }
         button, input, select { font-family: ${APP_FONT}; }
-
-        .admin-shell {
-          max-width: 1080px;
-          margin: 0 auto;
-        }
-
-        .admin-top {
-          background: #fff;
-          border: 0.5px solid rgba(0,0,0,0.05);
-          border-radius: 28px;
-          padding: 22px;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 18px;
-          box-shadow: 0 1px 10px rgba(0,0,0,0.06);
-          margin-bottom: 14px;
-        }
-
-        .admin-title {
-          margin: 14px 0 4px;
-          color: #1a1a1a;
-          font-size: 25px;
-          font-weight: 950;
-          letter-spacing: -0.018em;
-        }
-
-        .admin-muted {
-          margin: 0;
-          color: #6e6e73;
-          font-size: 14px;
-          line-height: 1.55;
-          font-weight: 650;
-        }
-
-        .admin-logout {
-          border: 1px solid #e0e0e5;
-          background: #fff;
-          border-radius: 14px;
-          padding: 10px 16px;
-          color: #6e6e73;
-          font-size: 14px;
-          font-weight: 850;
-          cursor: pointer;
-          white-space: nowrap;
-        }
-
-        .admin-summary-grid {
-          display: grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 10px;
-          margin-bottom: 14px;
-        }
-
-        .admin-summary-card {
-          border-radius: 20px;
-          padding: 15px;
-          border: 1px solid rgba(0,0,0,0.04);
-          min-height: 92px;
-          display: flex;
-          flex-direction: column;
-          justify-content: space-between;
-        }
-
-        .admin-summary-card strong {
-          display: block;
-          font-size: 27px;
-          line-height: 1;
-          font-weight: 950;
-          margin-bottom: 5px;
-        }
-
-        .admin-summary-card span {
-          display: block;
-          color: #1a1a1a;
-          font-size: 12.5px;
-          font-weight: 950;
-        }
-
-        .admin-summary-card small {
-          display: block;
-          margin-top: 3px;
-          color: #6e6e73;
-          font-size: 11px;
-          font-weight: 750;
-        }
-
-        .admin-panel-card {
-          background: #fff;
-          border: 0.5px solid rgba(0,0,0,0.05);
-          border-radius: 28px;
-          padding: 20px;
-          box-shadow: 0 1px 10px rgba(0,0,0,0.06);
-        }
-
-        .admin-panel-header {
-          display: flex;
-          justify-content: space-between;
-          gap: 12px;
-          align-items: flex-start;
-          margin-bottom: 14px;
-        }
-
-        .admin-panel-header h2 {
-          margin: 0 0 5px;
-          color: #1a1a1a;
-          font-size: 21px;
-          font-weight: 950;
-          letter-spacing: -0.012em;
-        }
-
-        .admin-refresh {
-          border: 1px solid #dcdce3;
-          background: #fff;
-          border-radius: 14px;
-          padding: 10px 13px;
-          color: #0071e3;
-          font-size: 13px;
-          font-weight: 900;
-          cursor: pointer;
-          white-space: nowrap;
-        }
-
-        .admin-search-box {
-          position: sticky;
-          top: 0;
-          z-index: 8;
-          background: rgba(255,255,255,0.94);
-          backdrop-filter: blur(18px);
-          -webkit-backdrop-filter: blur(18px);
-          border: 0.5px solid rgba(220,220,227,0.9);
-          border-radius: 22px;
-          padding: 10px;
-          margin-bottom: 14px;
-          box-shadow: 0 10px 30px rgba(15,23,42,0.07);
-        }
-
-        .admin-search-box input {
-          width: 100%;
-          border: none;
-          background: #f5f5f7;
-          border-radius: 16px;
-          padding: 13px 14px;
-          outline: none;
-          font-size: 15px;
-          color: #1a1a1a;
-          font-weight: 750;
-        }
-
-        .admin-filter-chips {
-          display: flex;
-          gap: 8px;
-          overflow-x: auto;
-          padding: 10px 0 1px;
-          -webkit-overflow-scrolling: touch;
-        }
-
-        .admin-filter-chips::-webkit-scrollbar {
-          display: none;
-        }
-
-        .admin-filter-chip {
-          border: 1px solid #e0e0e5;
-          background: #fff;
-          color: #6e6e73;
-          border-radius: 999px;
-          padding: 9px 12px;
-          font-size: 13px;
-          font-weight: 900;
-          cursor: pointer;
-          white-space: nowrap;
-        }
-
-        .admin-filter-chip.active {
-          border-color: #0071e3;
-          background: #0071e3;
-          color: #fff;
-        }
-
-        .admin-list {
-          display: grid;
-          gap: 12px;
-          width: 100%;
-          max-width: 100%;
-          overflow: hidden;
-        }
-
-        .admin-business-card {
-          border: 1px solid #e8e8ed;
-          border-radius: 22px;
-          padding: 16px;
-          background: #fff;
-          display: grid;
-          gap: 12px;
-          width: 100%;
-          max-width: 100%;
-          min-width: 0;
-          overflow: hidden;
-        }
-
-        .admin-card-topline {
-          display: flex;
-          justify-content: space-between;
-          gap: 12px;
-          align-items: flex-start;
-        }
-
-        .admin-card-title {
-          color: #1a1a1a;
-          font-size: 17px;
-          font-weight: 950;
-          letter-spacing: -0.012em;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-
-        .admin-card-subtitle {
-          color: #6e6e73;
-          font-size: 13px;
-          margin-top: 4px;
-          font-weight: 750;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-
-        .admin-card-link {
-          color: #0071e3;
-          font-size: 12.5px;
-          margin-top: 6px;
-          font-weight: 850;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-
-        .admin-status-badge {
-          flex: 0 0 auto;
-          border-radius: 999px;
-          padding: 7px 10px;
-          font-size: 12px;
-          font-weight: 950;
-        }
-
-        .admin-status-badge.active {
-          background: #edfff3;
-          color: #188038;
-        }
-
-        .admin-status-badge.suspended {
-          background: #fff0f0;
-          color: #ff3b30;
-        }
-
-        .admin-mobile-metrics {
-          display: grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 8px;
-        }
-
-        .admin-mobile-metrics div {
-          background: #f7f7fb;
-          border-radius: 15px;
-          padding: 11px 9px;
-          min-width: 0;
-        }
-
-        .admin-mobile-metrics strong {
-          display: block;
-          color: #1a1a1a;
-          font-size: 16px;
-          font-weight: 950;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-
-        .admin-mobile-metrics span {
-          display: block;
-          color: #8e8e93;
-          font-size: 11.5px;
-          font-weight: 850;
-          margin-top: 2px;
-        }
-
-        .admin-progress {
-          height: 6px;
-          border-radius: 999px;
-          background: #e5e5ea;
-          overflow: hidden;
-        }
-
-        .admin-progress div {
-          height: 100%;
-          border-radius: 999px;
-          background: #0071e3;
-        }
-
-        .admin-action-grid {
-          display: grid;
-          grid-template-columns: repeat(5, minmax(0, 1fr));
-          gap: 8px;
-        }
-
-        .admin-action-grid button {
-          border: 1px solid #dcdce3;
-          border-radius: 15px;
-          padding: 11px 9px;
-          background: #fff;
-          color: #0071e3;
-          font-size: 13px;
-          font-weight: 950;
-          cursor: pointer;
-          min-height: 43px;
-        }
-
-        .admin-action-grid button.primary {
-          border: none;
-          background: #0071e3;
-          color: #fff;
-        }
-
-        .admin-action-grid button.danger {
-          border: none;
-          background: #ff3b30;
-          color: #fff;
-        }
-
-        .admin-action-grid button.success {
-          border: none;
-          background: #21c55d;
-          color: #fff;
-        }
-
-        .admin-action-grid button:disabled {
-          opacity: 0.45;
-          cursor: not-allowed;
-        }
-
-        .admin-detail-actions {
-          display: grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 10px;
-          margin-top: 14px;
-        }
-
-        .admin-detail-actions button {
-          border: 1px solid #dcdce3;
-          border-radius: 14px;
-          padding: 11px 12px;
-          background: #fff;
-          color: #0071e3;
-          font-weight: 900;
-          cursor: pointer;
-        }
-
-        .admin-detail-actions button.primary {
-          border: none;
-          background: #0071e3;
-          color: #fff;
-        }
-
-        .admin-detail-actions button.danger {
-          border: none;
-          background: #ff3b30;
-          color: #fff;
-        }
-
-        .admin-detail-actions button.success {
-          border: none;
-          background: #21c55d;
-          color: #fff;
-        }
-
         @media (max-width: 760px) {
-          .admin-mobile-page {
-            padding: max(16px, env(safe-area-inset-top)) 12px 28px !important;
-            width: 100% !important;
-            max-width: 100vw !important;
-            overflow-x: hidden !important;
-          }
-
-          .admin-shell {
-            width: 100% !important;
-            max-width: 100% !important;
-            overflow-x: hidden !important;
-          }
-
-          .admin-top {
-            border-radius: 24px;
-            padding: 18px;
-            align-items: flex-start;
-          }
-
-          .admin-title {
-            font-size: 21px;
-            margin-top: 12px;
-          }
-
-          .admin-muted {
-            font-size: 13px;
-          }
-
-          .admin-logout {
-            padding: 9px 11px;
-            font-size: 12.5px;
-          }
-
-          .admin-summary-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-          }
-
-          .admin-summary-card {
-            min-height: 86px;
-            padding: 14px;
-          }
-
-          .admin-summary-card strong {
-            font-size: 25px;
-          }
-
-          .admin-panel-card {
-            border-radius: 24px;
-            padding: 14px;
-            width: 100% !important;
-            max-width: 100% !important;
-            overflow: hidden !important;
-          }
-
-          .admin-panel-header {
-            align-items: center;
-          }
-
-          .admin-panel-header h2 {
-            font-size: 18px;
-          }
-
-          .admin-search-box {
-            top: env(safe-area-inset-top);
-            margin-left: 0;
-            margin-right: 0;
-            width: 100% !important;
-            max-width: 100% !important;
-            overflow: hidden !important;
-            border-radius: 20px;
-          }
-
-          .admin-search-box input {
-            width: 100% !important;
-            max-width: 100% !important;
-            min-width: 0 !important;
-          }
-
-          .admin-filter-chips {
-            width: 100% !important;
-            max-width: 100% !important;
-            overflow-x: auto !important;
-            padding-bottom: 3px;
-          }
-
-          .admin-filter-chip {
-            flex: 0 0 auto;
-          }
-
-          .admin-business-card {
-            border-radius: 22px;
-            padding: 14px;
-            width: 100% !important;
-            max-width: 100% !important;
-            min-width: 0 !important;
-            overflow: hidden !important;
-          }
-
-          .admin-card-topline {
-            width: 100% !important;
-            max-width: 100% !important;
-            min-width: 0 !important;
-          }
-
-          .admin-card-topline > div:first-child {
-            min-width: 0 !important;
-            max-width: calc(100% - 86px) !important;
-          }
-
-          .admin-card-link {
-            display: block;
-            max-width: 100% !important;
-            overflow: hidden !important;
-            text-overflow: ellipsis !important;
-            white-space: nowrap !important;
-          }
-
-          .admin-status-badge {
-            max-width: 80px;
-            text-align: center;
-          }
-
-          .admin-card-title {
-            font-size: 16px;
-          }
-
-          .admin-mobile-metrics {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            width: 100% !important;
-            max-width: 100% !important;
-            gap: 8px;
-          }
-
-          .admin-mobile-metrics div {
-            min-width: 0 !important;
-            overflow: hidden !important;
-          }
-
-          .admin-action-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            width: 100% !important;
-            max-width: 100% !important;
-            gap: 8px;
-          }
-
-          .admin-action-grid button {
-            min-width: 0 !important;
-            width: 100% !important;
-            max-width: 100% !important;
-            padding-left: 8px !important;
-            padding-right: 8px !important;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-          }
-
-          .admin-action-grid button.primary {
-            grid-column: span 2;
-          }
-
-          .admin-detail-actions {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-          }
-
-          .admin-business-metrics,
-          .admin-detail-grid {
-            grid-template-columns: 1fr 1fr !important;
-          }
-
-          .admin-modal-card {
-            border-radius: 24px !important;
-            padding: 18px !important;
-            max-height: 90vh !important;
-          }
+          .admin-grid { grid-template-columns: 1fr !important; }
+          .admin-header { flex-direction: column !important; align-items: stretch !important; }
+          .admin-filters { grid-template-columns: 1fr !important; }
+          .admin-business-metrics { grid-template-columns: 1fr !important; }
+          .admin-business-actions { grid-template-columns: 1fr !important; }
+          .admin-detail-grid { grid-template-columns: 1fr !important; }
         }
       `}</style>
 
-      <div className="admin-shell">
-        <header className="admin-top">
+      <div style={{ maxWidth: 1040, margin: '0 auto' }}>
+        <div className="admin-header" style={{ background: '#fff', borderRadius: 26, padding: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18, boxShadow: '0 1px 10px rgba(0,0,0,0.06)', marginBottom: 18 }}>
           <div>
-            <TuAgendaLogo height={40} />
-            <h1 className="admin-title">Panel dueño</h1>
-            <p className="admin-muted">Control rápido de negocios, reservas y clientes.</p>
+            <TuAgendaLogo height={42} />
+            <h1 style={{ margin: '18px 0 6px', color: '#1a1a1a', fontSize: 25, fontWeight: 900 }}>Panel dueño de TuAgendaYa</h1>
+            <p style={{ margin: 0, color: '#6e6e73', fontSize: 14, lineHeight: 1.45 }}>Control general de negocios, reservas y clientes registrados.</p>
           </div>
 
-          <button type="button" onClick={handleLogout} className="admin-logout">
-            Salir
+          <button onClick={handleLogout} style={{ border: '1px solid #e0e0e5', background: '#fff', borderRadius: 14, padding: '10px 16px', color: '#6e6e73', fontSize: 14, fontWeight: 800, cursor: 'pointer' }}>
+            Cerrar sesión
           </button>
-        </header>
+        </div>
 
         {error && (
-          <div style={{ background: '#fff0f0', color: '#d92d20', borderRadius: 18, padding: 14, fontSize: 14, fontWeight: 850, marginBottom: 14 }}>
+          <div style={{ background: '#fff0f0', color: '#d92d20', borderRadius: 18, padding: 14, fontSize: 14, fontWeight: 800, marginBottom: 16 }}>
             {error}
           </div>
         )}
 
-        <section className="admin-summary-grid">
-          {primaryCards.map((card) => (
-            <div key={card.label} className="admin-summary-card" style={{ background: card.bg }}>
-              <div>
-                <strong style={{ color: card.color }}>{card.value}</strong>
-                <span>{card.label}</span>
-              </div>
-              <small>{card.note}</small>
+        <div className="admin-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginBottom: 18 }}>
+          {statCards.map((card) => (
+            <div key={card.label} style={{ background: card.bg, borderRadius: 18, padding: 16, border: '1px solid rgba(0,0,0,0.04)' }}>
+              <div style={{ color: card.color, fontSize: 24, fontWeight: 900, marginBottom: 6 }}>{card.value}</div>
+              <div style={{ color: '#6e6e73', fontSize: 12, fontWeight: 800 }}>{card.label}</div>
             </div>
           ))}
-        </section>
+        </div>
 
-        <section className="admin-panel-card">
-          <div className="admin-panel-header">
+        <div style={{ background: '#fff', borderRadius: 24, padding: 22, boxShadow: '0 1px 10px rgba(0,0,0,0.06)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 16 }}>
             <div>
-              <h2>Negocios</h2>
-              <p className="admin-muted">Buscá, abrí el link público o accioná rápido.</p>
+              <h2 style={{ margin: '0 0 6px', color: '#1a1a1a', fontSize: 20, fontWeight: 900 }}>Negocios registrados</h2>
+              <p style={{ margin: 0, color: '#6e6e73', fontSize: 13 }}>Ver detalle, copiar link público, activar o suspender negocios.</p>
             </div>
-
-            <button
-              type="button"
-              className="admin-refresh"
-              onClick={() => loadAdminData({ silent: true })}
-              disabled={refreshing}
-            >
-              {refreshing ? 'Actualizando...' : 'Actualizar'}
-            </button>
           </div>
 
-          <div className="admin-search-box">
+          <div className="admin-filters" style={{ display: 'grid', gridTemplateColumns: '1fr 180px', gap: 10, marginBottom: 16 }}>
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Buscar negocio, email, nombre o rubro"
+              placeholder="Buscar por negocio, email, slug o rubro"
+              style={{ width: '100%', border: '1px solid #dcdce3', borderRadius: 14, padding: '12px 14px', outline: 'none', fontSize: 14 }}
             />
-
-            <div className="admin-filter-chips">
-              {filterOptions.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => setStatus(option.value)}
-                  className={`admin-filter-chip ${status === option.value ? 'active' : ''}`}
-                >
-                  {option.label} {option.count}
-                </button>
-              ))}
-            </div>
+            <select
+              value={status}
+              onChange={(event) => setStatus(event.target.value)}
+              style={{ width: '100%', border: '1px solid #dcdce3', borderRadius: 14, padding: '12px 14px', outline: 'none', fontSize: 14, background: '#fff' }}
+            >
+              <option value="all">Todos</option>
+              <option value="active">Activos</option>
+              <option value="suspended">Suspendidos</option>
+            </select>
           </div>
 
           {loading ? (
-            <div style={{ padding: 40, textAlign: 'center', color: '#8e8e93', fontSize: 15, fontWeight: 850 }}>
-              Cargando negocios...
-            </div>
-          ) : visibleProfessionals.length === 0 ? (
-            <div style={{ padding: 40, textAlign: 'center', color: '#8e8e93', fontSize: 15, fontWeight: 850 }}>
-              No hay negocios para mostrar.
-            </div>
+            <div style={{ padding: 40, textAlign: 'center', color: '#8e8e93', fontSize: 15 }}>Cargando negocios...</div>
+          ) : professionals.length === 0 ? (
+            <div style={{ padding: 40, textAlign: 'center', color: '#8e8e93', fontSize: 15 }}>No hay negocios para mostrar.</div>
           ) : (
-            <div className="admin-list">
-              {visibleProfessionals.map(renderBusinessCard)}
+            <div style={{ display: 'grid', gap: 12 }}>
+              {professionals.map((professional) => {
+                const publicUrl = professional.slug ? `https://tuagendaya-web.onrender.com/reservar/${professional.slug}` : '';
+                const isActive = professional.status !== 'suspended';
+                const planName = professional.plan || 'Profesional';
+                const monthlyLimit = Number(professional.monthlyLimit || professional.monthly_limit || 1000);
+                const monthlyUsed = Number(professional.monthlyBookingsCount || professional.monthly_bookings_count || 0);
+                const monthlyPercent = monthlyLimit > 0 ? Math.min(100, Math.round((monthlyUsed / monthlyLimit) * 100)) : 0;
+
+                return (
+                  <div key={professional.id} style={{ border: '1px solid #e8e8ed', borderRadius: 18, padding: 16, background: '#fff', display: 'grid', gap: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                      <div>
+                        <div style={{ color: '#1a1a1a', fontSize: 16, fontWeight: 900 }}>
+                          {professional.businessName || professional.name || 'Negocio sin nombre'}
+                        </div>
+                        <div style={{ color: '#6e6e73', fontSize: 13, marginTop: 4 }}>
+                          {professional.email || 'Sin email'} · {professional.profession || 'Sin rubro'}
+                        </div>
+                        {publicUrl && (
+                          <a href={publicUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: 6, color: '#0071e3', fontSize: 13, fontWeight: 800, textDecoration: 'none' }}>
+                            Abrir link público
+                          </a>
+                        )}
+                      </div>
+
+                      <span style={{ borderRadius: 999, padding: '6px 10px', fontSize: 12, fontWeight: 900, background: isActive ? '#edfff3' : '#fff0f0', color: isActive ? '#188038' : '#ff3b30' }}>
+                        {isActive ? 'Activo' : 'Suspendido'}
+                      </span>
+                    </div>
+
+                    <div className="admin-business-metrics" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 10 }}>
+                      <div style={{ background: '#eef6ff', borderRadius: 14, padding: 12 }}>
+                        <div style={{ fontSize: 15, fontWeight: 900, color: '#0071e3' }}>{planName}</div>
+                        <div style={{ fontSize: 12, color: '#6e6e73', fontWeight: 800 }}>Plan</div>
+                      </div>
+                      <div style={{ background: '#f7f7fb', borderRadius: 14, padding: 12 }}>
+                        <div style={{ fontSize: 18, fontWeight: 900, color: '#1a1a1a' }}>{monthlyUsed}/{monthlyLimit}</div>
+                        <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 800 }}>Reservas del mes</div>
+                        <div style={{ marginTop: 8, height: 6, borderRadius: 999, background: '#e5e5ea', overflow: 'hidden' }}>
+                          <div style={{ width: `${monthlyPercent}%`, height: '100%', borderRadius: 999, background: monthlyPercent >= 90 ? '#ff3b30' : '#0071e3' }} />
+                        </div>
+                      </div>
+                      <div style={{ background: '#f7f7fb', borderRadius: 14, padding: 12 }}>
+                        <div style={{ fontSize: 18, fontWeight: 900, color: '#1a1a1a' }}>{professional.bookingsCount || 0}</div>
+                        <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 800 }}>Reservas totales</div>
+                      </div>
+                      <div style={{ background: '#f7f7fb', borderRadius: 14, padding: 12 }}>
+                        <div style={{ fontSize: 18, fontWeight: 900, color: '#1a1a1a' }}>{professional.clientsCount || 0}</div>
+                        <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 800 }}>Clientes</div>
+                      </div>
+                    </div>
+
+                    <div className="admin-business-actions" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                      <button
+                        type="button"
+                        onClick={() => openBusinessDetail(professional)}
+                        style={{ border: 'none', borderRadius: 14, padding: '11px 14px', background: '#0071e3', color: '#fff', fontWeight: 900, cursor: 'pointer' }}
+                      >
+                        Ver detalle
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateStatus(professional, isActive ? 'suspended' : 'active')}
+                        style={{ border: 'none', borderRadius: 14, padding: '11px 14px', background: isActive ? '#ff3b30' : '#21c55d', color: '#fff', fontWeight: 900, cursor: 'pointer' }}
+                      >
+                        {isActive ? 'Suspender negocio' : 'Activar negocio'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => copyText(publicUrl, 'Link público copiado')}
+                        disabled={!publicUrl}
+                        style={{ border: '1px solid #dcdce3', borderRadius: 14, padding: '11px 14px', background: '#fff', color: '#0071e3', fontWeight: 900, cursor: publicUrl ? 'pointer' : 'not-allowed' }}
+                      >
+                        Copiar link
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
-        </section>
+        </div>
       </div>
 
       {selectedBusiness && (
@@ -8522,14 +7747,13 @@ function AdminDashboardPage() {
             inset: 0,
             background: 'rgba(0,0,0,0.32)',
             zIndex: 9999,
-            padding: 12,
+            padding: 18,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
           }}
         >
           <div
-            className="admin-modal-card"
             role="presentation"
             onClick={(event) => event.stopPropagation()}
             style={{
@@ -8543,14 +7767,10 @@ function AdminDashboardPage() {
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'flex-start', marginBottom: 16 }}>
-              <div style={{ minWidth: 0 }}>
+              <div>
                 <div style={{ fontSize: 13, color: '#8e8e93', fontWeight: 900, marginBottom: 4 }}>Detalle del negocio</div>
-                <h2 style={{ margin: 0, fontSize: 24, color: '#1a1a1a', fontWeight: 950, letterSpacing: '-0.04em', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {selectedBusiness.businessName || selectedBusiness.name || 'Negocio'}
-                </h2>
-                <p style={{ margin: '8px 0 0', color: '#6e6e73', fontSize: 14, fontWeight: 700 }}>
-                  {selectedBusiness.email || 'Sin email'} · {selectedBusiness.profession || 'Sin rubro'}
-                </p>
+                <h2 style={{ margin: 0, fontSize: 24, color: '#1a1a1a', fontWeight: 900 }}>{selectedBusiness.businessName || selectedBusiness.name || 'Negocio'}</h2>
+                <p style={{ margin: '8px 0 0', color: '#6e6e73', fontSize: 14 }}>{selectedBusiness.email || 'Sin email'} · {selectedBusiness.profession || 'Sin rubro'}</p>
               </div>
               <button type="button" onClick={closeBusinessDetail} style={{ border: '1px solid #e1e1e8', background: '#fff', borderRadius: 14, padding: '9px 13px', fontWeight: 900, cursor: 'pointer' }}>
                 Cerrar
@@ -8569,77 +7789,82 @@ function AdminDashboardPage() {
               <>
                 <div className="admin-detail-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 10, marginBottom: 16 }}>
                   <div style={{ background: '#eef6ff', borderRadius: 16, padding: 14 }}>
-                    <div style={{ fontSize: 15, fontWeight: 950, color: '#0071e3' }}>{selectedBusiness.plan || 'Gratis'}</div>
-                    <div style={{ color: '#8e8e93', fontSize: 12, fontWeight: 850 }}>Plan</div>
+                    <div style={{ fontSize: 15, fontWeight: 900, color: '#0071e3' }}>{selectedBusiness.plan || 'Profesional'}</div>
+                    <div style={{ color: '#8e8e93', fontSize: 12, fontWeight: 800 }}>Plan</div>
                   </div>
                   <div style={{ background: '#f7f7fb', borderRadius: 16, padding: 14 }}>
-                    <div style={{ fontSize: 20, fontWeight: 950, color: '#1a1a1a' }}>{Number(selectedBusiness.monthlyBookingsCount || selectedBusiness.monthly_bookings_count || 0)}/{Number(selectedBusiness.monthlyLimit || selectedBusiness.monthly_limit || 1000)}</div>
-                    <div style={{ color: '#8e8e93', fontSize: 12, fontWeight: 850 }}>Mes</div>
+                    <div style={{ fontSize: 20, fontWeight: 900, color: '#1a1a1a' }}>{Number(selectedBusiness.monthlyBookingsCount || selectedBusiness.monthly_bookings_count || 0)}/{Number(selectedBusiness.monthlyLimit || selectedBusiness.monthly_limit || 1000)}</div>
+                    <div style={{ color: '#8e8e93', fontSize: 12, fontWeight: 800 }}>Reservas del mes</div>
                   </div>
                   <div style={{ background: '#f7f7fb', borderRadius: 16, padding: 14 }}>
-                    <div style={{ fontSize: 20, fontWeight: 950, color: '#0071e3' }}>{selectedBusiness.bookingsCount || 0}</div>
-                    <div style={{ color: '#8e8e93', fontSize: 12, fontWeight: 850 }}>Reservas</div>
+                    <div style={{ fontSize: 20, fontWeight: 900, color: '#0071e3' }}>{selectedBusiness.bookingsCount || 0}</div>
+                    <div style={{ color: '#8e8e93', fontSize: 12, fontWeight: 800 }}>Reservas totales</div>
                   </div>
                   <div style={{ background: '#f7f7fb', borderRadius: 16, padding: 14 }}>
-                    <div style={{ fontSize: 20, fontWeight: 950, color: '#111827' }}>{selectedBusiness.clientsCount || 0}</div>
-                    <div style={{ color: '#8e8e93', fontSize: 12, fontWeight: 850 }}>Clientes</div>
+                    <div style={{ fontSize: 20, fontWeight: 900, color: '#111827' }}>{selectedBusiness.clientsCount || 0}</div>
+                    <div style={{ color: '#8e8e93', fontSize: 12, fontWeight: 800 }}>Clientes</div>
                   </div>
                   <div style={{ background: selectedBusiness.status === 'suspended' ? '#fff0f0' : '#edfff3', borderRadius: 16, padding: 14 }}>
-                    <div style={{ fontSize: 15, fontWeight: 950, color: selectedBusiness.status === 'suspended' ? '#ff3b30' : '#188038' }}>{selectedBusiness.status === 'suspended' ? 'Suspendido' : 'Activo'}</div>
-                    <div style={{ color: '#8e8e93', fontSize: 12, fontWeight: 850 }}>Estado</div>
+                    <div style={{ fontSize: 15, fontWeight: 900, color: selectedBusiness.status === 'suspended' ? '#ff3b30' : '#188038' }}>{selectedBusiness.status === 'suspended' ? 'Suspendido' : 'Activo'}</div>
+                    <div style={{ color: '#8e8e93', fontSize: 12, fontWeight: 800 }}>Estado</div>
+                  </div>
+                  <div style={{ background: '#f7f7fb', borderRadius: 16, padding: 14 }}>
+                    <div style={{ fontSize: 15, fontWeight: 900, color: '#1a1a1a' }}>{selectedBusiness.createdAt ? new Date(selectedBusiness.createdAt).toLocaleDateString('es-UY') : '-'}</div>
+                    <div style={{ color: '#8e8e93', fontSize: 12, fontWeight: 800 }}>Registro</div>
                   </div>
                 </div>
 
                 <div style={{ border: '1px solid #e8e8ed', borderRadius: 18, padding: 16, marginBottom: 16 }}>
-                  <h3 style={{ margin: '0 0 10px', fontSize: 16, fontWeight: 950, color: '#1a1a1a' }}>Datos del negocio</h3>
+                  <h3 style={{ margin: '0 0 10px', fontSize: 16, fontWeight: 900, color: '#1a1a1a' }}>Datos del negocio</h3>
                   <div style={{ display: 'grid', gap: 7, color: '#6e6e73', fontSize: 14, lineHeight: 1.35 }}>
                     <div><strong style={{ color: '#1a1a1a' }}>Dueño:</strong> {selectedBusiness.name || '-'}</div>
                     <div><strong style={{ color: '#1a1a1a' }}>Teléfono:</strong> {selectedBusiness.phone || '-'}</div>
                     <div><strong style={{ color: '#1a1a1a' }}>Dirección:</strong> {selectedBusiness.address || '-'}</div>
                     <div><strong style={{ color: '#1a1a1a' }}>Slug:</strong> {selectedBusiness.slug || '-'}</div>
-                    <div><strong style={{ color: '#1a1a1a' }}>Link público:</strong> {buildPublicUrl(selectedBusiness) || '-'}</div>
+                    <div><strong style={{ color: '#1a1a1a' }}>Plan:</strong> {selectedBusiness.plan || 'Profesional'}</div>
+                    <div><strong style={{ color: '#1a1a1a' }}>Límite mensual:</strong> {Number(selectedBusiness.monthlyLimit || selectedBusiness.monthly_limit || 1000)} reservas</div>
+                    <div><strong style={{ color: '#1a1a1a' }}>Reservas usadas este mes:</strong> {Number(selectedBusiness.monthlyBookingsCount || selectedBusiness.monthly_bookings_count || 0)}</div>
+                    <div><strong style={{ color: '#1a1a1a' }}>Link público:</strong> {selectedBusiness.slug ? `https://tuagendaya-web.onrender.com/reservar/${selectedBusiness.slug}` : '-'}</div>
                   </div>
 
-                  <div className="admin-detail-actions">
-                    <button type="button" className="primary" onClick={() => openPublicUrl(selectedBusiness)}>
-                      Abrir reserva
-                    </button>
-                    <button type="button" onClick={() => copyText(buildPublicUrl(selectedBusiness), 'Link público copiado')}>
-                      Copiar link
-                    </button>
-                    <button type="button" onClick={() => openWhatsApp(selectedBusiness)}>
-                      WhatsApp
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 14 }}>
+                    <button
+                      type="button"
+                      onClick={() => updateStatus(selectedBusiness, selectedBusiness.status === 'suspended' ? 'active' : 'suspended')}
+                      style={{ border: 'none', borderRadius: 14, padding: '11px 14px', background: selectedBusiness.status === 'suspended' ? '#21c55d' : '#ff3b30', color: '#fff', fontWeight: 900, cursor: 'pointer' }}
+                    >
+                      {selectedBusiness.status === 'suspended' ? 'Activar negocio' : 'Suspender negocio'}
                     </button>
                     <button
                       type="button"
-                      className={selectedBusiness.status === 'suspended' ? 'success' : 'danger'}
-                      onClick={() => updateStatus(selectedBusiness, selectedBusiness.status === 'suspended' ? 'active' : 'suspended')}
+                      onClick={() => copyText(selectedBusiness.slug ? `https://tuagendaya-web.onrender.com/reservar/${selectedBusiness.slug}` : '', 'Link público copiado')}
+                      style={{ border: '1px solid #dcdce3', borderRadius: 14, padding: '11px 14px', background: '#fff', color: '#0071e3', fontWeight: 900, cursor: 'pointer' }}
                     >
-                      {selectedBusiness.status === 'suspended' ? 'Activar' : 'Suspender'}
+                      Copiar link público
                     </button>
                   </div>
                 </div>
 
                 <div style={{ border: '1px solid #e8e8ed', borderRadius: 18, padding: 16 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', marginBottom: 12 }}>
-                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 950, color: '#1a1a1a' }}>Últimas reservas</h3>
-                    <span style={{ color: '#8e8e93', fontSize: 12, fontWeight: 850 }}>Máximo 50</span>
+                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: '#1a1a1a' }}>Últimas reservas</h3>
+                    <span style={{ color: '#8e8e93', fontSize: 12, fontWeight: 800 }}>Máximo 50</span>
                   </div>
 
                   {selectedBusinessBookings.length === 0 ? (
-                    <div style={{ padding: 20, color: '#8e8e93', fontSize: 14, textAlign: 'center', fontWeight: 800 }}>Este negocio todavía no tiene reservas.</div>
+                    <div style={{ padding: 20, color: '#8e8e93', fontSize: 14, textAlign: 'center' }}>Este negocio todavía no tiene reservas.</div>
                   ) : (
                     <div style={{ display: 'grid', gap: 8 }}>
                       {selectedBusinessBookings.map((booking) => (
                         <div key={booking.id} style={{ background: '#f7f7fb', borderRadius: 14, padding: 12, display: 'grid', gap: 4 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
                             <strong style={{ color: '#1a1a1a', fontSize: 14 }}>{booking.client_name || 'Cliente sin nombre'}</strong>
-                            <span style={{ fontSize: 12, color: '#6e6e73', fontWeight: 850 }}>{booking.status || 'pending'}</span>
+                            <span style={{ fontSize: 12, color: '#6e6e73', fontWeight: 800 }}>{booking.status || 'pending'}</span>
                           </div>
                           <div style={{ color: '#6e6e73', fontSize: 13 }}>
                             {booking.service_name || 'Servicio'} · {booking.staff_name || 'Sin profesional asignado'}
                           </div>
-                          <div style={{ color: '#8e8e93', fontSize: 12, fontWeight: 850 }}>
+                          <div style={{ color: '#8e8e93', fontSize: 12, fontWeight: 800 }}>
                             {formatDate(booking.booking_date)} · {formatTime(booking.start_time) || '--:--'} a {formatTime(booking.end_time) || '--:--'} · {booking.client_phone || 'Sin teléfono'}
                           </div>
                         </div>
@@ -8655,7 +7880,6 @@ function AdminDashboardPage() {
     </div>
   );
 }
-
 
 function ProfesionalPage() {
   const [professional, setProfessional] = useState(() => {
@@ -8991,7 +8215,7 @@ function LandingPage() {
           <div className="landing-nav-actions" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <button
               type="button"
-              onClick={() => navigate('/login')}
+              onClick={() => navigate('/profesional/login')}
               style={{
                 border: '1px solid #d7dce5',
                 background: '#fff',
@@ -9016,7 +8240,7 @@ function LandingPage() {
                 borderRadius: 999,
                 padding: '11px 18px',
                 fontSize: 14,
-                fontWeight: 950,
+                fontWeight: 900,
                 cursor: 'pointer',
                 fontFamily: 'inherit',
                 boxShadow: '0 10px 24px rgba(0,113,227,0.22)',
@@ -9103,7 +8327,7 @@ function LandingPage() {
               <button
                 className="landing-button-secondary"
                 type="button"
-                onClick={() => navigate('/login')}
+                onClick={() => navigate('/profesional/login')}
                 style={{
                   border: '1px solid #d7dce5',
                   background: '#fff',
@@ -9153,7 +8377,7 @@ function LandingPage() {
                   <div style={{ fontSize: 12, color: '#64748b', fontWeight: 820, letterSpacing: '0.1px' }}>Panel profesional</div>
                   <div style={{ fontSize: 23, color: '#0f172a', fontWeight: 880, letterSpacing: '-0.25px' }}>Reservas de hoy</div>
                 </div>
-                <div style={{ width: 52, height: 52, borderRadius: 18, background: '#eaf4ff', display: 'grid', placeItems: 'center', color: '#0071e3', fontWeight: 950 }}>4</div>
+                <div style={{ width: 52, height: 52, borderRadius: 18, background: '#eaf4ff', display: 'grid', placeItems: 'center', color: '#0071e3', fontWeight: 900 }}>4</div>
               </div>
 
               {[
@@ -9164,11 +8388,11 @@ function LandingPage() {
                 <div key={row[0]} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 20, padding: 14, marginBottom: 10, boxShadow: '0 4px 14px rgba(15,23,42,0.04)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
                     <div>
-                      <div style={{ fontSize: 13, color: '#0071e3', fontWeight: 950 }}>{row[0]}</div>
-                      <div style={{ fontSize: 16, color: '#111827', fontWeight: 950 }}>{row[1]}</div>
+                      <div style={{ fontSize: 13, color: '#0071e3', fontWeight: 900 }}>{row[0]}</div>
+                      <div style={{ fontSize: 16, color: '#111827', fontWeight: 900 }}>{row[1]}</div>
                       <div style={{ fontSize: 13, color: '#64748b', fontWeight: 750 }}>{row[2]}</div>
                     </div>
-                    <span style={{ alignSelf: 'flex-start', borderRadius: 999, padding: '6px 9px', background: row[3] === 'Confirmada' ? '#ecfdf5' : '#fffbeb', color: row[3] === 'Confirmada' ? '#047857' : '#b45309', fontSize: 11, fontWeight: 950 }}>{row[3]}</span>
+                    <span style={{ alignSelf: 'flex-start', borderRadius: 999, padding: '6px 9px', background: row[3] === 'Confirmada' ? '#ecfdf5' : '#fffbeb', color: row[3] === 'Confirmada' ? '#047857' : '#b45309', fontSize: 11, fontWeight: 900 }}>{row[3]}</span>
                   </div>
                 </div>
               ))}
@@ -9177,7 +8401,7 @@ function LandingPage() {
                 {quickStats.slice(0, 2).map(([label, value]) => (
                   <div key={label} style={{ background: '#fff', borderRadius: 20, padding: 14, border: '1px solid #e5e7eb' }}>
                     <div style={{ color: '#64748b', fontSize: 12, fontWeight: 900 }}>{label}</div>
-                    <div style={{ color: '#0f172a', fontSize: 25, fontWeight: 950 }}>{value}</div>
+                    <div style={{ color: '#0f172a', fontSize: 25, fontWeight: 900 }}>{value}</div>
                   </div>
                 ))}
               </div>
@@ -9206,8 +8430,8 @@ function LandingPage() {
           <div className="landing-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
             {howItWorks.map((step, index) => (
               <div key={step.title} style={{ background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: 23, padding: 17 }}>
-                <div style={{ width: 36, height: 36, borderRadius: 14, background: '#0071e3', color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 950, marginBottom: 11 }}>{index + 1}</div>
-                <div style={{ color: '#111827', fontSize: 16, lineHeight: 1.25, fontWeight: 950 }}>{step.title}</div>
+                <div style={{ width: 36, height: 36, borderRadius: 14, background: '#0071e3', color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 900, marginBottom: 11 }}>{index + 1}</div>
+                <div style={{ color: '#111827', fontSize: 16, lineHeight: 1.25, fontWeight: 900 }}>{step.title}</div>
                 <p style={{ margin: '7px 0 0', color: '#64748b', lineHeight: 1.5, fontSize: 13.5, fontWeight: 650 }}>{step.text}</p>
               </div>
             ))}
@@ -9216,26 +8440,26 @@ function LandingPage() {
 
         <section className="landing-plan" style={{ marginTop: 24, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'stretch' }}>
           <div style={{ background: '#0f172a', color: '#fff', borderRadius: 34, padding: 28, boxShadow: '0 18px 48px rgba(15,23,42,0.16)' }}>
-            <div style={{ color: '#93c5fd', fontSize: 14, fontWeight: 950, marginBottom: 8 }}>Plan Profesional</div>
-            <h2 style={{ margin: 0, fontSize: 36, letterSpacing: '-1.1px', fontWeight: 950 }}>Una agenda completa, simple de vender y fácil de usar.</h2>
+            <div style={{ color: '#93c5fd', fontSize: 14, fontWeight: 900, marginBottom: 8 }}>Plan Profesional</div>
+            <h2 style={{ margin: 0, fontSize: 36, letterSpacing: '-1.1px', fontWeight: 900 }}>Una agenda completa, simple de vender y fácil de usar.</h2>
             <p style={{ color: '#cbd5e1', lineHeight: 1.58, fontSize: 15, fontWeight: 650 }}>
               Hasta 1000 reservas mensuales, servicios con precio y duración, profesionales, clientes, historial, WhatsApp manual, estadísticas y panel instalable como app.
             </p>
             <button
               type="button"
               onClick={() => navigate('/profesional/register')}
-              style={{ marginTop: 14, border: 'none', borderRadius: 18, background: '#fff', color: '#0f172a', padding: '14px 18px', fontSize: 15, fontWeight: 950, fontFamily: 'inherit', cursor: 'pointer' }}
+              style={{ marginTop: 14, border: 'none', borderRadius: 18, background: '#fff', color: '#0f172a', padding: '14px 18px', fontSize: 15, fontWeight: 900, fontFamily: 'inherit', cursor: 'pointer' }}
             >
               Empezar ahora
             </button>
           </div>
 
           <div className="landing-glass" style={{ borderRadius: 34, padding: 26 }}>
-            <h3 style={{ margin: '0 0 14px', fontSize: 22, color: '#0f172a', fontWeight: 950 }}>Qué incluye</h3>
+            <h3 style={{ margin: '0 0 14px', fontSize: 22, color: '#0f172a', fontWeight: 900 }}>Qué incluye</h3>
             <div style={{ display: 'grid', gap: 9 }}>
               {included.map((item) => (
                 <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#334155', fontSize: 14, fontWeight: 750 }}>
-                  <span style={{ width: 22, height: 22, borderRadius: 8, background: '#eaf4ff', color: '#0071e3', display: 'grid', placeItems: 'center', fontWeight: 950, flex: '0 0 auto' }}>✓</span>
+                  <span style={{ width: 22, height: 22, borderRadius: 8, background: '#eaf4ff', color: '#0071e3', display: 'grid', placeItems: 'center', fontWeight: 900, flex: '0 0 auto' }}>✓</span>
                   {item}
                 </div>
               ))}
@@ -9259,7 +8483,7 @@ function LandingPage() {
           <div className="landing-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             {faqs.map((item) => (
               <article key={item.q} className="landing-card" style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 27, padding: 22, boxShadow: '0 10px 30px rgba(15,23,42,0.04)' }}>
-                <h3 style={{ margin: '0 0 8px', color: '#0f172a', fontSize: 17, fontWeight: 950 }}>{item.q}</h3>
+                <h3 style={{ margin: '0 0 8px', color: '#0f172a', fontSize: 17, fontWeight: 900 }}>{item.q}</h3>
                 <p style={{ margin: 0, color: '#64748b', lineHeight: 1.55, fontSize: 14, fontWeight: 650 }}>{item.a}</p>
               </article>
             ))}
@@ -9277,7 +8501,7 @@ function LandingPage() {
             boxShadow: '0 18px 48px rgba(0,113,227,0.22)',
           }}
         >
-          <h2 style={{ margin: 0, fontSize: 34, letterSpacing: '-1px', fontWeight: 950 }}>Empezá a recibir reservas online.</h2>
+          <h2 style={{ margin: 0, fontSize: 34, letterSpacing: '-0.25px', fontWeight: 900 }}>Empezá a recibir reservas online.</h2>
           <p style={{ margin: '10px auto 20px', maxWidth: 620, color: 'rgba(255,255,255,0.86)', fontSize: 16, lineHeight: 1.55, fontWeight: 650 }}>
             Creá tu cuenta profesional, configurá tus servicios y compartí tu link con tus clientes.
           </p>
@@ -9285,13 +8509,13 @@ function LandingPage() {
             <button
               type="button"
               onClick={() => navigate('/profesional/register')}
-              style={{ border: 'none', borderRadius: 18, background: '#fff', color: '#0f172a', padding: '15px 20px', fontSize: 16, fontWeight: 950, fontFamily: 'inherit', cursor: 'pointer' }}
+              style={{ border: 'none', borderRadius: 18, background: '#fff', color: '#0f172a', padding: '15px 20px', fontSize: 16, fontWeight: 900, fontFamily: 'inherit', cursor: 'pointer' }}
             >
               Crear cuenta
             </button>
             <button
               type="button"
-              onClick={() => navigate('/login')}
+              onClick={() => navigate('/profesional/login')}
               style={{ border: '1px solid rgba(255,255,255,0.55)', borderRadius: 18, background: 'rgba(255,255,255,0.12)', color: '#fff', padding: '15px 20px', fontSize: 16, fontWeight: 900, fontFamily: 'inherit', cursor: 'pointer' }}
             >
               Ya tengo cuenta
@@ -9318,7 +8542,7 @@ function LandingPage() {
       >
         <button
           type="button"
-          onClick={() => navigate('/login')}
+          onClick={() => navigate('/profesional/login')}
           style={{ border: '1px solid #d7dce5', borderRadius: 16, background: '#fff', color: '#111827', padding: '12px 10px', fontSize: 14, fontWeight: 900, fontFamily: 'inherit' }}
         >
           Ingresar
@@ -9326,7 +8550,7 @@ function LandingPage() {
         <button
           type="button"
           onClick={() => navigate('/profesional/register')}
-          style={{ border: 'none', borderRadius: 16, background: '#0071e3', color: '#fff', padding: '12px 10px', fontSize: 14, fontWeight: 950, fontFamily: 'inherit' }}
+          style={{ border: 'none', borderRadius: 16, background: '#0071e3', color: '#fff', padding: '12px 10px', fontSize: 14, fontWeight: 900, fontFamily: 'inherit' }}
         >
           Crear cuenta
         </button>
@@ -9341,17 +8565,16 @@ export default function App() {
       <MobileViewportController />
       <Routes>
       <Route path="/" element={<LandingPage />} />
-      <Route path="/login" element={<LoginForm />} />
-      <Route path="/profesional/login" element={<Navigate to="/login" replace />} />
+      <Route path="/profesional/login" element={<ProfesionalPage />} />
       <Route path="/profesional/register" element={<RegisterPage />} />
       <Route path="/profesional/dashboard" element={<ProfesionalPage />} />
-      <Route path="/admin-app" element={<Navigate to="/login" replace />} />
+      <Route path="/admin-app" element={<AdminLoginPage />} />
       <Route path="/admin-app/dashboard" element={<AdminDashboardPage />} />
-      <Route path="/admin/login" element={<Navigate to="/login" replace />} />
+      <Route path="/admin/login" element={<AdminLoginPage />} />
       <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
       <Route path="/reservar/:slug" element={<BookPage />} />
-      <Route path="/:slug" element={<BookPage />} />
-    </Routes>
+        <Route path="/:slug" element={<BookPage />} />
+      </Routes>
     </>
   );
 }

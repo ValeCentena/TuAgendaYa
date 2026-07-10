@@ -157,10 +157,8 @@ export default function BookPage() {
   const [loadingStaff, setLoadingStaff] = useState(true);
 
   const [clientName, setClientName] = useState('');
-  const [clientPhone, setClientPhone] = useState('');
   const [clientPhoneCountry, setClientPhoneCountry] = useState('UY');
-  const [phoneCountryOpen, setPhoneCountryOpen] = useState(false);
-  const phoneCountryRef = useRef(null);
+  const [clientPhone, setClientPhone] = useState('');
   const [clientComment, setClientComment] = useState('');
   const [bookingDate, setBookingDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
@@ -183,22 +181,6 @@ export default function BookPage() {
   const selectedDateObject = parseLocalDate(bookingDate);
   const selectedPhoneCountry = getPhoneCountry(clientPhoneCountry);
   const fullClientPhone = buildInternationalPhone(clientPhoneCountry, clientPhone);
-
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (!phoneCountryRef.current) return;
-
-      if (!phoneCountryRef.current.contains(event.target)) {
-        setPhoneCountryOpen(false);
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside);
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
 
   useEffect(() => {
     setLoadingServices(true);
@@ -238,7 +220,7 @@ export default function BookPage() {
         setBusiness(data.business || null);
         setStaff(activeStaff);
 
-        if (activeStaff.length > 0) {
+        if (activeStaff.length > 1) {
           setSelectedStaffId(String(activeStaff[0].id));
         } else {
           setSelectedStaffId('');
@@ -270,7 +252,7 @@ export default function BookPage() {
       serviceId: String(selectedServiceId),
     });
 
-    if (selectedStaffId) {
+    if (needsStaffChoice && selectedStaffId) {
       params.set('staffId', String(selectedStaffId));
     }
 
@@ -333,7 +315,7 @@ export default function BookPage() {
       serviceId: String(selectedServiceId),
     });
 
-    if (selectedStaffId) {
+    if (needsStaffChoice && selectedStaffId) {
       params.set('staffId', String(selectedStaffId));
     }
 
@@ -591,7 +573,7 @@ export default function BookPage() {
           bookingDate,
           startTime: selectedTime,
           serviceId: Number(selectedServiceId),
-          ...(selectedStaffId ? { staffId: Number(selectedStaffId) } : {}),
+          ...(hasStaffChoice && selectedStaffId ? { staffId: Number(selectedStaffId) } : {}),
         }),
       });
 
@@ -980,11 +962,11 @@ export default function BookPage() {
                     <div
                       style={{
                         display: 'grid',
-                        gridTemplateColumns: 'repeat(3, minmax(78px, 1fr))',
-                        gap: 8,
-                        maxHeight: 158,
+                        gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+                        gap: 6,
+                        maxHeight: 112,
                         overflowY: slots.length > 12 ? 'auto' : 'visible',
-                        paddingRight: slots.length > 12 ? 4 : 0,
+                        paddingRight: slots.length > 12 ? 3 : 0,
                         WebkitOverflowScrolling: 'touch',
                       }}
                     >
@@ -1000,9 +982,9 @@ export default function BookPage() {
                             disabled={!isAvailable}
                             onClick={() => isAvailable && setSelectedTime(slot.time)}
                             style={{
-                              height: 42,
-                              padding: '0 10px',
-                              borderRadius: 16,
+                              height: 31,
+                              padding: '0 6px',
+                              borderRadius: 13,
                               border: isSelected
                                 ? '2px solid #0071e3'
                                 : isAvailable
@@ -1018,18 +1000,12 @@ export default function BookPage() {
                                 : isAvailable
                                   ? '#1a1a1a'
                                   : '#c7c7cc',
-                              fontSize: 14,
-                              fontWeight: 760,
+                              fontSize: 12.5,
+                              fontWeight: 850,
                               fontFamily: 'inherit',
                               cursor: isAvailable ? 'pointer' : 'not-allowed',
                               textDecoration: isAvailable ? 'none' : 'line-through',
-                              boxShadow: isSelected ? '0 8px 18px rgba(0,113,227,0.18)' : '0 4px 10px rgba(0,0,0,0.035)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              lineHeight: 1,
-                              letterSpacing: '-0.02em',
-                              boxSizing: 'border-box',
+                              boxShadow: isSelected ? '0 6px 14px rgba(0,113,227,0.16)' : '0 3px 8px rgba(0,0,0,0.028)',
                             }}
                           >
                             {slot.time}
@@ -1066,108 +1042,34 @@ export default function BookPage() {
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: '78px minmax(0, 1fr)',
+                  gridTemplateColumns: 'minmax(128px, 0.9fr) minmax(0, 1.4fr)',
                   gap: 8,
                   alignItems: 'stretch',
                   marginBottom: 8,
                 }}
               >
-                <div ref={phoneCountryRef} style={{ position: 'relative' }}>
-                  <button
-                    type="button"
-                    onClick={() => setPhoneCountryOpen((value) => !value)}
-                    aria-label="Elegir prefijo del país"
-                    style={{
-                      width: '100%',
-                      minWidth: 0,
-                      height: 44,
-                      padding: '0 9px',
-                      borderRadius: 15,
-                      border: phoneCountryOpen ? '1px solid #0071e3' : '1px solid #e5e5ea',
-                      background: '#fff',
-                      color: '#1a1a1a',
-                      fontSize: 14,
-                      fontWeight: 500,
-                      fontFamily: 'inherit',
-                      outline: 'none',
-                      boxSizing: 'border-box',
-                      cursor: 'pointer',
-                      boxShadow: phoneCountryOpen ? '0 0 0 3px rgba(0,113,227,0.08)' : '0 1px 0 rgba(0,0,0,0.02)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 5,
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    <span style={{ fontSize: 14, lineHeight: 1 }}>{selectedPhoneCountry.flag}</span>
-                    <span>+{selectedPhoneCountry.dialCode}</span>
-                    <span style={{ color: '#8e8e93', fontSize: 10, marginLeft: 1 }}>▾</span>
-                  </button>
-
-                  {phoneCountryOpen && (
-                    <div
-                      style={{
-                        position: 'absolute',
-                        zIndex: 80,
-                        top: 'calc(100% + 7px)',
-                        left: 0,
-                        width: 230,
-                        maxHeight: 230,
-                        overflowY: 'auto',
-                        background: '#fff',
-                        border: '1px solid #e5e5ea',
-                        borderRadius: 16,
-                        boxShadow: '0 16px 36px rgba(0,0,0,0.16)',
-                        padding: 6,
-                        WebkitOverflowScrolling: 'touch',
-                      }}
-                    >
-                      {PHONE_COUNTRIES.map((country) => {
-                        const isSelected = country.code === clientPhoneCountry;
-
-                        return (
-                          <button
-                            key={country.code}
-                            type="button"
-                            onClick={() => {
-                              setClientPhoneCountry(country.code);
-                              setPhoneCountryOpen(false);
-                            }}
-                            style={{
-                              width: '100%',
-                              border: 'none',
-                              borderRadius: 12,
-                              background: isSelected ? '#eef6ff' : '#fff',
-                              color: '#1a1a1a',
-                              padding: '10px 10px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              gap: 10,
-                              cursor: 'pointer',
-                              fontFamily: 'inherit',
-                              textAlign: 'left',
-                            }}
-                          >
-                            <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                              <span>{country.flag}</span>
-                              <span style={{ fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {country.name}
-                              </span>
-                            </span>
-                            <span style={{ color: '#0071e3', fontSize: 13, fontWeight: 600, flexShrink: 0 }}>
-                              +{country.dialCode}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
+                <select
+                  value={clientPhoneCountry}
+                  onChange={(e) => setClientPhoneCountry(e.target.value)}
+                  aria-label="Prefijo del país"
+                  style={{
+                    ...inputStyle,
+                    marginBottom: 0,
+                    padding: '12px 10px',
+                    cursor: 'pointer',
+                    fontWeight: 800,
+                    appearance: 'auto',
+                  }}
+                >
+                  {PHONE_COUNTRIES.map((country) => (
+                    <option key={country.code} value={country.code}>
+                      {country.flag} +{country.dialCode} · {country.name}
+                    </option>
+                  ))}
+                </select>
 
                 <input
-                  style={{ ...inputStyle, height: 44, marginBottom: 0 }}
+                  style={{ ...inputStyle, marginBottom: 0 }}
                   value={clientPhone}
                   onChange={(e) => setClientPhone(onlyDigits(e.target.value))}
                   placeholder={selectedPhoneCountry.placeholder}
@@ -1178,7 +1080,7 @@ export default function BookPage() {
               </div>
 
               <div style={{ fontSize: 11.5, color: '#8e8e93', margin: '-1px 0 10px', lineHeight: 1.35 }}>
-                Escribí solo el número, sin prefijo.
+                Prefijo seleccionado: {selectedPhoneCountry.flag} +{selectedPhoneCountry.dialCode}. Escribí solo el número, sin el prefijo.
               </div>
 
               <label style={labelStyle}>Comentario opcional</label>
