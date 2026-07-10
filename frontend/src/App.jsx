@@ -4136,6 +4136,30 @@ function AvailabilityTable({ availability, onChange }) {
         }
 
         
+
+        .booking-card-compact-info,
+        .appointment-card-compact-info,
+        .booking-header-compact-info,
+        .appointment-header-compact-info {
+          display: none !important;
+        }
+
+        .booking-card-header-name,
+        .appointment-card-header-name,
+        .booking-card-header-service,
+        .appointment-card-header-service {
+          display: none !important;
+        }
+
+        .booking-card-status-row,
+        .appointment-card-status-row {
+          display: flex !important;
+          justify-content: flex-end !important;
+          align-items: center !important;
+          gap: 8px !important;
+          min-width: 0 !important;
+        }
+
         @media (max-width: 760px) {
           html,
           body,
