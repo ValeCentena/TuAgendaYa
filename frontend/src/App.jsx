@@ -733,48 +733,7 @@ function getProfessionExamples() {
 function AuthLayout({ children }) {
   return (
     <div style={{ minHeight: '100vh', background: '#f2f2f7', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, fontFamily: APP_FONT }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap');@keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}`}
-        html,
-        body,
-        #root {
-          font-family: "Nunito", "Avenir Next", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
-          letter-spacing: normal;
-          text-rendering: geometricPrecision;
-          -webkit-font-smoothing: antialiased;
-          -moz-osx-font-smoothing: grayscale;
-        }
-
-        h1,
-        h2,
-        h3,
-        h4,
-        h5,
-        h6 {
-          letter-spacing: -0.01em !important;
-          line-height: 1.12 !important;
-        }
-
-        p,
-        span,
-        div,
-        label,
-        input,
-        textarea,
-        select,
-        button {
-          letter-spacing: normal;
-        }
-
-        button {
-          line-height: 1.2;
-        }
-
-        input,
-        textarea,
-        select {
-          line-height: 1.35;
-        }
-</style>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap');@keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}`}</style>
 
       <div style={{ background: '#fff', borderRadius: 24, padding: '36px 32px', border: '0.5px solid #e0e0e5', width: '100%', maxWidth: 460, animation: 'slideUp 250ms cubic-bezier(0.16,1,0.3,1) both', boxShadow: '0 2px 40px rgba(0,0,0,0.06)' }}>
         {children}
@@ -1324,29 +1283,7 @@ function RegisterPage() {
             }
           }
         `}
-      
-          .register-card h1,
-          .register-shell h1 {
-            letter-spacing: -0.01em !important;
-            line-height: 1.12 !important;
-          }
-
-          .register-card p,
-          .register-shell p,
-          .register-card div,
-          .register-shell div {
-            letter-spacing: normal;
-          }
-
-          @media (max-width: 860px) {
-            .register-card h1,
-            .register-shell h1 {
-              font-size: clamp(30px, 9vw, 40px) !important;
-              line-height: 1.14 !important;
-              letter-spacing: -0.008em !important;
-            }
-          }
-</style>
+      </style>
 
       <div style={{ width: 'min(1080px, 100%)', margin: '0 auto 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
         <button
@@ -5496,13 +5433,7 @@ function ServicesSection() {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.json())
-      .then((data) => {
-        const normalized = (data.services || [])
-          .map(normalizeService)
-          .filter((service) => String(service.name || '').trim());
-
-        setServices(normalized);
-      })
+      .then((data) => setServices((data.services || []).map(normalizeService)))
       .catch(() => {
         setServices([]);
         setError('No se pudieron cargar los servicios.');
@@ -5561,13 +5492,13 @@ function ServicesSection() {
         resetForm();
 
         if (Array.isArray(data.services)) {
-          setServices(data.services.map(normalizeService).filter((service) => String(service.name || '').trim()));
+          setServices(data.services.map(normalizeService));
         } else if (data.service) {
-          const created = normalizeService(data.service);
-          setServices((current) => [
-            created,
-            ...current.filter((service) => String(service.id) !== String(created.id)),
-          ].filter((service) => String(service.name || '').trim()));
+          setServices((current) => {
+            const created = normalizeService(data.service);
+            const withoutDuplicate = current.filter((service) => String(service.id) !== String(created.id));
+            return [created, ...withoutDuplicate];
+          });
         } else {
           fetchServices();
         }
@@ -5598,12 +5529,6 @@ function ServicesSection() {
   const saveEditing = async (serviceId) => {
     setError('');
     setMessage('');
-
-    if (!String(editing.name || '').trim()) {
-      setError('El nombre del servicio es obligatorio.');
-      return;
-    }
-
     setSaving(true);
 
     try {
@@ -5634,10 +5559,10 @@ function ServicesSection() {
         cancelEditing();
 
         if (Array.isArray(data.services)) {
-          setServices(data.services.map(normalizeService).filter((service) => String(service.name || '').trim()));
+          setServices(data.services.map(normalizeService));
         } else if (data.service) {
           const updated = normalizeService(data.service);
-          setServices((current) => current.map((service) => String(service.id) === String(updated.id) ? updated : service).filter((service) => String(service.name || '').trim()));
+          setServices((current) => current.map((service) => String(service.id) === String(updated.id) ? updated : service));
         } else {
           fetchServices();
         }
@@ -5671,7 +5596,7 @@ function ServicesSection() {
         setMessage('Servicio eliminado correctamente.');
 
         if (Array.isArray(data.services)) {
-          setServices(data.services.map(normalizeService).filter((service) => String(service.name || '').trim()));
+          setServices(data.services.map(normalizeService));
         } else {
           setServices((current) => current.filter((service) => String(service.id) !== String(serviceId)));
         }
@@ -5686,218 +5611,18 @@ function ServicesSection() {
   const visibleServices = services.filter((service) => String(service.name || '').trim());
 
   return (
-    <section className="services-panel-clean">
-      <style>
-        {`
-          .services-panel-clean {
-            background: #fff;
-            border-radius: 22px;
-            padding: 20px 24px;
-            box-shadow: 0 1px 8px rgba(0,0,0,0.06);
-            width: 100%;
-            max-width: 100%;
-            box-sizing: border-box;
-            overflow: hidden;
-          }
-
-          .services-panel-clean-title {
-            font-size: 17px;
-            font-weight: 850;
-            color: #1a1a1a;
-            margin-bottom: 4px;
-            letter-spacing: -0.006em;
-          }
-
-          .services-panel-clean-subtitle {
-            font-size: 13px;
-            color: #6e6e73;
-            line-height: 1.45;
-            margin-bottom: 18px;
-            font-weight: 600;
-          }
-
-          .services-create-clean {
-            background: #f2f2f7;
-            border-radius: 18px;
-            padding: 16px;
-            margin-bottom: 14px;
-            width: 100%;
-            max-width: 100%;
-            box-sizing: border-box;
-            overflow: hidden;
-          }
-
-          .services-create-clean-title {
-            font-size: 14px;
-            font-weight: 850;
-            color: #1a1a1a;
-            margin-bottom: 12px;
-            letter-spacing: -0.004em;
-          }
-
-          .services-form-clean-grid {
-            display: grid;
-            grid-template-columns: 1.5fr 1fr 1fr;
-            gap: 10px;
-            margin-bottom: 10px;
-          }
-
-          .services-created-clean-list {
-            display: grid;
-            gap: 10px;
-            margin-top: 12px;
-          }
-
-          .services-created-clean-item {
-            border: 1px solid #e8e8ed;
-            border-radius: 18px;
-            padding: 15px;
-            background: #fff;
-            width: 100%;
-            max-width: 100%;
-            box-sizing: border-box;
-            overflow: hidden;
-          }
-
-          .services-created-clean-item.inactive {
-            background: #fffafa;
-            opacity: 0.76;
-          }
-
-          .services-created-clean-top {
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) auto;
-            gap: 10px;
-            align-items: start;
-          }
-
-          .services-created-clean-name {
-            font-size: 15px;
-            font-weight: 850;
-            color: #1a1a1a;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            letter-spacing: normal;
-          }
-
-          .services-created-clean-description {
-            font-size: 12px;
-            color: #6e6e73;
-            margin-top: 3px;
-            line-height: 1.35;
-          }
-
-          .services-created-clean-meta {
-            font-size: 12px;
-            color: #0071e3;
-            margin-top: 6px;
-            font-weight: 750;
-          }
-
-          .services-created-clean-status {
-            font-size: 11px;
-            font-weight: 850;
-            color: #188038;
-            background: #edfff3;
-            padding: 7px 11px;
-            border-radius: 999px;
-            min-height: 26px;
-            line-height: 1;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            white-space: nowrap;
-            box-sizing: border-box;
-          }
-
-          .services-created-clean-status.inactive {
-            color: #ff453a;
-            background: #fff2f2;
-          }
-
-          .services-actions-clean {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-            margin-top: 12px;
-          }
-
-          .services-actions-clean button {
-            width: 100%;
-            min-height: 42px;
-            border-radius: 12px;
-            font-weight: 800;
-            cursor: pointer;
-            font-family: inherit;
-          }
-
-          .services-edit-clean-grid {
-            display: grid;
-            grid-template-columns: 1.5fr 1fr 1fr;
-            gap: 10px;
-            margin-bottom: 10px;
-          }
-
-          @media (max-width: 760px) {
-            .services-panel-clean {
-              padding: 16px 14px;
-              border-radius: 24px;
-            }
-
-            .services-panel-clean-title {
-              font-size: 18px;
-            }
-
-            .services-panel-clean-subtitle {
-              font-size: 12.5px;
-              margin-bottom: 14px;
-            }
-
-            .services-create-clean {
-              padding: 14px;
-              border-radius: 20px;
-              margin-bottom: 12px;
-            }
-
-            .services-form-clean-grid,
-            .services-edit-clean-grid {
-              grid-template-columns: 1fr !important;
-              gap: 9px;
-            }
-
-            .services-created-clean-item {
-              padding: 14px;
-              border-radius: 20px;
-            }
-
-            .services-created-clean-name {
-              font-size: 16px;
-            }
-
-            .services-actions-clean {
-              grid-template-columns: 1fr;
-            }
-
-            .services-actions-clean button {
-              min-height: 46px;
-              font-size: 14px;
-            }
-          }
-        `}
-      </style>
-
-      <div>
-        <div className="services-panel-clean-title">Mis servicios</div>
-        <div className="services-panel-clean-subtitle">
-          Agregá, modificá o eliminá servicios. Los servicios creados aparecen debajo.
+    <div style={{ background: '#fff', borderRadius: 20, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
+      <div style={{ marginBottom: 18 }}>
+        <div style={{ fontSize: 17, fontWeight: 700, color: '#1a1a1a' }}>Mis servicios</div>
+        <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 4 }}>
+          Agregá, modificá o eliminá servicios. La duración cambia automáticamente los horarios disponibles.
         </div>
       </div>
 
-      <form onSubmit={handleCreate} className="services-create-clean">
-        <div className="services-create-clean-title">Agregar servicio</div>
+      <form onSubmit={handleCreate} style={{ background: '#f2f2f7', borderRadius: 16, padding: 16, marginBottom: 18 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>Agregar servicio</div>
 
-        <div className="services-form-clean-grid">
+        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
           <div>
             <label style={smallLabelStyle}>Nombre *</label>
             <input
@@ -5945,154 +5670,164 @@ function ServicesSection() {
         <button
           type="submit"
           disabled={saving}
-          style={{ width: '100%', padding: '12px', borderRadius: 13, border: 'none', background: saving ? '#aeaeb2' : '#0071e3', color: '#fff', fontSize: 14, fontWeight: 850, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}
+          style={{ width: '100%', padding: '12px', borderRadius: 12, border: 'none', background: saving ? '#aeaeb2' : '#0071e3', color: '#fff', fontSize: 14, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}
         >
           {saving ? 'Guardando...' : 'Crear servicio'}
         </button>
       </form>
 
       {message && (
-        <div style={{ background: '#edfff3', border: '0.5px solid #b7f5c8', borderRadius: 12, padding: '10px 12px', fontSize: 13, color: '#188038', marginBottom: 12, fontWeight: 700 }}>
+        <div style={{ background: '#edfff3', border: '0.5px solid #b7f5c8', borderRadius: 10, padding: '10px 12px', fontSize: 13, color: '#188038', marginBottom: 12 }}>
           {message}
         </div>
       )}
 
       {error && (
-        <div style={{ background: '#fff2f2', border: '0.5px solid #ffcdd2', borderRadius: 12, padding: '10px 12px', fontSize: 13, color: '#c62828', marginBottom: 12, fontWeight: 700 }}>
+        <div style={{ background: '#fff2f2', border: '0.5px solid #ffcdd2', borderRadius: 10, padding: '10px 12px', fontSize: 13, color: '#c62828', marginBottom: 12 }}>
           {error}
         </div>
       )}
 
       {loading ? (
-        <div style={{ textAlign: 'center', color: '#aeaeb2', padding: 24, fontWeight: 750 }}>
-          Cargando servicios...
-        </div>
+        <div style={{ textAlign: 'center', color: '#aeaeb2', padding: 28 }}>Cargando servicios...</div>
       ) : visibleServices.length === 0 ? null : (
-        <div className="services-created-clean-list">
-          {visibleServices.map((service) => {
-            const isEditing = editingId === service.id;
+        visibleServices.map((service) => {
+          const isEditing = editingId === service.id;
 
-            return (
-              <div key={service.id} className={`services-created-clean-item ${service.isActive ? '' : 'inactive'}`}>
-                {isEditing ? (
-                  <>
-                    <div className="services-edit-clean-grid">
-                      <div>
-                        <label style={smallLabelStyle}>Nombre</label>
-                        <input
-                          style={inputStyle}
-                          value={editing.name}
-                          onChange={(e) => setEditing({ ...editing, name: e.target.value })}
-                        />
-                      </div>
-
-                      <div>
-                        <label style={smallLabelStyle}>Duración</label>
-                        <input
-                          style={inputStyle}
-                          type="number"
-                          min="5"
-                          step="5"
-                          value={editing.durationMinutes}
-                          onChange={(e) => setEditing({ ...editing, durationMinutes: e.target.value })}
-                        />
-                      </div>
-
-                      <div>
-                        <label style={smallLabelStyle}>Precio</label>
-                        <input
-                          style={inputStyle}
-                          type="number"
-                          min="0"
-                          step="1"
-                          value={editing.price}
-                          onChange={(e) => setEditing({ ...editing, price: e.target.value })}
-                        />
-                      </div>
-                    </div>
-
-                    <label style={smallLabelStyle}>Descripción</label>
-                    <input
-                      style={{ ...inputStyle, marginBottom: 10 }}
-                      value={editing.description}
-                      onChange={(e) => setEditing({ ...editing, description: e.target.value })}
-                    />
-
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#1a1a1a', marginBottom: 12, fontWeight: 700 }}>
+          return (
+            <div
+              key={service.id}
+              style={{
+                border: '1px solid #e8e8ed',
+                borderRadius: 16,
+                padding: 16,
+                marginBottom: 10,
+                background: service.isActive ? '#fafafa' : '#fffafa',
+                opacity: service.isActive ? 1 : 0.65,
+              }}
+            >
+              {isEditing ? (
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
+                    <div>
+                      <label style={smallLabelStyle}>Nombre</label>
                       <input
-                        type="checkbox"
-                        checked={editing.isActive}
-                        onChange={(e) => setEditing({ ...editing, isActive: e.target.checked })}
+                        style={inputStyle}
+                        value={editing.name}
+                        onChange={(e) => setEditing({ ...editing, name: e.target.value })}
                       />
-                      Servicio activo
-                    </label>
-
-                    <div className="services-actions-clean">
-                      <button
-                        type="button"
-                        onClick={() => saveEditing(service.id)}
-                        disabled={saving}
-                        style={{ border: 'none', background: '#0071e3', color: '#fff' }}
-                      >
-                        Guardar
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={cancelEditing}
-                        style={{ border: '0.5px solid #d0d0d5', background: '#fff', color: '#6e6e73' }}
-                      >
-                        Cancelar
-                      </button>
                     </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="services-created-clean-top">
-                      <div style={{ minWidth: 0 }}>
-                        <div className="services-created-clean-name">{service.name}</div>
 
-                        {service.description && (
-                          <div className="services-created-clean-description">{service.description}</div>
-                        )}
+                    <div>
+                      <label style={smallLabelStyle}>Duración</label>
+                      <input
+                        style={inputStyle}
+                        type="number"
+                        min="5"
+                        step="5"
+                        value={editing.durationMinutes}
+                        onChange={(e) => setEditing({ ...editing, durationMinutes: e.target.value })}
+                      />
+                    </div>
 
-                        <div className="services-created-clean-meta">
-                          {service.durationMinutes} min
-                          {service.price !== '' && service.price !== null && service.price !== undefined ? ` · $${service.price}` : ''}
+                    <div>
+                      <label style={smallLabelStyle}>Precio</label>
+                      <input
+                        style={inputStyle}
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={editing.price}
+                        onChange={(e) => setEditing({ ...editing, price: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  <label style={smallLabelStyle}>Descripción</label>
+                  <input
+                    style={{ ...inputStyle, marginBottom: 10 }}
+                    value={editing.description}
+                    onChange={(e) => setEditing({ ...editing, description: e.target.value })}
+                  />
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#1a1a1a', marginBottom: 12 }}>
+                    <input
+                      type="checkbox"
+                      checked={editing.isActive}
+                      onChange={(e) => setEditing({ ...editing, isActive: e.target.checked })}
+                    />
+                    Servicio activo
+                  </label>
+
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => saveEditing(service.id)}
+                      disabled={saving}
+                      style={{ flex: 1, padding: '10px', borderRadius: 10, border: 'none', background: '#0071e3', color: '#fff', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      Guardar
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={cancelEditing}
+                      style={{ flex: 1, padding: '10px', borderRadius: 10, border: '0.5px solid #d0d0d5', background: '#fff', color: '#6e6e73', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>
+                        {service.name}
+                      </div>
+
+                      {service.description && (
+                        <div style={{ fontSize: 12, color: '#6e6e73', marginTop: 3 }}>
+                          {service.description}
                         </div>
-                      </div>
+                      )}
 
-                      <div className={`services-created-clean-status ${service.isActive ? '' : 'inactive'}`}>
-                        {service.isActive ? 'Activo' : 'Inactivo'}
+                      <div style={{ fontSize: 12, color: '#0071e3', marginTop: 6 }}>
+                        Duración: {service.durationMinutes} min
+                        {service.price !== '' && service.price !== null && service.price !== undefined ? ` · $${service.price}` : ''}
                       </div>
                     </div>
 
-                    <div className="services-actions-clean">
-                      <button
-                        type="button"
-                        onClick={() => startEditing(service)}
-                        style={{ border: '0.5px solid #d0d0d5', background: '#fff', color: '#1a1a1a' }}
-                      >
-                        Editar
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => deleteService(service.id)}
-                        disabled={saving}
-                        style={{ border: 'none', background: '#ff453a', color: '#fff', cursor: saving ? 'not-allowed' : 'pointer' }}
-                      >
-                        Eliminar
-                      </button>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: service.isActive ? '#188038' : '#ff453a', background: service.isActive ? '#edfff3' : '#fff2f2', padding: '6px 12px', borderRadius: 999, minHeight: 24, lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-start', whiteSpace: 'nowrap', boxSizing: 'border-box' }}>
+                      {service.isActive ? 'Activo' : 'Inactivo'}
                     </div>
-                  </>
-                )}
-              </div>
-            );
-          })}
-        </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                    <button
+                      type="button"
+                      onClick={() => startEditing(service)}
+                      style={{ flex: 1, padding: '9px', borderRadius: 10, border: '0.5px solid #d0d0d5', background: '#fff', color: '#1a1a1a', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      Editar
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => deleteService(service.id)}
+                      disabled={saving}
+                      style={{ flex: 1, padding: '9px', borderRadius: 10, border: 'none', background: '#ff453a', color: '#fff', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })
       )}
-    </section>
+    </div>
   );
 }
 
