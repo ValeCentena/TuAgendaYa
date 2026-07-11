@@ -835,6 +835,7 @@ function ProfessionCombobox({ value, onChange }) {
 
 function UnifiedLoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -843,6 +844,14 @@ function UnifiedLoginPage() {
   useEffect(() => {
     const adminToken = localStorage.getItem('tuagendaya_admin_token');
     const professionalToken = localStorage.getItem('tuagendaya_token');
+    const isProfessionalArea = location.pathname.startsWith('/profesional');
+
+    if (isProfessionalArea) {
+      if (professionalToken) {
+        navigate('/profesional/dashboard', { replace: true });
+      }
+      return;
+    }
 
     if (adminToken) {
       navigate('/admin/dashboard', { replace: true });
@@ -852,7 +861,7 @@ function UnifiedLoginPage() {
     if (professionalToken) {
       navigate('/profesional/dashboard', { replace: true });
     }
-  }, [navigate]);
+  }, [navigate, location.pathname]);
 
   const loginAsAdmin = async () => {
     const response = await fetch(`${API_BASE}/admin/login`, {
@@ -905,6 +914,13 @@ function UnifiedLoginPage() {
     setLoading(true);
 
     try {
+      const isProfessionalArea = location.pathname.startsWith('/profesional');
+
+      if (isProfessionalArea) {
+        await loginAsProfessional();
+        return;
+      }
+
       try {
         await loginAsAdmin();
         return;
