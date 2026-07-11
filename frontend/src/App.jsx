@@ -8679,11 +8679,12 @@ export default function App() {
       <Route path="/profesional/dashboard" element={<ProfesionalPage />} />
       <Route path="/admin-app" element={<AdminLoginPage />} />
       <Route path="/admin-app/dashboard" element={<AdminDashboardPage />} />
+        <Route path="/admin" element={<AdminLoginPage />} />
       <Route path="/admin/login" element={<AdminLoginPage />} />
       <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
+        <Route path="/login" element={<ProfesionalPage />} />
       <Route path="/reservar/:slug" element={<BookPage />} />
-                  <Route path="/login" element={<LoginForm />} />
-          <Route path="/:slug" element={<BookPage />} />
+        <Route path="/:slug" element={<BookPage />} />
       </Routes>
     </>
   );
