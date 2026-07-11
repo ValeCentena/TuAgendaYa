@@ -831,6 +831,193 @@ function ProfessionCombobox({ value, onChange }) {
   );
 }
 
+
+function UnifiedLoginPage() {
+  const navigate = useNavigate();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [mode, setMode] = useState('auto');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const adminToken = localStorage.getItem('tuagendaya_admin_token');
+    const professionalToken = localStorage.getItem('tuagendaya_token');
+
+    if (adminToken) {
+      navigate('/admin/dashboard', { replace: true });
+      return;
+    }
+
+    if (professionalToken) {
+      navigate('/profesional/dashboard', { replace: true });
+    }
+  }, [navigate]);
+
+  const loginAsAdmin = async () => {
+    const response = await fetch(`${API_BASE}/admin/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email.trim(), password }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Credenciales admin inválidas');
+    }
+
+    localStorage.removeItem('tuagendaya_token');
+    localStorage.removeItem('tuagendaya_professional');
+    localStorage.setItem('tuagendaya_admin_token', data.token);
+    localStorage.setItem('tuagendaya_admin_user', JSON.stringify(data.admin || { email: email.trim() }));
+
+    navigate('/admin/dashboard', { replace: true });
+  };
+
+  const loginAsProfessional = async () => {
+    const response = await fetch(`${API_BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email.trim(), password }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Credenciales profesionales inválidas');
+    }
+
+    localStorage.removeItem('tuagendaya_admin_token');
+    localStorage.removeItem('tuagendaya_admin_user');
+    localStorage.setItem('tuagendaya_token', data.token);
+
+    if (data.professional) {
+      localStorage.setItem('tuagendaya_professional', JSON.stringify(data.professional));
+    }
+
+    navigate('/profesional/dashboard', { replace: true });
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      if (mode === 'admin') {
+        await loginAsAdmin();
+        return;
+      }
+
+      if (mode === 'professional') {
+        await loginAsProfessional();
+        return;
+      }
+
+      try {
+        await loginAsAdmin();
+        return;
+      } catch {
+        await loginAsProfessional();
+      }
+    } catch {
+      setError('Credenciales inválidas. Revisá el email, la contraseña y el tipo de acceso.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <AuthLayout>
+      <div style={{ textAlign: 'center', marginBottom: 24 }}>
+        <TuAgendaLogo height={52} centered />
+        <div style={{ fontSize: 14, color: '#6e6e73', fontWeight: 650 }}>
+          Entrá a TuAgendaYa
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 16, background: '#f2f2f7', borderRadius: 16, padding: 5 }}>
+        {[
+          ['auto', 'Auto'],
+          ['admin', 'Dueño'],
+          ['professional', 'Profesional'],
+        ].map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setMode(value)}
+            style={{
+              border: 'none',
+              borderRadius: 12,
+              padding: '10px 8px',
+              background: mode === value ? '#0071e3' : 'transparent',
+              color: mode === value ? '#fff' : '#6e6e73',
+              fontSize: 13,
+              fontWeight: 850,
+              fontFamily: 'inherit',
+              cursor: 'pointer',
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <form onSubmit={handleSubmit}>
+        <label style={smallLabelStyle}>Email</label>
+        <input
+          style={{ ...inputStyle, marginBottom: 12 }}
+          type="email"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          placeholder="Email"
+          required
+          autoComplete="email"
+        />
+
+        <label style={smallLabelStyle}>Contraseña</label>
+        <input
+          style={{ ...inputStyle, marginBottom: 12 }}
+          type="password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          placeholder="Contraseña"
+          required
+          autoComplete="current-password"
+        />
+
+        {error && (
+          <div style={{ background: '#fff2f2', border: '0.5px solid #ffcdd2', borderRadius: 12, padding: '10px 12px', fontSize: 13, color: '#c62828', marginBottom: 12, fontWeight: 700 }}>
+            {error}
+          </div>
+        )}
+
+        <button
+          type="submit"
+          disabled={loading}
+          style={{ width: '100%', padding: '13px', borderRadius: 14, border: 'none', background: loading ? '#aeaeb2' : '#0071e3', color: '#fff', fontSize: 15, fontWeight: 850, fontFamily: 'inherit', cursor: loading ? 'not-allowed' : 'pointer', marginTop: 4 }}
+        >
+          {loading ? 'Ingresando...' : 'Ingresar'}
+        </button>
+      </form>
+
+      <button
+        type="button"
+        onClick={() => navigate('/profesional/register')}
+        style={{ width: '100%', marginTop: 12, padding: '12px', borderRadius: 14, border: '0.5px solid #d0d0d5', background: '#fff', color: '#0071e3', fontSize: 14, fontWeight: 800, fontFamily: 'inherit', cursor: 'pointer' }}
+      >
+        Crear cuenta profesional
+      </button>
+
+      <div style={{ textAlign: 'center', fontSize: 11.5, color: '#8e8e93', marginTop: 14, lineHeight: 1.35, fontWeight: 650 }}>
+        Dueño y profesional entran desde el mismo acceso.
+      </div>
+    </AuthLayout>
+  );
+}
+
+
 function LoginForm({ onLogin }) {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
@@ -8673,17 +8860,20 @@ export default function App() {
     <>
       <MobileViewportController />
       <Routes>
-      <Route path="/" element={<LandingPage />} />
-      <Route path="/profesional/login" element={<ProfesionalPage />} />
-      <Route path="/profesional/register" element={<RegisterPage />} />
-      <Route path="/profesional/dashboard" element={<ProfesionalPage />} />
-      <Route path="/admin-app" element={<AdminLoginPage />} />
-      <Route path="/admin-app/dashboard" element={<AdminDashboardPage />} />
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/login" element={<UnifiedLoginPage />} />
+
+        <Route path="/profesional/login" element={<ProfesionalPage />} />
+        <Route path="/profesional/register" element={<RegisterPage />} />
+        <Route path="/profesional/dashboard" element={<ProfesionalPage />} />
+
         <Route path="/admin" element={<AdminLoginPage />} />
-      <Route path="/admin/login" element={<AdminLoginPage />} />
-      <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
-        <Route path="/login" element={<ProfesionalPage />} />
-      <Route path="/reservar/:slug" element={<BookPage />} />
+        <Route path="/admin/login" element={<AdminLoginPage />} />
+        <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
+        <Route path="/admin-app" element={<AdminLoginPage />} />
+        <Route path="/admin-app/dashboard" element={<AdminDashboardPage />} />
+
+        <Route path="/reservar/:slug" element={<BookPage />} />
         <Route path="/:slug" element={<BookPage />} />
       </Routes>
     </>
