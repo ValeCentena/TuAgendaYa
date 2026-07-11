@@ -8682,7 +8682,8 @@ export default function App() {
       <Route path="/admin/login" element={<AdminLoginPage />} />
       <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
       <Route path="/reservar/:slug" element={<BookPage />} />
-        <Route path="/:slug" element={<BookPage />} />
+                  <Route path="/login" element={<LoginForm />} />
+          <Route path="/:slug" element={<BookPage />} />
       </Routes>
     </>
   );
