@@ -9,7 +9,7 @@ const APP_FONT = '"Nunito", "Arial Rounded MT Bold", "Avenir Next", system-ui, -
 const brandTextStyle = {
   fontFamily: APP_FONT,
   fontWeight: 700,
-  letterSpacing: '-0.008em',
+  letterSpacing: '-0.03em',
   color: '#0071e3',
 };
 
@@ -1203,7 +1203,7 @@ function RegisterPage() {
             <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 900, marginBottom: 5 }}>
               Vista previa del link público
             </div>
-            <div style={{ color: '#0071e3', fontWeight: 900, fontSize: 15, wordBreak: 'break-word' }}>
+            <div style={{ color: '#0071e3', fontWeight: 950, fontSize: 15, wordBreak: 'break-word' }}>
               {publicPreview}
             </div>
             <div style={{ color: '#64748b', fontSize: 12.5, lineHeight: 1.45, marginTop: 8, fontWeight: 650 }}>
@@ -1316,10 +1316,10 @@ function RegisterPage() {
       <div className="register-shell">
         <aside className="register-card" style={{ padding: 26, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 18 }}>
           <div>
-            <div style={{ display: 'inline-flex', alignItems: 'center', borderRadius: 999, background: '#eaf4ff', color: '#0066cc', padding: '8px 12px', fontSize: 13, fontWeight: 900, marginBottom: 16 }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', borderRadius: 999, background: '#eaf4ff', color: '#0066cc', padding: '8px 12px', fontSize: 13, fontWeight: 950, marginBottom: 16 }}>
               Crear cuenta profesional
             </div>
-            <h1 style={{ margin: 0, color: '#0f172a', fontSize: 38, lineHeight: 1, letterSpacing: '-0.4px', fontWeight: 900 }}>
+            <h1 style={{ margin: 0, color: '#0f172a', fontSize: 38, lineHeight: 1, letterSpacing: '-1.6px', fontWeight: 950 }}>
               Configurá tu agenda en minutos.
             </h1>
             <p style={{ margin: '16px 0 0', color: '#64748b', fontSize: 15.5, lineHeight: 1.55, fontWeight: 650 }}>
@@ -1337,11 +1337,11 @@ function RegisterPage() {
                 }}
                 style={{ ...stepPillStyle(item.number), fontFamily: 'inherit', textAlign: 'left' }}
               >
-                <div style={{ width: 32, height: 32, borderRadius: 13, background: item.number === step ? '#0071e3' : '#dbeafe', color: item.number === step ? '#fff' : '#0071e3', display: 'grid', placeItems: 'center', fontWeight: 900, flex: '0 0 auto' }}>
+                <div style={{ width: 32, height: 32, borderRadius: 13, background: item.number === step ? '#0071e3' : '#dbeafe', color: item.number === step ? '#fff' : '#0071e3', display: 'grid', placeItems: 'center', fontWeight: 950, flex: '0 0 auto' }}>
                   {item.number}
                 </div>
                 <div>
-                  <div style={{ color: '#111827', fontSize: 14, fontWeight: 900 }}>{item.title}</div>
+                  <div style={{ color: '#111827', fontSize: 14, fontWeight: 950 }}>{item.title}</div>
                   <div style={{ color: '#64748b', fontSize: 13, lineHeight: 1.4, marginTop: 2, fontWeight: 650 }}>{item.text}</div>
                 </div>
               </button>
@@ -1350,17 +1350,17 @@ function RegisterPage() {
 
           <div style={{ background: '#fff', borderRadius: 24, border: '0.5px solid #e5e7eb', padding: 16 }}>
             <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 900, marginBottom: 4 }}>Tu link quedaría así</div>
-            <div style={{ color: '#0071e3', fontWeight: 900, fontSize: 14, wordBreak: 'break-word' }}>{publicPreview}</div>
+            <div style={{ color: '#0071e3', fontWeight: 950, fontSize: 14, wordBreak: 'break-word' }}>{publicPreview}</div>
           </div>
         </aside>
 
         <section className="register-card" style={{ padding: 24 }}>
           <div style={{ marginBottom: 18, display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
             <div>
-              <div style={{ color: '#0071e3', fontSize: 12, fontWeight: 900, marginBottom: 5 }}>
+              <div style={{ color: '#0071e3', fontSize: 12, fontWeight: 950, marginBottom: 5 }}>
                 Paso {step} de 4
               </div>
-              <h2 style={{ margin: 0, color: '#111827', fontSize: 24, letterSpacing: '-0.7px', fontWeight: 900 }}>{activeStep.title}</h2>
+              <h2 style={{ margin: 0, color: '#111827', fontSize: 24, letterSpacing: '-0.7px', fontWeight: 950 }}>{activeStep.title}</h2>
               <p style={{ margin: '6px 0 0', color: '#6e6e73', fontSize: 14, fontWeight: 650 }}>
                 {activeStep.text}
               </p>
@@ -1396,7 +1396,7 @@ function RegisterPage() {
                   type="button"
                   onClick={goNext}
                   disabled={loading}
-                  style={{ width: '100%', padding: '14px', borderRadius: 18, border: 'none', background: '#0071e3', color: '#fff', fontSize: 15, fontWeight: 900, fontFamily: 'inherit', cursor: loading ? 'not-allowed' : 'pointer', boxShadow: '0 14px 30px rgba(0,113,227,0.20)' }}
+                  style={{ width: '100%', padding: '14px', borderRadius: 18, border: 'none', background: '#0071e3', color: '#fff', fontSize: 15, fontWeight: 950, fontFamily: 'inherit', cursor: loading ? 'not-allowed' : 'pointer', boxShadow: '0 14px 30px rgba(0,113,227,0.20)' }}
                 >
                   Continuar
                 </button>
@@ -1404,7 +1404,7 @@ function RegisterPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  style={{ width: '100%', padding: '14px', borderRadius: 18, border: 'none', background: loading ? '#aeaeb2' : '#0071e3', color: '#fff', fontSize: 15, fontWeight: 900, fontFamily: 'inherit', cursor: loading ? 'not-allowed' : 'pointer', boxShadow: loading ? 'none' : '0 14px 30px rgba(0,113,227,0.20)' }}
+                  style={{ width: '100%', padding: '14px', borderRadius: 18, border: 'none', background: loading ? '#aeaeb2' : '#0071e3', color: '#fff', fontSize: 15, fontWeight: 950, fontFamily: 'inherit', cursor: loading ? 'not-allowed' : 'pointer', boxShadow: loading ? 'none' : '0 14px 30px rgba(0,113,227,0.20)' }}
                 >
                   {loading ? 'Creando cuenta...' : 'Crear cuenta profesional'}
                 </button>
@@ -1424,6 +1424,381 @@ function RegisterPage() {
     </div>
   );
 }
+
+
+function SetupChecklistSection() {
+  const [services, setServices] = useState([]);
+  const [staff, setStaff] = useState([]);
+  const [profile, setProfile] = useState(null);
+  const [availability, setAvailability] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const token = localStorage.getItem('tuagendaya_token');
+
+  useEffect(() => {
+    if (!token) return;
+
+    let active = true;
+
+    async function load() {
+      setLoading(true);
+
+      const headers = { Authorization: `Bearer ${token}` };
+      const safeFetch = async (path) => {
+        try {
+          const response = await fetch(`${API_BASE}${path}`, { headers });
+          const data = await response.json().catch(() => ({}));
+          return response.ok ? data : {};
+        } catch {
+          return {};
+        }
+      };
+
+      const [servicesData, staffData, profileData, availabilityData] = await Promise.all([
+        safeFetch('/professionals/me/services'),
+        safeFetch('/staff/me'),
+        safeFetch('/auth/me'),
+        safeFetch('/professionals/me/availability'),
+      ]);
+
+      if (!active) return;
+
+      setServices((servicesData.services || []).map(normalizeService).filter((service) => String(service.name || '').trim()));
+      setStaff(staffData.staff || staffData.members || []);
+      setProfile(profileData.professional || profileData.user || profileData || null);
+      setAvailability(availabilityData.availability || availabilityData.days || []);
+      setLoading(false);
+    }
+
+    load();
+
+    return () => {
+      active = false;
+    };
+  }, [token]);
+
+  const hasServices = services.length > 0;
+  const hasStaff = staff.length > 0;
+  const hasProfile = Boolean(profile?.businessName || profile?.business_name || profile?.name || profile?.slug);
+  const hasPublicLink = Boolean(profile?.slug);
+  const hasAvailability = availability.some((day) => {
+    const active = day?.isActive ?? day?.is_active ?? day?.active;
+    const start = day?.startTime || day?.start_time || day?.start;
+    const end = day?.endTime || day?.end_time || day?.end;
+    return Boolean(active && start && end);
+  });
+
+  const items = [
+    {
+      title: 'Servicio creado',
+      description: hasServices ? `${services.length} servicio${services.length === 1 ? '' : 's'} listo${services.length === 1 ? '' : 's'}.` : 'Creá al menos un servicio para que el cliente pueda reservar.',
+      done: hasServices,
+    },
+    {
+      title: 'Profesional cargado',
+      description: hasStaff ? `${staff.length} profesional${staff.length === 1 ? '' : 'es'} configurado${staff.length === 1 ? '' : 's'}.` : 'Agregá el profesional que va a atender los turnos.',
+      done: hasStaff,
+    },
+    {
+      title: 'Horarios configurados',
+      description: hasAvailability ? 'Ya hay días y horarios activos.' : 'Definí horarios de atención para mostrar turnos disponibles.',
+      done: hasAvailability,
+    },
+    {
+      title: 'Link público listo',
+      description: hasPublicLink ? `tuagendaya.com/reservar/${profile.slug}` : 'Completá el perfil para generar el link público.',
+      done: hasProfile && hasPublicLink,
+    },
+  ];
+
+  const completed = items.filter((item) => item.done).length;
+  const percent = Math.round((completed / items.length) * 100);
+  const nextItem = items.find((item) => !item.done);
+
+  if (loading) {
+    return (
+      <section className="setup-checklist-card">
+        <style>{setupChecklistStyles}</style>
+        <div className="setup-checklist-loading">Revisando configuración inicial...</div>
+      </section>
+    );
+  }
+
+  return (
+    <SetupChecklistSection />
+
+<section className="setup-checklist-card">
+      <style>{setupChecklistStyles}</style>
+
+      <div className="setup-checklist-header">
+        <div>
+          <div className="setup-checklist-eyebrow">Configuración inicial</div>
+          <h2>Prepará tu agenda para recibir reservas</h2>
+          <p>Completá estos pasos para que el link público funcione correctamente.</p>
+        </div>
+
+        <div className="setup-checklist-score">
+          <strong>{completed}/{items.length}</strong>
+          <span>{percent}% listo</span>
+        </div>
+      </div>
+
+      <div className="setup-checklist-progress">
+        <div style={{ width: `${percent}%` }} />
+      </div>
+
+      {nextItem ? (
+        <div className="setup-checklist-next">
+          <span>Próximo paso</span>
+          <strong>{nextItem.title}</strong>
+        </div>
+      ) : (
+        <div className="setup-checklist-ready">Tu agenda está lista para recibir reservas.</div>
+      )}
+
+      <div className="setup-checklist-grid">
+        {items.map((item) => (
+          <article key={item.title} className={`setup-checklist-item ${item.done ? 'done' : ''}`}>
+            <div className="setup-checklist-icon">{item.done ? '✓' : '•'}</div>
+            <div>
+              <h3>{item.title}</h3>
+              <p>{item.description}</p>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+const setupChecklistStyles = `
+  .setup-checklist-card {
+    background: #fff;
+    border-radius: 28px;
+    padding: 22px;
+    box-shadow: 0 1px 10px rgba(0,0,0,0.06);
+    border: 0.5px solid rgba(0,0,0,0.05);
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+
+  .setup-checklist-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .setup-checklist-eyebrow {
+    display: inline-flex;
+    min-height: 28px;
+    align-items: center;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: #eef6ff;
+    color: #0071e3;
+    font-size: 12px;
+    font-weight: 850;
+    margin-bottom: 10px;
+  }
+
+  .setup-checklist-header h2 {
+    margin: 0;
+    color: #1a1a1a;
+    font-size: 22px;
+    line-height: 1.15;
+    font-weight: 900;
+    letter-spacing: -0.01em;
+  }
+
+  .setup-checklist-header p {
+    margin: 8px 0 0;
+    color: #6e6e73;
+    font-size: 14px;
+    line-height: 1.45;
+    font-weight: 600;
+  }
+
+  .setup-checklist-score {
+    flex: 0 0 auto;
+    min-width: 88px;
+    border-radius: 20px;
+    padding: 13px 14px;
+    background: #f5f5f7;
+    text-align: center;
+  }
+
+  .setup-checklist-score strong {
+    display: block;
+    color: #0071e3;
+    font-size: 22px;
+    line-height: 1;
+    font-weight: 900;
+  }
+
+  .setup-checklist-score span {
+    display: block;
+    color: #6e6e73;
+    font-size: 11.5px;
+    font-weight: 800;
+    margin-top: 5px;
+  }
+
+  .setup-checklist-progress {
+    height: 8px;
+    border-radius: 999px;
+    background: #e5e5ea;
+    overflow: hidden;
+    margin: 18px 0 14px;
+  }
+
+  .setup-checklist-progress div {
+    height: 100%;
+    border-radius: 999px;
+    background: #0071e3;
+  }
+
+  .setup-checklist-next,
+  .setup-checklist-ready {
+    border-radius: 18px;
+    padding: 14px;
+    margin-bottom: 14px;
+    font-size: 13px;
+  }
+
+  .setup-checklist-next {
+    background: #f7f9ff;
+    border: 1px solid #dceaff;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .setup-checklist-next span {
+    color: #8e8e93;
+    font-weight: 800;
+  }
+
+  .setup-checklist-next strong {
+    color: #1a1a1a;
+    font-weight: 900;
+  }
+
+  .setup-checklist-ready {
+    background: #edfff3;
+    border: 1px solid #b7f5c8;
+    color: #188038;
+    font-weight: 850;
+  }
+
+  .setup-checklist-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .setup-checklist-item {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+    border: 1px solid #e8e8ed;
+    background: #fff;
+    border-radius: 18px;
+    padding: 14px;
+  }
+
+  .setup-checklist-item.done {
+    background: #fbfffc;
+    border-color: #d8f5e1;
+  }
+
+  .setup-checklist-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    background: #f2f2f7;
+    color: #8e8e93;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 900;
+  }
+
+  .setup-checklist-item.done .setup-checklist-icon {
+    background: #188038;
+    color: #fff;
+  }
+
+  .setup-checklist-item h3 {
+    margin: 0;
+    color: #1a1a1a;
+    font-size: 15px;
+    font-weight: 900;
+    letter-spacing: -0.006em;
+  }
+
+  .setup-checklist-item p {
+    margin: 5px 0 0;
+    color: #6e6e73;
+    font-size: 12.5px;
+    line-height: 1.4;
+    font-weight: 600;
+  }
+
+  .setup-checklist-loading {
+    color: #8e8e93;
+    font-size: 14px;
+    font-weight: 800;
+    text-align: center;
+    padding: 18px;
+  }
+
+  @media (max-width: 760px) {
+    .setup-checklist-card {
+      border-radius: 24px;
+      padding: 16px 14px;
+    }
+
+    .setup-checklist-header {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+    }
+
+    .setup-checklist-header h2 {
+      font-size: 19px;
+    }
+
+    .setup-checklist-header p {
+      font-size: 12.5px;
+    }
+
+    .setup-checklist-score {
+      min-width: 72px;
+      padding: 11px 10px;
+      border-radius: 17px;
+    }
+
+    .setup-checklist-score strong {
+      font-size: 19px;
+    }
+
+    .setup-checklist-next {
+      display: grid;
+      gap: 7px;
+    }
+
+    .setup-checklist-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .setup-checklist-item {
+      border-radius: 17px;
+      padding: 13px;
+    }
+  }
+`;
+
 
 function ReservationsSection() {
   const [bookings, setBookings] = useState([]);
@@ -2088,7 +2463,7 @@ function ReservationsSection() {
           </div>
 
           <div style={{ minWidth: 0 }}>
-            <div style={{ color: '#111827', fontSize: 14, fontWeight: 900, letterSpacing: '-0.006em' }}>
+            <div style={{ color: '#111827', fontSize: 14, fontWeight: 900, letterSpacing: '-0.02em' }}>
               {bookingNotification.totalNew > 1 ? `${bookingNotification.totalNew} nuevas reservas` : 'Nueva reserva'}
             </div>
             <div style={{ color: '#4b5563', fontSize: 13, lineHeight: 1.35, marginTop: 3, fontWeight: 650 }}>
@@ -2625,7 +3000,7 @@ function ReservationsSection() {
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
                         <div>
-                          <div style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 900 }}>Pago y caja</div>
+                          <div style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 950 }}>Pago y caja</div>
                           <div style={{ fontSize: 11, color: '#6e6e73', fontWeight: 700, marginTop: 3 }}>
                             Registrá cobro, método de pago y montos para el cierre diario.
                           </div>
@@ -2655,15 +3030,15 @@ function ReservationsSection() {
                       >
                         <div style={{ background: '#fff', borderRadius: 14, padding: 11, border: '0.5px solid #edf0f5' }}>
                           <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900, marginBottom: 4 }}>PRECIO</div>
-                          <div style={{ fontSize: 14, color: '#1a1a1a', fontWeight: 900 }}>{formatMoney(servicePrice || 0)}</div>
+                          <div style={{ fontSize: 14, color: '#1a1a1a', fontWeight: 950 }}>{formatMoney(servicePrice || 0)}</div>
                         </div>
                         <div style={{ background: '#fff', borderRadius: 14, padding: 11, border: '0.5px solid #edf0f5' }}>
                           <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900, marginBottom: 4 }}>COBRADO</div>
-                          <div style={{ fontSize: 14, color: '#188038', fontWeight: 900 }}>{formatMoney(currentAmountPaid || 0)}</div>
+                          <div style={{ fontSize: 14, color: '#188038', fontWeight: 950 }}>{formatMoney(currentAmountPaid || 0)}</div>
                         </div>
                         <div style={{ background: '#fff', borderRadius: 14, padding: 11, border: '0.5px solid #edf0f5' }}>
                           <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900, marginBottom: 4 }}>PENDIENTE</div>
-                          <div style={{ fontSize: 14, color: pendingAmountNumber > 0 ? '#ff9f0a' : '#188038', fontWeight: 900 }}>{formatMoney(pendingAmountNumber)}</div>
+                          <div style={{ fontSize: 14, color: pendingAmountNumber > 0 ? '#ff9f0a' : '#188038', fontWeight: 950 }}>{formatMoney(pendingAmountNumber)}</div>
                         </div>
                       </div>
 
@@ -3211,31 +3586,31 @@ function CashSection() {
           <div style={{ fontSize: 17, fontWeight: 900, color: '#1a1a1a' }}>{title}</div>
           <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 750, marginTop: 3, lineHeight: 1.4 }}>{subtitle}</div>
         </div>
-        <div style={{ padding: '6px 10px', borderRadius: 999, background: '#f2f7ff', color: '#0071e3', fontSize: 11, fontWeight: 900 }}>
+        <div style={{ padding: '6px 10px', borderRadius: 999, background: '#f2f7ff', color: '#0071e3', fontSize: 11, fontWeight: 950 }}>
           {summary.days} {summary.days === 1 ? 'cierre' : 'cierres'}
         </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 9, marginBottom: 10 }}>
         <div style={periodMetricStyle}>
-          <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Cobrado</div>
-          <div style={{ fontSize: 16, color: '#188038', fontWeight: 900, marginTop: 4 }}>{formatMoney(summary.collected)}</div>
+          <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 950 }}>Cobrado</div>
+          <div style={{ fontSize: 16, color: '#188038', fontWeight: 950, marginTop: 4 }}>{formatMoney(summary.collected)}</div>
         </div>
         <div style={periodMetricStyle}>
-          <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Generado</div>
-          <div style={{ fontSize: 16, color: '#1a1a1a', fontWeight: 900, marginTop: 4 }}>{formatMoney(summary.generated)}</div>
+          <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 950 }}>Generado</div>
+          <div style={{ fontSize: 16, color: '#1a1a1a', fontWeight: 950, marginTop: 4 }}>{formatMoney(summary.generated)}</div>
         </div>
         <div style={periodMetricStyle}>
-          <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Pendiente</div>
-          <div style={{ fontSize: 16, color: '#ff9f0a', fontWeight: 900, marginTop: 4 }}>{formatMoney(summary.pending)}</div>
+          <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 950 }}>Pendiente</div>
+          <div style={{ fontSize: 16, color: '#ff9f0a', fontWeight: 950, marginTop: 4 }}>{formatMoney(summary.pending)}</div>
         </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8 }}>
-        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Citas</div><div style={{ fontSize: 13, fontWeight: 900 }}>{summary.bookings}</div></div>
-        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Efectivo</div><div style={{ fontSize: 13, fontWeight: 900 }}>{formatMoney(summary.cash)}</div></div>
-        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Transfer.</div><div style={{ fontSize: 13, fontWeight: 900 }}>{formatMoney(summary.transfer)}</div></div>
-        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Tarjeta</div><div style={{ fontSize: 13, fontWeight: 900 }}>{formatMoney(summary.card)}</div></div>
+        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Citas</div><div style={{ fontSize: 13, fontWeight: 950 }}>{summary.bookings}</div></div>
+        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Efectivo</div><div style={{ fontSize: 13, fontWeight: 950 }}>{formatMoney(summary.cash)}</div></div>
+        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Transfer.</div><div style={{ fontSize: 13, fontWeight: 950 }}>{formatMoney(summary.transfer)}</div></div>
+        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Tarjeta</div><div style={{ fontSize: 13, fontWeight: 950 }}>{formatMoney(summary.card)}</div></div>
       </div>
     </div>
   );
@@ -3340,19 +3715,19 @@ function CashSection() {
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 12 }}>
           <div style={cashCardStyle('#f7f7fb')}>
-            <div style={{ fontSize: 28, fontWeight: 900, color: '#1a1a1a' }}>{dayBookings.length}</div>
+            <div style={{ fontSize: 28, fontWeight: 950, color: '#1a1a1a' }}>{dayBookings.length}</div>
             <div style={smallStatStyle}>Citas del día</div>
           </div>
           <div style={cashCardStyle('#ecfff3')}>
-            <div style={{ fontSize: 28, fontWeight: 900, color: '#30d158' }}>{completedBookings.length}</div>
+            <div style={{ fontSize: 28, fontWeight: 950, color: '#30d158' }}>{completedBookings.length}</div>
             <div style={smallStatStyle}>Completadas</div>
           </div>
           <div style={cashCardStyle('#fff8eb')}>
-            <div style={{ fontSize: 28, fontWeight: 900, color: '#ff9f0a' }}>{pendingBookings.length}</div>
+            <div style={{ fontSize: 28, fontWeight: 950, color: '#ff9f0a' }}>{pendingBookings.length}</div>
             <div style={smallStatStyle}>Pendientes/confirmadas</div>
           </div>
           <div style={cashCardStyle('#fff1f0')}>
-            <div style={{ fontSize: 28, fontWeight: 900, color: '#ff453a' }}>{cancelledBookings.length}</div>
+            <div style={{ fontSize: 28, fontWeight: 950, color: '#ff453a' }}>{cancelledBookings.length}</div>
             <div style={smallStatStyle}>Canceladas</div>
           </div>
         </div>
@@ -3360,15 +3735,15 @@ function CashSection() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
           <div style={cashCardStyle('#f7f7fb')}>
             <div style={{ fontSize: 13, color: '#8e8e93', fontWeight: 900 }}>Total generado</div>
-            <div style={{ fontSize: 26, fontWeight: 900, color: '#1a1a1a', marginTop: 6 }}>{formatMoney(totalGenerated)}</div>
+            <div style={{ fontSize: 26, fontWeight: 950, color: '#1a1a1a', marginTop: 6 }}>{formatMoney(totalGenerated)}</div>
           </div>
           <div style={cashCardStyle('#ecfff3')}>
             <div style={{ fontSize: 13, color: '#8e8e93', fontWeight: 900 }}>Total cobrado</div>
-            <div style={{ fontSize: 26, fontWeight: 900, color: '#188038', marginTop: 6 }}>{formatMoney(totalCollected)}</div>
+            <div style={{ fontSize: 26, fontWeight: 950, color: '#188038', marginTop: 6 }}>{formatMoney(totalCollected)}</div>
           </div>
           <div style={cashCardStyle('#fff8eb')}>
             <div style={{ fontSize: 13, color: '#8e8e93', fontWeight: 900 }}>Pendiente de cobro</div>
-            <div style={{ fontSize: 26, fontWeight: 900, color: '#ff9f0a', marginTop: 6 }}>{formatMoney(totalPending)}</div>
+            <div style={{ fontSize: 26, fontWeight: 950, color: '#ff9f0a', marginTop: 6 }}>{formatMoney(totalPending)}</div>
           </div>
         </div>
       </div>
@@ -3403,7 +3778,7 @@ function CashSection() {
               background: closeLoading || dayBookings.length === 0 ? '#f2f2f7' : '#0071e3',
               color: closeLoading || dayBookings.length === 0 ? '#8e8e93' : '#fff',
               fontSize: 13,
-              fontWeight: 900,
+              fontWeight: 950,
               fontFamily: 'inherit',
               cursor: closeLoading || dayBookings.length === 0 ? 'not-allowed' : 'pointer',
               boxShadow: closeLoading || dayBookings.length === 0 ? 'none' : '0 10px 22px rgba(0,113,227,0.22)',
@@ -3444,7 +3819,7 @@ function CashSection() {
           {byMethod.map((method) => (
             <div key={method.value} style={{ background: '#f7f7fb', borderRadius: 16, padding: 14, border: '0.5px solid #ececf2' }}>
               <div style={{ fontSize: 13, fontWeight: 900, color: '#1a1a1a' }}>{method.label}</div>
-              <div style={{ fontSize: 21, fontWeight: 900, color: '#0071e3', marginTop: 6 }}>{formatMoney(method.total)}</div>
+              <div style={{ fontSize: 21, fontWeight: 950, color: '#0071e3', marginTop: 6 }}>{formatMoney(method.total)}</div>
             </div>
           ))}
         </div>
@@ -3499,11 +3874,11 @@ function CashSection() {
                 <div key={booking.id} style={{ border: '0.5px solid #ececf2', background: booking.status === 'cancelled' ? '#fffafa' : '#fff', borderRadius: 16, padding: 14 }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '90px minmax(0, 1fr) auto', gap: 12, alignItems: 'center' }}>
                     <div style={{ background: '#f2f2f7', borderRadius: 14, padding: 9, textAlign: 'center' }}>
-                      <div style={{ fontSize: 14, fontWeight: 900 }}>{formatTime(booking.startTime ?? booking.start_time) || '--:--'}</div>
+                      <div style={{ fontSize: 14, fontWeight: 950 }}>{formatTime(booking.startTime ?? booking.start_time) || '--:--'}</div>
                       <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 800, marginTop: 3 }}>{formatTime(booking.endTime ?? booking.end_time) || ''}</div>
                     </div>
                     <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 900, color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{booking.clientName ?? booking.client_name ?? 'Cliente sin nombre'}</div>
+                      <div style={{ fontSize: 13, fontWeight: 950, color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{booking.clientName ?? booking.client_name ?? 'Cliente sin nombre'}</div>
                       <div style={{ fontSize: 12, color: '#6e6e73', fontWeight: 700, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {booking.serviceName ?? booking.service_name ?? 'Servicio'}{booking.staffName || booking.staff_name ? ` · ${booking.staffName ?? booking.staff_name}` : ''}
                       </div>
@@ -3580,14 +3955,14 @@ function CashSection() {
                     }}
                   >
                     <div>
-                      <div style={{ fontSize: 14, fontWeight: 900, color: '#1a1a1a' }}>{formatDate(closure.closureDate ?? closure.closure_date)}</div>
+                      <div style={{ fontSize: 14, fontWeight: 950, color: '#1a1a1a' }}>{formatDate(closure.closureDate ?? closure.closure_date)}</div>
                       <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800, marginTop: 3 }}>
                         {(closure.totalBookings ?? closure.total_bookings ?? 0)} citas · {(closure.completedBookings ?? closure.completed_bookings ?? 0)} completadas
                       </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800 }}>Cobrado</div>
-                      <div style={{ fontSize: 14, color: '#188038', fontWeight: 900 }}>{formatMoney(closure.totalCollected ?? closure.total_collected ?? 0)}</div>
+                      <div style={{ fontSize: 14, color: '#188038', fontWeight: 950 }}>{formatMoney(closure.totalCollected ?? closure.total_collected ?? 0)}</div>
                     </div>
                     <div style={{ color: '#8e8e93', fontSize: 18 }}>{isExpanded ? '−' : '+'}</div>
                   </button>
@@ -3597,32 +3972,32 @@ function CashSection() {
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8 }}>
                         <div style={{ background: '#f7f7fb', borderRadius: 14, padding: 10 }}>
                           <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Generado</div>
-                          <div style={{ fontSize: 12, fontWeight: 900 }}>{formatMoney(closure.totalGenerated ?? closure.total_generated ?? 0)}</div>
+                          <div style={{ fontSize: 12, fontWeight: 950 }}>{formatMoney(closure.totalGenerated ?? closure.total_generated ?? 0)}</div>
                         </div>
                         <div style={{ background: '#ecfff3', borderRadius: 14, padding: 10 }}>
                           <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Cobrado</div>
-                          <div style={{ fontSize: 12, color: '#188038', fontWeight: 900 }}>{formatMoney(closure.totalCollected ?? closure.total_collected ?? 0)}</div>
+                          <div style={{ fontSize: 12, color: '#188038', fontWeight: 950 }}>{formatMoney(closure.totalCollected ?? closure.total_collected ?? 0)}</div>
                         </div>
                         <div style={{ background: '#fff8eb', borderRadius: 14, padding: 10 }}>
                           <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Pendiente</div>
-                          <div style={{ fontSize: 12, color: '#ff9f0a', fontWeight: 900 }}>{formatMoney(closure.totalPending ?? closure.total_pending ?? 0)}</div>
+                          <div style={{ fontSize: 12, color: '#ff9f0a', fontWeight: 950 }}>{formatMoney(closure.totalPending ?? closure.total_pending ?? 0)}</div>
                         </div>
                         <div style={{ background: '#fff1f0', borderRadius: 14, padding: 10 }}>
                           <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Canceladas</div>
-                          <div style={{ fontSize: 12, color: '#ff453a', fontWeight: 900 }}>{closure.cancelledBookings ?? closure.cancelled_bookings ?? 0}</div>
+                          <div style={{ fontSize: 12, color: '#ff453a', fontWeight: 950 }}>{closure.cancelledBookings ?? closure.cancelled_bookings ?? 0}</div>
                         </div>
                       </div>
 
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8 }}>
-                        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Efectivo</div><div style={{ fontSize: 12, fontWeight: 900 }}>{formatMoney(closure.cashTotal ?? closure.cash_total ?? 0)}</div></div>
-                        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Transferencia</div><div style={{ fontSize: 12, fontWeight: 900 }}>{formatMoney(closure.transferTotal ?? closure.transfer_total ?? 0)}</div></div>
-                        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Tarjeta</div><div style={{ fontSize: 12, fontWeight: 900 }}>{formatMoney(closure.cardTotal ?? closure.card_total ?? 0)}</div></div>
-                        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Otro</div><div style={{ fontSize: 12, fontWeight: 900 }}>{formatMoney(closure.otherTotal ?? closure.other_total ?? 0)}</div></div>
+                        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Efectivo</div><div style={{ fontSize: 12, fontWeight: 950 }}>{formatMoney(closure.cashTotal ?? closure.cash_total ?? 0)}</div></div>
+                        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Transferencia</div><div style={{ fontSize: 12, fontWeight: 950 }}>{formatMoney(closure.transferTotal ?? closure.transfer_total ?? 0)}</div></div>
+                        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Tarjeta</div><div style={{ fontSize: 12, fontWeight: 950 }}>{formatMoney(closure.cardTotal ?? closure.card_total ?? 0)}</div></div>
+                        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Otro</div><div style={{ fontSize: 12, fontWeight: 950 }}>{formatMoney(closure.otherTotal ?? closure.other_total ?? 0)}</div></div>
                       </div>
 
                       {services.length > 0 && (
                         <div style={{ background: '#fafafa', borderRadius: 15, padding: 12 }}>
-                          <div style={{ fontSize: 12, fontWeight: 900, marginBottom: 8 }}>Servicios incluidos</div>
+                          <div style={{ fontSize: 12, fontWeight: 950, marginBottom: 8 }}>Servicios incluidos</div>
                           <div style={{ display: 'grid', gap: 6 }}>
                             {services.map((service) => (
                               <div key={service.name} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 12, color: '#6e6e73', fontWeight: 800 }}>
@@ -4012,7 +4387,7 @@ function AvailabilityTable({ availability, onChange }) {
             <div key={dayInfo.dayOfWeek} className="availability-mobile-card">
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                 <div>
-                  <div style={{ fontSize: 16, color: '#1d1d1f', fontWeight: 900, letterSpacing: '-0.006em' }}>{dayInfo.label}</div>
+                  <div style={{ fontSize: 16, color: '#1d1d1f', fontWeight: 900, letterSpacing: '-0.02em' }}>{dayInfo.label}</div>
                   <div style={{ fontSize: 12, color: day.isActive ? '#188038' : '#8e8e93', fontWeight: 800, marginTop: 2 }}>
                     {day.isActive ? 'Disponible para reservas' : 'Día inactivo'}
                   </div>
@@ -7975,7 +8350,7 @@ function LandingPage() {
                 borderRadius: 999,
                 padding: '11px 18px',
                 fontSize: 14,
-                fontWeight: 900,
+                fontWeight: 950,
                 cursor: 'pointer',
                 fontFamily: 'inherit',
                 boxShadow: '0 10px 24px rgba(0,113,227,0.22)',
@@ -8112,7 +8487,7 @@ function LandingPage() {
                   <div style={{ fontSize: 12, color: '#64748b', fontWeight: 820, letterSpacing: '0.1px' }}>Panel profesional</div>
                   <div style={{ fontSize: 23, color: '#0f172a', fontWeight: 880, letterSpacing: '-0.25px' }}>Reservas de hoy</div>
                 </div>
-                <div style={{ width: 52, height: 52, borderRadius: 18, background: '#eaf4ff', display: 'grid', placeItems: 'center', color: '#0071e3', fontWeight: 900 }}>4</div>
+                <div style={{ width: 52, height: 52, borderRadius: 18, background: '#eaf4ff', display: 'grid', placeItems: 'center', color: '#0071e3', fontWeight: 950 }}>4</div>
               </div>
 
               {[
@@ -8123,11 +8498,11 @@ function LandingPage() {
                 <div key={row[0]} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 20, padding: 14, marginBottom: 10, boxShadow: '0 4px 14px rgba(15,23,42,0.04)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
                     <div>
-                      <div style={{ fontSize: 13, color: '#0071e3', fontWeight: 900 }}>{row[0]}</div>
-                      <div style={{ fontSize: 16, color: '#111827', fontWeight: 900 }}>{row[1]}</div>
+                      <div style={{ fontSize: 13, color: '#0071e3', fontWeight: 950 }}>{row[0]}</div>
+                      <div style={{ fontSize: 16, color: '#111827', fontWeight: 950 }}>{row[1]}</div>
                       <div style={{ fontSize: 13, color: '#64748b', fontWeight: 750 }}>{row[2]}</div>
                     </div>
-                    <span style={{ alignSelf: 'flex-start', borderRadius: 999, padding: '6px 9px', background: row[3] === 'Confirmada' ? '#ecfdf5' : '#fffbeb', color: row[3] === 'Confirmada' ? '#047857' : '#b45309', fontSize: 11, fontWeight: 900 }}>{row[3]}</span>
+                    <span style={{ alignSelf: 'flex-start', borderRadius: 999, padding: '6px 9px', background: row[3] === 'Confirmada' ? '#ecfdf5' : '#fffbeb', color: row[3] === 'Confirmada' ? '#047857' : '#b45309', fontSize: 11, fontWeight: 950 }}>{row[3]}</span>
                   </div>
                 </div>
               ))}
@@ -8136,7 +8511,7 @@ function LandingPage() {
                 {quickStats.slice(0, 2).map(([label, value]) => (
                   <div key={label} style={{ background: '#fff', borderRadius: 20, padding: 14, border: '1px solid #e5e7eb' }}>
                     <div style={{ color: '#64748b', fontSize: 12, fontWeight: 900 }}>{label}</div>
-                    <div style={{ color: '#0f172a', fontSize: 25, fontWeight: 900 }}>{value}</div>
+                    <div style={{ color: '#0f172a', fontSize: 25, fontWeight: 950 }}>{value}</div>
                   </div>
                 ))}
               </div>
@@ -8165,8 +8540,8 @@ function LandingPage() {
           <div className="landing-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
             {howItWorks.map((step, index) => (
               <div key={step.title} style={{ background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: 23, padding: 17 }}>
-                <div style={{ width: 36, height: 36, borderRadius: 14, background: '#0071e3', color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 900, marginBottom: 11 }}>{index + 1}</div>
-                <div style={{ color: '#111827', fontSize: 16, lineHeight: 1.25, fontWeight: 900 }}>{step.title}</div>
+                <div style={{ width: 36, height: 36, borderRadius: 14, background: '#0071e3', color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 950, marginBottom: 11 }}>{index + 1}</div>
+                <div style={{ color: '#111827', fontSize: 16, lineHeight: 1.25, fontWeight: 950 }}>{step.title}</div>
                 <p style={{ margin: '7px 0 0', color: '#64748b', lineHeight: 1.5, fontSize: 13.5, fontWeight: 650 }}>{step.text}</p>
               </div>
             ))}
@@ -8175,26 +8550,26 @@ function LandingPage() {
 
         <section className="landing-plan" style={{ marginTop: 24, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'stretch' }}>
           <div style={{ background: '#0f172a', color: '#fff', borderRadius: 34, padding: 28, boxShadow: '0 18px 48px rgba(15,23,42,0.16)' }}>
-            <div style={{ color: '#93c5fd', fontSize: 14, fontWeight: 900, marginBottom: 8 }}>Plan Profesional</div>
-            <h2 style={{ margin: 0, fontSize: 36, letterSpacing: '-1.1px', fontWeight: 900 }}>Una agenda completa, simple de vender y fácil de usar.</h2>
+            <div style={{ color: '#93c5fd', fontSize: 14, fontWeight: 950, marginBottom: 8 }}>Plan Profesional</div>
+            <h2 style={{ margin: 0, fontSize: 36, letterSpacing: '-1.1px', fontWeight: 950 }}>Una agenda completa, simple de vender y fácil de usar.</h2>
             <p style={{ color: '#cbd5e1', lineHeight: 1.58, fontSize: 15, fontWeight: 650 }}>
               Hasta 1000 reservas mensuales, servicios con precio y duración, profesionales, clientes, historial, WhatsApp manual, estadísticas y panel instalable como app.
             </p>
             <button
               type="button"
               onClick={() => navigate('/profesional/register')}
-              style={{ marginTop: 14, border: 'none', borderRadius: 18, background: '#fff', color: '#0f172a', padding: '14px 18px', fontSize: 15, fontWeight: 900, fontFamily: 'inherit', cursor: 'pointer' }}
+              style={{ marginTop: 14, border: 'none', borderRadius: 18, background: '#fff', color: '#0f172a', padding: '14px 18px', fontSize: 15, fontWeight: 950, fontFamily: 'inherit', cursor: 'pointer' }}
             >
               Empezar ahora
             </button>
           </div>
 
           <div className="landing-glass" style={{ borderRadius: 34, padding: 26 }}>
-            <h3 style={{ margin: '0 0 14px', fontSize: 22, color: '#0f172a', fontWeight: 900 }}>Qué incluye</h3>
+            <h3 style={{ margin: '0 0 14px', fontSize: 22, color: '#0f172a', fontWeight: 950 }}>Qué incluye</h3>
             <div style={{ display: 'grid', gap: 9 }}>
               {included.map((item) => (
                 <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#334155', fontSize: 14, fontWeight: 750 }}>
-                  <span style={{ width: 22, height: 22, borderRadius: 8, background: '#eaf4ff', color: '#0071e3', display: 'grid', placeItems: 'center', fontWeight: 900, flex: '0 0 auto' }}>✓</span>
+                  <span style={{ width: 22, height: 22, borderRadius: 8, background: '#eaf4ff', color: '#0071e3', display: 'grid', placeItems: 'center', fontWeight: 950, flex: '0 0 auto' }}>✓</span>
                   {item}
                 </div>
               ))}
@@ -8218,7 +8593,7 @@ function LandingPage() {
           <div className="landing-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             {faqs.map((item) => (
               <article key={item.q} className="landing-card" style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 27, padding: 22, boxShadow: '0 10px 30px rgba(15,23,42,0.04)' }}>
-                <h3 style={{ margin: '0 0 8px', color: '#0f172a', fontSize: 17, fontWeight: 900 }}>{item.q}</h3>
+                <h3 style={{ margin: '0 0 8px', color: '#0f172a', fontSize: 17, fontWeight: 950 }}>{item.q}</h3>
                 <p style={{ margin: 0, color: '#64748b', lineHeight: 1.55, fontSize: 14, fontWeight: 650 }}>{item.a}</p>
               </article>
             ))}
@@ -8236,7 +8611,7 @@ function LandingPage() {
             boxShadow: '0 18px 48px rgba(0,113,227,0.22)',
           }}
         >
-          <h2 style={{ margin: 0, fontSize: 34, letterSpacing: '-0.25px', fontWeight: 900 }}>Empezá a recibir reservas online.</h2>
+          <h2 style={{ margin: 0, fontSize: 34, letterSpacing: '-1px', fontWeight: 950 }}>Empezá a recibir reservas online.</h2>
           <p style={{ margin: '10px auto 20px', maxWidth: 620, color: 'rgba(255,255,255,0.86)', fontSize: 16, lineHeight: 1.55, fontWeight: 650 }}>
             Creá tu cuenta profesional, configurá tus servicios y compartí tu link con tus clientes.
           </p>
@@ -8244,7 +8619,7 @@ function LandingPage() {
             <button
               type="button"
               onClick={() => navigate('/profesional/register')}
-              style={{ border: 'none', borderRadius: 18, background: '#fff', color: '#0f172a', padding: '15px 20px', fontSize: 16, fontWeight: 900, fontFamily: 'inherit', cursor: 'pointer' }}
+              style={{ border: 'none', borderRadius: 18, background: '#fff', color: '#0f172a', padding: '15px 20px', fontSize: 16, fontWeight: 950, fontFamily: 'inherit', cursor: 'pointer' }}
             >
               Crear cuenta
             </button>
@@ -8285,7 +8660,7 @@ function LandingPage() {
         <button
           type="button"
           onClick={() => navigate('/profesional/register')}
-          style={{ border: 'none', borderRadius: 16, background: '#0071e3', color: '#fff', padding: '12px 10px', fontSize: 14, fontWeight: 900, fontFamily: 'inherit' }}
+          style={{ border: 'none', borderRadius: 16, background: '#0071e3', color: '#fff', padding: '12px 10px', fontSize: 14, fontWeight: 950, fontFamily: 'inherit' }}
         >
           Crear cuenta
         </button>
