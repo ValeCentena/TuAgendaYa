@@ -1058,7 +1058,7 @@ export default function BookPage() {
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'minmax(128px, 0.9fr) minmax(0, 1.4fr)',
+                  gridTemplateColumns: 'minmax(116px, 0.78fr) minmax(0, 1.5fr)',
                   gap: 8,
                   alignItems: 'stretch',
                   marginBottom: 8,
@@ -1071,15 +1071,16 @@ export default function BookPage() {
                   style={{
                     ...inputStyle,
                     marginBottom: 0,
-                    padding: '12px 10px',
+                    padding: '12px 8px',
                     cursor: 'pointer',
                     fontWeight: 800,
+                    fontSize: 13.5,
                     appearance: 'auto',
                   }}
                 >
                   {PHONE_COUNTRIES.map((country) => (
                     <option key={country.code} value={country.code}>
-                      {country.flag} +{country.dialCode} · {country.name}
+                      {country.code} {country.flag} +{country.dialCode}
                     </option>
                   ))}
                 </select>
@@ -1096,7 +1097,7 @@ export default function BookPage() {
               </div>
 
               <div style={{ fontSize: 11.5, color: '#8e8e93', margin: '-1px 0 10px', lineHeight: 1.35 }}>
-                Prefijo seleccionado: {selectedPhoneCountry.flag} +{selectedPhoneCountry.dialCode}. Escribí solo el número, sin el prefijo.
+                Prefijo seleccionado: {selectedPhoneCountry.code} {selectedPhoneCountry.flag} +{selectedPhoneCountry.dialCode}. Escribí solo el número, sin el prefijo.
               </div>
 
               <label style={labelStyle}>Comentario opcional</label>
