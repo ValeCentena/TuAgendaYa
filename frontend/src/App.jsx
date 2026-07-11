@@ -844,7 +844,8 @@ function UnifiedLoginPage() {
   useEffect(() => {
     const adminToken = localStorage.getItem('tuagendaya_admin_token');
     const professionalToken = localStorage.getItem('tuagendaya_token');
-    const isProfessionalArea = location.pathname.startsWith('/profesional');
+    const searchParams = new URLSearchParams(location.search);
+    const isProfessionalArea = location.pathname.startsWith('/profesional') || searchParams.get('tipo') === 'profesional';
 
     if (isProfessionalArea) {
       if (professionalToken) {
@@ -861,7 +862,7 @@ function UnifiedLoginPage() {
     if (professionalToken) {
       navigate('/profesional/dashboard', { replace: true });
     }
-  }, [navigate, location.pathname]);
+  }, [navigate, location.pathname, location.search]);
 
   const loginAsAdmin = async () => {
     const response = await fetch(`${API_BASE}/admin/login`, {
@@ -914,7 +915,8 @@ function UnifiedLoginPage() {
     setLoading(true);
 
     try {
-      const isProfessionalArea = location.pathname.startsWith('/profesional');
+      const searchParams = new URLSearchParams(location.search);
+      const isProfessionalArea = location.pathname.startsWith('/profesional') || searchParams.get('tipo') === 'profesional';
 
       if (isProfessionalArea) {
         await loginAsProfessional();
@@ -8404,6 +8406,42 @@ function ProfesionalPage() {
 
 
 
+
+function ProfessionalOnlyRoute() {
+  const navigate = useNavigate();
+  const [checked, setChecked] = useState(false);
+
+  useEffect(() => {
+    const professionalToken = localStorage.getItem('tuagendaya_token');
+    const adminToken = localStorage.getItem('tuagendaya_admin_token');
+
+    if (!professionalToken && adminToken) {
+      localStorage.removeItem('tuagendaya_admin_token');
+      localStorage.removeItem('tuagendaya_admin_user');
+      navigate('/login?tipo=profesional', { replace: true });
+      return;
+    }
+
+    setChecked(true);
+  }, [navigate]);
+
+  if (!checked) {
+    return (
+      <AuthLayout>
+        <div style={{ textAlign: 'center' }}>
+          <TuAgendaLogo height={52} centered />
+          <div style={{ marginTop: 16, color: '#6e6e73', fontSize: 14, fontWeight: 750 }}>
+            Preparando acceso profesional...
+          </div>
+        </div>
+      </AuthLayout>
+    );
+  }
+
+  return <ProfesionalPage />;
+}
+
+
 function MobileViewportController() {
   useEffect(() => {
     const viewportContent = 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover';
@@ -9054,9 +9092,9 @@ export default function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<UnifiedLoginPage />} />
 
-        <Route path="/profesional/login" element={<Navigate to="/login" replace />} />
+        <Route path="/profesional/login" element={<Navigate to="/login?tipo=profesional" replace />} />
         <Route path="/profesional/register" element={<RegisterPage />} />
-        <Route path="/profesional/dashboard" element={<ProfesionalPage />} />
+        <Route path="/profesional/dashboard" element={<ProfessionalOnlyRoute />} />
 
         <Route path="/admin" element={<Navigate to="/login" replace />} />
         <Route path="/admin/login" element={<Navigate to="/login" replace />} />
