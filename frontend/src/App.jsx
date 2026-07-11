@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { Component, useState, useEffect, useRef, useCallback } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import BookPage from './pages/BookPage.jsx';
 
@@ -7269,7 +7269,7 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
   const [businessLogoMode, setBusinessLogoMode] = useState('square');
 
   const publicBookingUrl = professional?.slug
-    ? buildPublicUrl(professional)
+    ? `https://tuagendaya-web.onrender.com/reservar/${professional.slug}`
     : '';
 
   const businessLogoUrl = professional?.logoUrl || professional?.logo_url || '';
@@ -7679,171 +7679,6 @@ function AdminLoginPage() {
   );
 }
 
-
-function getAdminBusinessSetup(professional) {
-  const hasBusinessName = Boolean(String(professional?.businessName || professional?.business_name || professional?.name || '').trim());
-  const hasProfession = Boolean(String(professional?.profession || professional?.category || '').trim());
-  const hasEmail = Boolean(String(professional?.email || '').trim());
-  const hasPhone = Boolean(String(professional?.phone || professional?.businessPhone || professional?.business_phone || '').trim());
-  const hasSlug = Boolean(String(professional?.slug || '').trim());
-  const isActive = professional?.status !== 'suspended';
-
-  const servicesCount = Number(
-    professional?.servicesCount ??
-    professional?.services_count ??
-    professional?.activeServicesCount ??
-    professional?.active_services_count ??
-    professional?.serviceCount ??
-    professional?.service_count ??
-    0
-  );
-
-  const staffCount = Number(
-    professional?.staffCount ??
-    professional?.staff_count ??
-    professional?.activeStaffCount ??
-    professional?.active_staff_count ??
-    professional?.professionalsCount ??
-    professional?.professionals_count ??
-    0
-  );
-
-  const hasAvailability = Boolean(
-    professional?.hasAvailability ??
-    professional?.has_availability ??
-    professional?.availabilityConfigured ??
-    professional?.availability_configured ??
-    professional?.hasSchedule ??
-    professional?.has_schedule ??
-    false
-  );
-
-  const items = [
-    { key: 'basic', label: 'Datos', done: hasBusinessName && hasProfession && (hasEmail || hasPhone) },
-    { key: 'link', label: 'Link', done: hasSlug },
-    { key: 'active', label: 'Activo', done: isActive },
-    { key: 'services', label: 'Servicios', done: servicesCount > 0, soft: servicesCount === 0 },
-    { key: 'staff', label: 'Profesional', done: staffCount > 0, soft: staffCount === 0 },
-    { key: 'hours', label: 'Horarios', done: hasAvailability, soft: !hasAvailability },
-  ];
-
-  const required = items.filter((item) => !item.soft);
-  const completed = required.filter((item) => item.done).length;
-  const total = required.length || 3;
-  const percent = Math.round((completed / total) * 100);
-  const ready = hasBusinessName && hasProfession && hasSlug && isActive;
-  const missing = required.filter((item) => !item.done).map((item) => item.label);
-
-  return { ready, percent, completed, total, missing, items, servicesCount, staffCount, hasAvailability };
-}
-
-function AdminBusinessSetupPills({ professional }) {
-  const setup = getAdminBusinessSetup(professional);
-
-  return (
-    <div style={{ background: setup.ready ? '#f5fff8' : '#fffaf2', border: `1px solid ${setup.ready ? '#d8f5e1' : '#ffe2b8'}`, borderRadius: 16, padding: 12, display: 'grid', gap: 10 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-        <div>
-          <div style={{ color: setup.ready ? '#188038' : '#b26a00', fontSize: 13, fontWeight: 950 }}>
-            {setup.ready ? 'Negocio listo' : 'Negocio incompleto'}
-          </div>
-          <div style={{ color: '#6e6e73', fontSize: 12, fontWeight: 750, marginTop: 2 }}>
-            {setup.ready ? 'Puede recibir reservas desde su link público.' : `Falta revisar: ${setup.missing.join(', ') || 'configuración'}.`}
-          </div>
-        </div>
-
-        <div style={{ minWidth: 80, textAlign: 'right' }}>
-          <div style={{ color: setup.ready ? '#188038' : '#b26a00', fontSize: 18, fontWeight: 950, lineHeight: 1 }}>
-            {setup.percent}%
-          </div>
-          <div style={{ color: '#8e8e93', fontSize: 11, fontWeight: 850, marginTop: 4 }}>
-            listo
-          </div>
-        </div>
-      </div>
-
-      <div style={{ height: 7, borderRadius: 999, background: '#e5e5ea', overflow: 'hidden' }}>
-        <div style={{ width: `${setup.percent}%`, height: '100%', background: setup.ready ? '#188038' : '#ff9f0a', borderRadius: 999 }} />
-      </div>
-
-      <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
-        {setup.items.map((item) => (
-          <span
-            key={item.key}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 5,
-              borderRadius: 999,
-              padding: '6px 9px',
-              background: item.done ? '#edfff3' : '#f2f2f7',
-              color: item.done ? '#188038' : '#8e8e93',
-              fontSize: 11.5,
-              fontWeight: 900,
-            }}
-          >
-            <span>{item.done ? '✓' : '•'}</span>
-            {item.label}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function AdminCommercialStatus({ professional, bookings = [] }) {
-  const setup = getAdminBusinessSetup(professional);
-  const totalBookings = Number(professional?.bookingsCount || professional?.bookings_count || bookings.length || 0);
-  const clientsCount = Number(professional?.clientsCount || professional?.clients_count || 0);
-  const isActive = professional?.status !== 'suspended';
-
-  let label = 'Listo para usar';
-  let tone = '#188038';
-  let bg = '#edfff3';
-  let detail = 'El negocio tiene lo básico para operar y recibir reservas.';
-
-  if (!isActive) {
-    label = 'Suspendido';
-    tone = '#ff3b30';
-    bg = '#fff0f0';
-    detail = 'El negocio no está activo para operar normalmente.';
-  } else if (!setup.ready) {
-    label = 'Configurar antes de vender';
-    tone = '#b26a00';
-    bg = '#fff7e8';
-    detail = `Falta: ${setup.missing.join(', ') || 'configuración inicial'}.`;
-  } else if (totalBookings === 0) {
-    label = 'Listo sin reservas';
-    tone = '#0071e3';
-    bg = '#eef6ff';
-    detail = 'Ya puede recibir reservas, pero todavía no tiene actividad.';
-  }
-
-  return (
-    <div style={{ background: bg, borderRadius: 18, padding: 16, border: `1px solid ${tone}22` }}>
-      <div style={{ color: tone, fontSize: 13, fontWeight: 950, marginBottom: 5 }}>Estado comercial</div>
-      <div style={{ color: '#1a1a1a', fontSize: 18, fontWeight: 950, marginBottom: 6 }}>{label}</div>
-      <div style={{ color: '#6e6e73', fontSize: 13, fontWeight: 700, lineHeight: 1.35 }}>{detail}</div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8, marginTop: 13 }}>
-        <div style={{ background: '#fff', borderRadius: 13, padding: 10 }}>
-          <strong style={{ display: 'block', color: '#1a1a1a', fontSize: 16 }}>{totalBookings}</strong>
-          <span style={{ color: '#8e8e93', fontSize: 11.5, fontWeight: 850 }}>Reservas</span>
-        </div>
-        <div style={{ background: '#fff', borderRadius: 13, padding: 10 }}>
-          <strong style={{ display: 'block', color: '#1a1a1a', fontSize: 16 }}>{clientsCount}</strong>
-          <span style={{ color: '#8e8e93', fontSize: 11.5, fontWeight: 850 }}>Clientes</span>
-        </div>
-        <div style={{ background: '#fff', borderRadius: 13, padding: 10 }}>
-          <strong style={{ display: 'block', color: '#1a1a1a', fontSize: 16 }}>{setup.percent}%</strong>
-          <span style={{ color: '#8e8e93', fontSize: 11.5, fontWeight: 850 }}>Setup</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-
 function AdminDashboardPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -7995,30 +7830,6 @@ function AdminDashboardPage() {
     }
   };
 
-  const buildPublicUrl = (professional) => {
-    const slug = professional?.slug;
-    return slug ? `https://tuagendaya.com/reservar/${slug}` : '';
-  };
-
-  const openPublicUrl = (professional) => {
-    const publicUrl = buildPublicUrl(professional);
-    if (!publicUrl) return;
-    window.open(publicUrl, '_blank', 'noopener,noreferrer');
-  };
-
-  const openWhatsAppContact = (professional) => {
-    const phone = normalizePhoneForWhatsApp(professional?.phone || professional?.businessPhone || professional?.business_phone);
-
-    if (!phone) {
-      alert('Este negocio no tiene teléfono cargado.');
-      return;
-    }
-
-    const businessName = professional?.businessName || professional?.business_name || professional?.name || 'tu negocio';
-    const message = `Hola, te escribo por tu cuenta de TuAgendaYa (${businessName}).`;
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
-  };
-
   const statCards = [
     { label: 'Negocios', value: stats?.professionals?.total || 0, color: '#0071e3', bg: '#eef6ff' },
     { label: 'Activos', value: stats?.professionals?.active || 0, color: '#21c55d', bg: '#edfff3' },
@@ -8028,13 +7839,6 @@ function AdminDashboardPage() {
     { label: 'Reservas hoy', value: stats?.bookings?.today || 0, color: '#ff9500', bg: '#fff7e8' },
     { label: 'Clientes', value: stats?.clients?.total || 0, color: '#111827', bg: '#f4f4f8' },
   ];
-
-  const adminSetupSummary = professionals.reduce((acc, professional) => {
-    const setup = getAdminBusinessSetup(professional);
-    if (setup.ready) acc.ready += 1;
-    else acc.incomplete += 1;
-    return acc;
-  }, { ready: 0, incomplete: 0 });
 
   return (
     <div style={{ minHeight: '100vh', background: '#f2f2f7', padding: '22px 16px', fontFamily: APP_FONT }}>
@@ -8113,7 +7917,7 @@ function AdminDashboardPage() {
           ) : (
             <div style={{ display: 'grid', gap: 12 }}>
               {professionals.map((professional) => {
-                const publicUrl = buildPublicUrl(professional);
+                const publicUrl = professional.slug ? `https://tuagendaya-web.onrender.com/reservar/${professional.slug}` : '';
                 const isActive = professional.status !== 'suspended';
                 const planName = professional.plan || 'Profesional';
                 const monthlyLimit = Number(professional.monthlyLimit || professional.monthly_limit || 1000);
@@ -8142,8 +7946,6 @@ function AdminDashboardPage() {
                       </span>
                     </div>
 
-                    <AdminBusinessSetupPills professional={professional} />
-
                     <div className="admin-business-metrics" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 10 }}>
                       <div style={{ background: '#eef6ff', borderRadius: 14, padding: 12 }}>
                         <div style={{ fontSize: 15, fontWeight: 900, color: '#0071e3' }}>{planName}</div>
@@ -8166,43 +7968,28 @@ function AdminDashboardPage() {
                       </div>
                     </div>
 
-                    <div className="admin-business-actions" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 10 }}>
+                    <div className="admin-business-actions" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                       <button
                         type="button"
                         onClick={() => openBusinessDetail(professional)}
-                        style={{ border: 'none', borderRadius: 14, padding: '11px 12px', background: '#0071e3', color: '#fff', fontWeight: 900, cursor: 'pointer' }}
+                        style={{ border: 'none', borderRadius: 14, padding: '11px 14px', background: '#0071e3', color: '#fff', fontWeight: 900, cursor: 'pointer' }}
                       >
                         Ver detalle
                       </button>
                       <button
                         type="button"
-                        onClick={() => openPublicUrl(professional)}
-                        disabled={!publicUrl}
-                        style={{ border: '1px solid #dcdce3', borderRadius: 14, padding: '11px 12px', background: '#fff', color: '#0071e3', fontWeight: 900, cursor: publicUrl ? 'pointer' : 'not-allowed' }}
+                        onClick={() => updateStatus(professional, isActive ? 'suspended' : 'active')}
+                        style={{ border: 'none', borderRadius: 14, padding: '11px 14px', background: isActive ? '#ff3b30' : '#21c55d', color: '#fff', fontWeight: 900, cursor: 'pointer' }}
                       >
-                        Abrir reserva
+                        {isActive ? 'Suspender negocio' : 'Activar negocio'}
                       </button>
                       <button
                         type="button"
                         onClick={() => copyText(publicUrl, 'Link público copiado')}
                         disabled={!publicUrl}
-                        style={{ border: '1px solid #dcdce3', borderRadius: 14, padding: '11px 12px', background: '#fff', color: '#0071e3', fontWeight: 900, cursor: publicUrl ? 'pointer' : 'not-allowed' }}
+                        style={{ border: '1px solid #dcdce3', borderRadius: 14, padding: '11px 14px', background: '#fff', color: '#0071e3', fontWeight: 900, cursor: publicUrl ? 'pointer' : 'not-allowed' }}
                       >
                         Copiar link
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => openWhatsAppContact(professional)}
-                        style={{ border: '1px solid #dcdce3', borderRadius: 14, padding: '11px 12px', background: '#fff', color: '#188038', fontWeight: 900, cursor: 'pointer' }}
-                      >
-                        WhatsApp
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => updateStatus(professional, isActive ? 'suspended' : 'active')}
-                        style={{ border: 'none', borderRadius: 14, padding: '11px 12px', background: isActive ? '#ff3b30' : '#21c55d', color: '#fff', fontWeight: 900, cursor: 'pointer' }}
-                      >
-                        {isActive ? 'Suspender' : 'Activar'}
                       </button>
                     </div>
                   </div>
@@ -8262,11 +8049,6 @@ function AdminDashboardPage() {
               <div style={{ padding: 40, textAlign: 'center', color: '#8e8e93', fontWeight: 800 }}>Cargando detalle...</div>
             ) : (
               <>
-                <div style={{ display: 'grid', gap: 12, marginBottom: 16 }}>
-                  <AdminBusinessSetupPills professional={selectedBusiness} />
-                  <AdminCommercialStatus professional={selectedBusiness} bookings={selectedBusinessBookings} />
-                </div>
-
                 <div className="admin-detail-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 10, marginBottom: 16 }}>
                   <div style={{ background: '#eef6ff', borderRadius: 16, padding: 14 }}>
                     <div style={{ fontSize: 15, fontWeight: 900, color: '#0071e3' }}>{selectedBusiness.plan || 'Profesional'}</div>
@@ -8304,39 +8086,23 @@ function AdminDashboardPage() {
                     <div><strong style={{ color: '#1a1a1a' }}>Plan:</strong> {selectedBusiness.plan || 'Profesional'}</div>
                     <div><strong style={{ color: '#1a1a1a' }}>Límite mensual:</strong> {Number(selectedBusiness.monthlyLimit || selectedBusiness.monthly_limit || 1000)} reservas</div>
                     <div><strong style={{ color: '#1a1a1a' }}>Reservas usadas este mes:</strong> {Number(selectedBusiness.monthlyBookingsCount || selectedBusiness.monthly_bookings_count || 0)}</div>
-                    <div><strong style={{ color: '#1a1a1a' }}>Link público:</strong> {selectedBusiness.slug ? buildPublicUrl(selectedBusiness) : '-'}</div>
+                    <div><strong style={{ color: '#1a1a1a' }}>Link público:</strong> {selectedBusiness.slug ? `https://tuagendaya-web.onrender.com/reservar/${selectedBusiness.slug}` : '-'}</div>
                   </div>
 
-                  <div className="admin-business-actions" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 10, marginTop: 14 }}>
-                    <button
-                      type="button"
-                      onClick={() => openPublicUrl(selectedBusiness)}
-                      disabled={!buildPublicUrl(selectedBusiness)}
-                      style={{ border: 'none', borderRadius: 14, padding: '11px 14px', background: '#0071e3', color: '#fff', fontWeight: 900, cursor: buildPublicUrl(selectedBusiness) ? 'pointer' : 'not-allowed' }}
-                    >
-                      Abrir reserva
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => copyText(buildPublicUrl(selectedBusiness), 'Link público copiado')}
-                      disabled={!buildPublicUrl(selectedBusiness)}
-                      style={{ border: '1px solid #dcdce3', borderRadius: 14, padding: '11px 14px', background: '#fff', color: '#0071e3', fontWeight: 900, cursor: buildPublicUrl(selectedBusiness) ? 'pointer' : 'not-allowed' }}
-                    >
-                      Copiar link
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openWhatsAppContact(selectedBusiness)}
-                      style={{ border: '1px solid #dcdce3', borderRadius: 14, padding: '11px 14px', background: '#fff', color: '#188038', fontWeight: 900, cursor: 'pointer' }}
-                    >
-                      WhatsApp
-                    </button>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 14 }}>
                     <button
                       type="button"
                       onClick={() => updateStatus(selectedBusiness, selectedBusiness.status === 'suspended' ? 'active' : 'suspended')}
                       style={{ border: 'none', borderRadius: 14, padding: '11px 14px', background: selectedBusiness.status === 'suspended' ? '#21c55d' : '#ff3b30', color: '#fff', fontWeight: 900, cursor: 'pointer' }}
                     >
-                      {selectedBusiness.status === 'suspended' ? 'Activar' : 'Suspender'}
+                      {selectedBusiness.status === 'suspended' ? 'Activar negocio' : 'Suspender negocio'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => copyText(selectedBusiness.slug ? `https://tuagendaya-web.onrender.com/reservar/${selectedBusiness.slug}` : '', 'Link público copiado')}
+                      style={{ border: '1px solid #dcdce3', borderRadius: 14, padding: '11px 14px', background: '#fff', color: '#0071e3', fontWeight: 900, cursor: 'pointer' }}
+                    >
+                      Copiar link público
                     </button>
                   </div>
                 </div>
@@ -8377,17 +8143,124 @@ function AdminDashboardPage() {
   );
 }
 
+
+class DashboardErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error) {
+    console.error('Dashboard error:', error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <AuthLayout>
+          <div style={{ textAlign: 'center' }}>
+            <TuAgendaLogo height={52} centered />
+            <h2 style={{ margin: '18px 0 8px', color: '#1a1a1a', fontSize: 22, fontWeight: 900 }}>
+              No se pudo cargar el panel
+            </h2>
+            <p style={{ margin: '0 0 16px', color: '#6e6e73', fontSize: 14, lineHeight: 1.45, fontWeight: 650 }}>
+              Cerrá sesión y volvé a ingresar para actualizar los datos del profesional.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                localStorage.removeItem('tuagendaya_token');
+                localStorage.removeItem('tuagendaya_professional');
+                window.location.href = '/login';
+              }}
+              style={{ width: '100%', padding: '13px', borderRadius: 14, border: 'none', background: '#0071e3', color: '#fff', fontSize: 15, fontWeight: 850, fontFamily: 'inherit', cursor: 'pointer' }}
+            >
+              Volver a ingresar
+            </button>
+          </div>
+        </AuthLayout>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 function ProfesionalPage() {
-  const [professional, setProfessional] = useState(() => {
+  const navigate = useNavigate();
+
+  const getStoredProfessional = () => {
     const token = localStorage.getItem('tuagendaya_token');
+
     if (!token) return null;
 
     try {
-      return JSON.parse(localStorage.getItem('tuagendaya_professional'));
+      const stored = localStorage.getItem('tuagendaya_professional');
+      if (!stored || stored === 'undefined' || stored === 'null') return null;
+      return normalizeProfessionalFromApi(JSON.parse(stored));
     } catch {
-      return {};
+      localStorage.removeItem('tuagendaya_professional');
+      return null;
     }
-  });
+  };
+
+  const [professional, setProfessional] = useState(getStoredProfessional);
+  const [loadingProfile, setLoadingProfile] = useState(() => Boolean(localStorage.getItem('tuagendaya_token')) && !getStoredProfessional());
+  const [profileError, setProfileError] = useState('');
+
+  useEffect(() => {
+    const token = localStorage.getItem('tuagendaya_token');
+
+    if (!token || professional) {
+      setLoadingProfile(false);
+      return;
+    }
+
+    let active = true;
+
+    async function loadProfile() {
+      setLoadingProfile(true);
+      setProfileError('');
+
+      try {
+        const response = await fetch(`${API_BASE}/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!active) return;
+
+        if (!response.ok) {
+          localStorage.removeItem('tuagendaya_token');
+          localStorage.removeItem('tuagendaya_professional');
+          setProfessional(null);
+          setProfileError('La sesión venció. Volvé a ingresar.');
+          setLoadingProfile(false);
+          return;
+        }
+
+        const normalized = normalizeProfessionalFromApi(data.professional || data.user || data || {});
+        localStorage.setItem('tuagendaya_professional', JSON.stringify(normalized));
+        setProfessional(normalized);
+      } catch {
+        if (!active) return;
+        setProfileError('No se pudo cargar tu cuenta. Volvé a ingresar.');
+      } finally {
+        if (active) setLoadingProfile(false);
+      }
+    }
+
+    loadProfile();
+
+    return () => {
+      active = false;
+    };
+  }, [professional]);
 
   const handleProfessionalUpdate = (updatedProfessional) => {
     const normalized = normalizeProfessionalFromApi({
@@ -8399,18 +8272,48 @@ function ProfesionalPage() {
     localStorage.setItem('tuagendaya_professional', JSON.stringify(normalized));
   };
 
+  if (loadingProfile) {
+    return (
+      <AuthLayout>
+        <div style={{ textAlign: 'center' }}>
+          <TuAgendaLogo height={52} centered />
+          <div style={{ marginTop: 16, color: '#6e6e73', fontSize: 14, fontWeight: 750 }}>
+            Cargando tu panel profesional...
+          </div>
+        </div>
+      </AuthLayout>
+    );
+  }
+
   if (!professional) {
-    return <LoginForm onLogin={(prof) => setProfessional(normalizeProfessionalFromApi(prof || {}))} />;
+    return (
+      <>
+        {profileError && (
+          <div style={{ position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 9999, background: '#fff2f2', color: '#c62828', border: '1px solid #ffcdd2', borderRadius: 14, padding: '10px 14px', fontFamily: APP_FONT, fontSize: 13, fontWeight: 800 }}>
+            {profileError}
+          </div>
+        )}
+        <UnifiedLoginPage />
+      </>
+    );
   }
 
   return (
-    <Dashboard
-      professional={professional}
-      onLogout={() => setProfessional(null)}
-      onProfileUpdated={handleProfessionalUpdate}
-    />
+    <DashboardErrorBoundary>
+      <Dashboard
+        professional={professional}
+        onLogout={() => {
+          localStorage.removeItem('tuagendaya_token');
+          localStorage.removeItem('tuagendaya_professional');
+          setProfessional(null);
+          navigate('/login', { replace: true });
+        }}
+        onProfileUpdated={handleProfessionalUpdate}
+      />
+    </DashboardErrorBoundary>
   );
 }
+
 
 
 function MobileViewportController() {
