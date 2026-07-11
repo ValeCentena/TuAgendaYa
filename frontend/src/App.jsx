@@ -7713,6 +7713,7 @@ function AdminDashboardPage() {
 
     if (response.status === 401 || response.status === 403) {
       localStorage.removeItem('tuagendaya_admin_token');
+    localStorage.removeItem('tuagendaya_admin_user');
       localStorage.removeItem('tuagendaya_admin_user');
       navigate(adminLoginPath, { replace: true });
       throw new Error(data.error || 'Sesión admin vencida');
@@ -8826,14 +8827,14 @@ export default function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<UnifiedLoginPage />} />
 
-        <Route path="/profesional/login" element={<ProfesionalPage />} />
+        <Route path="/profesional/login" element={<Navigate to="/login" replace />} />
         <Route path="/profesional/register" element={<RegisterPage />} />
         <Route path="/profesional/dashboard" element={<ProfesionalPage />} />
 
-        <Route path="/admin" element={<AdminLoginPage />} />
-        <Route path="/admin/login" element={<AdminLoginPage />} />
+        <Route path="/admin" element={<Navigate to="/login" replace />} />
+        <Route path="/admin/login" element={<Navigate to="/login" replace />} />
         <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
-        <Route path="/admin-app" element={<AdminLoginPage />} />
+        <Route path="/admin-app" element={<Navigate to="/login" replace />} />
         <Route path="/admin-app/dashboard" element={<AdminDashboardPage />} />
 
         <Route path="/reservar/:slug" element={<BookPage />} />
