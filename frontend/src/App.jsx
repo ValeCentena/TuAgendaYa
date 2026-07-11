@@ -7683,7 +7683,7 @@ function AdminDashboardPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const isAdminApp = location.pathname.startsWith('/admin-app');
-  const adminLoginPath = isAdminApp ? '/admin-app' : '/admin/login';
+  const adminLoginPath = '/login';
   const [stats, setStats] = useState(null);
   const [professionals, setProfessionals] = useState([]);
   const [search, setSearch] = useState('');
@@ -7766,7 +7766,9 @@ function AdminDashboardPage() {
   const handleLogout = () => {
     localStorage.removeItem('tuagendaya_admin_token');
     localStorage.removeItem('tuagendaya_admin_user');
-    navigate(adminLoginPath, { replace: true });
+    localStorage.removeItem('tuagendaya_token');
+    localStorage.removeItem('tuagendaya_professional');
+    navigate('/login', { replace: true });
   };
 
   const updateStatus = async (professional, nextStatus) => {
