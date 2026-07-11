@@ -832,11 +832,11 @@ function ProfessionCombobox({ value, onChange }) {
 }
 
 
+
 function UnifiedLoginPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [mode, setMode] = useState('auto');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -905,16 +905,6 @@ function UnifiedLoginPage() {
     setLoading(true);
 
     try {
-      if (mode === 'admin') {
-        await loginAsAdmin();
-        return;
-      }
-
-      if (mode === 'professional') {
-        await loginAsProfessional();
-        return;
-      }
-
       try {
         await loginAsAdmin();
         return;
@@ -922,7 +912,7 @@ function UnifiedLoginPage() {
         await loginAsProfessional();
       }
     } catch {
-      setError('Credenciales inválidas. Revisá el email, la contraseña y el tipo de acceso.');
+      setError('Credenciales inválidas. Revisá el email y la contraseña.');
     } finally {
       setLoading(false);
     }
@@ -933,35 +923,8 @@ function UnifiedLoginPage() {
       <div style={{ textAlign: 'center', marginBottom: 24 }}>
         <TuAgendaLogo height={52} centered />
         <div style={{ fontSize: 14, color: '#6e6e73', fontWeight: 650 }}>
-          Entrá a TuAgendaYa
+          Accedé a tu panel
         </div>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 16, background: '#f2f2f7', borderRadius: 16, padding: 5 }}>
-        {[
-          ['auto', 'Auto'],
-          ['admin', 'Dueño'],
-          ['professional', 'Profesional'],
-        ].map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => setMode(value)}
-            style={{
-              border: 'none',
-              borderRadius: 12,
-              padding: '10px 8px',
-              background: mode === value ? '#0071e3' : 'transparent',
-              color: mode === value ? '#fff' : '#6e6e73',
-              fontSize: 13,
-              fontWeight: 850,
-              fontFamily: 'inherit',
-              cursor: 'pointer',
-            }}
-          >
-            {label}
-          </button>
-        ))}
       </div>
 
       <form onSubmit={handleSubmit}>
@@ -1011,7 +974,7 @@ function UnifiedLoginPage() {
       </button>
 
       <div style={{ textAlign: 'center', fontSize: 11.5, color: '#8e8e93', marginTop: 14, lineHeight: 1.35, fontWeight: 650 }}>
-        Dueño y profesional entran desde el mismo acceso.
+        Tus datos están cifrados y protegidos.
       </div>
     </AuthLayout>
   );
@@ -1483,7 +1446,7 @@ function RegisterPage() {
 
         <button
           type="button"
-          onClick={() => navigate('/profesional/login')}
+          onClick={() => navigate('/login')}
           style={{
             border: '0.5px solid #d7dce5',
             background: '#fff',
@@ -1601,7 +1564,7 @@ function RegisterPage() {
 
           <button
             type="button"
-            onClick={() => navigate('/profesional/login')}
+            onClick={() => navigate('/login')}
             style={{ width: '100%', marginTop: 12, padding: '13px', borderRadius: 18, border: '0.5px solid #d0d0d5', background: '#fff', color: '#0071e3', fontSize: 14, fontWeight: 900, fontFamily: 'inherit', cursor: 'pointer' }}
           >
             Ya tengo cuenta
@@ -8511,7 +8474,7 @@ function LandingPage() {
           <div className="landing-nav-actions" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <button
               type="button"
-              onClick={() => navigate('/profesional/login')}
+              onClick={() => navigate('/login')}
               style={{
                 border: '1px solid #d7dce5',
                 background: '#fff',
@@ -8623,7 +8586,7 @@ function LandingPage() {
               <button
                 className="landing-button-secondary"
                 type="button"
-                onClick={() => navigate('/profesional/login')}
+                onClick={() => navigate('/login')}
                 style={{
                   border: '1px solid #d7dce5',
                   background: '#fff',
@@ -8811,7 +8774,7 @@ function LandingPage() {
             </button>
             <button
               type="button"
-              onClick={() => navigate('/profesional/login')}
+              onClick={() => navigate('/login')}
               style={{ border: '1px solid rgba(255,255,255,0.55)', borderRadius: 18, background: 'rgba(255,255,255,0.12)', color: '#fff', padding: '15px 20px', fontSize: 16, fontWeight: 900, fontFamily: 'inherit', cursor: 'pointer' }}
             >
               Ya tengo cuenta
@@ -8838,7 +8801,7 @@ function LandingPage() {
       >
         <button
           type="button"
-          onClick={() => navigate('/profesional/login')}
+          onClick={() => navigate('/login')}
           style={{ border: '1px solid #d7dce5', borderRadius: 16, background: '#fff', color: '#111827', padding: '12px 10px', fontSize: 14, fontWeight: 900, fontFamily: 'inherit' }}
         >
           Ingresar
