@@ -7269,7 +7269,7 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
   const [businessLogoMode, setBusinessLogoMode] = useState('square');
 
   const publicBookingUrl = professional?.slug
-    ? `https://tuagendaya-web.onrender.com/reservar/${professional.slug}`
+    ? buildPublicUrl(professional)
     : '';
 
   const businessLogoUrl = professional?.logoUrl || professional?.logo_url || '';
@@ -7682,7 +7682,7 @@ function AdminLoginPage() {
 
 function getAdminBusinessSetup(professional) {
   const hasBusinessName = Boolean(String(professional?.businessName || professional?.business_name || professional?.name || '').trim());
-  const hasProfession = Boolean(String(professional?.profession || professional?.category || professional?.rubro || '').trim());
+  const hasProfession = Boolean(String(professional?.profession || professional?.category || '').trim());
   const hasEmail = Boolean(String(professional?.email || '').trim());
   const hasPhone = Boolean(String(professional?.phone || professional?.businessPhone || professional?.business_phone || '').trim());
   const hasSlug = Boolean(String(professional?.slug || '').trim());
@@ -7722,26 +7722,19 @@ function getAdminBusinessSetup(professional) {
     { key: 'basic', label: 'Datos', done: hasBusinessName && hasProfession && (hasEmail || hasPhone) },
     { key: 'link', label: 'Link', done: hasSlug },
     { key: 'active', label: 'Activo', done: isActive },
-    { key: 'services', label: 'Servicios', done: servicesCount > 0, optional: servicesCount === 0 },
-    { key: 'staff', label: 'Profesional', done: staffCount > 0, optional: staffCount === 0 },
-    { key: 'hours', label: 'Horarios', done: hasAvailability, optional: !hasAvailability },
+    { key: 'services', label: 'Servicios', done: servicesCount > 0, soft: servicesCount === 0 },
+    { key: 'staff', label: 'Profesional', done: staffCount > 0, soft: staffCount === 0 },
+    { key: 'hours', label: 'Horarios', done: hasAvailability, soft: !hasAvailability },
   ];
 
-  const knownItems = items.filter((item) => !item.optional);
-  const completed = knownItems.filter((item) => item.done).length;
-  const total = knownItems.length || 3;
+  const required = items.filter((item) => !item.soft);
+  const completed = required.filter((item) => item.done).length;
+  const total = required.length || 3;
   const percent = Math.round((completed / total) * 100);
   const ready = hasBusinessName && hasProfession && hasSlug && isActive;
-  const missing = items.filter((item) => !item.done && !item.optional).map((item) => item.label);
+  const missing = required.filter((item) => !item.done).map((item) => item.label);
 
-  return {
-    ready,
-    percent,
-    completed,
-    total,
-    missing,
-    items,
-  };
+  return { ready, percent, completed, total, missing, items, servicesCount, staffCount, hasAvailability };
 }
 
 function AdminBusinessSetupPills({ professional }) {
@@ -7755,11 +7748,11 @@ function AdminBusinessSetupPills({ professional }) {
             {setup.ready ? 'Negocio listo' : 'Negocio incompleto'}
           </div>
           <div style={{ color: '#6e6e73', fontSize: 12, fontWeight: 750, marginTop: 2 }}>
-            {setup.ready ? 'Ya puede recibir reservas desde su link público.' : `Falta revisar: ${setup.missing.join(', ') || 'configuración'}.`}
+            {setup.ready ? 'Puede recibir reservas desde su link público.' : `Falta revisar: ${setup.missing.join(', ') || 'configuración'}.`}
           </div>
         </div>
 
-        <div style={{ minWidth: 86, textAlign: 'right' }}>
+        <div style={{ minWidth: 80, textAlign: 'right' }}>
           <div style={{ color: setup.ready ? '#188038' : '#b26a00', fontSize: 18, fontWeight: 950, lineHeight: 1 }}>
             {setup.percent}%
           </div>
@@ -7793,6 +7786,58 @@ function AdminBusinessSetupPills({ professional }) {
             {item.label}
           </span>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function AdminCommercialStatus({ professional, bookings = [] }) {
+  const setup = getAdminBusinessSetup(professional);
+  const totalBookings = Number(professional?.bookingsCount || professional?.bookings_count || bookings.length || 0);
+  const clientsCount = Number(professional?.clientsCount || professional?.clients_count || 0);
+  const isActive = professional?.status !== 'suspended';
+
+  let label = 'Listo para usar';
+  let tone = '#188038';
+  let bg = '#edfff3';
+  let detail = 'El negocio tiene lo básico para operar y recibir reservas.';
+
+  if (!isActive) {
+    label = 'Suspendido';
+    tone = '#ff3b30';
+    bg = '#fff0f0';
+    detail = 'El negocio no está activo para operar normalmente.';
+  } else if (!setup.ready) {
+    label = 'Configurar antes de vender';
+    tone = '#b26a00';
+    bg = '#fff7e8';
+    detail = `Falta: ${setup.missing.join(', ') || 'configuración inicial'}.`;
+  } else if (totalBookings === 0) {
+    label = 'Listo sin reservas';
+    tone = '#0071e3';
+    bg = '#eef6ff';
+    detail = 'Ya puede recibir reservas, pero todavía no tiene actividad.';
+  }
+
+  return (
+    <div style={{ background: bg, borderRadius: 18, padding: 16, border: `1px solid ${tone}22` }}>
+      <div style={{ color: tone, fontSize: 13, fontWeight: 950, marginBottom: 5 }}>Estado comercial</div>
+      <div style={{ color: '#1a1a1a', fontSize: 18, fontWeight: 950, marginBottom: 6 }}>{label}</div>
+      <div style={{ color: '#6e6e73', fontSize: 13, fontWeight: 700, lineHeight: 1.35 }}>{detail}</div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8, marginTop: 13 }}>
+        <div style={{ background: '#fff', borderRadius: 13, padding: 10 }}>
+          <strong style={{ display: 'block', color: '#1a1a1a', fontSize: 16 }}>{totalBookings}</strong>
+          <span style={{ color: '#8e8e93', fontSize: 11.5, fontWeight: 850 }}>Reservas</span>
+        </div>
+        <div style={{ background: '#fff', borderRadius: 13, padding: 10 }}>
+          <strong style={{ display: 'block', color: '#1a1a1a', fontSize: 16 }}>{clientsCount}</strong>
+          <span style={{ color: '#8e8e93', fontSize: 11.5, fontWeight: 850 }}>Clientes</span>
+        </div>
+        <div style={{ background: '#fff', borderRadius: 13, padding: 10 }}>
+          <strong style={{ display: 'block', color: '#1a1a1a', fontSize: 16 }}>{setup.percent}%</strong>
+          <span style={{ color: '#8e8e93', fontSize: 11.5, fontWeight: 850 }}>Setup</span>
+        </div>
       </div>
     </div>
   );
@@ -7950,6 +7995,30 @@ function AdminDashboardPage() {
     }
   };
 
+  const buildPublicUrl = (professional) => {
+    const slug = professional?.slug;
+    return slug ? `https://tuagendaya.com/reservar/${slug}` : '';
+  };
+
+  const openPublicUrl = (professional) => {
+    const publicUrl = buildPublicUrl(professional);
+    if (!publicUrl) return;
+    window.open(publicUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const openWhatsAppContact = (professional) => {
+    const phone = normalizePhoneForWhatsApp(professional?.phone || professional?.businessPhone || professional?.business_phone);
+
+    if (!phone) {
+      alert('Este negocio no tiene teléfono cargado.');
+      return;
+    }
+
+    const businessName = professional?.businessName || professional?.business_name || professional?.name || 'tu negocio';
+    const message = `Hola, te escribo por tu cuenta de TuAgendaYa (${businessName}).`;
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
+  };
+
   const statCards = [
     { label: 'Negocios', value: stats?.professionals?.total || 0, color: '#0071e3', bg: '#eef6ff' },
     { label: 'Activos', value: stats?.professionals?.active || 0, color: '#21c55d', bg: '#edfff3' },
@@ -7962,10 +8031,8 @@ function AdminDashboardPage() {
 
   const adminSetupSummary = professionals.reduce((acc, professional) => {
     const setup = getAdminBusinessSetup(professional);
-
     if (setup.ready) acc.ready += 1;
     else acc.incomplete += 1;
-
     return acc;
   }, { ready: 0, incomplete: 0 });
 
@@ -8013,18 +8080,6 @@ function AdminDashboardPage() {
           ))}
         </div>
 
-        <div className="admin-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginBottom: 18 }}>
-          <div style={{ background: '#edfff3', borderRadius: 18, padding: 16, border: '1px solid #d8f5e1' }}>
-            <div style={{ color: '#188038', fontSize: 24, fontWeight: 950, marginBottom: 6 }}>{adminSetupSummary.ready}</div>
-            <div style={{ color: '#188038', fontSize: 12.5, fontWeight: 900 }}>Negocios listos</div>
-          </div>
-
-          <div style={{ background: '#fffaf2', borderRadius: 18, padding: 16, border: '1px solid #ffe2b8' }}>
-            <div style={{ color: '#b26a00', fontSize: 24, fontWeight: 950, marginBottom: 6 }}>{adminSetupSummary.incomplete}</div>
-            <div style={{ color: '#b26a00', fontSize: 12.5, fontWeight: 900 }}>Negocios incompletos</div>
-          </div>
-        </div>
-
         <div style={{ background: '#fff', borderRadius: 24, padding: 22, boxShadow: '0 1px 10px rgba(0,0,0,0.06)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 16 }}>
             <div>
@@ -8058,7 +8113,7 @@ function AdminDashboardPage() {
           ) : (
             <div style={{ display: 'grid', gap: 12 }}>
               {professionals.map((professional) => {
-                const publicUrl = professional.slug ? `https://tuagendaya-web.onrender.com/reservar/${professional.slug}` : '';
+                const publicUrl = buildPublicUrl(professional);
                 const isActive = professional.status !== 'suspended';
                 const planName = professional.plan || 'Profesional';
                 const monthlyLimit = Number(professional.monthlyLimit || professional.monthly_limit || 1000);
@@ -8111,28 +8166,43 @@ function AdminDashboardPage() {
                       </div>
                     </div>
 
-                    <div className="admin-business-actions" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                    <div className="admin-business-actions" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 10 }}>
                       <button
                         type="button"
                         onClick={() => openBusinessDetail(professional)}
-                        style={{ border: 'none', borderRadius: 14, padding: '11px 14px', background: '#0071e3', color: '#fff', fontWeight: 900, cursor: 'pointer' }}
+                        style={{ border: 'none', borderRadius: 14, padding: '11px 12px', background: '#0071e3', color: '#fff', fontWeight: 900, cursor: 'pointer' }}
                       >
                         Ver detalle
                       </button>
                       <button
                         type="button"
-                        onClick={() => updateStatus(professional, isActive ? 'suspended' : 'active')}
-                        style={{ border: 'none', borderRadius: 14, padding: '11px 14px', background: isActive ? '#ff3b30' : '#21c55d', color: '#fff', fontWeight: 900, cursor: 'pointer' }}
+                        onClick={() => openPublicUrl(professional)}
+                        disabled={!publicUrl}
+                        style={{ border: '1px solid #dcdce3', borderRadius: 14, padding: '11px 12px', background: '#fff', color: '#0071e3', fontWeight: 900, cursor: publicUrl ? 'pointer' : 'not-allowed' }}
                       >
-                        {isActive ? 'Suspender negocio' : 'Activar negocio'}
+                        Abrir reserva
                       </button>
                       <button
                         type="button"
                         onClick={() => copyText(publicUrl, 'Link público copiado')}
                         disabled={!publicUrl}
-                        style={{ border: '1px solid #dcdce3', borderRadius: 14, padding: '11px 14px', background: '#fff', color: '#0071e3', fontWeight: 900, cursor: publicUrl ? 'pointer' : 'not-allowed' }}
+                        style={{ border: '1px solid #dcdce3', borderRadius: 14, padding: '11px 12px', background: '#fff', color: '#0071e3', fontWeight: 900, cursor: publicUrl ? 'pointer' : 'not-allowed' }}
                       >
                         Copiar link
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openWhatsAppContact(professional)}
+                        style={{ border: '1px solid #dcdce3', borderRadius: 14, padding: '11px 12px', background: '#fff', color: '#188038', fontWeight: 900, cursor: 'pointer' }}
+                      >
+                        WhatsApp
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateStatus(professional, isActive ? 'suspended' : 'active')}
+                        style={{ border: 'none', borderRadius: 14, padding: '11px 12px', background: isActive ? '#ff3b30' : '#21c55d', color: '#fff', fontWeight: 900, cursor: 'pointer' }}
+                      >
+                        {isActive ? 'Suspender' : 'Activar'}
                       </button>
                     </div>
                   </div>
@@ -8182,8 +8252,6 @@ function AdminDashboardPage() {
               </button>
             </div>
 
-            <AdminBusinessSetupPills professional={selectedBusiness} />
-
             {detailError && (
               <div style={{ background: '#fff0f0', color: '#d92d20', borderRadius: 16, padding: 13, fontSize: 14, fontWeight: 800, marginBottom: 14 }}>
                 {detailError}
@@ -8194,6 +8262,11 @@ function AdminDashboardPage() {
               <div style={{ padding: 40, textAlign: 'center', color: '#8e8e93', fontWeight: 800 }}>Cargando detalle...</div>
             ) : (
               <>
+                <div style={{ display: 'grid', gap: 12, marginBottom: 16 }}>
+                  <AdminBusinessSetupPills professional={selectedBusiness} />
+                  <AdminCommercialStatus professional={selectedBusiness} bookings={selectedBusinessBookings} />
+                </div>
+
                 <div className="admin-detail-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 10, marginBottom: 16 }}>
                   <div style={{ background: '#eef6ff', borderRadius: 16, padding: 14 }}>
                     <div style={{ fontSize: 15, fontWeight: 900, color: '#0071e3' }}>{selectedBusiness.plan || 'Profesional'}</div>
@@ -8231,23 +8304,39 @@ function AdminDashboardPage() {
                     <div><strong style={{ color: '#1a1a1a' }}>Plan:</strong> {selectedBusiness.plan || 'Profesional'}</div>
                     <div><strong style={{ color: '#1a1a1a' }}>Límite mensual:</strong> {Number(selectedBusiness.monthlyLimit || selectedBusiness.monthly_limit || 1000)} reservas</div>
                     <div><strong style={{ color: '#1a1a1a' }}>Reservas usadas este mes:</strong> {Number(selectedBusiness.monthlyBookingsCount || selectedBusiness.monthly_bookings_count || 0)}</div>
-                    <div><strong style={{ color: '#1a1a1a' }}>Link público:</strong> {selectedBusiness.slug ? `https://tuagendaya-web.onrender.com/reservar/${selectedBusiness.slug}` : '-'}</div>
+                    <div><strong style={{ color: '#1a1a1a' }}>Link público:</strong> {selectedBusiness.slug ? buildPublicUrl(selectedBusiness) : '-'}</div>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 14 }}>
+                  <div className="admin-business-actions" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 10, marginTop: 14 }}>
+                    <button
+                      type="button"
+                      onClick={() => openPublicUrl(selectedBusiness)}
+                      disabled={!buildPublicUrl(selectedBusiness)}
+                      style={{ border: 'none', borderRadius: 14, padding: '11px 14px', background: '#0071e3', color: '#fff', fontWeight: 900, cursor: buildPublicUrl(selectedBusiness) ? 'pointer' : 'not-allowed' }}
+                    >
+                      Abrir reserva
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => copyText(buildPublicUrl(selectedBusiness), 'Link público copiado')}
+                      disabled={!buildPublicUrl(selectedBusiness)}
+                      style={{ border: '1px solid #dcdce3', borderRadius: 14, padding: '11px 14px', background: '#fff', color: '#0071e3', fontWeight: 900, cursor: buildPublicUrl(selectedBusiness) ? 'pointer' : 'not-allowed' }}
+                    >
+                      Copiar link
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openWhatsAppContact(selectedBusiness)}
+                      style={{ border: '1px solid #dcdce3', borderRadius: 14, padding: '11px 14px', background: '#fff', color: '#188038', fontWeight: 900, cursor: 'pointer' }}
+                    >
+                      WhatsApp
+                    </button>
                     <button
                       type="button"
                       onClick={() => updateStatus(selectedBusiness, selectedBusiness.status === 'suspended' ? 'active' : 'suspended')}
                       style={{ border: 'none', borderRadius: 14, padding: '11px 14px', background: selectedBusiness.status === 'suspended' ? '#21c55d' : '#ff3b30', color: '#fff', fontWeight: 900, cursor: 'pointer' }}
                     >
-                      {selectedBusiness.status === 'suspended' ? 'Activar negocio' : 'Suspender negocio'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => copyText(selectedBusiness.slug ? `https://tuagendaya-web.onrender.com/reservar/${selectedBusiness.slug}` : '', 'Link público copiado')}
-                      style={{ border: '1px solid #dcdce3', borderRadius: 14, padding: '11px 14px', background: '#fff', color: '#0071e3', fontWeight: 900, cursor: 'pointer' }}
-                    >
-                      Copiar link público
+                      {selectedBusiness.status === 'suspended' ? 'Activar' : 'Suspender'}
                     </button>
                   </div>
                 </div>
