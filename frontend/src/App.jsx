@@ -7679,6 +7679,74 @@ function AdminLoginPage() {
   );
 }
 
+
+function getAdminReservationPlanStatus(professional) {
+  const used = Number(
+    professional?.monthlyBookingsCount ??
+    professional?.monthly_bookings_count ??
+    professional?.currentMonthBookings ??
+    professional?.current_month_bookings ??
+    professional?.bookingsThisMonth ??
+    professional?.bookings_this_month ??
+    professional?.bookingsCount ??
+    professional?.bookings_count ??
+    0
+  );
+
+  const limit = 1000;
+  const percent = Math.min(100, Math.round((used / limit) * 100));
+
+  let label = 'Dentro del límite';
+  let color = '#188038';
+  let background = '#edfff3';
+
+  if (used >= 1000) {
+    label = 'Requiere Plan Empresa';
+    color = '#ff3b30';
+    background = '#fff0f0';
+  } else if (used >= 900) {
+    label = 'Cerca del límite';
+    color = '#ff9500';
+    background = '#fff7e8';
+  }
+
+  return {
+    used,
+    limit,
+    percent,
+    label,
+    color,
+    background,
+  };
+}
+
+function AdminPlanStatusLine({ professional }) {
+  const plan = getAdminReservationPlanStatus(professional);
+
+  return (
+    <div style={{ background: plan.background, border: `1px solid ${plan.color}22`, borderRadius: 14, padding: '10px 12px', marginTop: 10 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+        <div>
+          <div style={{ color: plan.color, fontSize: 12, fontWeight: 950 }}>
+            {plan.label}
+          </div>
+          <div style={{ color: '#6e6e73', fontSize: 11.5, fontWeight: 800, marginTop: 3 }}>
+            Plan Base · hasta 1000 reservas por mes
+          </div>
+        </div>
+        <div style={{ color: '#1a1a1a', fontSize: 14, fontWeight: 950, whiteSpace: 'nowrap' }}>
+          {plan.used}/{plan.limit}
+        </div>
+      </div>
+
+      <div style={{ height: 6, borderRadius: 999, background: '#e5e5ea', overflow: 'hidden', marginTop: 9 }}>
+        <div style={{ width: `${plan.percent}%`, height: '100%', background: plan.color, borderRadius: 999 }} />
+      </div>
+    </div>
+  );
+}
+
+
 function AdminDashboardPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -7968,6 +8036,8 @@ function AdminDashboardPage() {
                       </div>
                     </div>
 
+                    <AdminPlanStatusLine professional={professional} />
+
                     <div className="admin-business-actions" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                       <button
                         type="button"
@@ -8049,6 +8119,8 @@ function AdminDashboardPage() {
               <div style={{ padding: 40, textAlign: 'center', color: '#8e8e93', fontWeight: 800 }}>Cargando detalle...</div>
             ) : (
               <>
+                <AdminPlanStatusLine professional={selectedBusiness} />
+
                 <div className="admin-detail-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 10, marginBottom: 16 }}>
                   <div style={{ background: '#eef6ff', borderRadius: 16, padding: 14 }}>
                     <div style={{ fontSize: 15, fontWeight: 900, color: '#0071e3' }}>{selectedBusiness.plan || 'Profesional'}</div>
