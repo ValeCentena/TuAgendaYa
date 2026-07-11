@@ -7680,116 +7680,6 @@ function AdminLoginPage() {
 }
 
 
-
-const BASE_PLAN_RESERVATION_LIMIT = 1000;
-
-function getAdminPlanInfo(professional, bookings = []) {
-  const used = Number(
-    professional?.monthlyBookingsCount ??
-    professional?.monthly_bookings_count ??
-    professional?.currentMonthBookings ??
-    professional?.current_month_bookings ??
-    professional?.bookingsThisMonth ??
-    professional?.bookings_this_month ??
-    professional?.bookingsCount ??
-    professional?.bookings_count ??
-    bookings.length ??
-    0
-  );
-
-  const explicitPlan = String(
-    professional?.plan ??
-    professional?.subscriptionPlan ??
-    professional?.subscription_plan ??
-    professional?.billingPlan ??
-    professional?.billing_plan ??
-    ''
-  ).trim().toLowerCase();
-
-  const isEnterprise = explicitPlan === 'empresa' || explicitPlan === 'enterprise' || used > BASE_PLAN_RESERVATION_LIMIT;
-  const limit = isEnterprise ? null : BASE_PLAN_RESERVATION_LIMIT;
-  const percent = limit ? Math.min(100, Math.round((used / limit) * 100)) : 100;
-
-  let status = 'Dentro del límite';
-  let color = '#188038';
-  let bg = '#edfff3';
-
-  if (isEnterprise) {
-    status = 'Plan Empresa';
-    color = '#5856d6';
-    bg = '#f1f0ff';
-  } else if (used >= BASE_PLAN_RESERVATION_LIMIT) {
-    status = 'Requiere Plan Empresa';
-    color = '#ff3b30';
-    bg = '#fff0f0';
-  } else if (used >= 900) {
-    status = 'Cerca del límite';
-    color = '#ff9500';
-    bg = '#fff7e8';
-  }
-
-  return {
-    planName: isEnterprise ? 'Empresa' : 'Base',
-    used,
-    limit,
-    percent,
-    status,
-    color,
-    bg,
-    isEnterprise,
-  };
-}
-
-function AdminPlanUsageCard({ professional, bookings = [] }) {
-  const plan = getAdminPlanInfo(professional, bookings);
-
-  return (
-    <div style={{ background: plan.bg, borderRadius: 18, padding: 16, border: `1px solid ${plan.color}22` }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-        <div>
-          <div style={{ color: plan.color, fontSize: 13, fontWeight: 950, marginBottom: 4 }}>
-            Plan {plan.planName}
-          </div>
-          <div style={{ color: '#1a1a1a', fontSize: 20, fontWeight: 950, lineHeight: 1 }}>
-            {plan.limit ? `${plan.used}/${plan.limit}` : `${plan.used}+`}
-          </div>
-          <div style={{ color: '#6e6e73', fontSize: 12.5, fontWeight: 800, marginTop: 6 }}>
-            Reservas del mes
-          </div>
-        </div>
-
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ color: plan.color, fontSize: 12.5, fontWeight: 950 }}>
-            {plan.status}
-          </div>
-          <div style={{ color: '#8e8e93', fontSize: 11.5, fontWeight: 800, marginTop: 5 }}>
-            {plan.isEnterprise ? 'sin límite base' : `${plan.percent}% usado`}
-          </div>
-        </div>
-      </div>
-
-      {!plan.isEnterprise && (
-        <div style={{ height: 7, borderRadius: 999, background: '#e5e5ea', overflow: 'hidden', marginTop: 14 }}>
-          <div style={{ width: `${plan.percent}%`, height: '100%', background: plan.color, borderRadius: 999 }} />
-        </div>
-      )}
-
-      {plan.status === 'Cerca del límite' && (
-        <div style={{ marginTop: 12, color: '#8a4b00', fontSize: 12.5, fontWeight: 800, lineHeight: 1.35 }}>
-          Este negocio está cerca de pasar a Plan Empresa.
-        </div>
-      )}
-
-      {plan.status === 'Requiere Plan Empresa' && (
-        <div style={{ marginTop: 12, color: '#b42318', fontSize: 12.5, fontWeight: 850, lineHeight: 1.35 }}>
-          Superó las 1000 reservas. Conviene pasarlo a Plan Empresa.
-        </div>
-      )}
-    </div>
-  );
-}
-
-
 function getAdminBusinessSetup(professional) {
   const hasBusinessName = Boolean(String(professional?.businessName || professional?.business_name || professional?.name || '').trim());
   const hasProfession = Boolean(String(professional?.profession || professional?.category || '').trim());
@@ -8254,8 +8144,6 @@ function AdminDashboardPage() {
 
                     <AdminBusinessSetupPills professional={professional} />
 
-                    <AdminPlanUsageCard professional={professional} />
-
                     <div className="admin-business-metrics" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 10 }}>
                       <div style={{ background: '#eef6ff', borderRadius: 14, padding: 12 }}>
                         <div style={{ fontSize: 15, fontWeight: 900, color: '#0071e3' }}>{planName}</div>
@@ -8376,7 +8264,6 @@ function AdminDashboardPage() {
               <>
                 <div style={{ display: 'grid', gap: 12, marginBottom: 16 }}>
                   <AdminBusinessSetupPills professional={selectedBusiness} />
-                  <AdminPlanUsageCard professional={selectedBusiness} bookings={selectedBusinessBookings} />
                   <AdminCommercialStatus professional={selectedBusiness} bookings={selectedBusinessBookings} />
                 </div>
 
