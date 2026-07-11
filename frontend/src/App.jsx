@@ -64,6 +64,35 @@ const PROFESSIONS = [
   'Piercing',
   'Consultoría',
   'Clases particulares',
+  'Abogacía',
+  'Arquitectura',
+  'Asesoría contable',
+  'Asesoría financiera',
+  'Belleza integral',
+  'Bronceado',
+  'Carpintería',
+  'Cerrajería',
+  'Coaching',
+  'Consultorio médico',
+  'Dermatología',
+  'Diseño gráfico',
+  'Electricidad',
+  'Estudio jurídico',
+  'Eventos',
+  'Faciales',
+  'Gestoría',
+  'Limpieza',
+  'Mecánica',
+  'Medicina estética',
+  'Oftalmología',
+  'Pilates',
+  'Podología',
+  'Reiki',
+  'Reparaciones',
+  'Salón de belleza',
+  'Terapia alternativa',
+  'Traumatología',
+  'Yoga',
   'Otro',
 ];
 
@@ -1096,6 +1125,151 @@ function LoginForm({ onLogin }) {
   );
 }
 
+
+const REGISTRATION_PHONE_COUNTRIES = [
+  { code: 'UY', flag: '🇺🇾', dialCode: '598', label: 'Uruguay' },
+  { code: 'AR', flag: '🇦🇷', dialCode: '54', label: 'Argentina' },
+  { code: 'BR', flag: '🇧🇷', dialCode: '55', label: 'Brasil' },
+  { code: 'CL', flag: '🇨🇱', dialCode: '56', label: 'Chile' },
+  { code: 'PY', flag: '🇵🇾', dialCode: '595', label: 'Paraguay' },
+  { code: 'US', flag: '🇺🇸', dialCode: '1', label: 'Estados Unidos' },
+  { code: 'ES', flag: '🇪🇸', dialCode: '34', label: 'España' },
+];
+
+function buildRegistrationPhone(countryCode, rawPhone) {
+  const selected = REGISTRATION_PHONE_COUNTRIES.find((country) => country.code === countryCode) || REGISTRATION_PHONE_COUNTRIES[0];
+  const digits = String(rawPhone || '').replace(/\D/g, '');
+
+  if (!digits) return '';
+
+  if (digits.startsWith(selected.dialCode)) {
+    return digits;
+  }
+
+  if (selected.code === 'UY' && digits.startsWith('0')) {
+    return `${selected.dialCode}${digits.slice(1)}`;
+  }
+
+  return `${selected.dialCode}${digits}`;
+}
+
+function RegistrationPhoneField({ countryCode, phone, onCountryChange, onPhoneChange }) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef(null);
+  const selected = REGISTRATION_PHONE_COUNTRIES.find((country) => country.code === countryCode) || REGISTRATION_PHONE_COUNTRIES[0];
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (!containerRef.current) return;
+
+      if (!containerRef.current.contains(event.target)) {
+        setOpen(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '132px 1fr', gap: 8 }}>
+        <button
+          type="button"
+          onClick={() => setOpen((current) => !current)}
+          style={{
+            border: '0.5px solid #d0d0d5',
+            background: '#fff',
+            borderRadius: 15,
+            padding: '12px 10px',
+            fontFamily: 'inherit',
+            fontSize: 14,
+            fontWeight: 850,
+            color: '#1a1a1a',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 6,
+            minWidth: 0,
+          }}
+        >
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {selected.code} {selected.flag} +{selected.dialCode}
+          </span>
+          <span style={{ color: '#0071e3', fontWeight: 950 }}>▾</span>
+        </button>
+
+        <input
+          style={{ ...inputStyle, marginBottom: 0, borderRadius: 15, padding: '13px 14px' }}
+          value={phone}
+          onChange={(event) => onPhoneChange(event.target.value)}
+          placeholder={selected.code === 'UY' ? 'Ej: 93405195' : 'Teléfono'}
+          inputMode="tel"
+          autoComplete="tel"
+        />
+      </div>
+
+      {open && (
+        <div
+          style={{
+            position: 'absolute',
+            zIndex: 60,
+            top: 'calc(100% + 6px)',
+            left: 0,
+            width: 'min(280px, 90vw)',
+            background: '#fff',
+            border: '0.5px solid #d0d0d5',
+            borderRadius: 16,
+            boxShadow: '0 14px 34px rgba(0,0,0,0.14)',
+            padding: 6,
+            maxHeight: 220,
+            overflowY: 'auto',
+          }}
+        >
+          {REGISTRATION_PHONE_COUNTRIES.map((country) => (
+            <button
+              key={country.code}
+              type="button"
+              onClick={() => {
+                onCountryChange(country.code);
+                setOpen(false);
+              }}
+              style={{
+                width: '100%',
+                border: 'none',
+                background: country.code === selected.code ? '#eef6ff' : '#fff',
+                color: '#1a1a1a',
+                borderRadius: 12,
+                padding: '10px 11px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 10,
+                fontFamily: 'inherit',
+                fontSize: 14,
+                fontWeight: 800,
+                cursor: 'pointer',
+              }}
+            >
+              <span>{country.code} {country.flag} +{country.dialCode}</span>
+              <span style={{ color: '#8e8e93', fontSize: 12 }}>{country.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div style={{ color: '#8e8e93', fontSize: 11.5, fontWeight: 700, marginTop: 7 }}>
+        En Uruguay escribí solo el número, sin 0 ni +598.
+      </div>
+    </div>
+  );
+}
+
+
 function RegisterPage() {
   const navigate = useNavigate();
 
@@ -1105,6 +1279,7 @@ function RegisterPage() {
     email: '',
     password: '',
     phone: '',
+    phoneCountryCode: 'UY',
     profession: '',
     address: '',
     slug: '',
@@ -1168,6 +1343,7 @@ function RegisterPage() {
 
     if (targetStep === 3) {
       if (!form.slug.trim()) return 'El link público es obligatorio.';
+      if (normalizeSlug(form.slug).length < 3) return 'El link público debe tener mínimo 3 caracteres.';
     }
 
     return '';
@@ -1217,7 +1393,7 @@ function RegisterPage() {
           businessName: form.businessName.trim(),
           email: form.email.trim(),
           password: form.password,
-          phone: form.phone.trim(),
+          phone: buildRegistrationPhone(form.phoneCountryCode, form.phone),
           profession: form.profession.trim(),
           address: form.address.trim(),
           slug: normalizeSlug(form.slug),
@@ -1240,7 +1416,7 @@ function RegisterPage() {
     }
   };
 
-  const publicPreview = form.slug ? `/reservar/${normalizeSlug(form.slug)}` : '/reservar/tu-negocio';
+  const publicPreview = form.slug ? `tuagendaya.com/reservar/${normalizeSlug(form.slug)}` : 'tuagendaya.com/reservar/tu-negocio';
   const activeStep = steps.find((item) => item.number === step) || steps[0];
 
   const stepPillStyle = (number) => ({
@@ -1280,12 +1456,11 @@ function RegisterPage() {
 
           <div>
             <label style={smallLabelStyle}>Teléfono</label>
-            <input
-              style={{ ...inputStyle, marginBottom: 0, borderRadius: 15, padding: '13px 14px' }}
-              value={form.phone}
-              onChange={(e) => updateForm('phone', e.target.value)}
-              placeholder=""
-              inputMode="tel"
+            <RegistrationPhoneField
+              countryCode={form.phoneCountryCode}
+              phone={form.phone}
+              onCountryChange={(value) => updateForm('phoneCountryCode', value)}
+              onPhoneChange={(value) => updateForm('phone', value)}
             />
           </div>
 
@@ -1295,9 +1470,13 @@ function RegisterPage() {
               style={{ ...inputStyle, marginBottom: 0, borderRadius: 15, padding: '13px 14px' }}
               value={form.address}
               onChange={(e) => updateForm('address', e.target.value)}
-              placeholder=""
+              placeholder="Ej: Av. Italia 1234, Montevideo"
               required
+              autoComplete="street-address"
             />
+            <div style={{ color: '#8e8e93', fontSize: 11.5, fontWeight: 700, marginTop: 7 }}>
+              Esta dirección se mostrará como referencia para tus clientes.
+            </div>
           </div>
         </div>
       );
