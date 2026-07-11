@@ -7679,6 +7679,126 @@ function AdminLoginPage() {
   );
 }
 
+
+function getAdminBusinessSetup(professional) {
+  const hasBusinessName = Boolean(String(professional?.businessName || professional?.business_name || professional?.name || '').trim());
+  const hasProfession = Boolean(String(professional?.profession || professional?.category || professional?.rubro || '').trim());
+  const hasEmail = Boolean(String(professional?.email || '').trim());
+  const hasPhone = Boolean(String(professional?.phone || professional?.businessPhone || professional?.business_phone || '').trim());
+  const hasSlug = Boolean(String(professional?.slug || '').trim());
+  const isActive = professional?.status !== 'suspended';
+
+  const servicesCount = Number(
+    professional?.servicesCount ??
+    professional?.services_count ??
+    professional?.activeServicesCount ??
+    professional?.active_services_count ??
+    professional?.serviceCount ??
+    professional?.service_count ??
+    0
+  );
+
+  const staffCount = Number(
+    professional?.staffCount ??
+    professional?.staff_count ??
+    professional?.activeStaffCount ??
+    professional?.active_staff_count ??
+    professional?.professionalsCount ??
+    professional?.professionals_count ??
+    0
+  );
+
+  const hasAvailability = Boolean(
+    professional?.hasAvailability ??
+    professional?.has_availability ??
+    professional?.availabilityConfigured ??
+    professional?.availability_configured ??
+    professional?.hasSchedule ??
+    professional?.has_schedule ??
+    false
+  );
+
+  const items = [
+    { key: 'basic', label: 'Datos', done: hasBusinessName && hasProfession && (hasEmail || hasPhone) },
+    { key: 'link', label: 'Link', done: hasSlug },
+    { key: 'active', label: 'Activo', done: isActive },
+    { key: 'services', label: 'Servicios', done: servicesCount > 0, optional: servicesCount === 0 },
+    { key: 'staff', label: 'Profesional', done: staffCount > 0, optional: staffCount === 0 },
+    { key: 'hours', label: 'Horarios', done: hasAvailability, optional: !hasAvailability },
+  ];
+
+  const knownItems = items.filter((item) => !item.optional);
+  const completed = knownItems.filter((item) => item.done).length;
+  const total = knownItems.length || 3;
+  const percent = Math.round((completed / total) * 100);
+  const ready = hasBusinessName && hasProfession && hasSlug && isActive;
+  const missing = items.filter((item) => !item.done && !item.optional).map((item) => item.label);
+
+  return {
+    ready,
+    percent,
+    completed,
+    total,
+    missing,
+    items,
+  };
+}
+
+function AdminBusinessSetupPills({ professional }) {
+  const setup = getAdminBusinessSetup(professional);
+
+  return (
+    <div style={{ background: setup.ready ? '#f5fff8' : '#fffaf2', border: `1px solid ${setup.ready ? '#d8f5e1' : '#ffe2b8'}`, borderRadius: 16, padding: 12, display: 'grid', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <div style={{ color: setup.ready ? '#188038' : '#b26a00', fontSize: 13, fontWeight: 950 }}>
+            {setup.ready ? 'Negocio listo' : 'Negocio incompleto'}
+          </div>
+          <div style={{ color: '#6e6e73', fontSize: 12, fontWeight: 750, marginTop: 2 }}>
+            {setup.ready ? 'Ya puede recibir reservas desde su link público.' : `Falta revisar: ${setup.missing.join(', ') || 'configuración'}.`}
+          </div>
+        </div>
+
+        <div style={{ minWidth: 86, textAlign: 'right' }}>
+          <div style={{ color: setup.ready ? '#188038' : '#b26a00', fontSize: 18, fontWeight: 950, lineHeight: 1 }}>
+            {setup.percent}%
+          </div>
+          <div style={{ color: '#8e8e93', fontSize: 11, fontWeight: 850, marginTop: 4 }}>
+            listo
+          </div>
+        </div>
+      </div>
+
+      <div style={{ height: 7, borderRadius: 999, background: '#e5e5ea', overflow: 'hidden' }}>
+        <div style={{ width: `${setup.percent}%`, height: '100%', background: setup.ready ? '#188038' : '#ff9f0a', borderRadius: 999 }} />
+      </div>
+
+      <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+        {setup.items.map((item) => (
+          <span
+            key={item.key}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              borderRadius: 999,
+              padding: '6px 9px',
+              background: item.done ? '#edfff3' : '#f2f2f7',
+              color: item.done ? '#188038' : '#8e8e93',
+              fontSize: 11.5,
+              fontWeight: 900,
+            }}
+          >
+            <span>{item.done ? '✓' : '•'}</span>
+            {item.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+
 function AdminDashboardPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -7840,6 +7960,15 @@ function AdminDashboardPage() {
     { label: 'Clientes', value: stats?.clients?.total || 0, color: '#111827', bg: '#f4f4f8' },
   ];
 
+  const adminSetupSummary = professionals.reduce((acc, professional) => {
+    const setup = getAdminBusinessSetup(professional);
+
+    if (setup.ready) acc.ready += 1;
+    else acc.incomplete += 1;
+
+    return acc;
+  }, { ready: 0, incomplete: 0 });
+
   return (
     <div style={{ minHeight: '100vh', background: '#f2f2f7', padding: '22px 16px', fontFamily: APP_FONT }}>
       <style>{`
@@ -7882,6 +8011,18 @@ function AdminDashboardPage() {
               <div style={{ color: '#6e6e73', fontSize: 12, fontWeight: 800 }}>{card.label}</div>
             </div>
           ))}
+        </div>
+
+        <div className="admin-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginBottom: 18 }}>
+          <div style={{ background: '#edfff3', borderRadius: 18, padding: 16, border: '1px solid #d8f5e1' }}>
+            <div style={{ color: '#188038', fontSize: 24, fontWeight: 950, marginBottom: 6 }}>{adminSetupSummary.ready}</div>
+            <div style={{ color: '#188038', fontSize: 12.5, fontWeight: 900 }}>Negocios listos</div>
+          </div>
+
+          <div style={{ background: '#fffaf2', borderRadius: 18, padding: 16, border: '1px solid #ffe2b8' }}>
+            <div style={{ color: '#b26a00', fontSize: 24, fontWeight: 950, marginBottom: 6 }}>{adminSetupSummary.incomplete}</div>
+            <div style={{ color: '#b26a00', fontSize: 12.5, fontWeight: 900 }}>Negocios incompletos</div>
+          </div>
         </div>
 
         <div style={{ background: '#fff', borderRadius: 24, padding: 22, boxShadow: '0 1px 10px rgba(0,0,0,0.06)' }}>
@@ -7945,6 +8086,8 @@ function AdminDashboardPage() {
                         {isActive ? 'Activo' : 'Suspendido'}
                       </span>
                     </div>
+
+                    <AdminBusinessSetupPills professional={professional} />
 
                     <div className="admin-business-metrics" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 10 }}>
                       <div style={{ background: '#eef6ff', borderRadius: 14, padding: 12 }}>
@@ -8038,6 +8181,8 @@ function AdminDashboardPage() {
                 Cerrar
               </button>
             </div>
+
+            <AdminBusinessSetupPills professional={selectedBusiness} />
 
             {detailError && (
               <div style={{ background: '#fff0f0', color: '#d92d20', borderRadius: 16, padding: 13, fontSize: 14, fontWeight: 800, marginBottom: 14 }}>
