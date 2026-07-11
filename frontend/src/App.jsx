@@ -1524,9 +1524,7 @@ function SetupChecklistSection() {
   }
 
   return (
-    <SetupChecklistSection />
-
-<section className="setup-checklist-card">
+    <section className="setup-checklist-card">
       <style>{setupChecklistStyles}</style>
 
       <div className="setup-checklist-header">
@@ -3617,6 +3615,7 @@ function CashSection() {
 
   return (
     <div style={{ display: 'grid', gap: 16 }}>
+      <SetupChecklistSection />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 14 }}>
         {renderPeriodSummary(
           'Resumen semanal',
