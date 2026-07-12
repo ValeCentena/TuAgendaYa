@@ -6525,6 +6525,133 @@ function getProfilePreviewLogoImageStyle(mode) {
   };
 }
 
+
+function getProfileCompletionInfo(form, professional = {}) {
+  const logoValue = form?.logoUrl || professional?.logoUrl || professional?.logo_url || '';
+  const items = [
+    { key: 'businessName', label: 'Nombre', done: Boolean(String(form?.businessName || '').trim()) },
+    { key: 'phone', label: 'Teléfono', done: Boolean(String(form?.phone || '').trim()) },
+    { key: 'address', label: 'Dirección', done: Boolean(String(form?.address || '').trim()) },
+    { key: 'logo', label: 'Logo', done: Boolean(String(logoValue || '').trim()) },
+    { key: 'link', label: 'Link', done: Boolean(String(professional?.slug || '').trim()) },
+  ];
+
+  const completed = items.filter((item) => item.done).length;
+  const percent = Math.round((completed / items.length) * 100);
+  const missing = items.filter((item) => !item.done).map((item) => item.label);
+
+  return {
+    items,
+    completed,
+    total: items.length,
+    percent,
+    complete: completed === items.length,
+    missing,
+  };
+}
+
+function ProfileCompletionCard({ form, professional }) {
+  const info = getProfileCompletionInfo(form, professional);
+
+  return (
+    <div style={{ background: info.complete ? '#edfff3' : '#fffaf2', border: `1px solid ${info.complete ? '#b7f5c8' : '#ffe2b8'}`, borderRadius: 22, padding: 16, marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 12 }}>
+        <div>
+          <div style={{ color: info.complete ? '#188038' : '#b26a00', fontSize: 13, fontWeight: 950, marginBottom: 4 }}>
+            {info.complete ? 'Perfil completo' : 'Perfil incompleto'}
+          </div>
+          <div style={{ color: '#6e6e73', fontSize: 12.5, fontWeight: 750, lineHeight: 1.35 }}>
+            {info.complete ? 'Tu negocio tiene los datos principales cargados.' : `Falta: ${info.missing.join(', ') || 'datos del negocio'}.`}
+          </div>
+        </div>
+
+        <div style={{ textAlign: 'right', flex: '0 0 auto' }}>
+          <div style={{ color: info.complete ? '#188038' : '#b26a00', fontSize: 22, lineHeight: 1, fontWeight: 950 }}>
+            {info.percent}%
+          </div>
+          <div style={{ color: '#8e8e93', fontSize: 11, fontWeight: 850, marginTop: 4 }}>
+            {info.completed}/{info.total}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ height: 7, borderRadius: 999, background: '#e5e5ea', overflow: 'hidden', marginBottom: 12 }}>
+        <div style={{ width: `${info.percent}%`, height: '100%', background: info.complete ? '#188038' : '#ff9f0a', borderRadius: 999 }} />
+      </div>
+
+      <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+        {info.items.map((item) => (
+          <span
+            key={item.key}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              borderRadius: 999,
+              padding: '6px 9px',
+              background: item.done ? '#fff' : '#f2f2f7',
+              color: item.done ? '#188038' : '#8e8e93',
+              fontSize: 11.5,
+              fontWeight: 900,
+            }}
+          >
+            <span>{item.done ? '✓' : '•'}</span>
+            {item.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ProfilePublicPreviewCard({ form, publicLink, copyPublicLinkFromProfile }) {
+  const logoUrl = form?.logoUrl || '';
+  const businessName = String(form?.businessName || '').trim() || 'Nombre del negocio';
+  const address = String(form?.address || '').trim();
+
+  return (
+    <div style={{ background: '#f8fafc', border: '0.5px solid #e5e7eb', borderRadius: 22, padding: 16, marginBottom: 16 }}>
+      <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 900, marginBottom: 10 }}>
+        Vista previa pública
+      </div>
+
+      <div style={{ background: '#fff', borderRadius: 20, padding: 16, border: '0.5px solid #ececf1' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: logoUrl ? 'auto minmax(0, 1fr)' : '1fr', gap: 12, alignItems: 'center', marginBottom: 12 }}>
+          {logoUrl && (
+            <div style={{ width: 74, height: 54, borderRadius: 16, background: '#f2f2f7', border: '0.5px solid #e5e5ea', display: 'grid', placeItems: 'center', overflow: 'hidden' }}>
+              <img src={logoUrl} alt="Logo del negocio" style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 8, boxSizing: 'border-box' }} />
+            </div>
+          )}
+
+          <div style={{ minWidth: 0 }}>
+            <div style={{ color: '#1a1a1a', fontSize: 18, fontWeight: 950, lineHeight: 1.05, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {businessName}
+            </div>
+            <div style={{ color: '#6e6e73', fontSize: 12.5, fontWeight: 700, marginTop: 5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {address || 'Dirección del negocio'}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, alignItems: 'center', background: '#f5f5f7', borderRadius: 15, padding: '10px 11px' }}>
+          <div style={{ minWidth: 0, color: publicLink ? '#0071e3' : '#8e8e93', fontSize: 12.5, fontWeight: 850, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {publicLink || 'Link público pendiente'}
+          </div>
+          <button
+            type="button"
+            onClick={copyPublicLinkFromProfile}
+            disabled={!publicLink}
+            style={{ border: 'none', background: publicLink ? '#0071e3' : '#d1d1d6', color: '#fff', borderRadius: 11, padding: '8px 10px', fontFamily: 'inherit', fontSize: 12, fontWeight: 900, cursor: publicLink ? 'pointer' : 'not-allowed' }}
+          >
+            Copiar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 function BusinessProfileSection({ professional, onProfileUpdated }) {
   const fileInputRef = useRef(null);
 
@@ -6916,9 +7043,17 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
         <div style={{ marginBottom: 18 }}>
           <div style={{ fontSize: 17, fontWeight: 700, color: '#1a1a1a' }}>Perfil del negocio</div>
           <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 4 }}>
-            Configurá los datos que aparecen en tu panel y en la página pública de reservas.
+            Configurá cómo se ve tu negocio para tus clientes en la página pública de reservas.
           </div>
         </div>
+
+        <ProfileCompletionCard form={form} professional={professional} />
+
+        <ProfilePublicPreviewCard
+          form={form}
+          publicLink={publicLink}
+          copyPublicLinkFromProfile={copyPublicLinkFromProfile}
+        />
 
         <form onSubmit={handleSave}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
@@ -6938,7 +7073,7 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
                 style={inputStyle}
                 value={form.phone}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                placeholder="099 123 456"
+                placeholder="Ej: 93405195"
               />
             </div>
           </div>
@@ -6948,7 +7083,7 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
             style={{ ...inputStyle, marginBottom: 12 }}
             value={form.address}
             onChange={(e) => setForm({ ...form, address: e.target.value })}
-            placeholder="Dirección del negocio"
+            placeholder="Ej: Av. Italia 1234, Montevideo"
           />
 
           <label style={smallLabelStyle}>Logo del negocio</label>
@@ -6976,7 +7111,7 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
                 </div>
 
                 <div style={{ fontSize: 12, color: '#6e6e73', lineHeight: 1.45 }}>
-                  Dimensiones recomendadas: 800 × 300 px. Formato recomendado: PNG con fondo transparente. Peso máximo: 1 MB.
+                  Recomendado: PNG o JPG horizontal, fondo limpio y peso menor a 1 MB. Este logo aparecerá en la reserva pública.
                 </div>
               </div>
 
