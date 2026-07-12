@@ -3273,27 +3273,6 @@ function ReservationsSection() {
                       </div>
 
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
-                        {canSendWhatsApp && (
-                          <a
-                            href={whatsappUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            style={{
-                              textDecoration: 'none',
-                              textAlign: 'center',
-                              padding: '10px 8px',
-                              borderRadius: 13,
-                              border: '0.5px solid #c8f2d3',
-                              background: '#edfff3',
-                              color: '#188038',
-                              fontSize: 12.5,
-                              fontWeight: 900,
-                              fontFamily: 'inherit',
-                            }}
-                          >
-                            WhatsApp
-                          </a>
-                        )}
 
                         <button
                           type="button"
