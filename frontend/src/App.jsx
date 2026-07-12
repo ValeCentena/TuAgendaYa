@@ -1,4 +1,4 @@
-import { Component, useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import BookPage from './pages/BookPage.jsx';
 
@@ -64,35 +64,6 @@ const PROFESSIONS = [
   'Piercing',
   'Consultoría',
   'Clases particulares',
-  'Abogacía',
-  'Arquitectura',
-  'Asesoría contable',
-  'Asesoría financiera',
-  'Belleza integral',
-  'Bronceado',
-  'Carpintería',
-  'Cerrajería',
-  'Coaching',
-  'Consultorio médico',
-  'Dermatología',
-  'Diseño gráfico',
-  'Electricidad',
-  'Estudio jurídico',
-  'Eventos',
-  'Faciales',
-  'Gestoría',
-  'Limpieza',
-  'Mecánica',
-  'Medicina estética',
-  'Oftalmología',
-  'Pilates',
-  'Podología',
-  'Reiki',
-  'Reparaciones',
-  'Salón de belleza',
-  'Terapia alternativa',
-  'Traumatología',
-  'Yoga',
   'Otro',
 ];
 
@@ -864,7 +835,6 @@ function ProfessionCombobox({ value, onChange }) {
 
 function UnifiedLoginPage() {
   const navigate = useNavigate();
-  const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -873,15 +843,6 @@ function UnifiedLoginPage() {
   useEffect(() => {
     const adminToken = localStorage.getItem('tuagendaya_admin_token');
     const professionalToken = localStorage.getItem('tuagendaya_token');
-    const searchParams = new URLSearchParams(location.search);
-    const isProfessionalArea = location.pathname.startsWith('/profesional') || searchParams.get('tipo') === 'profesional';
-
-    if (isProfessionalArea) {
-      if (professionalToken) {
-        navigate('/profesional/dashboard', { replace: true });
-      }
-      return;
-    }
 
     if (adminToken) {
       navigate('/admin/dashboard', { replace: true });
@@ -891,7 +852,7 @@ function UnifiedLoginPage() {
     if (professionalToken) {
       navigate('/profesional/dashboard', { replace: true });
     }
-  }, [navigate, location.pathname, location.search]);
+  }, [navigate]);
 
   const loginAsAdmin = async () => {
     const response = await fetch(`${API_BASE}/admin/login`, {
@@ -944,14 +905,6 @@ function UnifiedLoginPage() {
     setLoading(true);
 
     try {
-      const searchParams = new URLSearchParams(location.search);
-      const isProfessionalArea = location.pathname.startsWith('/profesional') || searchParams.get('tipo') === 'profesional';
-
-      if (isProfessionalArea) {
-        await loginAsProfessional();
-        return;
-      }
-
       try {
         await loginAsAdmin();
         return;
@@ -1125,151 +1078,6 @@ function LoginForm({ onLogin }) {
   );
 }
 
-
-const REGISTRATION_PHONE_COUNTRIES = [
-  { code: 'UY', flag: '🇺🇾', dialCode: '598', label: 'Uruguay' },
-  { code: 'AR', flag: '🇦🇷', dialCode: '54', label: 'Argentina' },
-  { code: 'BR', flag: '🇧🇷', dialCode: '55', label: 'Brasil' },
-  { code: 'CL', flag: '🇨🇱', dialCode: '56', label: 'Chile' },
-  { code: 'PY', flag: '🇵🇾', dialCode: '595', label: 'Paraguay' },
-  { code: 'US', flag: '🇺🇸', dialCode: '1', label: 'Estados Unidos' },
-  { code: 'ES', flag: '🇪🇸', dialCode: '34', label: 'España' },
-];
-
-function buildRegistrationPhone(countryCode, rawPhone) {
-  const selected = REGISTRATION_PHONE_COUNTRIES.find((country) => country.code === countryCode) || REGISTRATION_PHONE_COUNTRIES[0];
-  const digits = String(rawPhone || '').replace(/\D/g, '');
-
-  if (!digits) return '';
-
-  if (digits.startsWith(selected.dialCode)) {
-    return digits;
-  }
-
-  if (selected.code === 'UY' && digits.startsWith('0')) {
-    return `${selected.dialCode}${digits.slice(1)}`;
-  }
-
-  return `${selected.dialCode}${digits}`;
-}
-
-function RegistrationPhoneField({ countryCode, phone, onCountryChange, onPhoneChange }) {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef(null);
-  const selected = REGISTRATION_PHONE_COUNTRIES.find((country) => country.code === countryCode) || REGISTRATION_PHONE_COUNTRIES[0];
-
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (!containerRef.current) return;
-
-      if (!containerRef.current.contains(event.target)) {
-        setOpen(false);
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside);
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
-
-  return (
-    <div ref={containerRef} style={{ position: 'relative' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '132px 1fr', gap: 8 }}>
-        <button
-          type="button"
-          onClick={() => setOpen((current) => !current)}
-          style={{
-            border: '0.5px solid #d0d0d5',
-            background: '#fff',
-            borderRadius: 15,
-            padding: '12px 10px',
-            fontFamily: 'inherit',
-            fontSize: 14,
-            fontWeight: 850,
-            color: '#1a1a1a',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 6,
-            minWidth: 0,
-          }}
-        >
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {selected.code} {selected.flag} +{selected.dialCode}
-          </span>
-          <span style={{ color: '#0071e3', fontWeight: 950 }}>▾</span>
-        </button>
-
-        <input
-          style={{ ...inputStyle, marginBottom: 0, borderRadius: 15, padding: '13px 14px' }}
-          value={phone}
-          onChange={(event) => onPhoneChange(event.target.value)}
-          placeholder={selected.code === 'UY' ? 'Ej: 93405195' : 'Teléfono'}
-          inputMode="tel"
-          autoComplete="tel"
-        />
-      </div>
-
-      {open && (
-        <div
-          style={{
-            position: 'absolute',
-            zIndex: 60,
-            top: 'calc(100% + 6px)',
-            left: 0,
-            width: 'min(280px, 90vw)',
-            background: '#fff',
-            border: '0.5px solid #d0d0d5',
-            borderRadius: 16,
-            boxShadow: '0 14px 34px rgba(0,0,0,0.14)',
-            padding: 6,
-            maxHeight: 220,
-            overflowY: 'auto',
-          }}
-        >
-          {REGISTRATION_PHONE_COUNTRIES.map((country) => (
-            <button
-              key={country.code}
-              type="button"
-              onClick={() => {
-                onCountryChange(country.code);
-                setOpen(false);
-              }}
-              style={{
-                width: '100%',
-                border: 'none',
-                background: country.code === selected.code ? '#eef6ff' : '#fff',
-                color: '#1a1a1a',
-                borderRadius: 12,
-                padding: '10px 11px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 10,
-                fontFamily: 'inherit',
-                fontSize: 14,
-                fontWeight: 800,
-                cursor: 'pointer',
-              }}
-            >
-              <span>{country.code} {country.flag} +{country.dialCode}</span>
-              <span style={{ color: '#8e8e93', fontSize: 12 }}>{country.label}</span>
-            </button>
-          ))}
-        </div>
-      )}
-
-      <div style={{ color: '#8e8e93', fontSize: 11.5, fontWeight: 700, marginTop: 7 }}>
-        En Uruguay escribí solo el número, sin 0 ni +598.
-      </div>
-    </div>
-  );
-}
-
-
 function RegisterPage() {
   const navigate = useNavigate();
 
@@ -1279,7 +1087,6 @@ function RegisterPage() {
     email: '',
     password: '',
     phone: '',
-    phoneCountryCode: 'UY',
     profession: '',
     address: '',
     slug: '',
@@ -1343,7 +1150,6 @@ function RegisterPage() {
 
     if (targetStep === 3) {
       if (!form.slug.trim()) return 'El link público es obligatorio.';
-      if (normalizeSlug(form.slug).length < 3) return 'El link público debe tener mínimo 3 caracteres.';
     }
 
     return '';
@@ -1393,7 +1199,7 @@ function RegisterPage() {
           businessName: form.businessName.trim(),
           email: form.email.trim(),
           password: form.password,
-          phone: buildRegistrationPhone(form.phoneCountryCode, form.phone),
+          phone: form.phone.trim(),
           profession: form.profession.trim(),
           address: form.address.trim(),
           slug: normalizeSlug(form.slug),
@@ -1416,7 +1222,7 @@ function RegisterPage() {
     }
   };
 
-  const publicPreview = form.slug ? `tuagendaya.com/reservar/${normalizeSlug(form.slug)}` : 'tuagendaya.com/reservar/tu-negocio';
+  const publicPreview = form.slug ? `/reservar/${normalizeSlug(form.slug)}` : '/reservar/tu-negocio';
   const activeStep = steps.find((item) => item.number === step) || steps[0];
 
   const stepPillStyle = (number) => ({
@@ -1456,11 +1262,12 @@ function RegisterPage() {
 
           <div>
             <label style={smallLabelStyle}>Teléfono</label>
-            <RegistrationPhoneField
-              countryCode={form.phoneCountryCode}
-              phone={form.phone}
-              onCountryChange={(value) => updateForm('phoneCountryCode', value)}
-              onPhoneChange={(value) => updateForm('phone', value)}
+            <input
+              style={{ ...inputStyle, marginBottom: 0, borderRadius: 15, padding: '13px 14px' }}
+              value={form.phone}
+              onChange={(e) => updateForm('phone', e.target.value)}
+              placeholder=""
+              inputMode="tel"
             />
           </div>
 
@@ -1470,13 +1277,9 @@ function RegisterPage() {
               style={{ ...inputStyle, marginBottom: 0, borderRadius: 15, padding: '13px 14px' }}
               value={form.address}
               onChange={(e) => updateForm('address', e.target.value)}
-              placeholder="Ej: Av. Italia 1234, Montevideo"
+              placeholder=""
               required
-              autoComplete="street-address"
             />
-            <div style={{ color: '#8e8e93', fontSize: 11.5, fontWeight: 700, marginTop: 7 }}>
-              Esta dirección se mostrará como referencia para tus clientes.
-            </div>
           </div>
         </div>
       );
@@ -6942,7 +6745,7 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
   const monthlyUsed = planBookings.filter((booking) => getBookingDateValue(booking).startsWith(currentMonthKey)).length;
   const monthlyPercent = monthlyLimit > 0 ? Math.min(100, Math.round((monthlyUsed / monthlyLimit) * 100)) : 0;
   const publicSlug = professional?.slug || '';
-  const publicLink = publicSlug ? `https://tuagendaya-web.onrender.com/reservar/${publicSlug}` : '';
+  const publicLink = publicSlug ? `https://tuagendaya.com/reservar/${publicSlug}` : '';
   const statusText = professional?.status === 'suspended' ? 'Suspendido' : 'Activo';
   const statusColor = professional?.status === 'suspended' ? '#ff453a' : '#30d158';
 
@@ -7466,7 +7269,7 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
   const [businessLogoMode, setBusinessLogoMode] = useState('square');
 
   const publicBookingUrl = professional?.slug
-    ? `https://tuagendaya-web.onrender.com/reservar/${professional.slug}`
+    ? `https://tuagendaya.com/reservar/${professional.slug}`
     : '';
 
   const businessLogoUrl = professional?.logoUrl || professional?.logo_url || '';
@@ -7876,74 +7679,6 @@ function AdminLoginPage() {
   );
 }
 
-
-function getAdminReservationPlanStatus(professional) {
-  const used = Number(
-    professional?.monthlyBookingsCount ??
-    professional?.monthly_bookings_count ??
-    professional?.currentMonthBookings ??
-    professional?.current_month_bookings ??
-    professional?.bookingsThisMonth ??
-    professional?.bookings_this_month ??
-    professional?.bookingsCount ??
-    professional?.bookings_count ??
-    0
-  );
-
-  const limit = 1000;
-  const percent = Math.min(100, Math.round((used / limit) * 100));
-
-  let label = 'Dentro del límite';
-  let color = '#188038';
-  let background = '#edfff3';
-
-  if (used >= 1000) {
-    label = 'Requiere Plan Empresa';
-    color = '#ff3b30';
-    background = '#fff0f0';
-  } else if (used >= 900) {
-    label = 'Cerca del límite';
-    color = '#ff9500';
-    background = '#fff7e8';
-  }
-
-  return {
-    used,
-    limit,
-    percent,
-    label,
-    color,
-    background,
-  };
-}
-
-function AdminPlanStatusLine({ professional }) {
-  const plan = getAdminReservationPlanStatus(professional);
-
-  return (
-    <div style={{ background: plan.background, border: `1px solid ${plan.color}22`, borderRadius: 14, padding: '10px 12px', marginTop: 10 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-        <div>
-          <div style={{ color: plan.color, fontSize: 12, fontWeight: 950 }}>
-            {plan.label}
-          </div>
-          <div style={{ color: '#6e6e73', fontSize: 11.5, fontWeight: 800, marginTop: 3 }}>
-            Plan Base · hasta 1000 reservas por mes
-          </div>
-        </div>
-        <div style={{ color: '#1a1a1a', fontSize: 14, fontWeight: 950, whiteSpace: 'nowrap' }}>
-          {plan.used}/{plan.limit}
-        </div>
-      </div>
-
-      <div style={{ height: 6, borderRadius: 999, background: '#e5e5ea', overflow: 'hidden', marginTop: 9 }}>
-        <div style={{ width: `${plan.percent}%`, height: '100%', background: plan.color, borderRadius: 999 }} />
-      </div>
-    </div>
-  );
-}
-
-
 function AdminDashboardPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -8182,7 +7917,7 @@ function AdminDashboardPage() {
           ) : (
             <div style={{ display: 'grid', gap: 12 }}>
               {professionals.map((professional) => {
-                const publicUrl = professional.slug ? `https://tuagendaya-web.onrender.com/reservar/${professional.slug}` : '';
+                const publicUrl = professional.slug ? `https://tuagendaya.com/reservar/${professional.slug}` : '';
                 const isActive = professional.status !== 'suspended';
                 const planName = professional.plan || 'Profesional';
                 const monthlyLimit = Number(professional.monthlyLimit || professional.monthly_limit || 1000);
@@ -8232,8 +7967,6 @@ function AdminDashboardPage() {
                         <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 800 }}>Clientes</div>
                       </div>
                     </div>
-
-                    <AdminPlanStatusLine professional={professional} />
 
                     <div className="admin-business-actions" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                       <button
@@ -8316,8 +8049,6 @@ function AdminDashboardPage() {
               <div style={{ padding: 40, textAlign: 'center', color: '#8e8e93', fontWeight: 800 }}>Cargando detalle...</div>
             ) : (
               <>
-                <AdminPlanStatusLine professional={selectedBusiness} />
-
                 <div className="admin-detail-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 10, marginBottom: 16 }}>
                   <div style={{ background: '#eef6ff', borderRadius: 16, padding: 14 }}>
                     <div style={{ fontSize: 15, fontWeight: 900, color: '#0071e3' }}>{selectedBusiness.plan || 'Profesional'}</div>
@@ -8355,7 +8086,7 @@ function AdminDashboardPage() {
                     <div><strong style={{ color: '#1a1a1a' }}>Plan:</strong> {selectedBusiness.plan || 'Profesional'}</div>
                     <div><strong style={{ color: '#1a1a1a' }}>Límite mensual:</strong> {Number(selectedBusiness.monthlyLimit || selectedBusiness.monthly_limit || 1000)} reservas</div>
                     <div><strong style={{ color: '#1a1a1a' }}>Reservas usadas este mes:</strong> {Number(selectedBusiness.monthlyBookingsCount || selectedBusiness.monthly_bookings_count || 0)}</div>
-                    <div><strong style={{ color: '#1a1a1a' }}>Link público:</strong> {selectedBusiness.slug ? `https://tuagendaya-web.onrender.com/reservar/${selectedBusiness.slug}` : '-'}</div>
+                    <div><strong style={{ color: '#1a1a1a' }}>Link público:</strong> {selectedBusiness.slug ? `https://tuagendaya.com/reservar/${selectedBusiness.slug}` : '-'}</div>
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 14 }}>
@@ -8368,7 +8099,7 @@ function AdminDashboardPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => copyText(selectedBusiness.slug ? `https://tuagendaya-web.onrender.com/reservar/${selectedBusiness.slug}` : '', 'Link público copiado')}
+                      onClick={() => copyText(selectedBusiness.slug ? `https://tuagendaya.com/reservar/${selectedBusiness.slug}` : '', 'Link público copiado')}
                       style={{ border: '1px solid #dcdce3', borderRadius: 14, padding: '11px 14px', background: '#fff', color: '#0071e3', fontWeight: 900, cursor: 'pointer' }}
                     >
                       Copiar link público
@@ -8412,124 +8143,17 @@ function AdminDashboardPage() {
   );
 }
 
-
-class DashboardErrorBoundary extends Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false };
-  }
-
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-
-  componentDidCatch(error) {
-    console.error('Dashboard error:', error);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <AuthLayout>
-          <div style={{ textAlign: 'center' }}>
-            <TuAgendaLogo height={52} centered />
-            <h2 style={{ margin: '18px 0 8px', color: '#1a1a1a', fontSize: 22, fontWeight: 900 }}>
-              No se pudo cargar el panel
-            </h2>
-            <p style={{ margin: '0 0 16px', color: '#6e6e73', fontSize: 14, lineHeight: 1.45, fontWeight: 650 }}>
-              Cerrá sesión y volvé a ingresar para actualizar los datos del profesional.
-            </p>
-            <button
-              type="button"
-              onClick={() => {
-                localStorage.removeItem('tuagendaya_token');
-                localStorage.removeItem('tuagendaya_professional');
-                window.location.href = '/login';
-              }}
-              style={{ width: '100%', padding: '13px', borderRadius: 14, border: 'none', background: '#0071e3', color: '#fff', fontSize: 15, fontWeight: 850, fontFamily: 'inherit', cursor: 'pointer' }}
-            >
-              Volver a ingresar
-            </button>
-          </div>
-        </AuthLayout>
-      );
-    }
-
-    return this.props.children;
-  }
-}
-
 function ProfesionalPage() {
-  const navigate = useNavigate();
-
-  const getStoredProfessional = () => {
+  const [professional, setProfessional] = useState(() => {
     const token = localStorage.getItem('tuagendaya_token');
-
     if (!token) return null;
 
     try {
-      const stored = localStorage.getItem('tuagendaya_professional');
-      if (!stored || stored === 'undefined' || stored === 'null') return null;
-      return normalizeProfessionalFromApi(JSON.parse(stored));
+      return JSON.parse(localStorage.getItem('tuagendaya_professional'));
     } catch {
-      localStorage.removeItem('tuagendaya_professional');
-      return null;
+      return {};
     }
-  };
-
-  const [professional, setProfessional] = useState(getStoredProfessional);
-  const [loadingProfile, setLoadingProfile] = useState(() => Boolean(localStorage.getItem('tuagendaya_token')) && !getStoredProfessional());
-  const [profileError, setProfileError] = useState('');
-
-  useEffect(() => {
-    const token = localStorage.getItem('tuagendaya_token');
-
-    if (!token || professional) {
-      setLoadingProfile(false);
-      return;
-    }
-
-    let active = true;
-
-    async function loadProfile() {
-      setLoadingProfile(true);
-      setProfileError('');
-
-      try {
-        const response = await fetch(`${API_BASE}/auth/me`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        const data = await response.json().catch(() => ({}));
-
-        if (!active) return;
-
-        if (!response.ok) {
-          localStorage.removeItem('tuagendaya_token');
-          localStorage.removeItem('tuagendaya_professional');
-          setProfessional(null);
-          setProfileError('La sesión venció. Volvé a ingresar.');
-          setLoadingProfile(false);
-          return;
-        }
-
-        const normalized = normalizeProfessionalFromApi(data.professional || data.user || data || {});
-        localStorage.setItem('tuagendaya_professional', JSON.stringify(normalized));
-        setProfessional(normalized);
-      } catch {
-        if (!active) return;
-        setProfileError('No se pudo cargar tu cuenta. Volvé a ingresar.');
-      } finally {
-        if (active) setLoadingProfile(false);
-      }
-    }
-
-    loadProfile();
-
-    return () => {
-      active = false;
-    };
-  }, [professional]);
+  });
 
   const handleProfessionalUpdate = (updatedProfessional) => {
     const normalized = normalizeProfessionalFromApi({
@@ -8541,83 +8165,17 @@ function ProfesionalPage() {
     localStorage.setItem('tuagendaya_professional', JSON.stringify(normalized));
   };
 
-  if (loadingProfile) {
-    return (
-      <AuthLayout>
-        <div style={{ textAlign: 'center' }}>
-          <TuAgendaLogo height={52} centered />
-          <div style={{ marginTop: 16, color: '#6e6e73', fontSize: 14, fontWeight: 750 }}>
-            Cargando tu panel profesional...
-          </div>
-        </div>
-      </AuthLayout>
-    );
-  }
-
   if (!professional) {
-    return (
-      <>
-        {profileError && (
-          <div style={{ position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 9999, background: '#fff2f2', color: '#c62828', border: '1px solid #ffcdd2', borderRadius: 14, padding: '10px 14px', fontFamily: APP_FONT, fontSize: 13, fontWeight: 800 }}>
-            {profileError}
-          </div>
-        )}
-        <UnifiedLoginPage />
-      </>
-    );
+    return <LoginForm onLogin={(prof) => setProfessional(normalizeProfessionalFromApi(prof || {}))} />;
   }
 
   return (
-    <DashboardErrorBoundary>
-      <Dashboard
-        professional={professional}
-        onLogout={() => {
-          localStorage.removeItem('tuagendaya_token');
-          localStorage.removeItem('tuagendaya_professional');
-          setProfessional(null);
-          navigate('/login', { replace: true });
-        }}
-        onProfileUpdated={handleProfessionalUpdate}
-      />
-    </DashboardErrorBoundary>
+    <Dashboard
+      professional={professional}
+      onLogout={() => setProfessional(null)}
+      onProfileUpdated={handleProfessionalUpdate}
+    />
   );
-}
-
-
-
-
-function ProfessionalOnlyRoute() {
-  const navigate = useNavigate();
-  const [checked, setChecked] = useState(false);
-
-  useEffect(() => {
-    const professionalToken = localStorage.getItem('tuagendaya_token');
-    const adminToken = localStorage.getItem('tuagendaya_admin_token');
-
-    if (!professionalToken && adminToken) {
-      localStorage.removeItem('tuagendaya_admin_token');
-      localStorage.removeItem('tuagendaya_admin_user');
-      navigate('/login?tipo=profesional', { replace: true });
-      return;
-    }
-
-    setChecked(true);
-  }, [navigate]);
-
-  if (!checked) {
-    return (
-      <AuthLayout>
-        <div style={{ textAlign: 'center' }}>
-          <TuAgendaLogo height={52} centered />
-          <div style={{ marginTop: 16, color: '#6e6e73', fontSize: 14, fontWeight: 750 }}>
-            Preparando acceso profesional...
-          </div>
-        </div>
-      </AuthLayout>
-    );
-  }
-
-  return <ProfesionalPage />;
 }
 
 
@@ -9271,9 +8829,9 @@ export default function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<UnifiedLoginPage />} />
 
-        <Route path="/profesional/login" element={<Navigate to="/login?tipo=profesional" replace />} />
+        <Route path="/profesional/login" element={<Navigate to="/login" replace />} />
         <Route path="/profesional/register" element={<RegisterPage />} />
-        <Route path="/profesional/dashboard" element={<ProfessionalOnlyRoute />} />
+        <Route path="/profesional/dashboard" element={<ProfesionalPage />} />
 
         <Route path="/admin" element={<Navigate to="/login" replace />} />
         <Route path="/admin/login" element={<Navigate to="/login" replace />} />
