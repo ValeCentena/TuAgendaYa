@@ -2967,6 +2967,75 @@ function ReservationsSection() {
             // Solo se oculta cuando ya está completada, cancelada o en la vista Archivadas.
             const canCancel = !isArchivedView && (isPending || isConfirmed) && !isCancelled && !isCompleted;
 
+            const normalizedClientPhone = normalizePhoneForWhatsApp(clientPhone);
+            const normalizedClientName = normalizeSearchText(clientName);
+            const clientHistory = bookings.filter((booking) => {
+              const bookingPhone = normalizePhoneForWhatsApp(booking.clientPhone ?? booking.client_phone);
+              const bookingName = normalizeSearchText(booking.clientName ?? booking.client_name);
+
+              if (normalizedClientPhone && bookingPhone) {
+                return bookingPhone === normalizedClientPhone;
+              }
+
+              if (normalizedClientName && bookingName) {
+                return bookingName === normalizedClientName;
+              }
+
+              return false;
+            });
+
+            const clientTotalBookings = clientHistory.length;
+            const clientCompletedCount = clientHistory.filter((booking) => {
+              const status = String(booking.status || '').toLowerCase();
+              return status === 'completed' || status === 'completada' || status === 'completado';
+            }).length;
+            const clientCancelledCount = clientHistory.filter((booking) => {
+              const status = String(booking.status || '').toLowerCase();
+              return status === 'cancelled' || status === 'cancelada' || status === 'cancelado';
+            }).length;
+            const clientPendingCount = clientHistory.filter((booking) => {
+              const status = String(booking.status || '').toLowerCase();
+              return status === 'pending' || status === 'confirmed' || status === 'pendiente' || status === 'confirmada' || status === 'confirmado';
+            }).length;
+
+            const sortedClientHistory = [...clientHistory].sort((a, z) => {
+              const aDate = `${getDateKeyFromValue(getBookingDateValue(a))} ${formatTime(a.startTime ?? a.start_time) || ''}`;
+              const zDate = `${getDateKeyFromValue(getBookingDateValue(z))} ${formatTime(z.startTime ?? z.start_time) || ''}`;
+              return zDate.localeCompare(aDate);
+            });
+
+            const lastClientBooking = sortedClientHistory[0];
+            const lastClientVisitText = lastClientBooking ? `${formatDate(getBookingDateValue(lastClientBooking))}${formatTime(lastClientBooking.startTime ?? lastClientBooking.start_time) ? ` · ${formatTime(lastClientBooking.startTime ?? lastClientBooking.start_time)}` : ''}` : 'Sin historial';
+
+            let clientTypeLabel = 'Cliente nuevo';
+            let clientTypeColor = '#0071e3';
+            let clientTypeBg = '#eef6ff';
+
+            if (clientTotalBookings >= 5) {
+              clientTypeLabel = 'Cliente frecuente';
+              clientTypeColor = '#188038';
+              clientTypeBg = '#edfff3';
+            } else if (clientCancelledCount >= 2) {
+              clientTypeLabel = 'Cliente con cancelaciones';
+              clientTypeColor = '#ff9500';
+              clientTypeBg = '#fff7e8';
+            } else if (clientTotalBookings >= 2) {
+              clientTypeLabel = 'Cliente recurrente';
+              clientTypeColor = '#5856d6';
+              clientTypeBg = '#f1f0ff';
+            }
+
+            const copyClientPhone = async () => {
+              if (!clientPhone) return;
+
+              try {
+                await navigator.clipboard?.writeText(String(clientPhone));
+                alert('Teléfono copiado');
+              } catch {
+                alert('No se pudo copiar el teléfono.');
+              }
+            };
+
             const isExpanded = expandedBookingId === b.id;
             const mainTime = timeStr ? `${timeStr}${endStr ? ` - ${endStr}` : ''}` : 'Sin hora';
             const mainService = serviceName || 'Servicio no especificado';
@@ -3134,6 +3203,134 @@ function ReservationsSection() {
                       <div style={{ background: '#fafafa', borderRadius: 14, padding: 12 }}>
                         <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800, marginBottom: 4 }}>Hora</div>
                         <div style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 800 }}>{mainTime}</div>
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        marginTop: 12,
+                        padding: 14,
+                        borderRadius: 18,
+                        border: '0.5px solid #e8e8ed',
+                        background: 'linear-gradient(180deg, #ffffff 0%, #fbfbfd 100%)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
+                        <div>
+                          <div style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 950 }}>Ficha del cliente</div>
+                          <div style={{ fontSize: 11, color: '#6e6e73', fontWeight: 700, marginTop: 3 }}>
+                            Historial y acciones rápidas del cliente.
+                          </div>
+                        </div>
+
+                        <span
+                          style={{
+                            fontSize: 11,
+                            color: clientTypeColor,
+                            background: clientTypeBg,
+                            padding: '6px 10px',
+                            borderRadius: 999,
+                            fontWeight: 900,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {clientTypeLabel}
+                        </span>
+                      </div>
+
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(96px, 1fr))',
+                          gap: 10,
+                          marginBottom: 12,
+                        }}
+                      >
+                        <div style={{ background: '#f5f5f7', borderRadius: 14, padding: 11 }}>
+                          <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900, marginBottom: 4 }}>TOTAL</div>
+                          <div style={{ fontSize: 15, color: '#1a1a1a', fontWeight: 950 }}>{clientTotalBookings}</div>
+                        </div>
+
+                        <div style={{ background: '#edfff3', borderRadius: 14, padding: 11 }}>
+                          <div style={{ fontSize: 10, color: '#188038', fontWeight: 900, marginBottom: 4 }}>ASISTIDAS</div>
+                          <div style={{ fontSize: 15, color: '#188038', fontWeight: 950 }}>{clientCompletedCount}</div>
+                        </div>
+
+                        <div style={{ background: '#fff7e8', borderRadius: 14, padding: 11 }}>
+                          <div style={{ fontSize: 10, color: '#ff9500', fontWeight: 900, marginBottom: 4 }}>PENDIENTES</div>
+                          <div style={{ fontSize: 15, color: '#ff9500', fontWeight: 950 }}>{clientPendingCount}</div>
+                        </div>
+
+                        <div style={{ background: '#fff0f0', borderRadius: 14, padding: 11 }}>
+                          <div style={{ fontSize: 10, color: '#ff453a', fontWeight: 900, marginBottom: 4 }}>CANCELADAS</div>
+                          <div style={{ fontSize: 15, color: '#ff453a', fontWeight: 950 }}>{clientCancelledCount}</div>
+                        </div>
+                      </div>
+
+                      <div style={{ background: '#f7f7fb', borderRadius: 14, padding: 11, marginBottom: 12 }}>
+                        <div style={{ fontSize: 10.5, color: '#8e8e93', fontWeight: 900, marginBottom: 4 }}>ÚLTIMA RESERVA</div>
+                        <div style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 850 }}>{lastClientVisitText}</div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8 }}>
+                        {canSendWhatsApp && (
+                          <a
+                            href={whatsappUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{
+                              textDecoration: 'none',
+                              textAlign: 'center',
+                              padding: '10px 8px',
+                              borderRadius: 13,
+                              border: '0.5px solid #c8f2d3',
+                              background: '#edfff3',
+                              color: '#188038',
+                              fontSize: 12.5,
+                              fontWeight: 900,
+                              fontFamily: 'inherit',
+                            }}
+                          >
+                            WhatsApp
+                          </a>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={copyClientPhone}
+                          disabled={!clientPhone}
+                          style={{
+                            border: '0.5px solid #dcdce3',
+                            borderRadius: 13,
+                            padding: '10px 8px',
+                            background: '#fff',
+                            color: '#0071e3',
+                            fontSize: 12.5,
+                            fontWeight: 900,
+                            fontFamily: 'inherit',
+                            cursor: clientPhone ? 'pointer' : 'not-allowed',
+                          }}
+                        >
+                          Copiar teléfono
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setReservationView('archived')}
+                          style={{
+                            border: '0.5px solid #dcdce3',
+                            borderRadius: 13,
+                            padding: '10px 8px',
+                            background: '#fff',
+                            color: '#5856d6',
+                            fontSize: 12.5,
+                            fontWeight: 900,
+                            fontFamily: 'inherit',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Ver historial
+                        </button>
                       </div>
                     </div>
 
