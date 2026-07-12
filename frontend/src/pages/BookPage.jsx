@@ -647,6 +647,39 @@ export default function BookPage() {
   const hasSlots = slots.length > 0;
   const businessName = business?.businessName || business?.name || 'TuAgendaYa';
 
+  const reservationSummaryText = [
+    `Reserva en ${businessName}`,
+    selectedService ? `Servicio: ${selectedService.name}` : null,
+    selectedStaff ? `Profesional: ${selectedStaff.name}` : null,
+    bookingDate ? `Fecha: ${formatDate(bookingDate)}` : null,
+    selectedTime ? `Hora: ${selectedTime}${selectedEndTime ? ` a ${selectedEndTime}` : ''}` : null,
+    clientName ? `Cliente: ${clientName}` : null,
+    fullClientPhone ? `Teléfono: +${fullClientPhone}` : null,
+  ].filter(Boolean).join('\n');
+
+  const calendarDateTime = (dateValue, timeValue) => {
+    if (!dateValue || !timeValue) return '';
+    return `${dateValue.replace(/-/g, '')}T${timeValue.replace(':', '')}00`;
+  };
+
+  const calendarStart = calendarDateTime(bookingDate, selectedTime);
+  const calendarEnd = calendarDateTime(bookingDate, selectedEndTime);
+
+  const googleCalendarUrl = calendarStart && calendarEnd
+    ? `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(`Reserva en ${businessName}`)}&dates=${calendarStart}/${calendarEnd}&details=${encodeURIComponent(reservationSummaryText)}&location=${encodeURIComponent(business?.address || '')}`
+    : '';
+
+  const copyReservationSummary = async () => {
+    if (!reservationSummaryText) return;
+
+    try {
+      await navigator.clipboard?.writeText(reservationSummaryText);
+      alert('Resumen copiado');
+    } catch {
+      alert('No se pudo copiar automáticamente');
+    }
+  };
+
   const canChooseDate = Boolean(selectedServiceId && (!hasStaffChoice || selectedStaffId));
 
   return (
@@ -707,45 +740,125 @@ export default function BookPage() {
         </div>
 
         {success ? (
-          <div style={{ textAlign: 'center', padding: '24px 0' }}>
-            <div style={{ fontSize: 44, marginBottom: 8 }}>✓</div>
+          <div style={{ textAlign: 'center', padding: '20px 0 4px' }}>
+            <div
+              style={{
+                width: 58,
+                height: 58,
+                borderRadius: 999,
+                background: '#edfff3',
+                color: '#188038',
+                display: 'grid',
+                placeItems: 'center',
+                fontSize: 31,
+                fontWeight: 950,
+                margin: '0 auto 12px',
+                border: '1px solid #b7f5c8',
+              }}
+            >
+              ✓
+            </div>
 
-            <div style={{ fontSize: 17, fontWeight: 800, color: '#30d158', marginBottom: 8 }}>
+            <div style={{ fontSize: 20, fontWeight: 900, color: '#1a1a1a', marginBottom: 6, letterSpacing: '-0.03em' }}>
               Reserva recibida
             </div>
 
-            <div style={{ background: '#f5f5f8', borderRadius: 20, padding: '16px', marginBottom: 16, textAlign: 'left' }}>
-              <div style={{ fontSize: 12, color: '#6e6e73', marginBottom: 8, fontWeight: 700 }}>Resumen del turno</div>
+            <div style={{ fontSize: 13.5, color: '#6e6e73', lineHeight: 1.45, margin: '0 auto 18px', maxWidth: 390 }}>
+              Tu reserva fue recibida correctamente. Recibirás la confirmación por WhatsApp cuando el negocio la procese.
+            </div>
 
-              <div style={{ fontSize: 15, fontWeight: 800, color: '#1a1a1a', marginBottom: 6 }}>
-                {clientName}
+            <div
+              style={{
+                background: 'linear-gradient(180deg, #ffffff 0%, #fbfbfd 100%)',
+                borderRadius: 24,
+                padding: 16,
+                marginBottom: 14,
+                textAlign: 'left',
+                border: '1px solid rgba(0,0,0,0.06)',
+                boxShadow: '0 10px 24px rgba(0,0,0,0.05)',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 12 }}>
+                <div>
+                  <div style={{ fontSize: 12, color: '#8e8e93', marginBottom: 4, fontWeight: 850 }}>
+                    Negocio
+                  </div>
+                  <div style={{ fontSize: 16, fontWeight: 900, color: '#1a1a1a' }}>
+                    {businessName}
+                  </div>
+                </div>
+
+                <div style={{ textAlign: 'right', color: '#188038', fontSize: 12.5, fontWeight: 900 }}>
+                  Recibida
+                </div>
               </div>
 
-              {selectedService && (
-                <div style={{ fontSize: 13, color: '#0071e3', marginBottom: 5, fontWeight: 650 }}>
-                  {selectedService.name} · {selectedService.durationMinutes} min
-                  {selectedService.price ? ` · $${selectedService.price}` : ''}
-                </div>
-              )}
+              <div style={{ display: 'grid', gap: 9 }}>
+                {selectedService && (
+                  <div style={{ background: '#f5f5f8', borderRadius: 16, padding: 12 }}>
+                    <div style={{ fontSize: 11.5, color: '#8e8e93', fontWeight: 850, marginBottom: 3 }}>Servicio</div>
+                    <div style={{ fontSize: 14.5, color: '#1a1a1a', fontWeight: 900 }}>
+                      {selectedService.name} · {selectedService.durationMinutes} min
+                      {selectedService.price ? ` · $${selectedService.price}` : ''}
+                    </div>
+                  </div>
+                )}
 
-              {selectedStaff && (
-                <div style={{ fontSize: 13, color: '#6e6e73', marginBottom: 5 }}>
-                  Profesional: <strong>{selectedStaff.name}</strong>
-                </div>
-              )}
+                {selectedStaff && (
+                  <div style={{ background: '#f5f5f8', borderRadius: 16, padding: 12 }}>
+                    <div style={{ fontSize: 11.5, color: '#8e8e93', fontWeight: 850, marginBottom: 3 }}>Profesional</div>
+                    <div style={{ fontSize: 14.5, color: '#1a1a1a', fontWeight: 900 }}>{selectedStaff.name}</div>
+                  </div>
+                )}
 
-              <div style={{ fontSize: 13, color: '#6e6e73' }}>
-                {formatDate(bookingDate)} · {selectedTime} a {selectedEndTime}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
+                  <div style={{ background: '#eef6ff', borderRadius: 16, padding: 12 }}>
+                    <div style={{ fontSize: 11.5, color: '#0071e3', fontWeight: 850, marginBottom: 3 }}>Fecha</div>
+                    <div style={{ fontSize: 14.5, color: '#1a1a1a', fontWeight: 900 }}>{formatDate(bookingDate)}</div>
+                  </div>
+
+                  <div style={{ background: '#eef6ff', borderRadius: 16, padding: 12 }}>
+                    <div style={{ fontSize: 11.5, color: '#0071e3', fontWeight: 850, marginBottom: 3 }}>Hora</div>
+                    <div style={{ fontSize: 14.5, color: '#1a1a1a', fontWeight: 900 }}>{selectedTime} a {selectedEndTime}</div>
+                  </div>
+                </div>
+
+                <div style={{ background: '#f5f5f8', borderRadius: 16, padding: 12 }}>
+                  <div style={{ fontSize: 11.5, color: '#8e8e93', fontWeight: 850, marginBottom: 3 }}>Cliente</div>
+                  <div style={{ fontSize: 14.5, color: '#1a1a1a', fontWeight: 900 }}>{clientName}</div>
+                  {fullClientPhone && (
+                    <div style={{ fontSize: 12.5, color: '#6e6e73', fontWeight: 700, marginTop: 4 }}>
+                      +{fullClientPhone}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
-            <div style={{ fontSize: 13, color: '#6e6e73', marginBottom: 20 }}>
-              El negocio se pondrá en contacto con vos para confirmar.
+            <div style={{ display: 'grid', gridTemplateColumns: googleCalendarUrl ? '1fr 1fr' : '1fr', gap: 9, marginBottom: 10 }}>
+              {googleCalendarUrl && (
+                <button
+                  type="button"
+                  onClick={() => window.open(googleCalendarUrl, '_blank', 'noopener,noreferrer')}
+                  style={{ padding: '12px 14px', borderRadius: 16, border: 'none', background: '#0071e3', color: '#fff', fontSize: 13.5, fontWeight: 900, fontFamily: 'inherit', cursor: 'pointer' }}
+                >
+                  Agregar al calendario
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={copyReservationSummary}
+                style={{ padding: '12px 14px', borderRadius: 16, border: '1px solid #dcdce3', background: '#fff', color: '#0071e3', fontSize: 13.5, fontWeight: 900, fontFamily: 'inherit', cursor: 'pointer' }}
+              >
+                Copiar resumen
+              </button>
             </div>
 
             <button
+              type="button"
               onClick={handleReset}
-              style={{ padding: '12px 24px', borderRadius: 16, border: 'none', background: '#0071e3', color: '#fff', fontSize: 14, fontWeight: 800, fontFamily: 'inherit', cursor: 'pointer' }}
+              style={{ width: '100%', padding: '13px 24px', borderRadius: 16, border: '1px solid #dcdce3', background: '#fff', color: '#1a1a1a', fontSize: 14, fontWeight: 850, fontFamily: 'inherit', cursor: 'pointer' }}
             >
               Hacer otra reserva
             </button>
@@ -1058,7 +1171,7 @@ export default function BookPage() {
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'minmax(116px, 0.78fr) minmax(0, 1.5fr)',
+                  gridTemplateColumns: 'minmax(128px, 0.9fr) minmax(0, 1.4fr)',
                   gap: 8,
                   alignItems: 'stretch',
                   marginBottom: 8,
@@ -1071,16 +1184,15 @@ export default function BookPage() {
                   style={{
                     ...inputStyle,
                     marginBottom: 0,
-                    padding: '12px 8px',
+                    padding: '12px 10px',
                     cursor: 'pointer',
                     fontWeight: 800,
-                    fontSize: 13.5,
                     appearance: 'auto',
                   }}
                 >
                   {PHONE_COUNTRIES.map((country) => (
                     <option key={country.code} value={country.code}>
-                      {country.code} {country.flag} +{country.dialCode}
+                      {country.flag} +{country.dialCode} · {country.name}
                     </option>
                   ))}
                 </select>
@@ -1097,7 +1209,7 @@ export default function BookPage() {
               </div>
 
               <div style={{ fontSize: 11.5, color: '#8e8e93', margin: '-1px 0 10px', lineHeight: 1.35 }}>
-                Prefijo seleccionado: {selectedPhoneCountry.code} {selectedPhoneCountry.flag} +{selectedPhoneCountry.dialCode}. Escribí solo el número, sin el prefijo.
+                Prefijo seleccionado: {selectedPhoneCountry.flag} +{selectedPhoneCountry.dialCode}. Escribí solo el número, sin el prefijo.
               </div>
 
               <label style={labelStyle}>Comentario opcional</label>
