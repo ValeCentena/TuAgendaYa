@@ -3272,29 +3272,7 @@ function ReservationsSection() {
                         <div style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 850 }}>{lastClientVisitText}</div>
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8 }}>
-                        {canSendWhatsApp && (
-                          <a
-                            href={whatsappUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            style={{
-                              textDecoration: 'none',
-                              textAlign: 'center',
-                              padding: '10px 8px',
-                              borderRadius: 13,
-                              border: '0.5px solid #c8f2d3',
-                              background: '#edfff3',
-                              color: '#188038',
-                              fontSize: 12.5,
-                              fontWeight: 900,
-                              fontFamily: 'inherit',
-                            }}
-                          >
-                            WhatsApp
-                          </a>
-                        )}
-
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
                         <button
                           type="button"
                           onClick={copyClientPhone}
@@ -8475,17 +8453,87 @@ function AdminDashboardPage() {
   );
 }
 
-function ProfesionalPage() {
-  const [professional, setProfessional] = useState(() => {
-    const token = localStorage.getItem('tuagendaya_token');
-    if (!token) return null;
 
+function ProfesionalPage() {
+  const navigate = useNavigate();
+
+  const readStoredProfessional = () => {
     try {
-      return JSON.parse(localStorage.getItem('tuagendaya_professional'));
+      const stored = localStorage.getItem('tuagendaya_professional');
+
+      if (!stored || stored === 'undefined' || stored === 'null') {
+        return null;
+      }
+
+      return normalizeProfessionalFromApi(JSON.parse(stored));
     } catch {
-      return {};
+      localStorage.removeItem('tuagendaya_professional');
+      return null;
     }
-  });
+  };
+
+  const [professional, setProfessional] = useState(readStoredProfessional);
+  const [loadingProfile, setLoadingProfile] = useState(true);
+  const [profileError, setProfileError] = useState('');
+
+  useEffect(() => {
+    const token = localStorage.getItem('tuagendaya_token');
+
+    if (!token) {
+      setProfessional(null);
+      setLoadingProfile(false);
+      return;
+    }
+
+    const storedProfessional = readStoredProfessional();
+
+    if (storedProfessional?.id || storedProfessional?.email || storedProfessional?.businessName || storedProfessional?.business_name) {
+      setProfessional(storedProfessional);
+      setLoadingProfile(false);
+      return;
+    }
+
+    let active = true;
+
+    async function loadProfile() {
+      setLoadingProfile(true);
+      setProfileError('');
+
+      try {
+        const response = await fetch(`${API_BASE}/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!active) return;
+
+        if (!response.ok) {
+          localStorage.removeItem('tuagendaya_token');
+          localStorage.removeItem('tuagendaya_professional');
+          setProfessional(null);
+          setProfileError('La sesión venció. Volvé a ingresar.');
+          setLoadingProfile(false);
+          return;
+        }
+
+        const normalized = normalizeProfessionalFromApi(data.professional || data.user || data || {});
+        localStorage.setItem('tuagendaya_professional', JSON.stringify(normalized));
+        setProfessional(normalized);
+      } catch {
+        if (!active) return;
+        setProfileError('No se pudo cargar tu cuenta. Revisá la conexión e intentá de nuevo.');
+      } finally {
+        if (active) setLoadingProfile(false);
+      }
+    }
+
+    loadProfile();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleProfessionalUpdate = (updatedProfessional) => {
     const normalized = normalizeProfessionalFromApi({
@@ -8497,53 +8545,44 @@ function ProfesionalPage() {
     localStorage.setItem('tuagendaya_professional', JSON.stringify(normalized));
   };
 
-  if (!professional) {
-    return <LoginForm onLogin={(prof) => setProfessional(normalizeProfessionalFromApi(prof || {}))} />;
-  }
-
-  return (
-    <Dashboard
-      professional={professional}
-      onLogout={() => setProfessional(null)}
-      onProfileUpdated={handleProfessionalUpdate}
-    />
-  );
-}
-
-
-
-function ProfessionalOnlyRoute() {
-  const navigate = useNavigate();
-  const [checked, setChecked] = useState(false);
-
-  useEffect(() => {
-    const professionalToken = localStorage.getItem('tuagendaya_token');
-    const adminToken = localStorage.getItem('tuagendaya_admin_token');
-
-    if (!professionalToken && adminToken) {
-      localStorage.removeItem('tuagendaya_admin_token');
-      localStorage.removeItem('tuagendaya_admin_user');
-      navigate('/login?tipo=profesional', { replace: true });
-      return;
-    }
-
-    setChecked(true);
-  }, [navigate]);
-
-  if (!checked) {
+  if (loadingProfile) {
     return (
       <AuthLayout>
         <div style={{ textAlign: 'center' }}>
           <TuAgendaLogo height={52} centered />
           <div style={{ marginTop: 16, color: '#6e6e73', fontSize: 14, fontWeight: 750 }}>
-            Preparando acceso profesional...
+            Cargando tu panel profesional...
           </div>
         </div>
       </AuthLayout>
     );
   }
 
-  return <ProfesionalPage />;
+  if (!professional) {
+    return (
+      <>
+        {profileError && (
+          <div style={{ position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 9999, background: '#fff2f2', color: '#c62828', border: '1px solid #ffcdd2', borderRadius: 14, padding: '10px 14px', fontFamily: APP_FONT, fontSize: 13, fontWeight: 800 }}>
+            {profileError}
+          </div>
+        )}
+        <UnifiedLoginPage />
+      </>
+    );
+  }
+
+  return (
+    <Dashboard
+      professional={professional}
+      onLogout={() => {
+        localStorage.removeItem('tuagendaya_token');
+        localStorage.removeItem('tuagendaya_professional');
+        setProfessional(null);
+        navigate('/login', { replace: true });
+      }}
+      onProfileUpdated={handleProfessionalUpdate}
+    />
+  );
 }
 
 
