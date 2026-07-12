@@ -2967,6 +2967,75 @@ function ReservationsSection() {
             // Solo se oculta cuando ya está completada, cancelada o en la vista Archivadas.
             const canCancel = !isArchivedView && (isPending || isConfirmed) && !isCancelled && !isCompleted;
 
+            const normalizedClientPhone = normalizePhoneForWhatsApp(clientPhone);
+            const normalizedClientName = normalizeSearchText(clientName);
+            const clientHistory = bookings.filter((booking) => {
+              const bookingPhone = normalizePhoneForWhatsApp(booking.clientPhone ?? booking.client_phone);
+              const bookingName = normalizeSearchText(booking.clientName ?? booking.client_name);
+
+              if (normalizedClientPhone && bookingPhone) {
+                return bookingPhone === normalizedClientPhone;
+              }
+
+              if (normalizedClientName && bookingName) {
+                return bookingName === normalizedClientName;
+              }
+
+              return false;
+            });
+
+            const clientTotalBookings = clientHistory.length;
+            const clientCompletedCount = clientHistory.filter((booking) => {
+              const status = String(booking.status || '').toLowerCase();
+              return status === 'completed' || status === 'completada' || status === 'completado';
+            }).length;
+            const clientCancelledCount = clientHistory.filter((booking) => {
+              const status = String(booking.status || '').toLowerCase();
+              return status === 'cancelled' || status === 'cancelada' || status === 'cancelado';
+            }).length;
+            const clientPendingCount = clientHistory.filter((booking) => {
+              const status = String(booking.status || '').toLowerCase();
+              return status === 'pending' || status === 'confirmed' || status === 'pendiente' || status === 'confirmada' || status === 'confirmado';
+            }).length;
+
+            const sortedClientHistory = [...clientHistory].sort((a, z) => {
+              const aDate = `${getDateKeyFromValue(getBookingDateValue(a))} ${formatTime(a.startTime ?? a.start_time) || ''}`;
+              const zDate = `${getDateKeyFromValue(getBookingDateValue(z))} ${formatTime(z.startTime ?? z.start_time) || ''}`;
+              return zDate.localeCompare(aDate);
+            });
+
+            const lastClientBooking = sortedClientHistory[0];
+            const lastClientVisitText = lastClientBooking ? `${formatDate(getBookingDateValue(lastClientBooking))}${formatTime(lastClientBooking.startTime ?? lastClientBooking.start_time) ? ` · ${formatTime(lastClientBooking.startTime ?? lastClientBooking.start_time)}` : ''}` : 'Sin historial';
+
+            let clientTypeLabel = 'Cliente nuevo';
+            let clientTypeColor = '#0071e3';
+            let clientTypeBg = '#eef6ff';
+
+            if (clientTotalBookings >= 5) {
+              clientTypeLabel = 'Cliente frecuente';
+              clientTypeColor = '#188038';
+              clientTypeBg = '#edfff3';
+            } else if (clientCancelledCount >= 2) {
+              clientTypeLabel = 'Cliente con cancelaciones';
+              clientTypeColor = '#ff9500';
+              clientTypeBg = '#fff7e8';
+            } else if (clientTotalBookings >= 2) {
+              clientTypeLabel = 'Cliente recurrente';
+              clientTypeColor = '#5856d6';
+              clientTypeBg = '#f1f0ff';
+            }
+
+            const copyClientPhone = async () => {
+              if (!clientPhone) return;
+
+              try {
+                await navigator.clipboard?.writeText(String(clientPhone));
+                alert('Teléfono copiado');
+              } catch {
+                alert('No se pudo copiar el teléfono.');
+              }
+            };
+
             const isExpanded = expandedBookingId === b.id;
             const mainTime = timeStr ? `${timeStr}${endStr ? ` - ${endStr}` : ''}` : 'Sin hora';
             const mainService = serviceName || 'Servicio no especificado';
@@ -3134,6 +3203,112 @@ function ReservationsSection() {
                       <div style={{ background: '#fafafa', borderRadius: 14, padding: 12 }}>
                         <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800, marginBottom: 4 }}>Hora</div>
                         <div style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 800 }}>{mainTime}</div>
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        marginTop: 12,
+                        padding: 14,
+                        borderRadius: 18,
+                        border: '0.5px solid #e8e8ed',
+                        background: 'linear-gradient(180deg, #ffffff 0%, #fbfbfd 100%)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
+                        <div>
+                          <div style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 950 }}>Ficha del cliente</div>
+                          <div style={{ fontSize: 11, color: '#6e6e73', fontWeight: 700, marginTop: 3 }}>
+                            Historial y acciones rápidas del cliente.
+                          </div>
+                        </div>
+
+                        <span
+                          style={{
+                            fontSize: 11,
+                            color: clientTypeColor,
+                            background: clientTypeBg,
+                            padding: '6px 10px',
+                            borderRadius: 999,
+                            fontWeight: 900,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {clientTypeLabel}
+                        </span>
+                      </div>
+
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(96px, 1fr))',
+                          gap: 10,
+                          marginBottom: 12,
+                        }}
+                      >
+                        <div style={{ background: '#f5f5f7', borderRadius: 14, padding: 11 }}>
+                          <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900, marginBottom: 4 }}>TOTAL</div>
+                          <div style={{ fontSize: 15, color: '#1a1a1a', fontWeight: 950 }}>{clientTotalBookings}</div>
+                        </div>
+
+                        <div style={{ background: '#edfff3', borderRadius: 14, padding: 11 }}>
+                          <div style={{ fontSize: 10, color: '#188038', fontWeight: 900, marginBottom: 4 }}>ASISTIDAS</div>
+                          <div style={{ fontSize: 15, color: '#188038', fontWeight: 950 }}>{clientCompletedCount}</div>
+                        </div>
+
+                        <div style={{ background: '#fff7e8', borderRadius: 14, padding: 11 }}>
+                          <div style={{ fontSize: 10, color: '#ff9500', fontWeight: 900, marginBottom: 4 }}>PENDIENTES</div>
+                          <div style={{ fontSize: 15, color: '#ff9500', fontWeight: 950 }}>{clientPendingCount}</div>
+                        </div>
+
+                        <div style={{ background: '#fff0f0', borderRadius: 14, padding: 11 }}>
+                          <div style={{ fontSize: 10, color: '#ff453a', fontWeight: 900, marginBottom: 4 }}>CANCELADAS</div>
+                          <div style={{ fontSize: 15, color: '#ff453a', fontWeight: 950 }}>{clientCancelledCount}</div>
+                        </div>
+                      </div>
+
+                      <div style={{ background: '#f7f7fb', borderRadius: 14, padding: 11, marginBottom: 12 }}>
+                        <div style={{ fontSize: 10.5, color: '#8e8e93', fontWeight: 900, marginBottom: 4 }}>ÚLTIMA RESERVA</div>
+                        <div style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 850 }}>{lastClientVisitText}</div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+                        <button
+                          type="button"
+                          onClick={copyClientPhone}
+                          disabled={!clientPhone}
+                          style={{
+                            border: '0.5px solid #dcdce3',
+                            borderRadius: 13,
+                            padding: '10px 8px',
+                            background: '#fff',
+                            color: '#0071e3',
+                            fontSize: 12.5,
+                            fontWeight: 900,
+                            fontFamily: 'inherit',
+                            cursor: clientPhone ? 'pointer' : 'not-allowed',
+                          }}
+                        >
+                          Copiar teléfono
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setReservationView('archived')}
+                          style={{
+                            border: '0.5px solid #dcdce3',
+                            borderRadius: 13,
+                            padding: '10px 8px',
+                            background: '#fff',
+                            color: '#5856d6',
+                            fontSize: 12.5,
+                            fontWeight: 900,
+                            fontFamily: 'inherit',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Ver historial
+                        </button>
                       </div>
                     </div>
 
@@ -8278,17 +8453,87 @@ function AdminDashboardPage() {
   );
 }
 
-function ProfesionalPage() {
-  const [professional, setProfessional] = useState(() => {
-    const token = localStorage.getItem('tuagendaya_token');
-    if (!token) return null;
 
+function ProfesionalPage() {
+  const navigate = useNavigate();
+
+  const readStoredProfessional = () => {
     try {
-      return JSON.parse(localStorage.getItem('tuagendaya_professional'));
+      const stored = localStorage.getItem('tuagendaya_professional');
+
+      if (!stored || stored === 'undefined' || stored === 'null') {
+        return null;
+      }
+
+      return normalizeProfessionalFromApi(JSON.parse(stored));
     } catch {
-      return {};
+      localStorage.removeItem('tuagendaya_professional');
+      return null;
     }
-  });
+  };
+
+  const [professional, setProfessional] = useState(readStoredProfessional);
+  const [loadingProfile, setLoadingProfile] = useState(true);
+  const [profileError, setProfileError] = useState('');
+
+  useEffect(() => {
+    const token = localStorage.getItem('tuagendaya_token');
+
+    if (!token) {
+      setProfessional(null);
+      setLoadingProfile(false);
+      return;
+    }
+
+    const storedProfessional = readStoredProfessional();
+
+    if (storedProfessional?.id || storedProfessional?.email || storedProfessional?.businessName || storedProfessional?.business_name) {
+      setProfessional(storedProfessional);
+      setLoadingProfile(false);
+      return;
+    }
+
+    let active = true;
+
+    async function loadProfile() {
+      setLoadingProfile(true);
+      setProfileError('');
+
+      try {
+        const response = await fetch(`${API_BASE}/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!active) return;
+
+        if (!response.ok) {
+          localStorage.removeItem('tuagendaya_token');
+          localStorage.removeItem('tuagendaya_professional');
+          setProfessional(null);
+          setProfileError('La sesión venció. Volvé a ingresar.');
+          setLoadingProfile(false);
+          return;
+        }
+
+        const normalized = normalizeProfessionalFromApi(data.professional || data.user || data || {});
+        localStorage.setItem('tuagendaya_professional', JSON.stringify(normalized));
+        setProfessional(normalized);
+      } catch {
+        if (!active) return;
+        setProfileError('No se pudo cargar tu cuenta. Revisá la conexión e intentá de nuevo.');
+      } finally {
+        if (active) setLoadingProfile(false);
+      }
+    }
+
+    loadProfile();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleProfessionalUpdate = (updatedProfessional) => {
     const normalized = normalizeProfessionalFromApi({
@@ -8300,53 +8545,44 @@ function ProfesionalPage() {
     localStorage.setItem('tuagendaya_professional', JSON.stringify(normalized));
   };
 
-  if (!professional) {
-    return <LoginForm onLogin={(prof) => setProfessional(normalizeProfessionalFromApi(prof || {}))} />;
-  }
-
-  return (
-    <Dashboard
-      professional={professional}
-      onLogout={() => setProfessional(null)}
-      onProfileUpdated={handleProfessionalUpdate}
-    />
-  );
-}
-
-
-
-function ProfessionalOnlyRoute() {
-  const navigate = useNavigate();
-  const [checked, setChecked] = useState(false);
-
-  useEffect(() => {
-    const professionalToken = localStorage.getItem('tuagendaya_token');
-    const adminToken = localStorage.getItem('tuagendaya_admin_token');
-
-    if (!professionalToken && adminToken) {
-      localStorage.removeItem('tuagendaya_admin_token');
-      localStorage.removeItem('tuagendaya_admin_user');
-      navigate('/login?tipo=profesional', { replace: true });
-      return;
-    }
-
-    setChecked(true);
-  }, [navigate]);
-
-  if (!checked) {
+  if (loadingProfile) {
     return (
       <AuthLayout>
         <div style={{ textAlign: 'center' }}>
           <TuAgendaLogo height={52} centered />
           <div style={{ marginTop: 16, color: '#6e6e73', fontSize: 14, fontWeight: 750 }}>
-            Preparando acceso profesional...
+            Cargando tu panel profesional...
           </div>
         </div>
       </AuthLayout>
     );
   }
 
-  return <ProfesionalPage />;
+  if (!professional) {
+    return (
+      <>
+        {profileError && (
+          <div style={{ position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 9999, background: '#fff2f2', color: '#c62828', border: '1px solid #ffcdd2', borderRadius: 14, padding: '10px 14px', fontFamily: APP_FONT, fontSize: 13, fontWeight: 800 }}>
+            {profileError}
+          </div>
+        )}
+        <UnifiedLoginPage />
+      </>
+    );
+  }
+
+  return (
+    <Dashboard
+      professional={professional}
+      onLogout={() => {
+        localStorage.removeItem('tuagendaya_token');
+        localStorage.removeItem('tuagendaya_professional');
+        setProfessional(null);
+        navigate('/login', { replace: true });
+      }}
+      onProfileUpdated={handleProfessionalUpdate}
+    />
+  );
 }
 
 
