@@ -3272,29 +3272,7 @@ function ReservationsSection() {
                         <div style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 850 }}>{lastClientVisitText}</div>
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8 }}>
-                        {canSendWhatsApp && (
-                          <a
-                            href={whatsappUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            style={{
-                              textDecoration: 'none',
-                              textAlign: 'center',
-                              padding: '10px 8px',
-                              borderRadius: 13,
-                              border: '0.5px solid #c8f2d3',
-                              background: '#edfff3',
-                              color: '#188038',
-                              fontSize: 12.5,
-                              fontWeight: 900,
-                              fontFamily: 'inherit',
-                            }}
-                          >
-                            WhatsApp
-                          </a>
-                        )}
-
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
                         <button
                           type="button"
                           onClick={copyClientPhone}
@@ -3858,6 +3836,25 @@ function CashSection() {
   const weeklySummary = summarizeClosures(closuresThisWeek);
   const monthlySummary = summarizeClosures(closuresThisMonth);
 
+  const averageTicket = activeBookings.length > 0 ? totalCollected / activeBookings.length : 0;
+  const collectionRate = totalGenerated > 0 ? Math.round((totalCollected / totalGenerated) * 100) : 0;
+  const paidBookingsCount = activeBookings.filter((booking) => getBookingPaymentStatus(booking) === 'paid').length;
+  const depositBookingsCount = activeBookings.filter((booking) => getBookingPaymentStatus(booking) === 'deposit').length;
+  const unpaidBookingsCount = activeBookings.filter((booking) => getBookingPaymentStatus(booking) === 'pending').length;
+  const completedWithoutPaymentCount = completedBookings.filter((booking) => getBookingPaymentStatus(booking) !== 'paid').length;
+  const mainPaymentMethod = byMethod.slice().sort((a, b) => b.total - a.total)[0];
+
+  const attentionItems = [
+    totalPending > 0 ? `Tenés ${formatMoney(totalPending)} pendiente de cobrar.` : null,
+    completedWithoutPaymentCount > 0 ? `${completedWithoutPaymentCount} reserva${completedWithoutPaymentCount === 1 ? '' : 's'} completada${completedWithoutPaymentCount === 1 ? '' : 's'} sin marcar como pagada${completedWithoutPaymentCount === 1 ? '' : 's'}.` : null,
+    unpaidBookingsCount > 0 ? `${unpaidBookingsCount} reserva${unpaidBookingsCount === 1 ? '' : 's'} con pago pendiente.` : null,
+    existingClosure ? 'Esta fecha ya tiene cierre guardado.' : null,
+  ].filter(Boolean);
+
+  const bookingsNeedingAttention = activeBookings
+    .filter((booking) => getBookingPaymentStatus(booking) !== 'paid' || Math.max(getServicePrice(booking) - getPaidAmount(booking), 0) > 0)
+    .slice(0, 6);
+
 
   const exportClosureRowsToCsv = (items, filename) => {
     const headers = [
@@ -4094,12 +4091,115 @@ function CashSection() {
         </div>
       </div>
 
+      <div style={{ background: '#fff', borderRadius: 22, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)', border: '0.5px solid #ececf2' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'flex-start', flexWrap: 'wrap', marginBottom: 14 }}>
+          <div>
+            <div style={{ fontSize: 17, fontWeight: 900, color: '#1a1a1a' }}>Control contable</div>
+            <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 700, marginTop: 3, lineHeight: 1.45 }}>
+              Indicadores rápidos para revisar caja antes del cierre.
+            </div>
+          </div>
+
+          <div style={{ padding: '7px 11px', borderRadius: 999, background: collectionRate >= 90 ? '#edfff3' : '#fff7e8', color: collectionRate >= 90 ? '#188038' : '#ff9500', fontSize: 12, fontWeight: 950 }}>
+            {collectionRate}% cobrado
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 12 }}>
+          <div style={{ background: '#f7f7fb', borderRadius: 16, padding: 13 }}>
+            <div style={{ fontSize: 10.5, color: '#8e8e93', fontWeight: 950, marginBottom: 4 }}>TICKET PROMEDIO</div>
+            <div style={{ fontSize: 20, color: '#1a1a1a', fontWeight: 950 }}>{formatMoney(averageTicket)}</div>
+          </div>
+
+          <div style={{ background: '#edfff3', borderRadius: 16, padding: 13 }}>
+            <div style={{ fontSize: 10.5, color: '#188038', fontWeight: 950, marginBottom: 4 }}>PAGADAS</div>
+            <div style={{ fontSize: 20, color: '#188038', fontWeight: 950 }}>{paidBookingsCount}</div>
+          </div>
+
+          <div style={{ background: '#eef6ff', borderRadius: 16, padding: 13 }}>
+            <div style={{ fontSize: 10.5, color: '#0071e3', fontWeight: 950, marginBottom: 4 }}>CON SEÑA</div>
+            <div style={{ fontSize: 20, color: '#0071e3', fontWeight: 950 }}>{depositBookingsCount}</div>
+          </div>
+
+          <div style={{ background: '#fff7e8', borderRadius: 16, padding: 13 }}>
+            <div style={{ fontSize: 10.5, color: '#ff9500', fontWeight: 950, marginBottom: 4 }}>PENDIENTES</div>
+            <div style={{ fontSize: 20, color: '#ff9500', fontWeight: 950 }}>{unpaidBookingsCount}</div>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12 }}>
+          <div style={{ background: '#f7f9ff', border: '0.5px solid #dceaff', borderRadius: 18, padding: 14 }}>
+            <div style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 950, marginBottom: 8 }}>Alertas de caja</div>
+            {attentionItems.length === 0 ? (
+              <div style={{ color: '#188038', fontSize: 12.5, fontWeight: 850 }}>Caja sin alertas importantes para esta fecha.</div>
+            ) : (
+              <div style={{ display: 'grid', gap: 7 }}>
+                {attentionItems.map((item) => (
+                  <div key={item} style={{ color: '#6e6e73', fontSize: 12.5, fontWeight: 800, lineHeight: 1.35 }}>• {item}</div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div style={{ background: '#fbfbfd', border: '0.5px solid #ececf2', borderRadius: 18, padding: 14 }}>
+            <div style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 950, marginBottom: 8 }}>Método principal</div>
+            <div style={{ fontSize: 20, color: '#0071e3', fontWeight: 950 }}>{mainPaymentMethod?.label || 'Sin cobros'}</div>
+            <div style={{ fontSize: 12, color: '#6e6e73', fontWeight: 800, marginTop: 5 }}>
+              {formatMoney(mainPaymentMethod?.total || 0)} registrado en este método.
+            </div>
+          </div>
+        </div>
+
+        {bookingsNeedingAttention.length > 0 && (
+          <div style={{ marginTop: 12, background: '#fff', border: '0.5px solid #ececf2', borderRadius: 18, overflow: 'hidden' }}>
+            <div style={{ padding: '12px 14px', borderBottom: '0.5px solid #eeeeef', fontSize: 13, color: '#1a1a1a', fontWeight: 950 }}>
+              Reservas que necesitan revisión
+            </div>
+            {bookingsNeedingAttention.map((booking) => {
+              const price = getServicePrice(booking);
+              const paid = getPaidAmount(booking);
+              const pending = Math.max(price - paid, 0);
+              const clientName = booking.clientName ?? booking.client_name ?? 'Cliente';
+              const serviceName = booking.serviceName ?? booking.service_name ?? 'Servicio';
+              const time = formatTime(booking.startTime ?? booking.start_time);
+
+              return (
+                <div key={booking.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 10, alignItems: 'center', padding: '11px 14px', borderTop: '0.5px solid #f2f2f7' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 900, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {time ? `${time} · ` : ''}{clientName}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#6e6e73', fontWeight: 750, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {serviceName} · Cobrado {formatMoney(paid)} · Pendiente {formatMoney(pending)}
+                    </div>
+                  </div>
+                  <div style={{ color: pending > 0 ? '#ff9500' : '#0071e3', fontSize: 12, fontWeight: 950, whiteSpace: 'nowrap' }}>
+                    {paymentStatusLabel[getBookingPaymentStatus(booking)] || getBookingPaymentStatus(booking)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       <div style={{ background: '#fff', borderRadius: 22, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14, flexWrap: 'wrap' }}>
           <div>
             <div style={{ fontSize: 17, fontWeight: 900, color: '#1a1a1a' }}>Cierre de caja</div>
             <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 700, marginTop: 4, lineHeight: 1.45 }}>
               Guardá un resumen fijo del día para consultar después en el historial.
+            </div>
+
+            <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8 }}>
+              <div style={{ background: '#f7f7fb', borderRadius: 14, padding: 10 }}>
+                <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 950 }}>Esperado</div>
+                <div style={{ fontSize: 14, color: '#1a1a1a', fontWeight: 950 }}>{formatMoney(totalCollected)}</div>
+              </div>
+              <div style={{ background: totalPending > 0 ? '#fff7e8' : '#edfff3', borderRadius: 14, padding: 10 }}>
+                <div style={{ fontSize: 10, color: totalPending > 0 ? '#ff9500' : '#188038', fontWeight: 950 }}>Pendiente</div>
+                <div style={{ fontSize: 14, color: totalPending > 0 ? '#ff9500' : '#188038', fontWeight: 950 }}>{formatMoney(totalPending)}</div>
+              </div>
             </div>
             {existingClosure && (
               <div style={{ display: 'inline-flex', marginTop: 10, padding: '6px 10px', borderRadius: 999, background: '#ecfff3', color: '#188038', fontSize: 12, fontWeight: 900 }}>
