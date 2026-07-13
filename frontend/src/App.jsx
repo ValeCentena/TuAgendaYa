@@ -3272,7 +3272,29 @@ function ReservationsSection() {
                         <div style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 850 }}>{lastClientVisitText}</div>
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8 }}>
+                        {canSendWhatsApp && (
+                          <a
+                            href={whatsappUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{
+                              textDecoration: 'none',
+                              textAlign: 'center',
+                              padding: '10px 8px',
+                              borderRadius: 13,
+                              border: '0.5px solid #c8f2d3',
+                              background: '#edfff3',
+                              color: '#188038',
+                              fontSize: 12.5,
+                              fontWeight: 900,
+                              fontFamily: 'inherit',
+                            }}
+                          >
+                            WhatsApp
+                          </a>
+                        )}
+
                         <button
                           type="button"
                           onClick={copyClientPhone}
@@ -4818,6 +4840,46 @@ function ClientsSection() {
 
   const businessName = storedProfessional.businessName || storedProfessional.business_name || storedProfessional.name || '';
 
+  const getBookingClientName = (booking) => String(
+    booking?.clientName ??
+    booking?.client_name ??
+    booking?.customerName ??
+    booking?.customer_name ??
+    booking?.client?.name ??
+    booking?.customer?.name ??
+    booking?.name ??
+    ''
+  ).trim();
+
+  const getBookingClientPhone = (booking) => String(
+    booking?.clientPhone ??
+    booking?.client_phone ??
+    booking?.customerPhone ??
+    booking?.customer_phone ??
+    booking?.client?.phone ??
+    booking?.customer?.phone ??
+    booking?.phone ??
+    ''
+  ).trim();
+
+  const normalizeBookingStatus = (status) => String(status || '').trim().toLowerCase();
+
+  const getClientTypeInfo = (client) => {
+    if (client.cancelledCount >= 2) {
+      return { label: 'Con cancelaciones', color: '#ff9500', bg: '#fff7e8' };
+    }
+
+    if (client.completedCount >= 2 || client.bookings.length >= 5) {
+      return { label: 'Cliente frecuente', color: '#188038', bg: '#edfff3' };
+    }
+
+    if (client.bookings.length >= 2) {
+      return { label: 'Cliente recurrente', color: '#5856d6', bg: '#f1f0ff' };
+    }
+
+    return { label: 'Cliente nuevo', color: '#0071e3', bg: '#eef6ff' };
+  };
+
   const getLocalDateKey = (date = new Date()) => {
     const y = date.getFullYear();
     const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -4922,8 +4984,8 @@ function ClientsSection() {
   const clientsMap = new Map();
 
   bookings.forEach((booking) => {
-    const clientName = String(booking.clientName ?? booking.client_name ?? '').trim();
-    const clientPhone = String(booking.clientPhone ?? booking.client_phone ?? '').trim();
+    const clientName = getBookingClientName(booking);
+    const clientPhone = getBookingClientPhone(booking);
 
     if (!clientName && !clientPhone) return;
 
@@ -4963,9 +5025,18 @@ function ClientsSection() {
   const clients = Array.from(clientsMap.values()).map((client) => {
     const sortedBookings = [...client.bookings].sort((a, b) => getBookingSortValue(b).localeCompare(getBookingSortValue(a)));
     const lastBooking = sortedBookings[0] || null;
-    const completedCount = sortedBookings.filter((booking) => booking.status === 'completed').length;
-    const cancelledCount = sortedBookings.filter((booking) => booking.status === 'cancelled').length;
-    const pendingOrConfirmedCount = sortedBookings.filter((booking) => booking.status === 'pending' || booking.status === 'confirmed').length;
+    const completedCount = sortedBookings.filter((booking) => {
+      const status = normalizeBookingStatus(booking.status);
+      return status === 'completed' || status === 'completada' || status === 'completado';
+    }).length;
+    const cancelledCount = sortedBookings.filter((booking) => {
+      const status = normalizeBookingStatus(booking.status);
+      return status === 'cancelled' || status === 'cancelada' || status === 'cancelado';
+    }).length;
+    const pendingOrConfirmedCount = sortedBookings.filter((booking) => {
+      const status = normalizeBookingStatus(booking.status);
+      return status === 'pending' || status === 'confirmed' || status === 'pendiente' || status === 'confirmada' || status === 'confirmado';
+    }).length;
 
     return {
       ...client,
@@ -5104,9 +5175,9 @@ function ClientsSection() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
               <div style={{ fontSize: 26, fontWeight: 900, color: '#30d158' }}>{frequentClients}</div>
               <div>
-                <div style={{ fontSize: 15, fontWeight: 900, color: '#1a1a1a' }}>Clientes frecuentes</div>
+                <div style={{ fontSize: 15, fontWeight: 900, color: '#1a1a1a' }}>Resumen de clientes</div>
                 <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 700, marginTop: 2 }}>
-                  Clientes que ya asistieron al menos una vez. Se actualiza automáticamente con cada reserva completada.
+                  Resumen de clientes creados automáticamente con cada reserva.
                 </div>
               </div>
             </div>
@@ -5199,6 +5270,23 @@ function ClientsSection() {
           </button>
         </div>
 
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10, marginBottom: 14 }}>
+          <div style={{ background: '#f5f5f7', borderRadius: 16, padding: 12 }}>
+            <div style={{ fontSize: 10.5, color: '#8e8e93', fontWeight: 900, marginBottom: 4 }}>CLIENTES</div>
+            <div style={{ fontSize: 20, color: '#1a1a1a', fontWeight: 950 }}>{clients.length}</div>
+          </div>
+
+          <div style={{ background: '#eef6ff', borderRadius: 16, padding: 12 }}>
+            <div style={{ fontSize: 10.5, color: '#0071e3', fontWeight: 900, marginBottom: 4 }}>RESERVAS</div>
+            <div style={{ fontSize: 20, color: '#0071e3', fontWeight: 950 }}>{totalBookings}</div>
+          </div>
+
+          <div style={{ background: '#edfff3', borderRadius: 16, padding: 12 }}>
+            <div style={{ fontSize: 10.5, color: '#188038', fontWeight: 900, marginBottom: 4 }}>FRECUENTES</div>
+            <div style={{ fontSize: 20, color: '#188038', fontWeight: 950 }}>{frequentClients}</div>
+          </div>
+        </div>
+
         <input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
@@ -5221,6 +5309,7 @@ function ClientsSection() {
               const lastTime = lastBooking ? formatTime(lastBooking.startTime ?? lastBooking.start_time) : null;
               const lastService = lastBooking ? (lastBooking.serviceName ?? lastBooking.service_name ?? 'Servicio') : 'Sin servicio';
               const whatsappUrl = buildWhatsAppUrl(client.phone, buildClientGeneralMessage(client));
+              const clientType = getClientTypeInfo(client);
 
               return (
                 <div
@@ -5285,11 +5374,9 @@ function ClientsSection() {
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      {client.completedCount >= 2 && (
-                        <span style={{ fontSize: 11, color: '#188038', background: '#edfff3', padding: '5px 9px', borderRadius: 999, fontWeight: 900 }}>
-                          Frecuente
-                        </span>
-                      )}
+                      <span style={{ fontSize: 11, color: clientType.color, background: clientType.bg, padding: '5px 9px', borderRadius: 999, fontWeight: 900, whiteSpace: 'nowrap' }}>
+                        {clientType.label}
+                      </span>
                       <span style={{ color: '#8e8e93', fontSize: 18, fontWeight: 800, transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: '0.18s ease' }}>
                         ⌄
                       </span>
@@ -5299,7 +5386,7 @@ function ClientsSection() {
                   {isExpanded && (
                     <div style={{ padding: '0 16px 16px 16px' }}>
                       <div style={{ borderTop: '0.5px solid #eeeeef', paddingTop: 14 }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10, marginBottom: 12 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 10, marginBottom: 12 }}>
                           <div style={{ background: '#fafafa', borderRadius: 14, padding: 12 }}>
                             <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800 }}>Total</div>
                             <div style={{ fontSize: 18, color: '#1a1a1a', fontWeight: 900, marginTop: 4 }}>{client.bookings.length}</div>
@@ -5308,6 +5395,11 @@ function ClientsSection() {
                           <div style={{ background: '#fafafa', borderRadius: 14, padding: 12 }}>
                             <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800 }}>Completadas</div>
                             <div style={{ fontSize: 18, color: '#5e5ce6', fontWeight: 900, marginTop: 4 }}>{client.completedCount}</div>
+                          </div>
+
+                          <div style={{ background: '#fafafa', borderRadius: 14, padding: 12 }}>
+                            <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800 }}>Pendientes</div>
+                            <div style={{ fontSize: 18, color: '#ff9f0a', fontWeight: 900, marginTop: 4 }}>{client.pendingOrConfirmedCount}</div>
                           </div>
 
                           <div style={{ background: '#fafafa', borderRadius: 14, padding: 12 }}>
@@ -5404,9 +5496,9 @@ function ClientsSection() {
                             const endStr = formatTime(booking.endTime ?? booking.end_time);
                             const serviceName = booking.serviceName ?? booking.service_name ?? 'Servicio no especificado';
                             const staffName = booking.staffName ?? booking.staff_name;
-                            const status = booking.status || 'pending';
-                            const statusColor = { pending: '#ff9f0a', confirmed: '#30d158', completed: '#5e5ce6', cancelled: '#ff453a' }[status] || '#8e8e93';
-                            const statusLabel = { pending: 'Pendiente', confirmed: 'Confirmada', completed: 'Completada', cancelled: 'Cancelada' }[status] || status;
+                            const status = normalizeBookingStatus(booking.status || 'pending');
+                            const statusColor = { pending: '#ff9f0a', pendiente: '#ff9f0a', confirmed: '#30d158', confirmada: '#30d158', confirmado: '#30d158', completed: '#5e5ce6', completada: '#5e5ce6', completado: '#5e5ce6', cancelled: '#ff453a', cancelada: '#ff453a', cancelado: '#ff453a' }[status] || '#8e8e93';
+                            const statusLabel = { pending: 'Pendiente', pendiente: 'Pendiente', confirmed: 'Confirmada', confirmada: 'Confirmada', confirmado: 'Confirmado', completed: 'Completada', completada: 'Completada', completado: 'Completado', cancelled: 'Cancelada', cancelada: 'Cancelada', cancelado: 'Cancelado' }[status] || status;
 
                             return (
                               <div key={booking.id} style={{ background: '#fafafa', borderRadius: 14, padding: '10px 12px', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 10, alignItems: 'center' }}>
