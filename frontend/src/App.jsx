@@ -388,7 +388,7 @@ function DatePickerField({ value, onChange, placeholder = 'Elegir fecha', allowP
 }
 
 const PAYMENT_STATUS_OPTIONS = [
-  { value: 'pending', label: 'Por cobrar' },
+  { value: 'pending', label: 'Pendiente' },
   { value: 'paid', label: 'Pagado' },
   { value: 'cancelled', label: 'Cancelado' },
 ];
@@ -555,7 +555,7 @@ function exportClientsToCsv(clients, filename = 'clientes.csv') {
     'Reservas totales',
     'Asistencias',
     'Canceladas',
-    'Por cobrars o confirmadas',
+    'Pendientes o confirmadas',
     'Ultima reserva',
     'Ultima hora',
     'Notas internas',
@@ -2839,7 +2839,7 @@ function ReservationsSection() {
                 }}
               >
                 <option value="all">Todos los estados</option>
-                <option value="pending">Por cobrars</option>
+                <option value="pending">Pendientes</option>
                 <option value="confirmed">Confirmadas</option>
                 <option value="completed">Completadas</option>
                 <option value="cancelled">Canceladas</option>
@@ -3254,7 +3254,7 @@ function ReservationsSection() {
                         </div>
 
                         <div style={{ background: '#fff7e8', borderRadius: 14, padding: 11 }}>
-                          <div style={{ fontSize: 10, color: '#ff9500', fontWeight: 900, marginBottom: 4 }}>POR COBRAR</div>
+                          <div style={{ fontSize: 10, color: '#ff9500', fontWeight: 900, marginBottom: 4 }}>PENDIENTES</div>
                           <div style={{ fontSize: 15, color: '#ff9500', fontWeight: 950 }}>{clientPendingCount}</div>
                         </div>
 
@@ -3566,6 +3566,10 @@ function CashSection() {
   const [closeLoading, setCloseLoading] = useState(false);
   const [closeMessage, setCloseMessage] = useState('');
   const [expandedClosureId, setExpandedClosureId] = useState(null);
+  const [cashCount, setCashCount] = useState('');
+  const [transferCount, setTransferCount] = useState('');
+  const [cardCount, setCardCount] = useState('');
+  const [otherCount, setOtherCount] = useState('');
 
   const statusLabel = { pending: 'Pendiente', confirmed: 'Confirmada', completed: 'Completada', cancelled: 'Cancelada' };
 
@@ -3704,7 +3708,7 @@ function CashSection() {
       'Metodo pago',
       'Precio',
       'Cobrado',
-      'Por cobrar',
+      'Pendiente',
     ];
 
     const rows = dayBookings.map((booking) => {
@@ -3840,10 +3844,33 @@ function CashSection() {
   const completedWithoutPaymentCount = completedBookings.filter((booking) => getBookingPaymentStatus(booking) !== 'paid').length;
   const mainPaymentMethod = byMethod.slice().sort((a, b) => b.total - a.total)[0];
 
+  const expectedByMethod = {
+    cash: byMethod.find((method) => method.value === 'cash')?.total || 0,
+    transfer: byMethod.find((method) => method.value === 'transfer')?.total || 0,
+    card: byMethod.find((method) => method.value === 'card')?.total || 0,
+    other: byMethod.find((method) => method.value === 'other')?.total || 0,
+  };
+
+  const toNumber = (value) => {
+    const number = Number(value);
+    return Number.isNaN(number) ? 0 : number;
+  };
+
+  const countedByMethod = {
+    cash: toNumber(cashCount),
+    transfer: toNumber(transferCount),
+    card: toNumber(cardCount),
+    other: toNumber(otherCount),
+  };
+
+  const countedTotal = countedByMethod.cash + countedByMethod.transfer + countedByMethod.card + countedByMethod.other;
+  const cashDifference = countedTotal - totalCollected;
+  const needsCashReview = Math.abs(cashDifference) > 0.009;
+
   const attentionItems = [
     totalPending > 0 ? `Tenés ${formatMoney(totalPending)} por cobrar.` : null,
     completedWithoutPaymentCount > 0 ? `${completedWithoutPaymentCount} reserva${completedWithoutPaymentCount === 1 ? '' : 's'} completada${completedWithoutPaymentCount === 1 ? '' : 's'} sin marcar como pagada${completedWithoutPaymentCount === 1 ? '' : 's'}.` : null,
-    unpaidBookingsCount > 0 ? `${unpaidBookingsCount} reserva${unpaidBookingsCount === 1 ? '' : 's'} con pago pendiente.` : null,
+    unpaidBookingsCount > 0 ? `${unpaidBookingsCount} reserva${unpaidBookingsCount === 1 ? '' : 's'} con pago por cobrar.` : null,
     existingClosure ? 'Esta fecha ya tiene cierre guardado.' : null,
   ].filter(Boolean);
 
@@ -3863,7 +3890,7 @@ function CashSection() {
       'Por cobrar',
       'Efectivo',
       'Transferencia',
-      'Tarjeta',
+      'Débito / POS',
       'Otro',
     ];
 
@@ -3939,7 +3966,7 @@ function CashSection() {
           <div style={{ fontSize: 16, color: '#1a1a1a', fontWeight: 950, marginTop: 4 }}>{formatMoney(summary.generated)}</div>
         </div>
         <div style={periodMetricStyle}>
-          <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 950 }}>Por cobrar</div>
+          <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 950 }}>Pendiente</div>
           <div style={{ fontSize: 16, color: '#ff9f0a', fontWeight: 950, marginTop: 4 }}>{formatMoney(summary.pending)}</div>
         </div>
       </div>
@@ -3948,7 +3975,7 @@ function CashSection() {
         <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Citas</div><div style={{ fontSize: 13, fontWeight: 950 }}>{summary.bookings}</div></div>
         <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Efectivo</div><div style={{ fontSize: 13, fontWeight: 950 }}>{formatMoney(summary.cash)}</div></div>
         <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Transfer.</div><div style={{ fontSize: 13, fontWeight: 950 }}>{formatMoney(summary.transfer)}</div></div>
-        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Tarjeta</div><div style={{ fontSize: 13, fontWeight: 950 }}>{formatMoney(summary.card)}</div></div>
+        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Débito / POS</div><div style={{ fontSize: 13, fontWeight: 950 }}>{formatMoney(summary.card)}</div></div>
       </div>
     </div>
   );
@@ -4062,7 +4089,7 @@ function CashSection() {
           </div>
           <div style={cashCardStyle('#fff8eb')}>
             <div style={{ fontSize: 28, fontWeight: 950, color: '#ff9f0a' }}>{pendingBookings.length}</div>
-            <div style={smallStatStyle}>Por cobrars/confirmadas</div>
+            <div style={smallStatStyle}>Por cobrar/confirmadas</div>
           </div>
           <div style={cashCardStyle('#fff1f0')}>
             <div style={{ fontSize: 28, fontWeight: 950, color: '#ff453a' }}>{cancelledBookings.length}</div>
@@ -4112,7 +4139,7 @@ function CashSection() {
           </div>
 
           <div style={{ background: '#fff7e8', borderRadius: 16, padding: 13 }}>
-            <div style={{ fontSize: 10.5, color: '#ff9500', fontWeight: 950, marginBottom: 4 }}>POR COBRAR</div>
+            <div style={{ fontSize: 10.5, color: '#ff9500', fontWeight: 950, marginBottom: 4 }}>PENDIENTES</div>
             <div style={{ fontSize: 20, color: '#ff9500', fontWeight: 950 }}>{unpaidBookingsCount}</div>
           </div>
         </div>
@@ -4160,7 +4187,7 @@ function CashSection() {
                       {time ? `${time} · ` : ''}{clientName}
                     </div>
                     <div style={{ fontSize: 12, color: '#6e6e73', fontWeight: 750, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {serviceName} · Cobrado {formatMoney(paid)} · Por cobrar {formatMoney(pending)}
+                      {serviceName} · Cobrado {formatMoney(paid)} · Pendiente {formatMoney(pending)}
                     </div>
                   </div>
                   <div style={{ color: pending > 0 ? '#ff9500' : '#0071e3', fontSize: 12, fontWeight: 950, whiteSpace: 'nowrap' }}>
@@ -4171,6 +4198,69 @@ function CashSection() {
             })}
           </div>
         )}
+      </div>
+
+      <div style={{ background: '#fff', borderRadius: 22, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)', border: '0.5px solid #ececf2' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'flex-start', flexWrap: 'wrap', marginBottom: 14 }}>
+          <div>
+            <div style={{ fontSize: 17, fontWeight: 900, color: '#1a1a1a' }}>Arqueo de caja</div>
+            <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 750, marginTop: 4, lineHeight: 1.45 }}>
+              Ingresá lo contado por método y comparalo con lo registrado en las reservas.
+            </div>
+          </div>
+
+          <div style={{
+            padding: '7px 11px',
+            borderRadius: 999,
+            background: needsCashReview ? '#fff7e8' : '#edfff3',
+            color: needsCashReview ? '#ff9500' : '#188038',
+            fontSize: 12,
+            fontWeight: 950,
+            whiteSpace: 'nowrap',
+          }}>
+            {needsCashReview ? `Diferencia ${formatMoney(cashDifference)}` : 'Caja cuadrada'}
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10 }}>
+          {[
+            { key: 'cash', label: 'Efectivo', value: cashCount, setter: setCashCount },
+            { key: 'transfer', label: 'Transferencia', value: transferCount, setter: setTransferCount },
+            { key: 'card', label: 'Débito / POS', value: cardCount, setter: setCardCount },
+            { key: 'other', label: 'Otro', value: otherCount, setter: setOtherCount },
+          ].map((item) => (
+            <div key={item.key} style={{ background: '#fbfbfd', border: '0.5px solid #ececf2', borderRadius: 16, padding: 12 }}>
+              <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 950, marginBottom: 4 }}>{item.label}</div>
+              <div style={{ fontSize: 12, color: '#6e6e73', fontWeight: 800, marginBottom: 8 }}>
+                Registrado: {formatMoney(expectedByMethod[item.key] || 0)}
+              </div>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={item.value}
+                onChange={(event) => item.setter(event.target.value)}
+                placeholder="Contado"
+                style={{ ...inputStyle, borderRadius: 13, padding: '10px 11px', fontSize: 13, marginBottom: 0 }}
+              />
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10, marginTop: 12 }}>
+          <div style={{ background: '#f7f7fb', borderRadius: 16, padding: 13 }}>
+            <div style={{ fontSize: 10.5, color: '#8e8e93', fontWeight: 950 }}>Registrado</div>
+            <div style={{ fontSize: 20, color: '#1a1a1a', fontWeight: 950, marginTop: 4 }}>{formatMoney(totalCollected)}</div>
+          </div>
+          <div style={{ background: '#f7f7fb', borderRadius: 16, padding: 13 }}>
+            <div style={{ fontSize: 10.5, color: '#8e8e93', fontWeight: 950 }}>Contado</div>
+            <div style={{ fontSize: 20, color: '#0071e3', fontWeight: 950, marginTop: 4 }}>{formatMoney(countedTotal)}</div>
+          </div>
+          <div style={{ background: needsCashReview ? '#fff7e8' : '#edfff3', borderRadius: 16, padding: 13 }}>
+            <div style={{ fontSize: 10.5, color: needsCashReview ? '#ff9500' : '#188038', fontWeight: 950 }}>Diferencia</div>
+            <div style={{ fontSize: 20, color: needsCashReview ? '#ff9500' : '#188038', fontWeight: 950, marginTop: 4 }}>{formatMoney(cashDifference)}</div>
+          </div>
+        </div>
       </div>
 
       <div style={{ background: '#fff', borderRadius: 22, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
@@ -4187,7 +4277,7 @@ function CashSection() {
                 <div style={{ fontSize: 14, color: '#1a1a1a', fontWeight: 950 }}>{formatMoney(totalCollected)}</div>
               </div>
               <div style={{ background: totalPending > 0 ? '#fff7e8' : '#edfff3', borderRadius: 14, padding: 10 }}>
-                <div style={{ fontSize: 10, color: totalPending > 0 ? '#ff9500' : '#188038', fontWeight: 950 }}>Por cobrar</div>
+                <div style={{ fontSize: 10, color: totalPending > 0 ? '#ff9500' : '#188038', fontWeight: 950 }}>Pendiente</div>
                 <div style={{ fontSize: 14, color: totalPending > 0 ? '#ff9500' : '#188038', fontWeight: 950 }}>{formatMoney(totalPending)}</div>
               </div>
             </div>
@@ -4336,7 +4426,7 @@ function CashSection() {
                       <div style={{ fontSize: 12, color: '#188038', fontWeight: 900, marginTop: 3 }}>{formatMoney(paid)}</div>
                     </div>
                     <div style={{ background: '#fafafa', borderRadius: 13, padding: 10 }}>
-                      <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Por cobrar</div>
+                      <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Pendiente</div>
                       <div style={{ fontSize: 12, color: pending > 0 ? '#ff9f0a' : '#188038', fontWeight: 900, marginTop: 3 }}>{formatMoney(pending)}</div>
                     </div>
                     <div style={{ background: '#fafafa', borderRadius: 13, padding: 10 }}>
@@ -4415,7 +4505,7 @@ function CashSection() {
                           <div style={{ fontSize: 12, color: '#188038', fontWeight: 950 }}>{formatMoney(closure.totalCollected ?? closure.total_collected ?? 0)}</div>
                         </div>
                         <div style={{ background: '#fff8eb', borderRadius: 14, padding: 10 }}>
-                          <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Por cobrar</div>
+                          <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Pendiente</div>
                           <div style={{ fontSize: 12, color: '#ff9f0a', fontWeight: 950 }}>{formatMoney(closure.totalPending ?? closure.total_pending ?? 0)}</div>
                         </div>
                         <div style={{ background: '#fff1f0', borderRadius: 14, padding: 10 }}>
@@ -4427,7 +4517,7 @@ function CashSection() {
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8 }}>
                         <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Efectivo</div><div style={{ fontSize: 12, fontWeight: 950 }}>{formatMoney(closure.cashTotal ?? closure.cash_total ?? 0)}</div></div>
                         <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Transferencia</div><div style={{ fontSize: 12, fontWeight: 950 }}>{formatMoney(closure.transferTotal ?? closure.transfer_total ?? 0)}</div></div>
-                        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Tarjeta</div><div style={{ fontSize: 12, fontWeight: 950 }}>{formatMoney(closure.cardTotal ?? closure.card_total ?? 0)}</div></div>
+                        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Débito / POS</div><div style={{ fontSize: 12, fontWeight: 950 }}>{formatMoney(closure.cardTotal ?? closure.card_total ?? 0)}</div></div>
                         <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Otro</div><div style={{ fontSize: 12, fontWeight: 950 }}>{formatMoney(closure.otherTotal ?? closure.other_total ?? 0)}</div></div>
                       </div>
 
@@ -5488,7 +5578,7 @@ function ClientsSection() {
                           </div>
 
                           <div style={{ background: '#fafafa', borderRadius: 14, padding: 12 }}>
-                            <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800 }}>Por cobrars</div>
+                            <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800 }}>Pendientes</div>
                             <div style={{ fontSize: 18, color: '#ff9f0a', fontWeight: 900, marginTop: 4 }}>{client.pendingOrConfirmedCount}</div>
                           </div>
 
@@ -5588,7 +5678,7 @@ function ClientsSection() {
                             const staffName = booking.staffName ?? booking.staff_name;
                             const status = normalizeBookingStatus(booking.status || 'pending');
                             const statusColor = { pending: '#ff9f0a', pendiente: '#ff9f0a', confirmed: '#30d158', confirmada: '#30d158', confirmado: '#30d158', completed: '#5e5ce6', completada: '#5e5ce6', completado: '#5e5ce6', cancelled: '#ff453a', cancelada: '#ff453a', cancelado: '#ff453a' }[status] || '#8e8e93';
-                            const statusLabel = { pending: 'Por cobrar', pendiente: 'Por cobrar', confirmed: 'Confirmada', confirmada: 'Confirmada', confirmado: 'Confirmado', completed: 'Completada', completada: 'Completada', completado: 'Completado', cancelled: 'Cancelada', cancelada: 'Cancelada', cancelado: 'Cancelado' }[status] || status;
+                            const statusLabel = { pending: 'Pendiente', pendiente: 'Pendiente', confirmed: 'Confirmada', confirmada: 'Confirmada', confirmado: 'Confirmado', completed: 'Completada', completada: 'Completada', completado: 'Completado', cancelled: 'Cancelada', cancelada: 'Cancelada', cancelado: 'Cancelado' }[status] || status;
 
                             return (
                               <div key={booking.id} style={{ background: '#fafafa', borderRadius: 14, padding: '10px 12px', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 10, alignItems: 'center' }}>
@@ -7404,8 +7494,6 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
           </div>
         </div>
 
-        <ProfileCompletionCard form={form} professional={professional} />
-
         <ProfilePublicPreviewCard
           form={form}
           publicLink={publicLink}
@@ -9172,7 +9260,7 @@ function LandingPage() {
 
               {[
                 ['09:30', 'Juan Pérez', 'Consulta inicial', 'Confirmada'],
-                ['10:20', 'Ana Silva', 'Limpieza dental', 'Por cobrar'],
+                ['10:20', 'Ana Silva', 'Limpieza dental', 'Pendiente'],
                 ['11:10', 'Carlos Díaz', 'Control', 'Confirmada'],
               ].map((row) => (
                 <div key={row[0]} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 20, padding: 14, marginBottom: 10, boxShadow: '0 4px 14px rgba(15,23,42,0.04)' }}>
