@@ -3824,7 +3824,6 @@ function CashSection() {
   };
   const getClosureNumber = (closure, camelKey, snakeKey) => Number(closure?.[camelKey] ?? closure?.[snakeKey] ?? 0) || 0;
 
-  const getClosureNumber = (closure, camelKey, snakeKey) => Number(closure?.[camelKey] ?? closure?.[snakeKey] ?? 0) || 0;
 
   const summarizeBookings = (items) => {
     const active = items.filter((booking) => booking.status !== 'cancelled');
