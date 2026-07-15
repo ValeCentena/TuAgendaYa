@@ -237,6 +237,28 @@ async function initDB() {
         updated_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
+      CREATE TABLE IF NOT EXISTS cash_closures (
+        id SERIAL PRIMARY KEY,
+        professional_id INTEGER NOT NULL REFERENCES professionals(id) ON DELETE CASCADE,
+        closure_date DATE NOT NULL,
+        total_bookings INTEGER DEFAULT 0,
+        completed_bookings INTEGER DEFAULT 0,
+        pending_bookings INTEGER DEFAULT 0,
+        cancelled_bookings INTEGER DEFAULT 0,
+        total_generated NUMERIC(10, 2) DEFAULT 0,
+        total_collected NUMERIC(10, 2) DEFAULT 0,
+        total_pending NUMERIC(10, 2) DEFAULT 0,
+        cash_total NUMERIC(10, 2) DEFAULT 0,
+        transfer_total NUMERIC(10, 2) DEFAULT 0,
+        card_total NUMERIC(10, 2) DEFAULT 0,
+        other_total NUMERIC(10, 2) DEFAULT 0,
+        services_summary JSONB DEFAULT '[]'::jsonb,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (professional_id, closure_date)
+      );
+
       CREATE TABLE IF NOT EXISTS staff_availability (
         id                    SERIAL PRIMARY KEY,
         staff_id              INTEGER NOT NULL REFERENCES staff_members(id) ON DELETE CASCADE,
@@ -262,6 +284,7 @@ async function initDB() {
       `CREATE INDEX IF NOT EXISTS idx_bookings_reminder_2h            ON bookings(reminder_2h_sent_at, booking_date, start_time)`,
       `CREATE INDEX IF NOT EXISTS idx_staff_availability_member      ON staff_availability(staff_id)`,
       `CREATE INDEX IF NOT EXISTS idx_push_subscriptions_professional ON push_subscriptions(professional_id)`,
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_cash_closures_professional_date ON cash_closures(professional_id, closure_date)`,
     ];
 
     for (const sql of indices) {

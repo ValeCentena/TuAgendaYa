@@ -7,6 +7,7 @@ require("./db");
 const authRoutes = require("./routes/auth");
 const professionalsRoutes = require("./routes/professionals");
 const bookingsRoutes = require("./routes/bookings");
+const { startCashClosureWorker } = require("./routes/bookings");
 const staffRoutes = require("./routes/staff");
 const adminRoutes = require("./routes/admin");
 const whatsappRoutes = require("./routes/whatsapp");
@@ -70,4 +71,5 @@ app.use((error, req, res, next) => {
 app.listen(PORT, () => {
   console.log(`TuAgendaYa API escuchando en puerto ${PORT}`);
   startBookingReminderWorker();
+  startCashClosureWorker();
 });
