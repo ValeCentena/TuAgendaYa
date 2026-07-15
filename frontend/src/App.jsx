@@ -426,8 +426,12 @@ const paymentStatusBg = {
 };
 
 function getBookingPaymentStatus(booking) {
-  const status = String(booking?.paymentStatus ?? booking?.payment_status ?? 'pending').trim() || 'pending';
-  return status === 'deposit' ? 'pending' : status;
+  const bookingStatus = String(booking?.status || '').trim();
+  const paymentStatus = String(booking?.paymentStatus ?? booking?.payment_status ?? 'pending').trim() || 'pending';
+
+  if (bookingStatus === 'cancelled') return 'cancelled';
+  if (paymentStatus === 'cancelled' && bookingStatus !== 'cancelled') return 'pending';
+  return paymentStatus === 'deposit' ? 'pending' : paymentStatus;
 }
 
 function getBookingPaymentMethod(booking) {
@@ -3563,7 +3567,6 @@ function CashSection() {
   const [loading, setLoading] = useState(true);
   const [closuresLoading, setClosuresLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(getLocalDateKeyValue());
-  const [currentDayKey, setCurrentDayKey] = useState(getLocalDateKeyValue());
   const [closeLoading, setCloseLoading] = useState(false);
   const [closeMessage, setCloseMessage] = useState('');
   const [expandedClosureId, setExpandedClosureId] = useState(null);
@@ -3623,25 +3626,12 @@ function CashSection() {
   useEffect(() => {
     fetchBookings(true);
     fetchClosures(true);
-
     const intervalId = window.setInterval(() => {
-      const todayKey = getLocalDateKeyValue();
-
-      if (todayKey !== currentDayKey) {
-        setCurrentDayKey(todayKey);
-        setSelectedDate(todayKey);
-        setCashCount('');
-        setTransferCount('');
-        setCardCount('');
-        setOtherCount('');
-      }
-
       fetchBookings(false);
       fetchClosures(false);
     }, 5000);
-
     return () => window.clearInterval(intervalId);
-  }, [fetchBookings, fetchClosures, currentDayKey]);
+  }, [fetchBookings, fetchClosures]);
 
   const dayBookings = bookings
     .filter((booking) => getDateKeyFromValue(getBookingDateValue(booking)) === selectedDate)
@@ -3655,36 +3645,6 @@ function CashSection() {
   const completedBookings = dayBookings.filter((booking) => booking.status === 'completed');
   const cancelledBookings = dayBookings.filter((booking) => booking.status === 'cancelled');
   const pendingBookings = dayBookings.filter((booking) => booking.status === 'pending' || booking.status === 'confirmed');
-
-  const selectedDateObject = (() => {
-    const [year, month, day] = String(selectedDate).split('-').map(Number);
-    return year && month && day ? new Date(year, month - 1, day) : new Date();
-  })();
-
-  const startOfWeek = new Date(selectedDateObject);
-  const weekDay = startOfWeek.getDay();
-  const mondayOffset = weekDay === 0 ? -6 : 1 - weekDay;
-  startOfWeek.setDate(startOfWeek.getDate() + mondayOffset);
-  startOfWeek.setHours(0, 0, 0, 0);
-
-  const endOfWeek = new Date(startOfWeek);
-  endOfWeek.setDate(endOfWeek.getDate() + 6);
-  endOfWeek.setHours(23, 59, 59, 999);
-
-  const startOfMonth = new Date(selectedDateObject.getFullYear(), selectedDateObject.getMonth(), 1);
-  const endOfMonth = new Date(selectedDateObject.getFullYear(), selectedDateObject.getMonth() + 1, 0, 23, 59, 59, 999);
-
-  const isBookingBetween = (booking, from, to) => {
-    const key = getDateKeyFromValue(getBookingDateValue(booking));
-    if (!key) return false;
-    const [year, month, day] = key.split('-').map(Number);
-    if (!year || !month || !day) return false;
-    const date = new Date(year, month - 1, day);
-    return date >= from && date <= to;
-  };
-
-  const weekBookings = bookings.filter((booking) => isBookingBetween(booking, startOfWeek, endOfWeek));
-  const monthBookings = bookings.filter((booking) => isBookingBetween(booking, startOfMonth, endOfMonth));
 
   const getServicePrice = (booking) => Number(booking.servicePrice ?? booking.service_price ?? 0) || 0;
   const getPaidAmount = (booking) => {
@@ -3816,37 +3776,70 @@ function CashSection() {
     .slice()
     .sort((a, b) => String(b.closureDate ?? b.closure_date ?? '').localeCompare(String(a.closureDate ?? a.closure_date ?? '')));
 
-  const getClosureDateObject = (closure) => {
-    const key = getDateKeyFromValue(closure.closureDate ?? closure.closure_date);
+  const parseLocalDate = (dateValue) => {
+    const key = getDateKeyFromValue(dateValue);
     if (!key) return null;
     const [year, month, day] = key.split('-').map(Number);
-    return year && month && day ? new Date(year, month - 1, day) : null;
+    if (!year || !month || !day) return null;
+    return new Date(year, month - 1, day);
   };
+
+  const selectedDateObject = parseLocalDate(selectedDate) || new Date();
+  const startOfWeek = new Date(selectedDateObject);
+  const weekDay = startOfWeek.getDay();
+  const mondayOffset = weekDay === 0 ? -6 : 1 - weekDay;
+  startOfWeek.setDate(startOfWeek.getDate() + mondayOffset);
+  startOfWeek.setHours(0, 0, 0, 0);
+
+  const endOfWeek = new Date(startOfWeek);
+  endOfWeek.setDate(endOfWeek.getDate() + 6);
+  endOfWeek.setHours(23, 59, 59, 999);
+
+  const startOfMonth = new Date(selectedDateObject.getFullYear(), selectedDateObject.getMonth(), 1);
+  const endOfMonth = new Date(selectedDateObject.getFullYear(), selectedDateObject.getMonth() + 1, 0, 23, 59, 59, 999);
+
+  const getClosureDateObject = (closure) => parseLocalDate(closure.closureDate ?? closure.closure_date);
   const getClosureNumber = (closure, camelKey, snakeKey) => Number(closure?.[camelKey] ?? closure?.[snakeKey] ?? 0) || 0;
 
+  const summarizeClosures = (items) => items.reduce((summary, closure) => {
+    summary.days += 1;
+    summary.bookings += getClosureNumber(closure, 'totalBookings', 'total_bookings');
+    summary.completed += getClosureNumber(closure, 'completedBookings', 'completed_bookings');
+    summary.cancelled += getClosureNumber(closure, 'cancelledBookings', 'cancelled_bookings');
+    summary.generated += getClosureNumber(closure, 'totalGenerated', 'total_generated');
+    summary.collected += getClosureNumber(closure, 'totalCollected', 'total_collected');
+    summary.pending += getClosureNumber(closure, 'totalPending', 'total_pending');
+    summary.cash += getClosureNumber(closure, 'cashTotal', 'cash_total');
+    summary.transfer += getClosureNumber(closure, 'transferTotal', 'transfer_total');
+    summary.card += getClosureNumber(closure, 'cardTotal', 'card_total');
+    summary.other += getClosureNumber(closure, 'otherTotal', 'other_total');
+    return summary;
+  }, {
+    days: 0,
+    bookings: 0,
+    completed: 0,
+    cancelled: 0,
+    generated: 0,
+    collected: 0,
+    pending: 0,
+    cash: 0,
+    transfer: 0,
+    card: 0,
+    other: 0,
+  });
 
-  const summarizeBookings = (items) => {
-    const active = items.filter((booking) => booking.status !== 'cancelled');
-    const generated = active.reduce((sum, booking) => sum + getServicePrice(booking), 0);
-    const collected = active.reduce((sum, booking) => sum + getPaidAmount(booking), 0);
+  const closuresThisWeek = closures.filter((closure) => {
+    const date = getClosureDateObject(closure);
+    return date && date >= startOfWeek && date <= endOfWeek;
+  });
 
-    return {
-      days: 0,
-      bookings: items.length,
-      completed: items.filter((booking) => booking.status === 'completed').length,
-      cancelled: items.filter((booking) => booking.status === 'cancelled').length,
-      generated,
-      collected,
-      pending: active.reduce((sum, booking) => sum + Math.max(getServicePrice(booking) - getPaidAmount(booking), 0), 0),
-      cash: active.filter((booking) => getBookingPaymentMethod(booking) === 'cash').reduce((sum, booking) => sum + getPaidAmount(booking), 0),
-      transfer: active.filter((booking) => getBookingPaymentMethod(booking) === 'transfer').reduce((sum, booking) => sum + getPaidAmount(booking), 0),
-      card: active.filter((booking) => getBookingPaymentMethod(booking) === 'card').reduce((sum, booking) => sum + getPaidAmount(booking), 0),
-      other: active.filter((booking) => getBookingPaymentMethod(booking) === 'other').reduce((sum, booking) => sum + getPaidAmount(booking), 0),
-    };
-  };
+  const closuresThisMonth = closures.filter((closure) => {
+    const date = getClosureDateObject(closure);
+    return date && date >= startOfMonth && date <= endOfMonth;
+  });
 
-  const weeklySummary = summarizeBookings(weekBookings);
-  const monthlySummary = summarizeBookings(monthBookings);
+  const weeklySummary = summarizeClosures(closuresThisWeek);
+  const monthlySummary = summarizeClosures(closuresThisMonth);
 
   const averageTicket = activeBookings.length > 0 ? totalCollected / activeBookings.length : 0;
   const collectionRate = totalGenerated > 0 ? Math.round((totalCollected / totalGenerated) * 100) : 0;
@@ -3890,66 +3883,55 @@ function CashSection() {
     .slice(0, 6);
 
 
-  const exportBookingRowsToCsv = (items, filename) => {
+  const exportClosureRowsToCsv = (items, filename) => {
     const headers = [
       'Fecha',
-      'Hora',
-      'Cliente',
-      'Telefono',
-      'Servicio',
-      'Profesional',
-      'Estado reserva',
-      'Estado pago',
-      'Metodo pago',
-      'Precio',
-      'Cobrado',
+      'Citas',
+      'Completadas',
+      'Canceladas',
+      'Total generado',
+      'Total cobrado',
       'Por cobrar',
+      'Efectivo',
+      'Transferencia',
+      'Débito / POS',
+      'Otro',
     ];
 
     const rows = items
       .slice()
-      .sort((a, b) => {
-        const aKey = `${getDateKeyFromValue(getBookingDateValue(a))} ${formatTime(a.startTime ?? a.start_time) || '00:00'}`;
-        const bKey = `${getDateKeyFromValue(getBookingDateValue(b))} ${formatTime(b.startTime ?? b.start_time) || '00:00'}`;
-        return aKey.localeCompare(bKey);
-      })
-      .map((booking) => {
-        const price = getServicePrice(booking);
-        const paid = getPaidAmount(booking);
-
-        return [
-          formatDate(getBookingDateValue(booking)),
-          `${formatTime(booking.startTime ?? booking.start_time) || ''}${booking.endTime || booking.end_time ? ` - ${formatTime(booking.endTime ?? booking.end_time)}` : ''}`,
-          booking.clientName ?? booking.client_name ?? '',
-          booking.clientPhone ?? booking.client_phone ?? '',
-          booking.serviceName ?? booking.service_name ?? '',
-          booking.staffName ?? booking.staff_name ?? '',
-          statusLabel[booking.status] || booking.status || '',
-          paymentStatusLabel[getBookingPaymentStatus(booking)] || getBookingPaymentStatus(booking),
-          paymentMethodLabel[getBookingPaymentMethod(booking)] || getBookingPaymentMethod(booking),
-          price,
-          paid,
-          Math.max(price - paid, 0),
-        ];
-      });
+      .sort((a, b) => String(a.closureDate ?? a.closure_date ?? '').localeCompare(String(b.closureDate ?? b.closure_date ?? '')))
+      .map((closure) => [
+        formatDate(closure.closureDate ?? closure.closure_date),
+        getClosureNumber(closure, 'totalBookings', 'total_bookings'),
+        getClosureNumber(closure, 'completedBookings', 'completed_bookings'),
+        getClosureNumber(closure, 'cancelledBookings', 'cancelled_bookings'),
+        getClosureNumber(closure, 'totalGenerated', 'total_generated'),
+        getClosureNumber(closure, 'totalCollected', 'total_collected'),
+        getClosureNumber(closure, 'totalPending', 'total_pending'),
+        getClosureNumber(closure, 'cashTotal', 'cash_total'),
+        getClosureNumber(closure, 'transferTotal', 'transfer_total'),
+        getClosureNumber(closure, 'cardTotal', 'card_total'),
+        getClosureNumber(closure, 'otherTotal', 'other_total'),
+      ]);
 
     downloadCsvFile(filename, headers, rows);
   };
 
-  const exportDailyCashCsv = () => {
-    exportBookingRowsToCsv(dayBookings, `caja-dia-${selectedDate}.csv`);
-  };
-
   const exportWeeklyCashCsv = () => {
-    exportBookingRowsToCsv(
-      weekBookings,
-      `caja-semana-${getLocalDateKeyValue(startOfWeek)}-${getLocalDateKeyValue(endOfWeek)}.csv`
+    exportClosureRowsToCsv(
+      closuresThisWeek,
+      `caja-semanal-${getDateKeyFromValue(startOfWeek)}-${getDateKeyFromValue(endOfWeek)}.csv`
     );
   };
 
   const exportMonthlyCashCsv = () => {
     const monthKey = `${selectedDateObject.getFullYear()}-${String(selectedDateObject.getMonth() + 1).padStart(2, '0')}`;
-    exportBookingRowsToCsv(monthBookings, `caja-mes-${monthKey}.csv`);
+    exportClosureRowsToCsv(closuresThisMonth, `caja-mensual-${monthKey}.csv`);
+  };
+
+  const exportAllCashClosuresCsv = () => {
+    exportClosureRowsToCsv(closures, 'historial-cierres-caja-tuagendaya.csv');
   };
 
   const periodSummaryCardStyle = {
@@ -4022,44 +4004,25 @@ function CashSection() {
           <div>
             <div style={{ fontSize: 17, fontWeight: 900, color: '#1a1a1a' }}>Exportar caja</div>
             <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 700, marginTop: 3, lineHeight: 1.45 }}>
-              Exportá el día, la semana o el mes según la fecha seleccionada.
+              Descargá cierres semanales, mensuales o el historial completo en CSV compatible con Excel.
             </div>
           </div>
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button
               type="button"
-              onClick={exportDailyCashCsv}
-              disabled={dayBookings.length === 0}
-              style={{
-                border: 'none',
-                borderRadius: 999,
-                padding: '10px 13px',
-                background: dayBookings.length === 0 ? '#f2f2f7' : '#0071e3',
-                color: dayBookings.length === 0 ? '#8e8e93' : '#fff',
-                fontSize: 12,
-                fontWeight: 900,
-                fontFamily: 'inherit',
-                cursor: dayBookings.length === 0 ? 'not-allowed' : 'pointer',
-              }}
-            >
-              Exportar día
-            </button>
-
-            <button
-              type="button"
               onClick={exportWeeklyCashCsv}
-              disabled={weekBookings.length === 0}
+              disabled={closuresThisWeek.length === 0}
               style={{
                 border: 'none',
                 borderRadius: 999,
                 padding: '10px 13px',
-                background: weekBookings.length === 0 ? '#f2f2f7' : '#0071e3',
-                color: weekBookings.length === 0 ? '#8e8e93' : '#fff',
+                background: closuresThisWeek.length === 0 ? '#f2f2f7' : '#0071e3',
+                color: closuresThisWeek.length === 0 ? '#8e8e93' : '#fff',
                 fontSize: 12,
                 fontWeight: 900,
                 fontFamily: 'inherit',
-                cursor: weekBookings.length === 0 ? 'not-allowed' : 'pointer',
+                cursor: closuresThisWeek.length === 0 ? 'not-allowed' : 'pointer',
               }}
             >
               Exportar semana
@@ -4068,20 +4031,39 @@ function CashSection() {
             <button
               type="button"
               onClick={exportMonthlyCashCsv}
-              disabled={monthBookings.length === 0}
+              disabled={closuresThisMonth.length === 0}
               style={{
                 border: 'none',
                 borderRadius: 999,
                 padding: '10px 13px',
-                background: monthBookings.length === 0 ? '#f2f2f7' : '#0071e3',
-                color: monthBookings.length === 0 ? '#8e8e93' : '#fff',
+                background: closuresThisMonth.length === 0 ? '#f2f2f7' : '#0071e3',
+                color: closuresThisMonth.length === 0 ? '#8e8e93' : '#fff',
                 fontSize: 12,
                 fontWeight: 900,
                 fontFamily: 'inherit',
-                cursor: monthBookings.length === 0 ? 'not-allowed' : 'pointer',
+                cursor: closuresThisMonth.length === 0 ? 'not-allowed' : 'pointer',
               }}
             >
               Exportar mes
+            </button>
+
+            <button
+              type="button"
+              onClick={exportAllCashClosuresCsv}
+              disabled={closures.length === 0}
+              style={{
+                border: '0.5px solid #d8d8df',
+                borderRadius: 999,
+                padding: '10px 13px',
+                background: '#fff',
+                color: closures.length === 0 ? '#aeaeb2' : '#1a1a1a',
+                fontSize: 12,
+                fontWeight: 900,
+                fontFamily: 'inherit',
+                cursor: closures.length === 0 ? 'not-allowed' : 'pointer',
+              }}
+            >
+              Exportar historial
             </button>
           </div>
         </div>
@@ -4359,7 +4341,7 @@ function CashSection() {
               cursor: dayBookings.length === 0 ? 'not-allowed' : 'pointer',
             }}
           >
-            Exportar día
+            Exportar día CSV
           </button>
         </div>
 

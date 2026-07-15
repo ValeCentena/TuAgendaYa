@@ -795,149 +795,6 @@ async function isTimeRangeAvailable(
   return true;
 }
 
-async function saveCashClosureForProfessional(professionalId, closureDate, notes = null) {
-  await ensureCashClosuresTable();
-
-  const summary = await calculateCashClosure(professionalId, closureDate);
-
-  const result = await db.query(
-    `
-    INSERT INTO cash_closures (
-      professional_id,
-      closure_date,
-      total_bookings,
-      completed_bookings,
-      pending_bookings,
-      cancelled_bookings,
-      total_generated,
-      total_collected,
-      total_pending,
-      cash_total,
-      transfer_total,
-      card_total,
-      other_total,
-      services_summary,
-      notes,
-      created_at,
-      updated_at
-    )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, $15, NOW(), NOW())
-    ON CONFLICT (professional_id, closure_date)
-    DO UPDATE SET
-      total_bookings = EXCLUDED.total_bookings,
-      completed_bookings = EXCLUDED.completed_bookings,
-      pending_bookings = EXCLUDED.pending_bookings,
-      cancelled_bookings = EXCLUDED.cancelled_bookings,
-      total_generated = EXCLUDED.total_generated,
-      total_collected = EXCLUDED.total_collected,
-      total_pending = EXCLUDED.total_pending,
-      cash_total = EXCLUDED.cash_total,
-      transfer_total = EXCLUDED.transfer_total,
-      card_total = EXCLUDED.card_total,
-      other_total = EXCLUDED.other_total,
-      services_summary = EXCLUDED.services_summary,
-      notes = COALESCE(EXCLUDED.notes, cash_closures.notes),
-      updated_at = NOW()
-    RETURNING *
-    `,
-    [
-      professionalId,
-      closureDate,
-      summary.totalBookings,
-      summary.completedBookings,
-      summary.pendingBookings,
-      summary.cancelledBookings,
-      summary.totalGenerated,
-      summary.totalCollected,
-      summary.totalPending,
-      summary.cashTotal,
-      summary.transferTotal,
-      summary.cardTotal,
-      summary.otherTotal,
-      JSON.stringify(summary.servicesSummary),
-      notes,
-    ]
-  );
-
-  return normalizeCashClosure(result.rows[0]);
-}
-
-function getMontevideoDateKey(date = new Date()) {
-  const montevideoNow = new Date(date.getTime() - 3 * 60 * 60 * 1000);
-  const year = montevideoNow.getUTCFullYear();
-  const month = String(montevideoNow.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(montevideoNow.getUTCDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function getPreviousMontevideoDateKey(date = new Date()) {
-  const montevideoNow = new Date(date.getTime() - 3 * 60 * 60 * 1000);
-  montevideoNow.setUTCDate(montevideoNow.getUTCDate() - 1);
-  const year = montevideoNow.getUTCFullYear();
-  const month = String(montevideoNow.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(montevideoNow.getUTCDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-async function closePreviousCashDayForAllProfessionals() {
-  await ensureCashClosuresTable();
-
-  const closureDate = getPreviousMontevideoDateKey();
-  const professionalsResult = await db.query(
-    `
-    SELECT id
-    FROM professionals
-    WHERE COALESCE(status, 'active') <> 'deleted'
-    ORDER BY id ASC
-    `
-  );
-
-  let saved = 0;
-
-  for (const professional of professionalsResult.rows) {
-    try {
-      await saveCashClosureForProfessional(
-        professional.id,
-        closureDate,
-        "Cierre automático generado después de las 00:00"
-      );
-      saved += 1;
-    } catch (error) {
-      console.warn(`Cash auto-close skipped for professional ${professional.id}:`, error.message);
-    }
-  }
-
-  return { closureDate, saved };
-}
-
-function startCashClosureWorker() {
-  let lastRunKey = "";
-
-  const run = async () => {
-    const todayKey = getMontevideoDateKey();
-    const nowMontevideo = new Date(Date.now() - 3 * 60 * 60 * 1000);
-    const hour = nowMontevideo.getUTCHours();
-    const minute = nowMontevideo.getUTCMinutes();
-
-    if (lastRunKey === todayKey) {
-      return;
-    }
-
-    if (hour === 0 && minute >= 5) {
-      lastRunKey = todayKey;
-      const result = await closePreviousCashDayForAllProfessionals();
-      console.log(`Cierre automático de caja: ${result.closureDate}, profesionales: ${result.saved}`);
-    }
-  };
-
-  run().catch((error) => console.warn("Cash auto-close skipped:", error.message));
-
-  return setInterval(() => {
-    run().catch((error) => console.warn("Cash auto-close skipped:", error.message));
-  }, 5 * 60 * 1000);
-}
-
-
 
 router.get("/push/public-key", (req, res) => {
   res.json({
@@ -1449,6 +1306,7 @@ router.patch("/public/confirmation/:token/confirm", async (req, res) => {
       UPDATE bookings
       SET
         status = 'confirmed',
+        payment_status = CASE WHEN payment_status = 'cancelled' THEN 'pending' ELSE payment_status END,
         client_confirmed_at = NOW(),
         client_cancelled_at = NULL,
         updated_at = NOW()
@@ -1484,6 +1342,9 @@ router.patch("/public/confirmation/:token/cancel", async (req, res) => {
       UPDATE bookings
       SET
         status = 'cancelled',
+        payment_status = 'cancelled',
+        amount_paid = 0,
+        payment_updated_at = NOW(),
         client_cancelled_at = NOW(),
         updated_at = NOW()
       WHERE confirmation_token = $1
@@ -1553,6 +1414,8 @@ router.patch("/:id/confirm", async (req, res) => {
       UPDATE bookings
       SET
         status = 'confirmed',
+        payment_status = CASE WHEN payment_status = 'cancelled' THEN 'pending' ELSE payment_status END,
+        client_cancelled_at = NULL,
         updated_at = NOW()
       WHERE id = $1 AND professional_id = $2
       RETURNING *
@@ -1587,6 +1450,8 @@ router.patch("/:id/complete", async (req, res) => {
       UPDATE bookings
       SET
         status = 'completed',
+        payment_status = CASE WHEN payment_status = 'cancelled' THEN 'pending' ELSE payment_status END,
+        client_cancelled_at = NULL,
         updated_at = NOW()
       WHERE id = $1 AND professional_id = $2
       RETURNING *
@@ -1621,6 +1486,9 @@ router.patch("/:id/cancel", async (req, res) => {
       UPDATE bookings
       SET
         status = 'cancelled',
+        payment_status = 'cancelled',
+        amount_paid = 0,
+        payment_updated_at = NOW(),
         client_cancelled_at = NOW(),
         updated_at = NOW()
       WHERE id = $1 AND professional_id = $2
@@ -1659,12 +1527,13 @@ router.patch("/:id/payment", async (req, res) => {
       });
     }
 
-    const allowedPaymentStatuses = ["pending", "paid", "deposit", "cancelled"];
+    const allowedPaymentStatuses = ["pending", "paid", "cancelled"];
     const allowedPaymentMethods = ["cash", "transfer", "card", "other"];
 
-    const paymentStatus = String(
+    const rawPaymentStatus = String(
       req.body.paymentStatus ?? req.body.payment_status ?? "pending"
     ).trim();
+    const paymentStatus = rawPaymentStatus === "deposit" ? "pending" : rawPaymentStatus;
     const paymentMethod = String(
       req.body.paymentMethod ?? req.body.payment_method ?? "cash"
     ).trim();
@@ -1701,6 +1570,8 @@ router.patch("/:id/payment", async (req, res) => {
         payment_status = $1,
         payment_method = $2,
         amount_paid = $3,
+        status = CASE WHEN $1 = 'cancelled' THEN 'cancelled' ELSE status END,
+        client_cancelled_at = CASE WHEN $1 = 'cancelled' THEN NOW() ELSE client_cancelled_at END,
         payment_updated_at = NOW(),
         updated_at = NOW()
       WHERE id = $4 AND professional_id = $5
@@ -1769,6 +1640,8 @@ router.get("/cash-closures", async (req, res) => {
 
 router.post("/cash-closures", async (req, res) => {
   try {
+    await ensureCashClosuresTable();
+
     const professionalId = getProfessionalIdFromRequest(req);
     const closureDate = normalizeDate(
       req.body.closureDate ?? req.body.closure_date
@@ -1782,15 +1655,97 @@ router.post("/cash-closures", async (req, res) => {
       });
     }
 
-    const closure = await saveCashClosureForProfessional(
-      professionalId,
-      closureDate,
-      notes
+    const summary = await calculateCashClosure(professionalId, closureDate);
+
+    const result = await db.query(
+      `
+      INSERT INTO cash_closures (
+        professional_id,
+        closure_date,
+        total_bookings,
+        completed_bookings,
+        pending_bookings,
+        cancelled_bookings,
+        total_generated,
+        total_collected,
+        total_pending,
+        cash_total,
+        transfer_total,
+        card_total,
+        other_total,
+        services_summary,
+        notes,
+        created_at,
+        updated_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, $15, NOW(), NOW())
+      ON CONFLICT (professional_id, closure_date)
+      DO UPDATE SET
+        total_bookings = EXCLUDED.total_bookings,
+        completed_bookings = EXCLUDED.completed_bookings,
+        pending_bookings = EXCLUDED.pending_bookings,
+        cancelled_bookings = EXCLUDED.cancelled_bookings,
+        total_generated = EXCLUDED.total_generated,
+        total_collected = EXCLUDED.total_collected,
+        total_pending = EXCLUDED.total_pending,
+        cash_total = EXCLUDED.cash_total,
+        transfer_total = EXCLUDED.transfer_total,
+        card_total = EXCLUDED.card_total,
+        other_total = EXCLUDED.other_total,
+        services_summary = EXCLUDED.services_summary,
+        notes = COALESCE(EXCLUDED.notes, cash_closures.notes),
+        updated_at = NOW()
+      RETURNING *
+      `,
+      [
+        professionalId,
+        closureDate,
+        summary.totalBookings,
+        summary.completedBookings,
+        summary.pendingBookings,
+        summary.cancelledBookings,
+        summary.totalGenerated,
+        summary.totalCollected,
+        summary.totalPending,
+        summary.cashTotal,
+        summary.transferTotal,
+        summary.cardTotal,
+        summary.otherTotal,
+        JSON.stringify(summary.servicesSummary),
+        notes,
+      ]
     );
+
+
+
+    let pushNotification = { attempted: false, sent: 0 };
+
+    try {
+      pushNotification = await sendPushToProfessional(professional.id, {
+        title: "Nueva reserva en TuAgendaYa",
+        body: `${clientName} reservó ${service ? service.name : "un servicio"} para el ${normalizeDate(bookingDate)} a las ${normalizeTime(startTime)}`,
+        icon: "/tuagendaya-logo.png",
+        badge: "/tuagendaya-logo.png",
+        url: "/profesional/dashboard",
+        bookingId: result.rows[0].id,
+        clientName,
+        serviceName: service ? service.name : "Servicio",
+        bookingDate: normalizeDate(bookingDate),
+        startTime: normalizeTime(startTime),
+      });
+    } catch (pushError) {
+      console.warn("Push notification skipped:", pushError.message);
+
+      pushNotification = {
+        attempted: true,
+        sent: 0,
+        error: pushError.message || "No se pudo enviar la notificación push",
+      };
+    }
 
     res.status(201).json({
       success: true,
-      closure,
+      closure: normalizeCashClosure(result.rows[0]),
     });
   } catch (error) {
     res.status(error.status || 500).json({
@@ -1798,7 +1753,6 @@ router.post("/cash-closures", async (req, res) => {
     });
   }
 });
-
 
 router.get("/:id", async (req, res) => {
   try {
@@ -1840,5 +1794,3 @@ router.get("/:id", async (req, res) => {
 });
 
 module.exports = router;
-module.exports.startCashClosureWorker = startCashClosureWorker;
-module.exports.closePreviousCashDayForAllProfessionals = closePreviousCashDayForAllProfessionals;
