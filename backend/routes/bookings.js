@@ -150,6 +150,17 @@ function rangesOverlap(startA, endA, startB, endB) {
   return startA < endB && endA > startB;
 }
 
+
+function normalizePaymentMethod(value) {
+  const method = String(value || "cash").trim();
+
+  if (["cash", "transfer", "card", "other"].includes(method)) {
+    return method;
+  }
+
+  return "cash";
+}
+
 async function ensurePaymentColumns() {
   await db.query(
     `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_status TEXT DEFAULT 'pending';`
@@ -1001,6 +1012,12 @@ router.post("/public/:slug/book", async (req, res) => {
       clientName,
       clientPhone,
       comment,
+      paymentMethod,
+      payment_method,
+      paymentStatus,
+      payment_status,
+      amountPaid,
+      amount_paid,
       bookingDate,
       startTime,
       endTime,
@@ -1094,6 +1111,12 @@ router.post("/public/:slug/book", async (req, res) => {
 
     const confirmationToken = createConfirmationToken();
 
+    await ensurePaymentColumns();
+
+    const finalPaymentMethod = normalizePaymentMethod(paymentMethod || payment_method);
+    const finalPaymentStatus = "pending";
+    const finalAmountPaid = 0;
+
     const result = await db.query(
       `
       INSERT INTO bookings (
@@ -1107,11 +1130,15 @@ router.post("/public/:slug/book", async (req, res) => {
         start_time,
         end_time,
         status,
+        payment_status,
+        payment_method,
+        amount_paid,
+        payment_updated_at,
         confirmation_token,
         created_at,
         updated_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', $10, NOW(), NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', $10, $11, $12, NOW(), $13, NOW(), NOW())
       RETURNING *
       `,
       [
@@ -1124,6 +1151,9 @@ router.post("/public/:slug/book", async (req, res) => {
         normalizeDate(bookingDate),
         normalizeTime(startTime),
         normalizeTime(finalEndTime),
+        finalPaymentStatus,
+        finalPaymentMethod,
+        finalAmountPaid,
         confirmationToken,
       ]
     );
@@ -1516,15 +1546,19 @@ router.patch("/:id/payment", async (req, res) => {
       });
     }
 
-    const allowedPaymentStatuses = ["pending", "paid", "deposit", "cancelled"];
+    const allowedPaymentStatuses = ["pending", "paid", "cancelled"];
     const allowedPaymentMethods = ["cash", "transfer", "card", "other"];
 
-    const paymentStatus = String(
+    let paymentStatus = String(
       req.body.paymentStatus ?? req.body.payment_status ?? "pending"
     ).trim();
-    const paymentMethod = String(
+
+    if (paymentStatus === "deposit") {
+      paymentStatus = "pending";
+    }
+    const paymentMethod = normalizePaymentMethod(
       req.body.paymentMethod ?? req.body.payment_method ?? "cash"
-    ).trim();
+    );
     const amountValue = req.body.amountPaid ?? req.body.amount_paid;
 
     if (!allowedPaymentStatuses.includes(paymentStatus)) {

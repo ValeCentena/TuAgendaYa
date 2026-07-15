@@ -388,9 +388,8 @@ function DatePickerField({ value, onChange, placeholder = 'Elegir fecha', allowP
 }
 
 const PAYMENT_STATUS_OPTIONS = [
-  { value: 'pending', label: 'Pendiente' },
+  { value: 'pending', label: 'Por cobrar' },
   { value: 'paid', label: 'Pagado' },
-  { value: 'deposit', label: 'Seña' },
   { value: 'cancelled', label: 'Cancelado' },
 ];
 
@@ -402,35 +401,33 @@ const PAYMENT_METHOD_OPTIONS = [
 ];
 
 const paymentStatusLabel = {
-  pending: 'Pendiente',
+  pending: 'Por cobrar',
   paid: 'Pagado',
-  deposit: 'Seña',
   cancelled: 'Cancelado',
 };
 
 const paymentMethodLabel = {
   cash: 'Efectivo',
   transfer: 'Transferencia',
-  card: 'Tarjeta',
+  card: 'Débito / POS',
   other: 'Otro',
 };
 
 const paymentStatusColor = {
   pending: '#ff9f0a',
   paid: '#30d158',
-  deposit: '#0071e3',
   cancelled: '#ff453a',
 };
 
 const paymentStatusBg = {
   pending: '#fff8ee',
   paid: '#edfff3',
-  deposit: '#eef6ff',
   cancelled: '#fff2f2',
 };
 
 function getBookingPaymentStatus(booking) {
-  return String(booking?.paymentStatus ?? booking?.payment_status ?? 'pending').trim() || 'pending';
+  const status = String(booking?.paymentStatus ?? booking?.payment_status ?? 'pending').trim() || 'pending';
+  return status === 'deposit' ? 'pending' : status;
 }
 
 function getBookingPaymentMethod(booking) {
@@ -558,7 +555,7 @@ function exportClientsToCsv(clients, filename = 'clientes.csv') {
     'Reservas totales',
     'Asistencias',
     'Canceladas',
-    'Pendientes o confirmadas',
+    'Por cobrars o confirmadas',
     'Ultima reserva',
     'Ultima hora',
     'Notas internas',
@@ -2842,7 +2839,7 @@ function ReservationsSection() {
                 }}
               >
                 <option value="all">Todos los estados</option>
-                <option value="pending">Pendientes</option>
+                <option value="pending">Por cobrars</option>
                 <option value="confirmed">Confirmadas</option>
                 <option value="completed">Completadas</option>
                 <option value="cancelled">Canceladas</option>
@@ -3257,7 +3254,7 @@ function ReservationsSection() {
                         </div>
 
                         <div style={{ background: '#fff7e8', borderRadius: 14, padding: 11 }}>
-                          <div style={{ fontSize: 10, color: '#ff9500', fontWeight: 900, marginBottom: 4 }}>PENDIENTES</div>
+                          <div style={{ fontSize: 10, color: '#ff9500', fontWeight: 900, marginBottom: 4 }}>POR COBRAR</div>
                           <div style={{ fontSize: 15, color: '#ff9500', fontWeight: 950 }}>{clientPendingCount}</div>
                         </div>
 
@@ -3707,7 +3704,7 @@ function CashSection() {
       'Metodo pago',
       'Precio',
       'Cobrado',
-      'Pendiente',
+      'Por cobrar',
     ];
 
     const rows = dayBookings.map((booking) => {
@@ -3839,13 +3836,12 @@ function CashSection() {
   const averageTicket = activeBookings.length > 0 ? totalCollected / activeBookings.length : 0;
   const collectionRate = totalGenerated > 0 ? Math.round((totalCollected / totalGenerated) * 100) : 0;
   const paidBookingsCount = activeBookings.filter((booking) => getBookingPaymentStatus(booking) === 'paid').length;
-  const depositBookingsCount = activeBookings.filter((booking) => getBookingPaymentStatus(booking) === 'deposit').length;
   const unpaidBookingsCount = activeBookings.filter((booking) => getBookingPaymentStatus(booking) === 'pending').length;
   const completedWithoutPaymentCount = completedBookings.filter((booking) => getBookingPaymentStatus(booking) !== 'paid').length;
   const mainPaymentMethod = byMethod.slice().sort((a, b) => b.total - a.total)[0];
 
   const attentionItems = [
-    totalPending > 0 ? `Tenés ${formatMoney(totalPending)} pendiente de cobrar.` : null,
+    totalPending > 0 ? `Tenés ${formatMoney(totalPending)} por cobrar.` : null,
     completedWithoutPaymentCount > 0 ? `${completedWithoutPaymentCount} reserva${completedWithoutPaymentCount === 1 ? '' : 's'} completada${completedWithoutPaymentCount === 1 ? '' : 's'} sin marcar como pagada${completedWithoutPaymentCount === 1 ? '' : 's'}.` : null,
     unpaidBookingsCount > 0 ? `${unpaidBookingsCount} reserva${unpaidBookingsCount === 1 ? '' : 's'} con pago pendiente.` : null,
     existingClosure ? 'Esta fecha ya tiene cierre guardado.' : null,
@@ -3864,7 +3860,7 @@ function CashSection() {
       'Canceladas',
       'Total generado',
       'Total cobrado',
-      'Pendiente de cobro',
+      'Por cobrar',
       'Efectivo',
       'Transferencia',
       'Tarjeta',
@@ -3943,7 +3939,7 @@ function CashSection() {
           <div style={{ fontSize: 16, color: '#1a1a1a', fontWeight: 950, marginTop: 4 }}>{formatMoney(summary.generated)}</div>
         </div>
         <div style={periodMetricStyle}>
-          <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 950 }}>Pendiente</div>
+          <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 950 }}>Por cobrar</div>
           <div style={{ fontSize: 16, color: '#ff9f0a', fontWeight: 950, marginTop: 4 }}>{formatMoney(summary.pending)}</div>
         </div>
       </div>
@@ -4066,7 +4062,7 @@ function CashSection() {
           </div>
           <div style={cashCardStyle('#fff8eb')}>
             <div style={{ fontSize: 28, fontWeight: 950, color: '#ff9f0a' }}>{pendingBookings.length}</div>
-            <div style={smallStatStyle}>Pendientes/confirmadas</div>
+            <div style={smallStatStyle}>Por cobrars/confirmadas</div>
           </div>
           <div style={cashCardStyle('#fff1f0')}>
             <div style={{ fontSize: 28, fontWeight: 950, color: '#ff453a' }}>{cancelledBookings.length}</div>
@@ -4084,7 +4080,7 @@ function CashSection() {
             <div style={{ fontSize: 26, fontWeight: 950, color: '#188038', marginTop: 6 }}>{formatMoney(totalCollected)}</div>
           </div>
           <div style={cashCardStyle('#fff8eb')}>
-            <div style={{ fontSize: 13, color: '#8e8e93', fontWeight: 900 }}>Pendiente de cobro</div>
+            <div style={{ fontSize: 13, color: '#8e8e93', fontWeight: 900 }}>Por cobrar</div>
             <div style={{ fontSize: 26, fontWeight: 950, color: '#ff9f0a', marginTop: 6 }}>{formatMoney(totalPending)}</div>
           </div>
         </div>
@@ -4115,13 +4111,8 @@ function CashSection() {
             <div style={{ fontSize: 20, color: '#188038', fontWeight: 950 }}>{paidBookingsCount}</div>
           </div>
 
-          <div style={{ background: '#eef6ff', borderRadius: 16, padding: 13 }}>
-            <div style={{ fontSize: 10.5, color: '#0071e3', fontWeight: 950, marginBottom: 4 }}>CON SEÑA</div>
-            <div style={{ fontSize: 20, color: '#0071e3', fontWeight: 950 }}>{depositBookingsCount}</div>
-          </div>
-
           <div style={{ background: '#fff7e8', borderRadius: 16, padding: 13 }}>
-            <div style={{ fontSize: 10.5, color: '#ff9500', fontWeight: 950, marginBottom: 4 }}>PENDIENTES</div>
+            <div style={{ fontSize: 10.5, color: '#ff9500', fontWeight: 950, marginBottom: 4 }}>POR COBRAR</div>
             <div style={{ fontSize: 20, color: '#ff9500', fontWeight: 950 }}>{unpaidBookingsCount}</div>
           </div>
         </div>
@@ -4169,7 +4160,7 @@ function CashSection() {
                       {time ? `${time} · ` : ''}{clientName}
                     </div>
                     <div style={{ fontSize: 12, color: '#6e6e73', fontWeight: 750, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {serviceName} · Cobrado {formatMoney(paid)} · Pendiente {formatMoney(pending)}
+                      {serviceName} · Cobrado {formatMoney(paid)} · Por cobrar {formatMoney(pending)}
                     </div>
                   </div>
                   <div style={{ color: pending > 0 ? '#ff9500' : '#0071e3', fontSize: 12, fontWeight: 950, whiteSpace: 'nowrap' }}>
@@ -4196,7 +4187,7 @@ function CashSection() {
                 <div style={{ fontSize: 14, color: '#1a1a1a', fontWeight: 950 }}>{formatMoney(totalCollected)}</div>
               </div>
               <div style={{ background: totalPending > 0 ? '#fff7e8' : '#edfff3', borderRadius: 14, padding: 10 }}>
-                <div style={{ fontSize: 10, color: totalPending > 0 ? '#ff9500' : '#188038', fontWeight: 950 }}>Pendiente</div>
+                <div style={{ fontSize: 10, color: totalPending > 0 ? '#ff9500' : '#188038', fontWeight: 950 }}>Por cobrar</div>
                 <div style={{ fontSize: 14, color: totalPending > 0 ? '#ff9500' : '#188038', fontWeight: 950 }}>{formatMoney(totalPending)}</div>
               </div>
             </div>
@@ -4345,7 +4336,7 @@ function CashSection() {
                       <div style={{ fontSize: 12, color: '#188038', fontWeight: 900, marginTop: 3 }}>{formatMoney(paid)}</div>
                     </div>
                     <div style={{ background: '#fafafa', borderRadius: 13, padding: 10 }}>
-                      <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Pendiente</div>
+                      <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Por cobrar</div>
                       <div style={{ fontSize: 12, color: pending > 0 ? '#ff9f0a' : '#188038', fontWeight: 900, marginTop: 3 }}>{formatMoney(pending)}</div>
                     </div>
                     <div style={{ background: '#fafafa', borderRadius: 13, padding: 10 }}>
@@ -4424,7 +4415,7 @@ function CashSection() {
                           <div style={{ fontSize: 12, color: '#188038', fontWeight: 950 }}>{formatMoney(closure.totalCollected ?? closure.total_collected ?? 0)}</div>
                         </div>
                         <div style={{ background: '#fff8eb', borderRadius: 14, padding: 10 }}>
-                          <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Pendiente</div>
+                          <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Por cobrar</div>
                           <div style={{ fontSize: 12, color: '#ff9f0a', fontWeight: 950 }}>{formatMoney(closure.totalPending ?? closure.total_pending ?? 0)}</div>
                         </div>
                         <div style={{ background: '#fff1f0', borderRadius: 14, padding: 10 }}>
@@ -5497,7 +5488,7 @@ function ClientsSection() {
                           </div>
 
                           <div style={{ background: '#fafafa', borderRadius: 14, padding: 12 }}>
-                            <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800 }}>Pendientes</div>
+                            <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800 }}>Por cobrars</div>
                             <div style={{ fontSize: 18, color: '#ff9f0a', fontWeight: 900, marginTop: 4 }}>{client.pendingOrConfirmedCount}</div>
                           </div>
 
@@ -5597,7 +5588,7 @@ function ClientsSection() {
                             const staffName = booking.staffName ?? booking.staff_name;
                             const status = normalizeBookingStatus(booking.status || 'pending');
                             const statusColor = { pending: '#ff9f0a', pendiente: '#ff9f0a', confirmed: '#30d158', confirmada: '#30d158', confirmado: '#30d158', completed: '#5e5ce6', completada: '#5e5ce6', completado: '#5e5ce6', cancelled: '#ff453a', cancelada: '#ff453a', cancelado: '#ff453a' }[status] || '#8e8e93';
-                            const statusLabel = { pending: 'Pendiente', pendiente: 'Pendiente', confirmed: 'Confirmada', confirmada: 'Confirmada', confirmado: 'Confirmado', completed: 'Completada', completada: 'Completada', completado: 'Completado', cancelled: 'Cancelada', cancelada: 'Cancelada', cancelado: 'Cancelado' }[status] || status;
+                            const statusLabel = { pending: 'Por cobrar', pendiente: 'Por cobrar', confirmed: 'Confirmada', confirmada: 'Confirmada', confirmado: 'Confirmado', completed: 'Completada', completada: 'Completada', completado: 'Completado', cancelled: 'Cancelada', cancelada: 'Cancelada', cancelado: 'Cancelado' }[status] || status;
 
                             return (
                               <div key={booking.id} style={{ background: '#fafafa', borderRadius: 14, padding: '10px 12px', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 10, alignItems: 'center' }}>
@@ -9181,7 +9172,7 @@ function LandingPage() {
 
               {[
                 ['09:30', 'Juan Pérez', 'Consulta inicial', 'Confirmada'],
-                ['10:20', 'Ana Silva', 'Limpieza dental', 'Pendiente'],
+                ['10:20', 'Ana Silva', 'Limpieza dental', 'Por cobrar'],
                 ['11:10', 'Carlos Díaz', 'Control', 'Confirmada'],
               ].map((row) => (
                 <div key={row[0]} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 20, padding: 14, marginBottom: 10, boxShadow: '0 4px 14px rgba(15,23,42,0.04)' }}>

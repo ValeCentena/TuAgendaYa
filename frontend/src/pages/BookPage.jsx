@@ -43,6 +43,16 @@ const PHONE_COUNTRIES = [
   { code: 'CA', flag: '🇨🇦', name: 'Canadá', dialCode: '1', placeholder: '4161234567' },
 ];
 
+const PUBLIC_PAYMENT_METHODS = [
+  { value: 'cash', label: 'Efectivo' },
+  { value: 'transfer', label: 'Transferencia' },
+  { value: 'card', label: 'Débito / POS' },
+];
+
+function getPaymentMethodLabel(value) {
+  return PUBLIC_PAYMENT_METHODS.find((method) => method.value === value)?.label || 'Efectivo';
+}
+
 function getPhoneCountry(countryCode) {
   return PHONE_COUNTRIES.find((country) => country.code === countryCode) || PHONE_COUNTRIES[0];
 }
@@ -176,6 +186,7 @@ export default function BookPage() {
   const [clientPhoneCountry, setClientPhoneCountry] = useState('UY');
   const [clientPhone, setClientPhone] = useState('');
   const [clientComment, setClientComment] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('cash');
   const [bookingDate, setBookingDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
   const [slots, setSlots] = useState([]);
@@ -586,6 +597,9 @@ export default function BookPage() {
           clientName: clientName.trim(),
           clientPhone: fullClientPhone,
           comment: clientComment.trim(),
+          paymentMethod,
+          paymentStatus: 'pending',
+          amountPaid: 0,
           bookingDate,
           startTime: selectedTime,
           serviceId: Number(selectedServiceId),
@@ -621,6 +635,7 @@ export default function BookPage() {
     setClientPhoneCountry('UY');
     setClientPhone('');
     setClientComment('');
+    setPaymentMethod('cash');
     setBookingDate('');
     setSelectedTime('');
     setSlots([]);
@@ -655,6 +670,7 @@ export default function BookPage() {
     selectedTime ? `Hora: ${selectedTime}${selectedEndTime ? ` a ${selectedEndTime}` : ''}` : null,
     clientName ? `Cliente: ${clientName}` : null,
     fullClientPhone ? `Teléfono: +${fullClientPhone}` : null,
+    `Pago elegido: ${getPaymentMethodLabel(paymentMethod)}`,
   ].filter(Boolean).join('\n');
 
   const calendarDateTime = (dateValue, timeValue) => {
@@ -831,6 +847,9 @@ export default function BookPage() {
                       +{fullClientPhone}
                     </div>
                   )}
+                  <div style={{ fontSize: 12.5, color: '#0071e3', fontWeight: 800, marginTop: 5 }}>
+                    Pago elegido: {getPaymentMethodLabel(paymentMethod)}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1210,6 +1229,40 @@ export default function BookPage() {
 
               <div style={{ fontSize: 11.5, color: '#8e8e93', margin: '-1px 0 10px', lineHeight: 1.35 }}>
                 Prefijo seleccionado: {selectedPhoneCountry.flag} +{selectedPhoneCountry.dialCode}. Escribí solo el número, sin el prefijo.
+              </div>
+
+              <label style={labelStyle}>Método de pago *</label>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8, marginBottom: 12 }}>
+                {PUBLIC_PAYMENT_METHODS.map((method) => {
+                  const selected = paymentMethod === method.value;
+
+                  return (
+                    <button
+                      key={method.value}
+                      type="button"
+                      onClick={() => setPaymentMethod(method.value)}
+                      style={{
+                        border: selected ? '1px solid #0071e3' : '0.5px solid #d8d8de',
+                        background: selected ? '#eef6ff' : '#fff',
+                        color: selected ? '#0071e3' : '#1a1a1a',
+                        borderRadius: 15,
+                        padding: '12px 10px',
+                        fontSize: 13,
+                        fontWeight: 900,
+                        fontFamily: 'inherit',
+                        cursor: 'pointer',
+                        boxShadow: selected ? '0 6px 14px rgba(0,113,227,0.10)' : '0 2px 8px rgba(0,0,0,0.03)',
+                      }}
+                    >
+                      {method.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div style={{ fontSize: 11.5, color: '#8e8e93', margin: '-4px 0 12px', lineHeight: 1.35 }}>
+                El negocio verá este método en su panel. El pago queda por cobrar hasta que el profesional lo marque como pagado.
               </div>
 
               <label style={labelStyle}>Comentario opcional</label>
