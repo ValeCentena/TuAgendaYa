@@ -8,9 +8,9 @@
       content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
     />
 
-    <link rel="manifest" href="/manifest.webmanifest" />
+    <link id="app-manifest" rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <link rel="icon" type="image/png" href="/icons/icon-192.png" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
 
     <meta name="theme-color" content="#0071e3" />
     <meta name="color-scheme" content="light" />
@@ -80,6 +80,24 @@
         box-sizing: border-box;
       }
     </style>
+
+    <script>
+      (function () {
+        var isAdmin = window.location.pathname.startsWith("/admin");
+        var manifest = document.getElementById("app-manifest");
+
+        if (manifest) {
+          manifest.setAttribute(
+            "href",
+            isAdmin ? "/admin-manifest.webmanifest" : "/manifest.webmanifest"
+          );
+        }
+
+        if (isAdmin) {
+          document.title = "TuAgendaYa Admin";
+        }
+      })();
+    </script>
   </head>
 
   <body>
