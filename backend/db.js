@@ -37,6 +37,8 @@ async function initDB() {
         notify_cancellation       INTEGER DEFAULT 1,
         notify_reminder           INTEGER DEFAULT 1,
         reminder_hours_before     INTEGER DEFAULT 24,
+        allow_client_cancellations INTEGER DEFAULT 1,
+        cancellation_limit_minutes INTEGER DEFAULT 0,
         created_at                TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at                TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
@@ -275,6 +277,8 @@ async function initDB() {
       `CREATE INDEX IF NOT EXISTS idx_bookings_reminder_2h            ON bookings(reminder_2h_sent_at, booking_date, start_time)`,
       `CREATE INDEX IF NOT EXISTS idx_staff_availability_member      ON staff_availability(staff_id)`,
       `CREATE INDEX IF NOT EXISTS idx_push_subscriptions_professional ON push_subscriptions(professional_id)`,
+      `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS allow_client_cancellations INTEGER DEFAULT 1`,
+      `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS cancellation_limit_minutes INTEGER DEFAULT 0`,
       `CREATE INDEX IF NOT EXISTS idx_blocked_times_professional_date ON blocked_times(professional_id, block_date)`,
     ];
 

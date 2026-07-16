@@ -165,6 +165,73 @@ async function ensurePaymentColumns() {
   );
 }
 
+async function ensureCancellationSettingsColumns() {
+  await db.query(
+    `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS allow_client_cancellations INTEGER DEFAULT 1;`
+  );
+  await db.query(
+    `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS cancellation_limit_minutes INTEGER DEFAULT 0;`
+  );
+}
+
+function isTruthySetting(value, fallback = true) {
+  if (value === null || value === undefined) return fallback;
+  return value === true || value === 1 || value === "1" || value === "true";
+}
+
+function getBookingStartDateTime(bookingDate, startTime) {
+  const cleanDate = normalizeDate(bookingDate);
+  const cleanTime = normalizeTime(startTime || "00:00");
+
+  if (!cleanDate || !cleanTime) {
+    return null;
+  }
+
+  const date = new Date(`${cleanDate}T${cleanTime}:00`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function canClientCancelBooking(booking) {
+  const allowClientCancellations = isTruthySetting(
+    booking.allow_client_cancellations,
+    true
+  );
+
+  if (!allowClientCancellations) {
+    return {
+      allowed: false,
+      error: "Este negocio no permite cancelaciones del cliente desde el link.",
+    };
+  }
+
+  const limitMinutes = Number(booking.cancellation_limit_minutes || 0) || 0;
+
+  if (limitMinutes <= 0) {
+    return { allowed: true, error: null };
+  }
+
+  const startDateTime = getBookingStartDateTime(
+    booking.booking_date,
+    booking.start_time
+  );
+
+  if (!startDateTime) {
+    return { allowed: true, error: null };
+  }
+
+  const diffMinutes = Math.floor((startDateTime.getTime() - Date.now()) / 60000);
+
+  if (diffMinutes < limitMinutes) {
+    return {
+      allowed: false,
+      error: `El plazo para cancelar esta reserva ya venció. El límite es ${limitMinutes} minutos antes del turno.`,
+    };
+  }
+
+  return { allowed: true, error: null };
+}
+
+
 async function ensureBlockedTimesTable() {
   await db.query(`
     CREATE TABLE IF NOT EXISTS blocked_times (
@@ -1597,7 +1664,52 @@ router.patch("/public/confirmation/:token/confirm", async (req, res) => {
 
 router.patch("/public/confirmation/:token/cancel", async (req, res) => {
   try {
+    await ensureCancellationSettingsColumns();
+
     const { token } = req.params;
+
+    const bookingResult = await db.query(
+      `
+      SELECT
+        b.*,
+        p.allow_client_cancellations,
+        p.cancellation_limit_minutes
+      FROM bookings b
+      INNER JOIN professionals p ON p.id = b.professional_id
+      WHERE b.confirmation_token = $1
+      LIMIT 1
+      `,
+      [token]
+    );
+
+    if (bookingResult.rows.length === 0) {
+      return res.status(404).json({
+        error: "Reserva no encontrada",
+      });
+    }
+
+    const booking = bookingResult.rows[0];
+
+    if (booking.status === "cancelled") {
+      return res.json({
+        success: true,
+        booking: normalizeBooking(booking),
+      });
+    }
+
+    if (booking.status === "completed") {
+      return res.status(409).json({
+        error: "Esta reserva ya fue completada y no se puede cancelar desde el link.",
+      });
+    }
+
+    const cancellationCheck = canClientCancelBooking(booking);
+
+    if (!cancellationCheck.allowed) {
+      return res.status(409).json({
+        error: cancellationCheck.error || "Esta reserva ya no se puede cancelar desde el link.",
+      });
+    }
 
     const result = await db.query(
       `
@@ -1611,12 +1723,6 @@ router.patch("/public/confirmation/:token/cancel", async (req, res) => {
       `,
       [token]
     );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        error: "Reserva no encontrada",
-      });
-    }
 
     res.json({
       success: true,

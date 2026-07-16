@@ -7715,17 +7715,18 @@ function ProfessionalSettingsSection() {
       </div>
 
       <div style={rowStyle}>
-        <div><div style={titleStyle}>Cancelación del cliente</div><div style={textStyle}>Permitir que el cliente cancele desde su link de confirmación.</div></div>
+        <div><div style={titleStyle}>Cancelación del cliente</div><div style={textStyle}>Permitir que el cliente cancele desde su link de confirmación o WhatsApp.</div></div>
         <MinimalCircleCheck checked={settings.allowClientCancellations} onChange={(checked) => setSettings({ ...settings, allowClientCancellations: checked })} />
       </div>
 
       <div style={{ ...rowStyle, alignItems: 'flex-start' }}>
-        <div><div style={titleStyle}>Límite para cancelar</div><div style={textStyle}>Esto no limita reservas nuevas. Solo controla hasta cuándo puede cancelar el cliente.</div></div>
+        <div><div style={titleStyle}>Límite para cancelar</div><div style={textStyle}>Esto no limita reservas nuevas. Solo controla hasta cuándo puede cancelar el cliente desde su link.</div></div>
         <select value={String(settings.cancellationLimitMinutes)} onChange={(event) => setSettings({ ...settings, cancellationLimitMinutes: Number(event.target.value) })} disabled={!settings.allowClientCancellations} style={{ ...inputStyle, width: 220, marginBottom: 0 }}>
           <option value="0">Hasta la hora del turno</option>
           <option value="30">Hasta 30 min antes</option>
           <option value="60">Hasta 1 hora antes</option>
           <option value="120">Hasta 2 horas antes</option>
+          <option value="360">Hasta 6 horas antes</option>
           <option value="1440">Hasta 24 horas antes</option>
         </select>
       </div>
