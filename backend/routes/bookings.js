@@ -165,86 +165,6 @@ async function ensurePaymentColumns() {
   );
 }
 
-async function ensureBookingHistoryTable() {
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS booking_history (
-      id SERIAL PRIMARY KEY,
-      booking_id INTEGER NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
-      professional_id INTEGER NOT NULL REFERENCES professionals(id) ON DELETE CASCADE,
-      action TEXT NOT NULL,
-      actor TEXT DEFAULT 'system',
-      message TEXT NOT NULL,
-      metadata JSONB DEFAULT '{}'::jsonb,
-      created_at TIMESTAMP DEFAULT NOW()
-    );
-  `);
-
-  await db.query(`ALTER TABLE booking_history ADD COLUMN IF NOT EXISTS professional_id INTEGER;`);
-  await db.query(`ALTER TABLE booking_history ADD COLUMN IF NOT EXISTS actor TEXT DEFAULT 'system';`);
-  await db.query(`ALTER TABLE booking_history ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;`);
-  await db.query(`ALTER TABLE booking_history ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();`);
-  await db.query(`CREATE INDEX IF NOT EXISTS idx_booking_history_booking ON booking_history(booking_id, created_at DESC);`);
-  await db.query(`CREATE INDEX IF NOT EXISTS idx_booking_history_professional ON booking_history(professional_id, created_at DESC);`);
-}
-
-function normalizeBookingHistoryRow(row) {
-  if (!row) return null;
-
-  return {
-    id: row.id,
-    bookingId: row.booking_id,
-    booking_id: row.booking_id,
-    professionalId: row.professional_id,
-    professional_id: row.professional_id,
-    action: row.action,
-    actor: row.actor || "system",
-    message: row.message || "",
-    metadata: row.metadata || {},
-    createdAt: row.created_at,
-    created_at: row.created_at,
-  };
-}
-
-async function addBookingHistory(bookingId, professionalId, action, actor, message, metadata = {}) {
-  if (!bookingId || !professionalId || !action || !message) {
-    return null;
-  }
-
-  try {
-    await ensureBookingHistoryTable();
-
-    const result = await db.query(
-      `
-      INSERT INTO booking_history (
-        booking_id,
-        professional_id,
-        action,
-        actor,
-        message,
-        metadata,
-        created_at
-      )
-      VALUES ($1, $2, $3, $4, $5, $6::jsonb, NOW())
-      RETURNING *
-      `,
-      [
-        bookingId,
-        professionalId,
-        action,
-        actor || "system",
-        message,
-        JSON.stringify(metadata || {}),
-      ]
-    );
-
-    return normalizeBookingHistoryRow(result.rows[0]);
-  } catch (error) {
-    console.warn("Booking history skipped:", error.message);
-    return null;
-  }
-}
-
-
 async function ensureBlockedTimesTable() {
   await db.query(`
     CREATE TABLE IF NOT EXISTS blocked_times (
@@ -1405,20 +1325,6 @@ router.post("/public/:slug/book", async (req, res) => {
       ]
     );
 
-    await addBookingHistory(
-      result.rows[0].id,
-      professional.id,
-      "created",
-      "client",
-      "Reserva creada por el cliente",
-      {
-        clientName,
-        serviceName: service ? service.name : null,
-        bookingDate: normalizeDate(bookingDate),
-        startTime: normalizeTime(startTime),
-      }
-    );
-
     const confirmationUrl = `${getFrontendUrl()}/confirmar-reserva/${confirmationToken}`;
 
     const normalizedBooking = normalizeBooking({
@@ -1588,39 +1494,6 @@ router.get("/public/confirmation/:token", async (req, res) => {
   }
 });
 
-
-router.get("/:id/history", async (req, res) => {
-  try {
-    await ensureBookingHistoryTable();
-
-    const professionalId = getProfessionalIdFromRequest(req);
-    const bookingId = Number(req.params.id);
-
-    if (!bookingId || Number.isNaN(bookingId)) {
-      return res.status(400).json({ error: "Reserva inválida" });
-    }
-
-    const result = await db.query(
-      `
-      SELECT *
-      FROM booking_history
-      WHERE booking_id = $1
-        AND professional_id = $2
-      ORDER BY created_at ASC, id ASC
-      `,
-      [bookingId, professionalId]
-    );
-
-    res.json({
-      history: result.rows.map(normalizeBookingHistoryRow),
-    });
-  } catch (error) {
-    res.status(error.status || 500).json({
-      error: error.message || "Error obteniendo historial",
-    });
-  }
-});
-
 router.patch("/public/confirmation/:token/confirm", async (req, res) => {
   try {
     const { token } = req.params;
@@ -1644,14 +1517,6 @@ router.patch("/public/confirmation/:token/confirm", async (req, res) => {
         error: "Reserva no encontrada",
       });
     }
-
-    await addBookingHistory(
-      result.rows[0].id,
-      result.rows[0].professional_id,
-      "client_confirmed",
-      "client",
-      "Cliente confirmó asistencia"
-    );
 
     res.json({
       success: true,
@@ -1686,14 +1551,6 @@ router.patch("/public/confirmation/:token/cancel", async (req, res) => {
         error: "Reserva no encontrada",
       });
     }
-
-    await addBookingHistory(
-      result.rows[0].id,
-      result.rows[0].professional_id,
-      "client_cancelled",
-      "client",
-      "Cliente canceló la reserva"
-    );
 
     res.json({
       success: true,
@@ -1763,15 +1620,6 @@ router.patch("/:id/confirm", async (req, res) => {
       });
     }
 
-    await addBookingHistory(
-      result.rows[0].id,
-      professionalId,
-      "professional_confirmed",
-      "professional",
-      "Profesional confirmó la reserva",
-      {}
-    );
-
     res.json({
       success: true,
       booking: normalizeBooking(result.rows[0]),
@@ -1805,15 +1653,6 @@ router.patch("/:id/complete", async (req, res) => {
         error: "Reserva no encontrada",
       });
     }
-
-    await addBookingHistory(
-      result.rows[0].id,
-      professionalId,
-      "professional_completed",
-      "professional",
-      "Profesional marcó la reserva como completada",
-      {}
-    );
 
     res.json({
       success: true,
@@ -1849,15 +1688,6 @@ router.patch("/:id/cancel", async (req, res) => {
         error: "Reserva no encontrada",
       });
     }
-
-    await addBookingHistory(
-      result.rows[0].id,
-      professionalId,
-      "professional_cancelled",
-      "professional",
-      "Profesional canceló la reserva",
-      {}
-    );
 
     res.json({
       success: true,
@@ -1938,19 +1768,6 @@ router.patch("/:id/payment", async (req, res) => {
         error: "Reserva no encontrada",
       });
     }
-
-    await addBookingHistory(
-      result.rows[0].id,
-      professionalId,
-      "payment_updated",
-      "professional",
-      "Pago actualizado en caja",
-      {
-        paymentStatus,
-        paymentMethod,
-        amountPaid,
-      }
-    );
 
     res.json({
       success: true,

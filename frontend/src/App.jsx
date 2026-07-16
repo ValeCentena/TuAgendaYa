@@ -1976,8 +1976,6 @@ function ReservationsSection() {
   const [archivedFromDate, setArchivedFromDate] = useState('');
   const [archivedToDate, setArchivedToDate] = useState('');
   const [paymentDrafts, setPaymentDrafts] = useState({});
-  const [bookingHistoryById, setBookingHistoryById] = useState({});
-  const [loadingHistoryById, setLoadingHistoryById] = useState({});
   const [pushStatus, setPushStatus] = useState('checking');
   const [pushMessage, setPushMessage] = useState('');
   const [pushLoading, setPushLoading] = useState(false);
@@ -2218,12 +2216,6 @@ function ReservationsSection() {
     fetchBookings(true);
 
     const intervalId = window.setInterval(() => {
-      setBookingHistoryById((current) => {
-        const next = { ...current };
-        delete next[id];
-        return next;
-      });
-      fetchBookingHistory(id);
       fetchBookings(false);
     }, 5000);
 
@@ -2293,57 +2285,12 @@ function ReservationsSection() {
         }),
       });
 
-      setBookingHistoryById((current) => {
-        const next = { ...current };
-        delete next[booking.id];
-        return next;
-      });
-      fetchBookingHistory(booking.id);
       await fetchBookings(false);
     } catch {
       // no-op
     } finally {
       setActionLoading(null);
     }
-  };
-
-  const fetchBookingHistory = async (bookingId) => {
-    if (!bookingId || bookingHistoryById[bookingId]) return;
-
-    const token = localStorage.getItem('tuagendaya_token');
-
-    setLoadingHistoryById((current) => ({ ...current, [bookingId]: true }));
-
-    try {
-      const response = await fetch(`${API_BASE}/bookings/${bookingId}/history`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setBookingHistoryById((current) => ({
-          ...current,
-          [bookingId]: Array.isArray(data.history) ? data.history : [],
-        }));
-      }
-    } catch {
-      // no-op
-    } finally {
-      setLoadingHistoryById((current) => ({ ...current, [bookingId]: false }));
-    }
-  };
-
-  const toggleBookingExpanded = (bookingId) => {
-    setExpandedBookingId((current) => {
-      const next = current === bookingId ? null : bookingId;
-
-      if (next) {
-        fetchBookingHistory(next);
-      }
-
-      return next;
-    });
   };
 
   const statusColor = { pending: '#ff9f0a', confirmed: '#30d158', completed: '#5e5ce6', cancelled: '#ff453a' };
@@ -3106,8 +3053,6 @@ function ReservationsSection() {
             };
 
             const isExpanded = expandedBookingId === b.id;
-            const bookingHistory = bookingHistoryById[b.id] || [];
-            const loadingBookingHistory = Boolean(loadingHistoryById[b.id]);
             const mainTime = timeStr ? `${timeStr}${endStr ? ` - ${endStr}` : ''}` : 'Sin hora';
             const mainService = serviceName || 'Servicio no especificado';
 
@@ -3126,7 +3071,7 @@ function ReservationsSection() {
               >
                 <button
                   type="button"
-                  onClick={() => toggleBookingExpanded(b.id)}
+                  onClick={() => setExpandedBookingId(isExpanded ? null : b.id)}
                   style={{
                     width: '100%',
                     border: 'none',
@@ -3504,53 +3449,6 @@ function ReservationsSection() {
                           {actionLoading === `${b.id}-payment` ? 'Guardando...' : 'Guardar'}
                         </button>
                       </div>
-                    </div>
-
-                    <div
-                      style={{
-                        marginTop: 12,
-                        padding: 14,
-                        borderRadius: 18,
-                        border: '0.5px solid #ececf2',
-                        background: '#fff',
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 10 }}>
-                        <div>
-                          <div style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 950 }}>Actividad de la reserva</div>
-                          <div style={{ fontSize: 11, color: '#6e6e73', fontWeight: 700, marginTop: 3 }}>
-                            Cambios importantes de estado y caja.
-                          </div>
-                        </div>
-                      </div>
-
-                      {loadingBookingHistory ? (
-                        <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 800, padding: '8px 0' }}>
-                          Cargando actividad...
-                        </div>
-                      ) : bookingHistory.length === 0 ? (
-                        <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 800, padding: '8px 0' }}>
-                          Todavía no hay actividad registrada para esta reserva.
-                        </div>
-                      ) : (
-                        <div style={{ display: 'grid', gap: 8 }}>
-                          {bookingHistory.map((item) => (
-                            <div key={item.id} style={{ display: 'grid', gridTemplateColumns: '92px minmax(0, 1fr)', gap: 10, alignItems: 'start' }}>
-                              <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 850 }}>
-                                {formatDate(item.createdAt ?? item.created_at)}
-                              </div>
-                              <div>
-                                <div style={{ fontSize: 12.5, color: '#1a1a1a', fontWeight: 900 }}>
-                                  {item.message}
-                                </div>
-                                <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 700, marginTop: 2 }}>
-                                  {item.actor === 'client' ? 'Cliente' : item.actor === 'professional' ? 'Profesional' : 'Sistema'}
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
                     </div>
 
                     {b.comment && (
