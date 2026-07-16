@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import BookPage from '../pages/pages/BookPage.jsx';
+import BookPage from './pages/pages/pages/BookPage.jsx';
 
 const API_BASE = 'https://tuagendaya-api.onrender.com/api';
 
@@ -5141,6 +5141,19 @@ function ClientsSection() {
 
 
 
+
+function normalizeBlockedTime(item) {
+  return {
+    id: item.id,
+    blockDate: String(item.blockDate ?? item.block_date ?? item.date ?? '').slice(0, 10),
+    startTime: item.startTime ?? item.start_time ?? '',
+    endTime: item.endTime ?? item.end_time ?? '',
+    reason: item.reason || '',
+    isFullDay: Boolean(item.isFullDay ?? item.is_full_day ?? false),
+  };
+}
+
+
 function AvailabilityTable({ availability, onChange }) {
   const tableRows = DAYS.map((day) => {
     const current = availability.find((item) => Number(item.dayOfWeek) === Number(day.dayOfWeek)) || {
@@ -5149,9 +5162,6 @@ function AvailabilityTable({ availability, onChange }) {
       startTime: '09:00',
       endTime: '18:00',
       slotDurationMinutes: 30,
-      breakEnabled: false,
-      breakStartTime: '13:00',
-      breakEndTime: '14:00',
     };
 
     return { ...current, label: day.label };
@@ -5164,7 +5174,7 @@ function AvailabilityTable({ availability, onChange }) {
           key={day.dayOfWeek}
           style={{
             display: 'grid',
-            gridTemplateColumns: 'minmax(120px, 1.2fr) repeat(4, minmax(120px, 1fr))',
+            gridTemplateColumns: 'minmax(130px, 1.2fr) repeat(2, minmax(130px, 1fr))',
             gap: 10,
             alignItems: 'center',
             background: '#f7f7fb',
@@ -5203,43 +5213,33 @@ function AvailabilityTable({ availability, onChange }) {
               style={{ ...inputStyle, marginBottom: 0, opacity: day.isActive ? 1 : 0.55 }}
             />
           </div>
-
-          <div>
-            <label style={{ ...smallLabelStyle, marginBottom: 4 }}>Corte</label>
-            <input
-              type="time"
-              value={day.breakStartTime || '13:00'}
-              disabled={!day.isActive || !day.breakEnabled}
-              onChange={(event) => onChange(day.dayOfWeek, 'breakStartTime', event.target.value)}
-              style={{ ...inputStyle, marginBottom: 0, opacity: day.isActive && day.breakEnabled ? 1 : 0.55 }}
-            />
-          </div>
-
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#6e6e73', fontWeight: 800 }}>
-            <input
-              type="checkbox"
-              checked={Boolean(day.breakEnabled)}
-              disabled={!day.isActive}
-              onChange={(event) => onChange(day.dayOfWeek, 'breakEnabled', event.target.checked)}
-            />
-            Descanso
-          </label>
         </div>
       ))}
     </div>
   );
 }
 
-
 function AvailabilitySection() {
   const [availability, setAvailability] = useState(getDefaultAvailability());
+  const [blockedTimes, setBlockedTimes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingBlocks, setLoadingBlocks] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingBlock, setSavingBlock] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [blockForm, setBlockForm] = useState({
+    blockDate: getLocalDateKeyValue(),
+    startTime: '13:00',
+    endTime: '14:00',
+    isFullDay: false,
+    reason: '',
+  });
+
+  const getToken = () => localStorage.getItem('tuagendaya_token');
 
   const fetchAvailability = () => {
-    const token = localStorage.getItem('tuagendaya_token');
+    const token = getToken();
 
     setLoading(true);
     setError('');
@@ -5262,8 +5262,23 @@ function AvailabilitySection() {
       .finally(() => setLoading(false));
   };
 
+  const fetchBlockedTimes = () => {
+    const token = getToken();
+
+    setLoadingBlocks(true);
+
+    fetch(`${API_BASE}/bookings/blocks`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((data) => setBlockedTimes(Array.isArray(data.blocks) ? data.blocks.map(normalizeBlockedTime) : []))
+      .catch(() => setBlockedTimes([]))
+      .finally(() => setLoadingBlocks(false));
+  };
+
   useEffect(() => {
     fetchAvailability();
+    fetchBlockedTimes();
   }, []);
 
   const updateDay = (dayOfWeek, field, value) => {
@@ -5275,20 +5290,27 @@ function AvailabilitySection() {
   };
 
   const handleSave = async () => {
-    const token = localStorage.getItem('tuagendaya_token');
+    const token = getToken();
 
     setSaving(true);
     setMessage('');
     setError('');
 
     try {
+      const cleanAvailability = availability.map((day) => ({
+        ...day,
+        breakEnabled: false,
+        breakStartTime: null,
+        breakEndTime: null,
+      }));
+
       const res = await fetch(`${API_BASE}/professionals/me/availability`, {
         method: 'PATCH',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ availability }),
+        body: JSON.stringify({ availability: cleanAvailability }),
       });
 
       const data = await res.json();
@@ -5308,6 +5330,86 @@ function AvailabilitySection() {
     }
   };
 
+  const saveBlock = async () => {
+    const token = getToken();
+
+    if (!blockForm.blockDate) {
+      setError('Elegí una fecha para bloquear.');
+      return;
+    }
+
+    if (!blockForm.isFullDay && (!blockForm.startTime || !blockForm.endTime || blockForm.endTime <= blockForm.startTime)) {
+      setError('Revisá el horario bloqueado.');
+      return;
+    }
+
+    setSavingBlock(true);
+    setMessage('');
+    setError('');
+
+    try {
+      const response = await fetch(`${API_BASE}/bookings/blocks`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(blockForm),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'No se pudo bloquear el horario.');
+      }
+
+      setBlockedTimes(Array.isArray(data.blocks) ? data.blocks.map(normalizeBlockedTime) : []);
+      setBlockForm((current) => ({
+        ...current,
+        startTime: '13:00',
+        endTime: '14:00',
+        isFullDay: false,
+        reason: '',
+      }));
+      setMessage('Horario bloqueado correctamente.');
+    } catch (err) {
+      setError(err.message || 'No se pudo bloquear el horario.');
+    } finally {
+      setSavingBlock(false);
+    }
+  };
+
+  const deleteBlock = async (blockId) => {
+    const token = getToken();
+    const confirmed = window.confirm('¿Querés liberar este bloqueo?');
+    if (!confirmed) return;
+
+    setMessage('');
+    setError('');
+
+    try {
+      const response = await fetch(`${API_BASE}/bookings/blocks/${blockId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'No se pudo liberar el horario.');
+      }
+
+      setBlockedTimes(Array.isArray(data.blocks) ? data.blocks.map(normalizeBlockedTime) : []);
+      setMessage('Horario liberado correctamente.');
+    } catch (err) {
+      setError(err.message || 'No se pudo liberar el horario.');
+    }
+  };
+
+  const visibleBlocks = blockedTimes
+    .slice()
+    .sort((a, b) => `${a.blockDate} ${a.startTime || '00:00'}`.localeCompare(`${b.blockDate} ${b.startTime || '00:00'}`));
+
   if (loading) {
     return (
       <div style={{ background: '#fff', borderRadius: 20, padding: 24, textAlign: 'center', color: '#aeaeb2' }}>
@@ -5317,39 +5419,143 @@ function AvailabilitySection() {
   }
 
   return (
-    <div style={{ background: '#fff', borderRadius: 20, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
-      <div style={{ marginBottom: 18 }}>
-        <div style={{ fontSize: 17, fontWeight: 700, color: '#1a1a1a' }}>Disponibilidad general</div>
-        <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 4 }}>
-          Esta disponibilidad queda como base. Para varios profesionales, configurá horarios individuales en la pestaña Profesionales.
+    <div style={{ display: 'grid', gap: 16 }}>
+      <div style={{ background: '#fff', borderRadius: 20, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
+        <div style={{ marginBottom: 18 }}>
+          <div style={{ fontSize: 17, fontWeight: 700, color: '#1a1a1a' }}>Disponibilidad general</div>
+          <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 4 }}>
+            Definí tus horarios base. Los cortes o pausas puntuales se bloquean abajo, por fecha y horario.
+          </div>
         </div>
+
+        <AvailabilityTable availability={availability} onChange={updateDay} />
+
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          style={{ width: '100%', marginTop: 16, padding: '13px', borderRadius: 12, border: 'none', background: saving ? '#aeaeb2' : '#0071e3', color: '#fff', fontSize: 15, fontWeight: 600, fontFamily: 'inherit', cursor: saving ? 'not-allowed' : 'pointer' }}
+        >
+          {saving ? 'Guardando...' : 'Guardar disponibilidad general'}
+        </button>
       </div>
 
-      <AvailabilityTable availability={availability} onChange={updateDay} />
-
-      {message && (
-        <div style={{ background: '#edfff3', border: '0.5px solid #b7f5c8', borderRadius: 10, padding: '10px 12px', fontSize: 13, color: '#188038', marginTop: 14 }}>
-          {message}
+      <div style={{ background: '#fff', borderRadius: 20, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 17, fontWeight: 800, color: '#1a1a1a' }}>Bloquear horarios</div>
+          <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 4 }}>
+            Usalo para pausas, trámites, almuerzo, vacaciones o cualquier horario donde no quieras recibir reservas.
+          </div>
         </div>
-      )}
 
-      {error && (
-        <div style={{ background: '#fff2f2', border: '0.5px solid #ffcdd2', borderRadius: 10, padding: '10px 12px', fontSize: 13, color: '#c62828', marginTop: 14 }}>
-          {error}
+        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
+          <div>
+            <label style={smallLabelStyle}>Fecha</label>
+            <input
+              type="date"
+              value={blockForm.blockDate}
+              onChange={(event) => setBlockForm({ ...blockForm, blockDate: event.target.value })}
+              style={{ ...inputStyle, marginBottom: 0 }}
+            />
+          </div>
+
+          <div>
+            <label style={smallLabelStyle}>Desde</label>
+            <input
+              type="time"
+              value={blockForm.startTime}
+              disabled={blockForm.isFullDay}
+              onChange={(event) => setBlockForm({ ...blockForm, startTime: event.target.value })}
+              style={{ ...inputStyle, marginBottom: 0, opacity: blockForm.isFullDay ? 0.55 : 1 }}
+            />
+          </div>
+
+          <div>
+            <label style={smallLabelStyle}>Hasta</label>
+            <input
+              type="time"
+              value={blockForm.endTime}
+              disabled={blockForm.isFullDay}
+              onChange={(event) => setBlockForm({ ...blockForm, endTime: event.target.value })}
+              style={{ ...inputStyle, marginBottom: 0, opacity: blockForm.isFullDay ? 0.55 : 1 }}
+            />
+          </div>
         </div>
-      )}
 
-      <button
-        onClick={handleSave}
-        disabled={saving}
-        style={{ width: '100%', marginTop: 16, padding: '13px', borderRadius: 12, border: 'none', background: saving ? '#aeaeb2' : '#0071e3', color: '#fff', fontSize: 15, fontWeight: 600, fontFamily: 'inherit', cursor: saving ? 'not-allowed' : 'pointer' }}
-      >
-        {saving ? 'Guardando...' : 'Guardar disponibilidad general'}
-      </button>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center' }}>
+          <input
+            value={blockForm.reason}
+            onChange={(event) => setBlockForm({ ...blockForm, reason: event.target.value })}
+            placeholder="Motivo opcional"
+            style={{ ...inputStyle, marginBottom: 0 }}
+          />
+
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 800, color: '#1a1a1a', whiteSpace: 'nowrap' }}>
+            <input
+              type="checkbox"
+              checked={blockForm.isFullDay}
+              onChange={(event) => setBlockForm({ ...blockForm, isFullDay: event.target.checked })}
+            />
+            Día completo
+          </label>
+        </div>
+
+        <button
+          type="button"
+          onClick={saveBlock}
+          disabled={savingBlock}
+          style={{ marginTop: 12, padding: '12px 16px', borderRadius: 14, border: 'none', background: savingBlock ? '#aeaeb2' : '#0071e3', color: '#fff', fontSize: 14, fontWeight: 850, fontFamily: 'inherit', cursor: savingBlock ? 'not-allowed' : 'pointer' }}
+        >
+          {savingBlock ? 'Guardando...' : 'Bloquear horario'}
+        </button>
+
+        <div style={{ marginTop: 18, display: 'grid', gap: 8 }}>
+          <div style={{ fontSize: 13, fontWeight: 900, color: '#1a1a1a' }}>Bloqueos activos</div>
+
+          {loadingBlocks ? (
+            <div style={{ color: '#8e8e93', fontSize: 13, fontWeight: 700 }}>Cargando bloqueos...</div>
+          ) : visibleBlocks.length === 0 ? (
+            <div style={{ background: '#f7f7fb', borderRadius: 14, padding: 14, color: '#8e8e93', fontSize: 13, fontWeight: 700 }}>
+              No hay horarios bloqueados.
+            </div>
+          ) : (
+            visibleBlocks.map((block) => (
+              <div key={block.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', background: '#f7f7fb', border: '0.5px solid #ececf2', borderRadius: 14, padding: '11px 12px' }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 900, color: '#1a1a1a' }}>
+                    {formatDate(block.blockDate)} · {block.isFullDay ? 'Día completo' : `${String(block.startTime || '').slice(0, 5)} a ${String(block.endTime || '').slice(0, 5)}`}
+                  </div>
+                  {block.reason && (
+                    <div style={{ fontSize: 12, color: '#6e6e73', fontWeight: 700, marginTop: 2 }}>{block.reason}</div>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => deleteBlock(block.id)}
+                  style={{ border: 'none', borderRadius: 999, padding: '8px 11px', background: '#fff2f2', color: '#ff453a', fontSize: 12, fontWeight: 900, fontFamily: 'inherit', cursor: 'pointer' }}
+                >
+                  Liberar
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+
+        {message && (
+          <div style={{ background: '#edfff3', border: '0.5px solid #b7f5c8', borderRadius: 10, padding: '10px 12px', fontSize: 13, color: '#188038', marginTop: 14 }}>
+            {message}
+          </div>
+        )}
+
+        {error && (
+          <div style={{ background: '#fff2f2', border: '0.5px solid #ffcdd2', borderRadius: 10, padding: '10px 12px', fontSize: 13, color: '#c62828', marginTop: 14 }}>
+            {error}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
-
 function StaffSection() {
   const [staff, setStaff] = useState([]);
   const [selectedStaffId, setSelectedStaffId] = useState('');
@@ -5860,8 +6066,8 @@ function StaffSection() {
           </div>
           <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 4 }}>
             {selectedStaff
-              ? `Configurando disponibilidad de ${selectedStaff.name}.`
-              : 'Seleccioná un profesional para configurar sus horarios.'}
+              ? `Configurando horarios base de ${selectedStaff.name}.`
+              : 'Seleccioná un profesional para configurar sus horarios base.'}
           </div>
         </div>
 

@@ -165,50 +165,102 @@ async function ensurePaymentColumns() {
   );
 }
 
+async function ensureBlockedTimesTable() {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS blocked_times (
+      id SERIAL PRIMARY KEY,
+      professional_id INTEGER NOT NULL REFERENCES professionals(id) ON DELETE CASCADE,
+      staff_id INTEGER,
+      block_date DATE NOT NULL,
+      start_time TIME,
+      end_time TIME,
+      is_full_day BOOLEAN DEFAULT FALSE,
+      reason TEXT,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
 
-async function ensureProfessionalSettingsColumns() {
-  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS notify_new_booking INTEGER DEFAULT 1`);
-  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS notify_reminder INTEGER DEFAULT 1`);
-  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS reminder_hours_before INTEGER DEFAULT 2`);
-  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS min_advance_hours INTEGER DEFAULT 0`);
-  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS allow_client_cancellations INTEGER DEFAULT 1`);
-  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS cancellation_limit_minutes INTEGER DEFAULT 0`);
-  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS accepted_payment_methods TEXT DEFAULT 'cash,transfer,card'`);
+  await db.query(`ALTER TABLE blocked_times ADD COLUMN IF NOT EXISTS staff_id INTEGER;`);
+  await db.query(`ALTER TABLE blocked_times ADD COLUMN IF NOT EXISTS is_full_day BOOLEAN DEFAULT FALSE;`);
+  await db.query(`ALTER TABLE blocked_times ADD COLUMN IF NOT EXISTS reason TEXT;`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_blocked_times_professional_date ON blocked_times(professional_id, block_date);`);
 }
 
-function normalizePaymentMethodList(value) {
-  const allowed = ['cash', 'transfer', 'card'];
-  const list = Array.isArray(value) ? value : String(value || 'cash,transfer,card').split(',');
-  const clean = list.map((item) => String(item || '').trim()).filter((item) => allowed.includes(item));
-  return clean.length > 0 ? Array.from(new Set(clean)) : ['cash'];
-}
+function normalizeBlockedTime(row) {
+  if (!row) return null;
 
-async function getProfessionalSettings(professionalId) {
-  await ensureProfessionalSettingsColumns();
-  const result = await db.query(
-    `SELECT notify_new_booking, notify_reminder, reminder_hours_before,
-            allow_client_cancellations, cancellation_limit_minutes, accepted_payment_methods
-     FROM professionals WHERE id = $1 LIMIT 1`,
-    [professionalId]
-  );
-  const row = result.rows[0] || {};
   return {
-    notifyNewBooking: row.notify_new_booking === null || row.notify_new_booking === undefined ? true : String(row.notify_new_booking) !== '0' && String(row.notify_new_booking) !== 'false',
-    notifyReminder: row.notify_reminder === null || row.notify_reminder === undefined ? true : String(row.notify_reminder) !== '0' && String(row.notify_reminder) !== 'false',
-    reminderHoursBefore: Number(row.reminder_hours_before || 2),
-    allowClientCancellations: row.allow_client_cancellations === null || row.allow_client_cancellations === undefined ? true : String(row.allow_client_cancellations) !== '0' && String(row.allow_client_cancellations) !== 'false',
-    cancellationLimitMinutes: Number(row.cancellation_limit_minutes || 0),
-    acceptedPaymentMethods: normalizePaymentMethodList(row.accepted_payment_methods),
+    id: row.id,
+    professionalId: row.professional_id,
+    professional_id: row.professional_id,
+    staffId: row.staff_id,
+    staff_id: row.staff_id,
+    blockDate: normalizeDate(row.block_date),
+    block_date: normalizeDate(row.block_date),
+    startTime: row.start_time ? String(row.start_time).slice(0, 5) : null,
+    start_time: row.start_time ? String(row.start_time).slice(0, 5) : null,
+    endTime: row.end_time ? String(row.end_time).slice(0, 5) : null,
+    end_time: row.end_time ? String(row.end_time).slice(0, 5) : null,
+    isFullDay: row.is_full_day === true || row.is_full_day === 1 || row.is_full_day === "1",
+    is_full_day: row.is_full_day === true || row.is_full_day === 1 || row.is_full_day === "1",
+    reason: row.reason || "",
   };
 }
 
-function getBookingStartDateTime(booking) {
-  const date = normalizeDate(booking.booking_date);
-  const time = normalizeTime(booking.start_time) || '00:00';
-  if (!date) return null;
-  const parsed = new Date(`${date}T${time}:00-03:00`);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
+async function listBlockedTimes(professionalId) {
+  await ensureBlockedTimesTable();
+
+  const result = await db.query(
+    `
+    SELECT *
+    FROM blocked_times
+    WHERE professional_id = $1
+      AND block_date >= CURRENT_DATE - INTERVAL '30 days'
+    ORDER BY block_date ASC, start_time ASC, id ASC
+    `,
+    [professionalId]
+  );
+
+  return result.rows.map(normalizeBlockedTime);
 }
+
+async function getBlockedTimesForDate(professionalId, bookingDate, staffId = null) {
+  await ensureBlockedTimesTable();
+
+  const result = await db.query(
+    `
+    SELECT *
+    FROM blocked_times
+    WHERE professional_id = $1
+      AND block_date = $2
+      AND (staff_id IS NULL OR staff_id = $3)
+    ORDER BY start_time ASC, id ASC
+    `,
+    [professionalId, bookingDate, staffId]
+  );
+
+  return result.rows;
+}
+
+function rangeOverlapsBlockedTime(block, start, end) {
+  if (!block) return false;
+
+  if (block.is_full_day === true || block.is_full_day === 1 || block.is_full_day === "1") {
+    return true;
+  }
+
+  const blockStart = timeToMinutes(block.start_time);
+  const blockEnd = timeToMinutes(block.end_time);
+
+  if (blockStart === null || blockEnd === null || blockEnd <= blockStart) {
+    return false;
+  }
+
+  return rangesOverlap(start, end, blockStart, blockEnd);
+}
+
+
 
 async function ensureCashClosuresTable() {
   await db.query(`
@@ -785,22 +837,8 @@ async function getBusyBookings(professionalId, bookingDate, staffId) {
   return result.rows;
 }
 
-function rangeOverlapsPause(availability, start, end) {
-  if (
-    !availability ||
-    !isTruthyDatabaseValue(availability.break_enabled ?? availability.breakEnabled)
-  ) {
-    return false;
-  }
-
-  const pauseStart = timeToMinutes(getAvailabilityBreakStart(availability));
-  const pauseEnd = timeToMinutes(getAvailabilityBreakEnd(availability));
-
-  if (pauseStart === null || pauseEnd === null || pauseEnd <= pauseStart) {
-    return false;
-  }
-
-  return rangesOverlap(start, end, pauseStart, pauseEnd);
+function rangeOverlapsPause() {
+  return false;
 }
 
 async function isTimeRangeAvailable(
@@ -818,8 +856,12 @@ async function isTimeRangeAvailable(
     return false;
   }
 
-  if (rangeOverlapsPause(availability, start, end)) {
-    return false;
+  const blockedTimes = await getBlockedTimesForDate(professionalId, bookingDate, staffId);
+
+  for (const block of blockedTimes) {
+    if (rangeOverlapsBlockedTime(block, start, end)) {
+      return false;
+    }
   }
 
   const busy = await getBusyBookings(professionalId, bookingDate, staffId);
@@ -894,25 +936,108 @@ router.post("/push/subscribe", async (req, res) => {
 });
 
 
-router.get("/public/:slug/settings", async (req, res) => {
+router.get("/blocks", async (req, res) => {
   try {
-    await ensureProfessionalSettingsColumns();
+    const professionalId = getProfessionalIdFromRequest(req);
+    const blocks = await listBlockedTimes(professionalId);
 
-    const { slug } = req.params;
-    const professional = await getProfessionalBySlug(slug);
+    res.json({ blocks });
+  } catch (error) {
+    res.status(error.status || 500).json({
+      error: error.message || "Error obteniendo bloqueos",
+    });
+  }
+});
 
-    if (!professional) {
-      return res.status(404).json({
-        error: "Profesional no encontrado",
-      });
+router.post("/blocks", async (req, res) => {
+  try {
+    await ensureBlockedTimesTable();
+
+    const professionalId = getProfessionalIdFromRequest(req);
+    const blockDate = normalizeDate(req.body.blockDate ?? req.body.block_date ?? req.body.date);
+    const isFullDay = req.body.isFullDay === true || req.body.is_full_day === true || req.body.isFullDay === "true" || req.body.is_full_day === "true";
+    const startTime = isFullDay ? null : normalizeTime(req.body.startTime ?? req.body.start_time);
+    const endTime = isFullDay ? null : normalizeTime(req.body.endTime ?? req.body.end_time);
+    const reason = String(req.body.reason || "").trim() || null;
+    const staffId = req.body.staffId || req.body.staff_id || null;
+
+    if (!blockDate) {
+      return res.status(400).json({ error: "La fecha es obligatoria" });
     }
 
-    const settings = await getProfessionalSettings(professional.id);
+    if (!isFullDay) {
+      const start = timeToMinutes(startTime);
+      const end = timeToMinutes(endTime);
 
-    res.json({ settings });
+      if (start === null || end === null || end <= start) {
+        return res.status(400).json({ error: "Revisá el horario bloqueado" });
+      }
+    }
+
+    await db.query(
+      `
+      INSERT INTO blocked_times (
+        professional_id,
+        staff_id,
+        block_date,
+        start_time,
+        end_time,
+        is_full_day,
+        reason,
+        created_at,
+        updated_at
+      )
+      VALUES ($1, $2, $3, $4::time, $5::time, $6, $7, NOW(), NOW())
+      `,
+      [
+        professionalId,
+        staffId ? Number(staffId) : null,
+        blockDate,
+        startTime,
+        endTime,
+        isFullDay,
+        reason,
+      ]
+    );
+
+    const blocks = await listBlockedTimes(professionalId);
+
+    res.status(201).json({
+      success: true,
+      blocks,
+    });
   } catch (error) {
-    res.status(500).json({
-      error: error.message || "Error obteniendo ajustes",
+    res.status(error.status || 500).json({
+      error: error.message || "Error guardando bloqueo",
+    });
+  }
+});
+
+router.delete("/blocks/:id", async (req, res) => {
+  try {
+    await ensureBlockedTimesTable();
+
+    const professionalId = getProfessionalIdFromRequest(req);
+    const blockId = Number(req.params.id);
+
+    if (!blockId) {
+      return res.status(400).json({ error: "Bloqueo inválido" });
+    }
+
+    await db.query(
+      `DELETE FROM blocked_times WHERE id = $1 AND professional_id = $2`,
+      [blockId, professionalId]
+    );
+
+    const blocks = await listBlockedTimes(professionalId);
+
+    res.json({
+      success: true,
+      blocks,
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({
+      error: error.message || "Error eliminando bloqueo",
     });
   }
 });
@@ -938,8 +1063,6 @@ router.get("/public/:slug/staff", async (req, res) => {
         address: professional.address || "",
         slug: professional.slug,
         logoUrl: null,
-        acceptedPaymentMethods: normalizePaymentMethodList(professional.accepted_payment_methods),
-        accepted_payment_methods: normalizePaymentMethodList(professional.accepted_payment_methods).join(","),
       },
       staff: staff.map(normalizePublicStaff),
     });
@@ -1026,14 +1149,23 @@ router.get("/public/:slug/slots", async (req, res) => {
       staff ? staff.id : null
     );
 
+    const blockedTimes = await getBlockedTimesForDate(
+      professional.id,
+      bookingDate,
+      staff ? staff.id : null
+    );
+
     const slots = baseSlots.map((slotTime) => {
       const slotStart = timeToMinutes(slotTime);
       const slotEnd = slotStart + serviceDuration;
 
       let available = true;
 
-      if (rangeOverlapsPause(availability, slotStart, slotEnd)) {
-        available = false;
+      for (const block of blockedTimes) {
+        if (rangeOverlapsBlockedTime(block, slotStart, slotEnd)) {
+          available = false;
+          break;
+        }
       }
 
       for (const booking of busyBookings) {
@@ -1079,8 +1211,6 @@ router.post("/public/:slug/book", async (req, res) => {
       service_id,
       staffId,
       staff_id,
-      paymentMethod,
-      payment_method,
     } = req.body;
 
     if (!clientName || !clientPhone) {
@@ -1102,12 +1232,6 @@ router.post("/public/:slug/book", async (req, res) => {
         error: "Profesional no encontrado",
       });
     }
-
-    const settings = await getProfessionalSettings(professional.id);
-    const requestedPaymentMethod = String(paymentMethod || payment_method || settings.acceptedPaymentMethods[0] || "cash").trim();
-    const finalPaymentMethod = settings.acceptedPaymentMethods.includes(requestedPaymentMethod)
-      ? requestedPaymentMethod
-      : settings.acceptedPaymentMethods[0] || "cash";
 
     const finalServiceId = serviceId || service_id || null;
     const finalStaffId = staffId || staff_id || null;
@@ -1385,7 +1509,6 @@ router.patch("/public/confirmation/:token/confirm", async (req, res) => {
       UPDATE bookings
       SET
         status = 'confirmed',
-        payment_status = CASE WHEN payment_status = 'cancelled' THEN 'pending' ELSE payment_status END,
         client_confirmed_at = NOW(),
         client_cancelled_at = NULL,
         updated_at = NOW()
@@ -1416,43 +1539,11 @@ router.patch("/public/confirmation/:token/cancel", async (req, res) => {
   try {
     const { token } = req.params;
 
-    const existing = await db.query(
-      `
-      SELECT b.*
-      FROM bookings b
-      WHERE b.confirmation_token = $1
-      LIMIT 1
-      `,
-      [token]
-    );
-
-    if (existing.rows.length === 0) {
-      return res.status(404).json({ error: "Reserva no encontrada" });
-    }
-
-    const booking = existing.rows[0];
-    const settings = await getProfessionalSettings(booking.professional_id);
-
-    if (!settings.allowClientCancellations) {
-      return res.status(403).json({ error: "Este negocio no permite cancelar desde el link. Comunicate directamente con el profesional." });
-    }
-
-    if (settings.cancellationLimitMinutes > 0) {
-      const startDateTime = getBookingStartDateTime(booking);
-      const minutesUntilBooking = startDateTime ? Math.floor((startDateTime.getTime() - Date.now()) / 60000) : null;
-      if (minutesUntilBooking !== null && minutesUntilBooking < settings.cancellationLimitMinutes) {
-        return res.status(403).json({ error: "Ya no es posible cancelar desde el link. Comunicate directamente con el profesional." });
-      }
-    }
-
     const result = await db.query(
       `
       UPDATE bookings
       SET
         status = 'cancelled',
-        payment_status = 'cancelled',
-        amount_paid = 0,
-        payment_updated_at = NOW(),
         client_cancelled_at = NOW(),
         updated_at = NOW()
       WHERE confirmation_token = $1
@@ -1522,8 +1613,6 @@ router.patch("/:id/confirm", async (req, res) => {
       UPDATE bookings
       SET
         status = 'confirmed',
-        payment_status = CASE WHEN payment_status = 'cancelled' THEN 'pending' ELSE payment_status END,
-        client_cancelled_at = NULL,
         updated_at = NOW()
       WHERE id = $1 AND professional_id = $2
       RETURNING *
@@ -1558,8 +1647,6 @@ router.patch("/:id/complete", async (req, res) => {
       UPDATE bookings
       SET
         status = 'completed',
-        payment_status = CASE WHEN payment_status = 'cancelled' THEN 'pending' ELSE payment_status END,
-        client_cancelled_at = NULL,
         updated_at = NOW()
       WHERE id = $1 AND professional_id = $2
       RETURNING *
@@ -1594,9 +1681,6 @@ router.patch("/:id/cancel", async (req, res) => {
       UPDATE bookings
       SET
         status = 'cancelled',
-        payment_status = 'cancelled',
-        amount_paid = 0,
-        payment_updated_at = NOW(),
         client_cancelled_at = NOW(),
         updated_at = NOW()
       WHERE id = $1 AND professional_id = $2
@@ -1635,13 +1719,12 @@ router.patch("/:id/payment", async (req, res) => {
       });
     }
 
-    const allowedPaymentStatuses = ["pending", "paid", "cancelled"];
+    const allowedPaymentStatuses = ["pending", "paid", "deposit", "cancelled"];
     const allowedPaymentMethods = ["cash", "transfer", "card", "other"];
 
-    const rawPaymentStatus = String(
+    const paymentStatus = String(
       req.body.paymentStatus ?? req.body.payment_status ?? "pending"
     ).trim();
-    const paymentStatus = rawPaymentStatus === "deposit" ? "pending" : rawPaymentStatus;
     const paymentMethod = String(
       req.body.paymentMethod ?? req.body.payment_method ?? "cash"
     ).trim();
@@ -1678,8 +1761,6 @@ router.patch("/:id/payment", async (req, res) => {
         payment_status = $1,
         payment_method = $2,
         amount_paid = $3,
-        status = CASE WHEN $1 = 'cancelled' THEN 'cancelled' ELSE status END,
-        client_cancelled_at = CASE WHEN $1 = 'cancelled' THEN NOW() ELSE client_cancelled_at END,
         payment_updated_at = NOW(),
         updated_at = NOW()
       WHERE id = $4 AND professional_id = $5

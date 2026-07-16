@@ -32,14 +32,11 @@ async function initDB() {
         slot_duration             INTEGER DEFAULT 30,
         buffer_between            INTEGER DEFAULT 0,
         max_advance_days          INTEGER DEFAULT 60,
-        min_advance_hours         INTEGER DEFAULT 0,
+        min_advance_hours         INTEGER DEFAULT 2,
         notify_new_booking        INTEGER DEFAULT 1,
         notify_cancellation       INTEGER DEFAULT 1,
         notify_reminder           INTEGER DEFAULT 1,
-        reminder_hours_before     INTEGER DEFAULT 2,
-        allow_client_cancellations INTEGER DEFAULT 1,
-        cancellation_limit_minutes INTEGER DEFAULT 0,
-        accepted_payment_methods   TEXT DEFAULT 'cash,transfer,card',
+        reminder_hours_before     INTEGER DEFAULT 24,
         created_at                TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at                TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
@@ -64,6 +61,19 @@ async function initDB() {
         start_time        TEXT    NOT NULL,
         end_time          TEXT    NOT NULL,
         active            INTEGER DEFAULT 1
+      );
+
+      CREATE TABLE IF NOT EXISTS blocked_times (
+        id                SERIAL PRIMARY KEY,
+        professional_id   INTEGER NOT NULL REFERENCES professionals(id) ON DELETE CASCADE,
+        staff_id          INTEGER,
+        block_date        DATE    NOT NULL,
+        start_time        TIME,
+        end_time          TIME,
+        is_full_day       BOOLEAN DEFAULT FALSE,
+        reason            TEXT,
+        created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
       CREATE TABLE IF NOT EXISTS availability_exceptions (
@@ -265,6 +275,7 @@ async function initDB() {
       `CREATE INDEX IF NOT EXISTS idx_bookings_reminder_2h            ON bookings(reminder_2h_sent_at, booking_date, start_time)`,
       `CREATE INDEX IF NOT EXISTS idx_staff_availability_member      ON staff_availability(staff_id)`,
       `CREATE INDEX IF NOT EXISTS idx_push_subscriptions_professional ON push_subscriptions(professional_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_blocked_times_professional_date ON blocked_times(professional_id, block_date)`,
     ];
 
     for (const sql of indices) {
@@ -298,14 +309,6 @@ async function initDB() {
       `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS business_name TEXT`,
       `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS address       TEXT`,
       `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS logo_url      TEXT`,
-      `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS notify_new_booking INTEGER DEFAULT 1`,
-      `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS notify_cancellation INTEGER DEFAULT 1`,
-      `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS notify_reminder INTEGER DEFAULT 1`,
-      `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS reminder_hours_before INTEGER DEFAULT 2`,
-      `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS min_advance_hours INTEGER DEFAULT 0`,
-      `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS allow_client_cancellations INTEGER DEFAULT 1`,
-      `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS cancellation_limit_minutes INTEGER DEFAULT 0`,
-      `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS accepted_payment_methods TEXT DEFAULT 'cash,transfer,card'`,
       // professional_availability — pausas
       `ALTER TABLE professional_availability ADD COLUMN IF NOT EXISTS break_enabled INTEGER NOT NULL DEFAULT 0`,
       `ALTER TABLE professional_availability ADD COLUMN IF NOT EXISTS break_start   TIME`,
@@ -324,14 +327,6 @@ async function initDB() {
       } catch (e) {
         console.warn('Migration skipped:', e.message);
       }
-    }
-
-    try {
-      await client.query(`ALTER TABLE professionals ALTER COLUMN min_advance_hours SET DEFAULT 0`);
-      await client.query(`UPDATE professionals SET min_advance_hours = 0 WHERE min_advance_hours IS NULL`);
-      await client.query(`UPDATE professionals SET reminder_hours_before = 2 WHERE reminder_hours_before IS NULL OR reminder_hours_before = 24`);
-    } catch (e) {
-      console.warn('Professional settings defaults skipped:', e.message);
     }
 
     try {
