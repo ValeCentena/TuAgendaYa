@@ -4001,14 +4001,63 @@ function CashSection() {
 
   return (
     <div style={{ display: 'grid', gap: 16 }}>
+      <div style={{ background: '#fff', borderRadius: 22, padding: '22px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 18 }}>
+          <div>
+            <div style={{ fontSize: 19, fontWeight: 900, color: '#1a1a1a' }}>Caja diaria</div>
+            <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 4, lineHeight: 1.45 }}>
+              Elegí una fecha y mirá todas las reservas, cobros, por cobrar y métodos de pago de ese día.
+            </div>
+          </div>
+
+          <div style={{ width: 250, maxWidth: '100%' }}>
+            <DatePickerField value={selectedDate} onChange={(nextDate) => setSelectedDate(nextDate || getLocalDateKeyValue())} placeholder="Elegir día" />
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 12 }}>
+          <div style={cashCardStyle('#f7f7fb')}>
+            <div style={{ fontSize: 28, fontWeight: 950, color: '#1a1a1a' }}>{dayBookings.length}</div>
+            <div style={smallStatStyle}>Citas del día</div>
+          </div>
+          <div style={cashCardStyle('#ecfff3')}>
+            <div style={{ fontSize: 28, fontWeight: 950, color: '#30d158' }}>{completedBookings.length}</div>
+            <div style={smallStatStyle}>Completadas</div>
+          </div>
+          <div style={cashCardStyle('#fff8eb')}>
+            <div style={{ fontSize: 28, fontWeight: 950, color: '#ff9f0a' }}>{pendingBookings.length}</div>
+            <div style={smallStatStyle}>Por cobrar/confirmadas</div>
+          </div>
+          <div style={cashCardStyle('#fff1f0')}>
+            <div style={{ fontSize: 28, fontWeight: 950, color: '#ff453a' }}>{cancelledBookings.length}</div>
+            <div style={smallStatStyle}>Canceladas</div>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
+          <div style={cashCardStyle('#f7f7fb')}>
+            <div style={{ fontSize: 13, color: '#8e8e93', fontWeight: 900 }}>Total generado</div>
+            <div style={{ fontSize: 26, fontWeight: 950, color: '#1a1a1a', marginTop: 6 }}>{formatMoney(totalGenerated)}</div>
+          </div>
+          <div style={cashCardStyle('#ecfff3')}>
+            <div style={{ fontSize: 13, color: '#8e8e93', fontWeight: 900 }}>Total cobrado</div>
+            <div style={{ fontSize: 26, fontWeight: 950, color: '#188038', marginTop: 6 }}>{formatMoney(totalCollected)}</div>
+          </div>
+          <div style={cashCardStyle('#fff8eb')}>
+            <div style={{ fontSize: 13, color: '#8e8e93', fontWeight: 900 }}>Por cobrar</div>
+            <div style={{ fontSize: 26, fontWeight: 950, color: '#ff9f0a', marginTop: 6 }}>{formatMoney(totalPending)}</div>
+          </div>
+        </div>
+      </div>
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 14 }}>
         {renderPeriodSummary(
-          'Resumen semanal',
+          'Caja semanal',
           `${formatDate(startOfWeek)} al ${formatDate(endOfWeek)}`,
           weeklySummary
         )}
         {renderPeriodSummary(
-          'Resumen mensual',
+          'Caja mensual',
           selectedDateObject.toLocaleDateString('es-UY', { month: 'long', year: 'numeric' }),
           monthlySummary
         )}
@@ -4083,55 +4132,6 @@ function CashSection() {
           </div>
         </div>
       </div>
-      <div style={{ background: '#fff', borderRadius: 22, padding: '22px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 18 }}>
-          <div>
-            <div style={{ fontSize: 19, fontWeight: 900, color: '#1a1a1a' }}>Caja diaria</div>
-            <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 4, lineHeight: 1.45 }}>
-              Elegí una fecha y mirá todas las reservas, cobros, por cobrar y métodos de pago de ese día.
-            </div>
-          </div>
-
-          <div style={{ width: 250, maxWidth: '100%' }}>
-            <DatePickerField value={selectedDate} onChange={(nextDate) => setSelectedDate(nextDate || getLocalDateKeyValue())} placeholder="Elegir día" />
-          </div>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 12 }}>
-          <div style={cashCardStyle('#f7f7fb')}>
-            <div style={{ fontSize: 28, fontWeight: 950, color: '#1a1a1a' }}>{dayBookings.length}</div>
-            <div style={smallStatStyle}>Citas del día</div>
-          </div>
-          <div style={cashCardStyle('#ecfff3')}>
-            <div style={{ fontSize: 28, fontWeight: 950, color: '#30d158' }}>{completedBookings.length}</div>
-            <div style={smallStatStyle}>Completadas</div>
-          </div>
-          <div style={cashCardStyle('#fff8eb')}>
-            <div style={{ fontSize: 28, fontWeight: 950, color: '#ff9f0a' }}>{pendingBookings.length}</div>
-            <div style={smallStatStyle}>Por cobrar/confirmadas</div>
-          </div>
-          <div style={cashCardStyle('#fff1f0')}>
-            <div style={{ fontSize: 28, fontWeight: 950, color: '#ff453a' }}>{cancelledBookings.length}</div>
-            <div style={smallStatStyle}>Canceladas</div>
-          </div>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
-          <div style={cashCardStyle('#f7f7fb')}>
-            <div style={{ fontSize: 13, color: '#8e8e93', fontWeight: 900 }}>Total generado</div>
-            <div style={{ fontSize: 26, fontWeight: 950, color: '#1a1a1a', marginTop: 6 }}>{formatMoney(totalGenerated)}</div>
-          </div>
-          <div style={cashCardStyle('#ecfff3')}>
-            <div style={{ fontSize: 13, color: '#8e8e93', fontWeight: 900 }}>Total cobrado</div>
-            <div style={{ fontSize: 26, fontWeight: 950, color: '#188038', marginTop: 6 }}>{formatMoney(totalCollected)}</div>
-          </div>
-          <div style={cashCardStyle('#fff8eb')}>
-            <div style={{ fontSize: 13, color: '#8e8e93', fontWeight: 900 }}>Por cobrar</div>
-            <div style={{ fontSize: 26, fontWeight: 950, color: '#ff9f0a', marginTop: 6 }}>{formatMoney(totalPending)}</div>
-          </div>
-        </div>
-      </div>
-
       <div style={{ background: '#fff', borderRadius: 22, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)', border: '0.5px solid #ececf2' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'flex-start', flexWrap: 'wrap', marginBottom: 14 }}>
           <div>
@@ -7918,17 +7918,23 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
   };
 
   const tabStyle = (key) => ({
-    flex: 1,
-    padding: '14px 10px',
-    borderRadius: 14,
-    border: 'none',
-    background: activeTab === key ? '#0071e3' : '#fff',
+    flex: '0 0 auto',
+    minWidth: key === 'configuracion' ? 54 : 92,
+    padding: key === 'configuracion' ? '12px 14px' : '12px 14px',
+    borderRadius: 18,
+    border: activeTab === key ? '0.5px solid rgba(0,113,227,0.18)' : '0.5px solid rgba(0,0,0,0.06)',
+    background: activeTab === key ? '#0071e3' : 'rgba(255,255,255,0.82)',
     color: activeTab === key ? '#fff' : '#1a1a1a',
-    fontSize: 14,
-    fontWeight: 800,
+    fontSize: 13,
+    fontWeight: 900,
     cursor: 'pointer',
     fontFamily: 'inherit',
-    boxShadow: activeTab === key ? '0 1px 8px rgba(0,113,227,0.25)' : '0 1px 8px rgba(0,0,0,0.04)',
+    boxShadow: activeTab === key ? '0 8px 18px rgba(0,113,227,0.22)' : '0 1px 8px rgba(0,0,0,0.035)',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    whiteSpace: 'nowrap',
   });
 
   return (
@@ -8016,27 +8022,45 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
             right: 10px !important;
             bottom: calc(env(safe-area-inset-bottom, 0px) + 10px) !important;
             z-index: 1000 !important;
-            display: grid !important;
-            grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
-            gap: 6px !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 8px !important;
             padding: 8px !important;
             margin: 0 !important;
-            border-radius: 22px !important;
-            background: rgba(255, 255, 255, 0.94) !important;
-            box-shadow: 0 10px 34px rgba(0,0,0,0.18) !important;
-            backdrop-filter: blur(18px);
-            -webkit-backdrop-filter: blur(18px);
-            overflow: visible !important;
+            border-radius: 24px !important;
+            background: rgba(255, 255, 255, 0.86) !important;
+            border: 0.5px solid rgba(255,255,255,0.72) !important;
+            box-shadow: 0 12px 34px rgba(0,0,0,0.18) !important;
+            backdrop-filter: blur(22px);
+            -webkit-backdrop-filter: blur(22px);
+            overflow-x: auto !important;
+            overflow-y: hidden !important;
+            scroll-snap-type: x proximity;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+          }
+
+          .dashboard-tabs::-webkit-scrollbar {
+            display: none;
           }
 
           .dashboard-tabs button {
+            flex: 0 0 auto !important;
+            min-width: 94px !important;
             min-height: 46px !important;
-            padding: 9px 4px !important;
-            border-radius: 16px !important;
-            font-size: 11px !important;
+            padding: 10px 13px !important;
+            border-radius: 18px !important;
+            font-size: 12px !important;
             line-height: 1.1 !important;
-            white-space: normal !important;
-            box-shadow: none !important;
+            white-space: nowrap !important;
+            scroll-snap-align: center;
+          }
+
+          .dashboard-tabs button[aria-label="Configuración"] {
+            min-width: 54px !important;
+            width: 54px !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
           }
 
           .dashboard-public-link {
@@ -8163,7 +8187,17 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
           <button style={tabStyle('reservas')} onClick={() => setActiveTab('reservas')}>Reservas</button>
           <button style={tabStyle('clientes')} onClick={() => setActiveTab('clientes')}>Clientes</button>
           <button style={tabStyle('caja')} onClick={() => setActiveTab('caja')}>Caja</button>
-          <button style={tabStyle('configuracion')} onClick={() => setActiveTab('configuracion')}>Configuración</button>
+          <button
+            style={tabStyle('configuracion')}
+            onClick={() => setActiveTab('configuracion')}
+            aria-label="Configuración"
+            title="Configuración"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 15.25A3.25 3.25 0 1 0 12 8.75a3.25 3.25 0 0 0 0 6.5Z" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M19.43 13.12c.05-.36.07-.73.07-1.12s-.02-.76-.07-1.12l2.03-1.57-1.92-3.32-2.4.97a8.2 8.2 0 0 0-1.94-1.12L14.84 3h-3.68l-.36 2.84a8.2 8.2 0 0 0-1.94 1.12l-2.4-.97-1.92 3.32 2.03 1.57c-.05.36-.07.73-.07 1.12s.02.76.07 1.12l-2.03 1.57 1.92 3.32 2.4-.97c.6.47 1.25.85 1.94 1.12l.36 2.84h3.68l.36-2.84c.69-.27 1.34-.65 1.94-1.12l2.4.97 1.92-3.32-2.03-1.57Z" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
           <button style={tabStyle('perfil')} onClick={() => setActiveTab('perfil')}>Perfil</button>
         </div>
 
