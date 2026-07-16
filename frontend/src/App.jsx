@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import BookPage from './pages/BookPage.jsx';
+import BookPage from '../pages/pages/BookPage.jsx';
 
 const API_BASE = 'https://tuagendaya-api.onrender.com/api';
 
@@ -5565,7 +5565,6 @@ function StaffSection() {
     name: '',
     phone: '',
     email: '',
-    color: '#0071e3',
   });
 
   const [editingId, setEditingId] = useState(null);
@@ -5589,10 +5588,17 @@ function StaffSection() {
       .then((r) => r.json())
       .then((data) => {
         const normalized = (data.staff || []).map(normalizeStaff);
-        setStaff(normalized);
+        const extraProfessionals = normalized.slice(1);
+        setStaff(extraProfessionals);
 
-        if (normalized.length > 0) {
-          setSelectedStaffId((current) => current || String(normalized[0].id));
+        if (extraProfessionals.length > 0) {
+          setSelectedStaffId((current) => {
+            const stillExists = extraProfessionals.some((member) => String(member.id) === String(current));
+            return stillExists ? current : String(extraProfessionals[0].id);
+          });
+        } else {
+          setSelectedStaffId('');
+          setAvailability(getDefaultAvailability());
         }
       })
       .catch(() => {
@@ -5641,7 +5647,6 @@ function StaffSection() {
       name: '',
       phone: '',
       email: '',
-      color: '#0071e3',
     });
   };
 
@@ -5668,7 +5673,6 @@ function StaffSection() {
           name: form.name.trim(),
           phone: form.phone.trim(),
           email: form.email.trim(),
-          color: form.color,
         }),
       });
 
@@ -5697,7 +5701,6 @@ function StaffSection() {
       name: member.name,
       phone: member.phone || '',
       email: member.email || '',
-      color: member.color || '#0071e3',
       isActive: member.isActive,
     });
   };
@@ -5729,7 +5732,6 @@ function StaffSection() {
           name: String(editing.name || '').trim(),
           phone: String(editing.phone || '').trim(),
           email: String(editing.email || '').trim(),
-          color: editing.color || '#0071e3',
           isActive: Boolean(editing.isActive),
         }),
       });
@@ -5812,7 +5814,7 @@ function StaffSection() {
         if (Array.isArray(data.availability)) {
           setAvailability(data.availability.map(normalizeAvailabilityItem));
         }
-        setMessage('Horarios del profesional guardados correctamente.');
+        setMessage('Horarios del profesional adicional guardados correctamente.');
       }
     } catch {
       setError('No se pudo conectar con el servidor.');
@@ -5829,14 +5831,14 @@ function StaffSection() {
         <div style={{ marginBottom: 18 }}>
           <div style={{ fontSize: 17, fontWeight: 700, color: '#1a1a1a' }}>Profesionales del negocio</div>
           <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 4 }}>
-            Agregá profesionales internos y configurá horarios independientes para cada uno.
+            Agregá profesionales adicionales. El dueño principal configura sus horarios en Disponibilidad.
           </div>
         </div>
 
         <form onSubmit={handleCreate} style={{ background: '#f2f2f7', borderRadius: 16, padding: 16, marginBottom: 18 }}>
           <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>Agregar profesional</div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1.2fr 0.7fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1.2fr', gap: 10 }}>
             <div>
               <label style={smallLabelStyle}>Nombre *</label>
               <input
@@ -5867,19 +5869,6 @@ function StaffSection() {
                 placeholder="opcional"
               />
             </div>
-
-            <div>
-              <label style={smallLabelStyle}>Color</label>
-              <select
-                style={inputStyle}
-                value={form.color}
-                onChange={(e) => setForm({ ...form, color: e.target.value })}
-              >
-                {STAFF_COLORS.map((color) => (
-                  <option key={color} value={color}>{color}</option>
-                ))}
-              </select>
-            </div>
           </div>
 
           <button
@@ -5906,7 +5895,7 @@ function StaffSection() {
         {loadingStaff ? (
           <div style={{ textAlign: 'center', color: '#aeaeb2', padding: 28 }}>Cargando profesionales...</div>
         ) : staff.length === 0 ? (
-          <div style={{ textAlign: 'center', color: '#aeaeb2', padding: 28 }}>Todavía no hay profesionales cargados.</div>
+          <div style={{ textAlign: 'center', color: '#aeaeb2', padding: 28 }}>Todavía no agregaste profesionales adicionales.</div>
         ) : (
           staff.map((member) => {
             const isEditing = editingId === member.id;
@@ -5925,7 +5914,7 @@ function StaffSection() {
               >
                 {isEditing ? (
                   <>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1.2fr 0.7fr', gap: 10, marginBottom: 10 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1.2fr', gap: 10, marginBottom: 10 }}>
                       <div>
                         <label style={smallLabelStyle}>Nombre</label>
                         <input
@@ -5952,19 +5941,6 @@ function StaffSection() {
                           value={editing.email}
                           onChange={(e) => setEditing({ ...editing, email: e.target.value })}
                         />
-                      </div>
-
-                      <div>
-                        <label style={smallLabelStyle}>Color</label>
-                        <select
-                          style={inputStyle}
-                          value={editing.color}
-                          onChange={(e) => setEditing({ ...editing, color: e.target.value })}
-                        >
-                          {STAFF_COLORS.map((color) => (
-                            <option key={color} value={color}>{color}</option>
-                          ))}
-                        </select>
                       </div>
                     </div>
 
@@ -6067,13 +6043,13 @@ function StaffSection() {
           <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 4 }}>
             {selectedStaff
               ? `Configurando horarios base de ${selectedStaff.name}.`
-              : 'Seleccioná un profesional para configurar sus horarios base.'}
+              : 'Seleccioná un profesional adicional para configurar sus horarios.'}
           </div>
         </div>
 
         {!selectedStaffId ? (
           <div style={{ textAlign: 'center', color: '#aeaeb2', padding: 28 }}>
-            Seleccioná o agregá un profesional.
+            El dueño principal configura sus horarios en Disponibilidad. Agregá un profesional adicional para editar horarios desde acá.
           </div>
         ) : loadingAvailability ? (
           <div style={{ textAlign: 'center', color: '#aeaeb2', padding: 28 }}>
