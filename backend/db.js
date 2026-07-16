@@ -63,6 +63,17 @@ async function initDB() {
         active            INTEGER DEFAULT 1
       );
 
+      CREATE TABLE IF NOT EXISTS booking_history (
+        id                SERIAL PRIMARY KEY,
+        booking_id        INTEGER NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+        professional_id   INTEGER NOT NULL REFERENCES professionals(id) ON DELETE CASCADE,
+        action            TEXT    NOT NULL,
+        actor             TEXT    DEFAULT 'system',
+        message           TEXT    NOT NULL,
+        metadata          JSONB   DEFAULT '{}'::jsonb,
+        created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
       CREATE TABLE IF NOT EXISTS blocked_times (
         id                SERIAL PRIMARY KEY,
         professional_id   INTEGER NOT NULL REFERENCES professionals(id) ON DELETE CASCADE,
@@ -276,6 +287,8 @@ async function initDB() {
       `CREATE INDEX IF NOT EXISTS idx_staff_availability_member      ON staff_availability(staff_id)`,
       `CREATE INDEX IF NOT EXISTS idx_push_subscriptions_professional ON push_subscriptions(professional_id)`,
       `CREATE INDEX IF NOT EXISTS idx_blocked_times_professional_date ON blocked_times(professional_id, block_date)`,
+      `CREATE INDEX IF NOT EXISTS idx_booking_history_booking ON booking_history(booking_id, created_at DESC)`,
+      `CREATE INDEX IF NOT EXISTS idx_booking_history_professional ON booking_history(professional_id, created_at DESC)`,
     ];
 
     for (const sql of indices) {
