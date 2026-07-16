@@ -330,9 +330,9 @@ function DatePickerField({ value, onChange, placeholder = 'Elegir fecha', allowP
             width: 'min(314px, 88vw)',
             background: '#fff',
             border: '0.5px solid #e2e2e8',
-            borderRadius: 22,
+            borderRadius: 18,
             padding: 12,
-            boxShadow: '0 18px 40px rgba(0,0,0,0.16)',
+            boxShadow: '0 14px 34px rgba(0,0,0,0.12)',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
@@ -5211,9 +5211,10 @@ function AvailabilityTable({ availability, onChange }) {
           <div>
             <label style={{ ...smallLabelStyle, marginBottom: 4 }}>Desde</label>
             <input
-              type="time"
-              className="tay-clean-picker"
+              type="text"
               value={day.startTime || '09:00'}
+              placeholder="09:00"
+              inputMode="numeric"
               disabled={!day.isActive}
               onChange={(event) => onChange(day.dayOfWeek, 'startTime', event.target.value)}
               style={{ ...inputStyle, marginBottom: 0, borderRadius: 14, border: '0.5px solid #e2e2e8', background: day.isActive ? '#fff' : '#f7f7fb', boxShadow: day.isActive ? '0 2px 8px rgba(0,0,0,0.03)' : 'none', cursor: day.isActive ? 'text' : 'not-allowed', opacity: day.isActive ? 1 : 0.55 }}
@@ -5223,9 +5224,10 @@ function AvailabilityTable({ availability, onChange }) {
           <div>
             <label style={{ ...smallLabelStyle, marginBottom: 4 }}>Hasta</label>
             <input
-              type="time"
-              className="tay-clean-picker"
+              type="text"
               value={day.endTime || '18:00'}
+              placeholder="18:00"
+              inputMode="numeric"
               disabled={!day.isActive}
               onChange={(event) => onChange(day.dayOfWeek, 'endTime', event.target.value)}
               style={{ ...inputStyle, marginBottom: 0, borderRadius: 14, border: '0.5px solid #e2e2e8', background: day.isActive ? '#fff' : '#f7f7fb', boxShadow: day.isActive ? '0 2px 8px rgba(0,0,0,0.03)' : 'none', cursor: day.isActive ? 'text' : 'not-allowed', opacity: day.isActive ? 1 : 0.55 }}
@@ -5468,21 +5470,21 @@ function AvailabilitySection() {
         <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
           <div>
             <label style={smallLabelStyle}>Fecha</label>
-            <input
-              type="date"
-              className="tay-clean-picker"
+            <DatePickerField
               value={blockForm.blockDate}
-              onChange={(event) => setBlockForm({ ...blockForm, blockDate: event.target.value })}
-              style={{ ...inputStyle, marginBottom: 0, borderRadius: 14, border: '0.5px solid #e2e2e8', background: '#fff', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', cursor: 'text' }}
+              onChange={(value) => setBlockForm({ ...blockForm, blockDate: value })}
+              placeholder="Elegir fecha"
+              allowPast={false}
             />
           </div>
 
           <div>
             <label style={smallLabelStyle}>Desde</label>
             <input
-              type="time"
-              className="tay-clean-picker"
+              type="text"
               value={blockForm.startTime}
+              placeholder="13:00"
+              inputMode="numeric"
               disabled={blockForm.isFullDay}
               onChange={(event) => setBlockForm({ ...blockForm, startTime: event.target.value })}
               style={{ ...inputStyle, marginBottom: 0, borderRadius: 14, border: '0.5px solid #e2e2e8', background: blockForm.isFullDay ? '#f7f7fb' : '#fff', boxShadow: blockForm.isFullDay ? 'none' : '0 2px 8px rgba(0,0,0,0.03)', cursor: blockForm.isFullDay ? 'not-allowed' : 'text', opacity: blockForm.isFullDay ? 0.55 : 1 }}
@@ -5492,9 +5494,10 @@ function AvailabilitySection() {
           <div>
             <label style={smallLabelStyle}>Hasta</label>
             <input
-              type="time"
-              className="tay-clean-picker"
+              type="text"
               value={blockForm.endTime}
+              placeholder="14:00"
+              inputMode="numeric"
               disabled={blockForm.isFullDay}
               onChange={(event) => setBlockForm({ ...blockForm, endTime: event.target.value })}
               style={{ ...inputStyle, marginBottom: 0, borderRadius: 14, border: '0.5px solid #e2e2e8', background: blockForm.isFullDay ? '#f7f7fb' : '#fff', boxShadow: blockForm.isFullDay ? 'none' : '0 2px 8px rgba(0,0,0,0.03)', cursor: blockForm.isFullDay ? 'not-allowed' : 'text', opacity: blockForm.isFullDay ? 0.55 : 1 }}
