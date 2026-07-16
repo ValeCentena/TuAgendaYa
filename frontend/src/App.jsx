@@ -5838,7 +5838,7 @@ function StaffSection() {
         if (Array.isArray(data.availability)) {
           setAvailability(data.availability.map(normalizeAvailabilityItem));
         }
-        setMessage('Horarios del profesional adicional guardados correctamente.');
+        setMessage('Horarios del profesional adicional adicional guardados correctamente.');
       }
     } catch {
       setError('No se pudo conectar con el servidor.');
