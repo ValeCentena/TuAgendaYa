@@ -5140,6 +5140,97 @@ function ClientsSection() {
 }
 
 
+
+function AvailabilityTable({ availability, onChange }) {
+  const tableRows = DAYS.map((day) => {
+    const current = availability.find((item) => Number(item.dayOfWeek) === Number(day.dayOfWeek)) || {
+      dayOfWeek: day.dayOfWeek,
+      isActive: false,
+      startTime: '09:00',
+      endTime: '18:00',
+      slotDurationMinutes: 30,
+      breakEnabled: false,
+      breakStartTime: '13:00',
+      breakEndTime: '14:00',
+    };
+
+    return { ...current, label: day.label };
+  });
+
+  return (
+    <div style={{ display: 'grid', gap: 10 }}>
+      {tableRows.map((day) => (
+        <div
+          key={day.dayOfWeek}
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(120px, 1.2fr) repeat(4, minmax(120px, 1fr))',
+            gap: 10,
+            alignItems: 'center',
+            background: '#f7f7fb',
+            border: '0.5px solid #ececf2',
+            borderRadius: 16,
+            padding: 12,
+          }}
+        >
+          <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, fontWeight: 900, color: '#1a1a1a' }}>
+            <input
+              type="checkbox"
+              checked={Boolean(day.isActive)}
+              onChange={(event) => onChange(day.dayOfWeek, 'isActive', event.target.checked)}
+            />
+            {day.label}
+          </label>
+
+          <div>
+            <label style={{ ...smallLabelStyle, marginBottom: 4 }}>Desde</label>
+            <input
+              type="time"
+              value={day.startTime || '09:00'}
+              disabled={!day.isActive}
+              onChange={(event) => onChange(day.dayOfWeek, 'startTime', event.target.value)}
+              style={{ ...inputStyle, marginBottom: 0, opacity: day.isActive ? 1 : 0.55 }}
+            />
+          </div>
+
+          <div>
+            <label style={{ ...smallLabelStyle, marginBottom: 4 }}>Hasta</label>
+            <input
+              type="time"
+              value={day.endTime || '18:00'}
+              disabled={!day.isActive}
+              onChange={(event) => onChange(day.dayOfWeek, 'endTime', event.target.value)}
+              style={{ ...inputStyle, marginBottom: 0, opacity: day.isActive ? 1 : 0.55 }}
+            />
+          </div>
+
+          <div>
+            <label style={{ ...smallLabelStyle, marginBottom: 4 }}>Corte</label>
+            <input
+              type="time"
+              value={day.breakStartTime || '13:00'}
+              disabled={!day.isActive || !day.breakEnabled}
+              onChange={(event) => onChange(day.dayOfWeek, 'breakStartTime', event.target.value)}
+              style={{ ...inputStyle, marginBottom: 0, opacity: day.isActive && day.breakEnabled ? 1 : 0.55 }}
+            />
+          </div>
+
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#6e6e73', fontWeight: 800 }}>
+            <input
+              type="checkbox"
+              checked={Boolean(day.breakEnabled)}
+              disabled={!day.isActive}
+              onChange={(event) => onChange(day.dayOfWeek, 'breakEnabled', event.target.checked)}
+            />
+            Descanso
+          </label>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+
 function AvailabilitySection() {
   const [availability, setAvailability] = useState(getDefaultAvailability());
   const [loading, setLoading] = useState(true);
