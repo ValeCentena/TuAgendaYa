@@ -2307,7 +2307,7 @@ function ReservationsSection() {
     }
   };
 
-  const fetchBookingHistory = useCallback(async (bookingId) => {
+  const fetchBookingHistory = async (bookingId) => {
     if (!bookingId || bookingHistoryById[bookingId]) return;
 
     const token = localStorage.getItem('tuagendaya_token');
@@ -2319,35 +2319,31 @@ function ReservationsSection() {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      let data = {};
-      try {
-        data = await response.json();
-      } catch {
-        data = {};
-      }
+      const data = await response.json();
 
-      setBookingHistoryById((current) => ({
-        ...current,
-        [bookingId]: response.ok && Array.isArray(data.history) ? data.history : [],
-      }));
+      if (response.ok) {
+        setBookingHistoryById((current) => ({
+          ...current,
+          [bookingId]: Array.isArray(data.history) ? data.history : [],
+        }));
+      }
     } catch {
-      setBookingHistoryById((current) => ({
-        ...current,
-        [bookingId]: [],
-      }));
+      // no-op
     } finally {
       setLoadingHistoryById((current) => ({ ...current, [bookingId]: false }));
     }
-  }, [bookingHistoryById]);
-
-  useEffect(() => {
-    if (expandedBookingId) {
-      fetchBookingHistory(expandedBookingId);
-    }
-  }, [expandedBookingId, fetchBookingHistory]);
+  };
 
   const toggleBookingExpanded = (bookingId) => {
-    setExpandedBookingId((current) => (current === bookingId ? null : bookingId));
+    setExpandedBookingId((current) => {
+      const next = current === bookingId ? null : bookingId;
+
+      if (next) {
+        fetchBookingHistory(next);
+      }
+
+      return next;
+    });
   };
 
   const statusColor = { pending: '#ff9f0a', confirmed: '#30d158', completed: '#5e5ce6', cancelled: '#ff453a' };
