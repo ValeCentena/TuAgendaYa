@@ -304,14 +304,14 @@ function DatePickerField({ value, onChange, placeholder = 'Elegir fecha', allowP
           boxShadow: open ? '0 0 0 3px rgba(0,113,227,0.10)' : '0 1px 5px rgba(0,0,0,0.03)',
         }}
       >
-        <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: value ? '#1a1a1a' : '#8e8e93', fontSize: 13, fontWeight: 800 }}>
+        <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: value ? '#1a1a1a' : '#8e8e93', fontSize: 12.5, fontWeight: 800 }}>
           {value ? formatDate(value) : placeholder}
         </span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
           {value && (
             <span
               onClick={clearValue}
-              style={{ width: 22, height: 22, borderRadius: 999, background: '#f2f2f7', color: '#8e8e93', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 900 }}
+              style={{ width: 22, height: 22, borderRadius: 999, background: '#f2f2f7', color: '#8e8e93', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 900 }}
             >
               ×
             </span>
@@ -327,27 +327,27 @@ function DatePickerField({ value, onChange, placeholder = 'Elegir fecha', allowP
             zIndex: 60,
             top: 'calc(100% + 8px)',
             left: 0,
-            width: 'min(314px, 88vw)',
+            width: 'min(270px, 86vw)',
             background: '#fff',
             border: '0.5px solid #e2e2e8',
-            borderRadius: 18,
-            padding: 12,
+            borderRadius: 17,
+            padding: 10,
             boxShadow: '0 14px 34px rgba(0,0,0,0.12)',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-            <button type="button" onClick={() => changeMonth(-1)} style={{ width: 34, height: 34, borderRadius: 12, border: 'none', background: '#f6f6f8', color: '#1a1a1a', fontSize: 17, fontWeight: 900, cursor: 'pointer' }}>‹</button>
-            <div style={{ fontSize: 14, fontWeight: 900, color: '#1a1a1a' }}>{capitalizedMonth}</div>
-            <button type="button" onClick={() => changeMonth(1)} style={{ width: 34, height: 34, borderRadius: 12, border: 'none', background: '#f6f6f8', color: '#1a1a1a', fontSize: 17, fontWeight: 900, cursor: 'pointer' }}>›</button>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <button type="button" onClick={() => changeMonth(-1)} style={{ width: 34, height: 30, borderRadius: 10, border: 'none', background: '#f6f6f8', color: '#1a1a1a', fontSize: 15, fontWeight: 900, cursor: 'pointer' }}>‹</button>
+            <div style={{ fontSize: 13.5, fontWeight: 900, color: '#1a1a1a' }}>{capitalizedMonth}</div>
+            <button type="button" onClick={() => changeMonth(1)} style={{ width: 34, height: 30, borderRadius: 10, border: 'none', background: '#f6f6f8', color: '#1a1a1a', fontSize: 15, fontWeight: 900, cursor: 'pointer' }}>›</button>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5, marginBottom: 6 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 5 }}>
             {['D', 'L', 'M', 'M', 'J', 'V', 'S'].map((day) => (
-              <div key={day} style={{ textAlign: 'center', fontSize: 11, color: '#8e8e93', fontWeight: 900 }}>{day}</div>
+              <div key={day} style={{ textAlign: 'center', fontSize: 10.5, color: '#8e8e93', fontWeight: 900 }}>{day}</div>
             ))}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 5 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
             {Array.from({ length: startOffset }).map((_, index) => <div key={`empty-${index}`} />)}
             {Array.from({ length: daysInMonth }).map((_, index) => {
               const day = index + 1;
@@ -365,12 +365,12 @@ function DatePickerField({ value, onChange, placeholder = 'Elegir fecha', allowP
                     setOpen(false);
                   }}
                   style={{
-                    height: 34,
-                    borderRadius: 12,
+                    height: 30,
+                    borderRadius: 10,
                     border: selected ? '1px solid #0071e3' : 'none',
                     background: selected ? '#eaf3ff' : disabled ? '#fafafa' : '#f6f6f8',
                     color: disabled ? '#c7c7cc' : selected ? '#0071e3' : '#1a1a1a',
-                    fontSize: 13,
+                    fontSize: 12.5,
                     fontWeight: 900,
                     fontFamily: 'inherit',
                     cursor: disabled ? 'not-allowed' : 'pointer',
