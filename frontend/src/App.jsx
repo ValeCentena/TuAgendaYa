@@ -734,7 +734,22 @@ function getProfessionExamples() {
 function AuthLayout({ children }) {
   return (
     <div style={{ minHeight: '100vh', background: '#f2f2f7', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, fontFamily: APP_FONT }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap');@keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}`}</style>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap');@keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+        input.tay-clean-picker::-webkit-calendar-picker-indicator {
+          opacity: 0;
+          display: none;
+          -webkit-appearance: none;
+        }
+        input.tay-clean-picker::-webkit-inner-spin-button,
+        input.tay-clean-picker::-webkit-clear-button {
+          display: none;
+          -webkit-appearance: none;
+        }
+        input.tay-clean-picker {
+          appearance: none;
+          -webkit-appearance: none;
+        }
+`}</style>
 
       <div style={{ background: '#fff', borderRadius: 24, padding: '36px 32px', border: '0.5px solid #e0e0e5', width: '100%', maxWidth: 460, animation: 'slideUp 250ms cubic-bezier(0.16,1,0.3,1) both', boxShadow: '0 2px 40px rgba(0,0,0,0.06)' }}>
         {children}
@@ -772,7 +787,7 @@ function ProfessionCombobox({ value, onChange }) {
   return (
     <div ref={containerRef} style={{ position: 'relative', marginBottom: 10 }}>
       <input
-        style={{ ...inputStyle, marginBottom: 0 }}
+        style={{ ...inputStyle, marginBottom: 0, borderRadius: 14, border: '0.5px solid #e2e2e8', background: '#fff', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', cursor: 'text' }}
         value={value}
         onFocus={() => setOpen(true)}
         onChange={(e) => {
@@ -5177,10 +5192,11 @@ function AvailabilityTable({ availability, onChange }) {
             gridTemplateColumns: 'minmax(130px, 1.2fr) repeat(2, minmax(130px, 1fr))',
             gap: 10,
             alignItems: 'center',
-            background: '#f7f7fb',
+            background: 'linear-gradient(180deg, #fbfbfd 0%, #f7f7fb 100%)',
             border: '0.5px solid #ececf2',
-            borderRadius: 16,
+            borderRadius: 18,
             padding: 12,
+            boxShadow: '0 1px 5px rgba(0,0,0,0.025)',
           }}
         >
           <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, fontWeight: 900, color: '#1a1a1a' }}>
@@ -5196,10 +5212,11 @@ function AvailabilityTable({ availability, onChange }) {
             <label style={{ ...smallLabelStyle, marginBottom: 4 }}>Desde</label>
             <input
               type="time"
+              className="tay-clean-picker"
               value={day.startTime || '09:00'}
               disabled={!day.isActive}
               onChange={(event) => onChange(day.dayOfWeek, 'startTime', event.target.value)}
-              style={{ ...inputStyle, marginBottom: 0, opacity: day.isActive ? 1 : 0.55 }}
+              style={{ ...inputStyle, marginBottom: 0, borderRadius: 14, border: '0.5px solid #e2e2e8', background: day.isActive ? '#fff' : '#f7f7fb', boxShadow: day.isActive ? '0 2px 8px rgba(0,0,0,0.03)' : 'none', cursor: day.isActive ? 'text' : 'not-allowed', opacity: day.isActive ? 1 : 0.55 }}
             />
           </div>
 
@@ -5207,10 +5224,11 @@ function AvailabilityTable({ availability, onChange }) {
             <label style={{ ...smallLabelStyle, marginBottom: 4 }}>Hasta</label>
             <input
               type="time"
+              className="tay-clean-picker"
               value={day.endTime || '18:00'}
               disabled={!day.isActive}
               onChange={(event) => onChange(day.dayOfWeek, 'endTime', event.target.value)}
-              style={{ ...inputStyle, marginBottom: 0, opacity: day.isActive ? 1 : 0.55 }}
+              style={{ ...inputStyle, marginBottom: 0, borderRadius: 14, border: '0.5px solid #e2e2e8', background: day.isActive ? '#fff' : '#f7f7fb', boxShadow: day.isActive ? '0 2px 8px rgba(0,0,0,0.03)' : 'none', cursor: day.isActive ? 'text' : 'not-allowed', opacity: day.isActive ? 1 : 0.55 }}
             />
           </div>
         </div>
@@ -5452,9 +5470,10 @@ function AvailabilitySection() {
             <label style={smallLabelStyle}>Fecha</label>
             <input
               type="date"
+              className="tay-clean-picker"
               value={blockForm.blockDate}
               onChange={(event) => setBlockForm({ ...blockForm, blockDate: event.target.value })}
-              style={{ ...inputStyle, marginBottom: 0 }}
+              style={{ ...inputStyle, marginBottom: 0, borderRadius: 14, border: '0.5px solid #e2e2e8', background: '#fff', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', cursor: 'text' }}
             />
           </div>
 
@@ -5462,10 +5481,11 @@ function AvailabilitySection() {
             <label style={smallLabelStyle}>Desde</label>
             <input
               type="time"
+              className="tay-clean-picker"
               value={blockForm.startTime}
               disabled={blockForm.isFullDay}
               onChange={(event) => setBlockForm({ ...blockForm, startTime: event.target.value })}
-              style={{ ...inputStyle, marginBottom: 0, opacity: blockForm.isFullDay ? 0.55 : 1 }}
+              style={{ ...inputStyle, marginBottom: 0, borderRadius: 14, border: '0.5px solid #e2e2e8', background: blockForm.isFullDay ? '#f7f7fb' : '#fff', boxShadow: blockForm.isFullDay ? 'none' : '0 2px 8px rgba(0,0,0,0.03)', cursor: blockForm.isFullDay ? 'not-allowed' : 'text', opacity: blockForm.isFullDay ? 0.55 : 1 }}
             />
           </div>
 
@@ -5473,10 +5493,11 @@ function AvailabilitySection() {
             <label style={smallLabelStyle}>Hasta</label>
             <input
               type="time"
+              className="tay-clean-picker"
               value={blockForm.endTime}
               disabled={blockForm.isFullDay}
               onChange={(event) => setBlockForm({ ...blockForm, endTime: event.target.value })}
-              style={{ ...inputStyle, marginBottom: 0, opacity: blockForm.isFullDay ? 0.55 : 1 }}
+              style={{ ...inputStyle, marginBottom: 0, borderRadius: 14, border: '0.5px solid #e2e2e8', background: blockForm.isFullDay ? '#f7f7fb' : '#fff', boxShadow: blockForm.isFullDay ? 'none' : '0 2px 8px rgba(0,0,0,0.03)', cursor: blockForm.isFullDay ? 'not-allowed' : 'text', opacity: blockForm.isFullDay ? 0.55 : 1 }}
             />
           </div>
         </div>
@@ -5486,7 +5507,7 @@ function AvailabilitySection() {
             value={blockForm.reason}
             onChange={(event) => setBlockForm({ ...blockForm, reason: event.target.value })}
             placeholder="Motivo opcional"
-            style={{ ...inputStyle, marginBottom: 0 }}
+            style={{ ...inputStyle, marginBottom: 0, borderRadius: 14, border: '0.5px solid #e2e2e8', background: '#fff', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', cursor: 'text' }}
           />
 
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 800, color: '#1a1a1a', whiteSpace: 'nowrap' }}>
