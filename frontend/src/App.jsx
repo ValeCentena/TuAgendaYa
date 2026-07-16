@@ -7152,6 +7152,173 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
 }
 
 
+
+function ProfessionalSettingsSection() {
+  const token = localStorage.getItem('tuagendaya_token');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const [settings, setSettings] = useState({
+    notifyNewBooking: true,
+    notifyReminder: true,
+    reminderHoursBefore: 2,
+    allowClientCancellations: true,
+    cancellationLimitMinutes: 0,
+    acceptedPaymentMethods: ['cash', 'transfer', 'card'],
+  });
+
+  const paymentOptions = [
+    { value: 'cash', label: 'Efectivo' },
+    { value: 'transfer', label: 'Transferencia' },
+    { value: 'card', label: 'Débito / POS' },
+  ];
+
+  const loadSettings = useCallback(() => {
+    if (!token) return;
+
+    setLoading(true);
+    setError('');
+
+    fetch(`${API_BASE}/professionals/me/settings`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((response) => response.json().then((data) => ({ response, data })))
+      .then(({ response, data }) => {
+        if (!response.ok) {
+          throw new Error(data.error || 'No se pudo cargar la configuración.');
+        }
+
+        const next = data.settings || data || {};
+        setSettings({
+          notifyNewBooking: Boolean(next.notifyNewBooking ?? next.notify_new_booking ?? true),
+          notifyReminder: Boolean(next.notifyReminder ?? next.notify_reminder ?? true),
+          reminderHoursBefore: 2,
+          allowClientCancellations: Boolean(next.allowClientCancellations ?? next.allow_client_cancellations ?? true),
+          cancellationLimitMinutes: Number(next.cancellationLimitMinutes ?? next.cancellation_limit_minutes ?? 0) || 0,
+          acceptedPaymentMethods: Array.isArray(next.acceptedPaymentMethods)
+            ? next.acceptedPaymentMethods
+            : String(next.accepted_payment_methods || 'cash,transfer,card').split(',').map((item) => item.trim()).filter(Boolean),
+        });
+      })
+      .catch((err) => setError(err.message || 'No se pudo cargar la configuración.'))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  useEffect(() => {
+    loadSettings();
+  }, [loadSettings]);
+
+  const togglePaymentMethod = (value) => {
+    setSettings((current) => {
+      const currentMethods = Array.isArray(current.acceptedPaymentMethods) ? current.acceptedPaymentMethods : [];
+      const exists = currentMethods.includes(value);
+      const nextMethods = exists ? currentMethods.filter((item) => item !== value) : [...currentMethods, value];
+      return { ...current, acceptedPaymentMethods: nextMethods.length > 0 ? nextMethods : currentMethods };
+    });
+  };
+
+  const saveSettings = async () => {
+    if (!token) return;
+    setSaving(true);
+    setMessage('');
+    setError('');
+
+    try {
+      const response = await fetch(`${API_BASE}/professionals/me/settings`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          notifyNewBooking: settings.notifyNewBooking,
+          notifyReminder: settings.notifyReminder,
+          reminderHoursBefore: 2,
+          allowClientCancellations: settings.allowClientCancellations,
+          cancellationLimitMinutes: Number(settings.cancellationLimitMinutes) || 0,
+          acceptedPaymentMethods: settings.acceptedPaymentMethods,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'No se pudo guardar la configuración.');
+      if (data.settings) setSettings((current) => ({ ...current, ...data.settings, reminderHoursBefore: 2 }));
+      setMessage('Configuración guardada correctamente.');
+    } catch (err) {
+      setError(err.message || 'No se pudo guardar la configuración.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const rowStyle = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, padding: '14px 0', borderBottom: '0.5px solid #ececf2' };
+  const titleStyle = { fontSize: 14, fontWeight: 900, color: '#1a1a1a' };
+  const textStyle = { fontSize: 12, color: '#6e6e73', fontWeight: 700, lineHeight: 1.4, marginTop: 3 };
+
+  if (loading) {
+    return (
+      <div style={{ background: '#fff', borderRadius: 22, padding: 22, boxShadow: '0 1px 8px rgba(0,0,0,0.06)', color: '#8e8e93', fontWeight: 800 }}>
+        Cargando ajustes...
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ background: '#fff', borderRadius: 22, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
+      <div style={{ fontSize: 18, fontWeight: 900, color: '#1a1a1a', marginBottom: 4 }}>Ajustes del negocio</div>
+      <div style={{ fontSize: 13, color: '#6e6e73', lineHeight: 1.45, marginBottom: 12 }}>
+        Configuración práctica para reservas, avisos y métodos de pago. Sin bloqueo por anticipación: el cliente puede reservar aunque falten pocos minutos.
+      </div>
+
+      <div style={rowStyle}>
+        <div><div style={titleStyle}>Nueva reserva</div><div style={textStyle}>Avisar al profesional cuando entra una reserva nueva.</div></div>
+        <input type="checkbox" checked={settings.notifyNewBooking} onChange={(event) => setSettings({ ...settings, notifyNewBooking: event.target.checked })} style={{ width: 22, height: 22 }} />
+      </div>
+
+      <div style={rowStyle}>
+        <div><div style={titleStyle}>Recordatorio automático</div><div style={textStyle}>Enviar recordatorio 2 horas antes del turno.</div></div>
+        <input type="checkbox" checked={settings.notifyReminder} onChange={(event) => setSettings({ ...settings, notifyReminder: event.target.checked, reminderHoursBefore: 2 })} style={{ width: 22, height: 22 }} />
+      </div>
+
+      <div style={rowStyle}>
+        <div><div style={titleStyle}>Cancelación del cliente</div><div style={textStyle}>Permitir que el cliente cancele desde su link de confirmación.</div></div>
+        <input type="checkbox" checked={settings.allowClientCancellations} onChange={(event) => setSettings({ ...settings, allowClientCancellations: event.target.checked })} style={{ width: 22, height: 22 }} />
+      </div>
+
+      <div style={{ ...rowStyle, alignItems: 'flex-start' }}>
+        <div><div style={titleStyle}>Límite para cancelar</div><div style={textStyle}>Esto no limita reservas nuevas. Solo controla hasta cuándo puede cancelar el cliente.</div></div>
+        <select value={String(settings.cancellationLimitMinutes)} onChange={(event) => setSettings({ ...settings, cancellationLimitMinutes: Number(event.target.value) })} disabled={!settings.allowClientCancellations} style={{ ...inputStyle, width: 220, marginBottom: 0 }}>
+          <option value="0">Hasta la hora del turno</option>
+          <option value="30">Hasta 30 min antes</option>
+          <option value="60">Hasta 1 hora antes</option>
+          <option value="120">Hasta 2 horas antes</option>
+          <option value="1440">Hasta 24 horas antes</option>
+        </select>
+      </div>
+
+      <div style={{ padding: '14px 0', borderBottom: '0.5px solid #ececf2' }}>
+        <div style={titleStyle}>Métodos de pago aceptados</div>
+        <div style={textStyle}>Se usan como referencia para caja y reservas.</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10, marginTop: 12 }}>
+          {paymentOptions.map((option) => (
+            <label key={option.value} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f7f7fb', border: '0.5px solid #ececf2', borderRadius: 14, padding: 12, fontSize: 13, fontWeight: 900, color: '#1a1a1a' }}>
+              <input type="checkbox" checked={(settings.acceptedPaymentMethods || []).includes(option.value)} onChange={() => togglePaymentMethod(option.value)} style={{ width: 18, height: 18 }} />
+              {option.label}
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {error && <div style={{ marginTop: 12, color: '#ff453a', fontSize: 13, fontWeight: 800 }}>{error}</div>}
+      {message && <div style={{ marginTop: 12, color: '#188038', fontSize: 13, fontWeight: 800 }}>{message}</div>}
+      <button type="button" onClick={saveSettings} disabled={saving} style={{ marginTop: 16, border: 'none', borderRadius: 16, padding: '13px 16px', background: saving ? '#aeaeb2' : '#0071e3', color: '#fff', fontSize: 14, fontWeight: 900, fontFamily: 'inherit', cursor: saving ? 'not-allowed' : 'pointer' }}>
+        {saving ? 'Guardando...' : 'Guardar ajustes'}
+      </button>
+    </div>
+  );
+}
+
 function ConfigurationSection() {
   const [openPanel, setOpenPanel] = useState(null);
 
@@ -7173,6 +7340,12 @@ function ConfigurationSection() {
       title: 'Disponibilidad',
       description: 'Definí días, horarios y duración base de los turnos.',
       action: 'Gestionar horarios',
+    },
+    {
+      key: 'settings',
+      title: 'Ajustes',
+      description: 'Notificaciones, cancelaciones del cliente y métodos de pago.',
+      action: 'Gestionar ajustes',
     },
   ];
 
@@ -7226,6 +7399,10 @@ function ConfigurationSection() {
       return <AvailabilitySection />;
     }
 
+    if (openPanel === 'settings') {
+      return <ProfessionalSettingsSection />;
+    }
+
     return null;
   };
 
@@ -7239,7 +7416,7 @@ function ConfigurationSection() {
           Elegí qué querés configurar. Todo queda ordenado en un solo lugar, sin llenar la pantalla de información innecesaria.
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12, marginTop: 18 }} className="config-summary-grid">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginTop: 18 }} className="config-summary-grid">
           {panels.map((panel) => (
             <button
               key={panel.key}

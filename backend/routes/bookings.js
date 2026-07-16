@@ -165,6 +165,51 @@ async function ensurePaymentColumns() {
   );
 }
 
+
+async function ensureProfessionalSettingsColumns() {
+  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS notify_new_booking INTEGER DEFAULT 1`);
+  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS notify_reminder INTEGER DEFAULT 1`);
+  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS reminder_hours_before INTEGER DEFAULT 2`);
+  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS min_advance_hours INTEGER DEFAULT 0`);
+  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS allow_client_cancellations INTEGER DEFAULT 1`);
+  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS cancellation_limit_minutes INTEGER DEFAULT 0`);
+  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS accepted_payment_methods TEXT DEFAULT 'cash,transfer,card'`);
+}
+
+function normalizePaymentMethodList(value) {
+  const allowed = ['cash', 'transfer', 'card'];
+  const list = Array.isArray(value) ? value : String(value || 'cash,transfer,card').split(',');
+  const clean = list.map((item) => String(item || '').trim()).filter((item) => allowed.includes(item));
+  return clean.length > 0 ? Array.from(new Set(clean)) : ['cash'];
+}
+
+async function getProfessionalSettings(professionalId) {
+  await ensureProfessionalSettingsColumns();
+  const result = await db.query(
+    `SELECT notify_new_booking, notify_reminder, reminder_hours_before,
+            allow_client_cancellations, cancellation_limit_minutes, accepted_payment_methods
+     FROM professionals WHERE id = $1 LIMIT 1`,
+    [professionalId]
+  );
+  const row = result.rows[0] || {};
+  return {
+    notifyNewBooking: row.notify_new_booking === null || row.notify_new_booking === undefined ? true : String(row.notify_new_booking) !== '0' && String(row.notify_new_booking) !== 'false',
+    notifyReminder: row.notify_reminder === null || row.notify_reminder === undefined ? true : String(row.notify_reminder) !== '0' && String(row.notify_reminder) !== 'false',
+    reminderHoursBefore: Number(row.reminder_hours_before || 2),
+    allowClientCancellations: row.allow_client_cancellations === null || row.allow_client_cancellations === undefined ? true : String(row.allow_client_cancellations) !== '0' && String(row.allow_client_cancellations) !== 'false',
+    cancellationLimitMinutes: Number(row.cancellation_limit_minutes || 0),
+    acceptedPaymentMethods: normalizePaymentMethodList(row.accepted_payment_methods),
+  };
+}
+
+function getBookingStartDateTime(booking) {
+  const date = normalizeDate(booking.booking_date);
+  const time = normalizeTime(booking.start_time) || '00:00';
+  if (!date) return null;
+  const parsed = new Date(`${date}T${time}:00-03:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 async function ensureCashClosuresTable() {
   await db.query(`
     CREATE TABLE IF NOT EXISTS cash_closures (
@@ -1008,6 +1053,8 @@ router.post("/public/:slug/book", async (req, res) => {
       service_id,
       staffId,
       staff_id,
+      paymentMethod,
+      payment_method,
     } = req.body;
 
     if (!clientName || !clientPhone) {
@@ -1029,6 +1076,12 @@ router.post("/public/:slug/book", async (req, res) => {
         error: "Profesional no encontrado",
       });
     }
+
+    const settings = await getProfessionalSettings(professional.id);
+    const requestedPaymentMethod = String(paymentMethod || payment_method || settings.acceptedPaymentMethods[0] || "cash").trim();
+    const finalPaymentMethod = settings.acceptedPaymentMethods.includes(requestedPaymentMethod)
+      ? requestedPaymentMethod
+      : settings.acceptedPaymentMethods[0] || "cash";
 
     const finalServiceId = serviceId || service_id || null;
     const finalStaffId = staffId || staff_id || null;
@@ -1336,6 +1389,35 @@ router.patch("/public/confirmation/:token/confirm", async (req, res) => {
 router.patch("/public/confirmation/:token/cancel", async (req, res) => {
   try {
     const { token } = req.params;
+
+    const existing = await db.query(
+      `
+      SELECT b.*
+      FROM bookings b
+      WHERE b.confirmation_token = $1
+      LIMIT 1
+      `,
+      [token]
+    );
+
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ error: "Reserva no encontrada" });
+    }
+
+    const booking = existing.rows[0];
+    const settings = await getProfessionalSettings(booking.professional_id);
+
+    if (!settings.allowClientCancellations) {
+      return res.status(403).json({ error: "Este negocio no permite cancelar desde el link. Comunicate directamente con el profesional." });
+    }
+
+    if (settings.cancellationLimitMinutes > 0) {
+      const startDateTime = getBookingStartDateTime(booking);
+      const minutesUntilBooking = startDateTime ? Math.floor((startDateTime.getTime() - Date.now()) / 60000) : null;
+      if (minutesUntilBooking !== null && minutesUntilBooking < settings.cancellationLimitMinutes) {
+        return res.status(403).json({ error: "Ya no es posible cancelar desde el link. Comunicate directamente con el profesional." });
+      }
+    }
 
     const result = await db.query(
       `

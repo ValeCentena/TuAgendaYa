@@ -139,6 +139,46 @@ function getDefaultServices(profession) {
 }
 
 
+
+async function ensureProfessionalSettingsColumns() {
+  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS notify_new_booking INTEGER DEFAULT 1`);
+  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS notify_cancellation INTEGER DEFAULT 1`);
+  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS notify_reminder INTEGER DEFAULT 1`);
+  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS reminder_hours_before INTEGER DEFAULT 2`);
+  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS min_advance_hours INTEGER DEFAULT 0`);
+  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS allow_client_cancellations INTEGER DEFAULT 1`);
+  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS cancellation_limit_minutes INTEGER DEFAULT 0`);
+  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS accepted_payment_methods TEXT DEFAULT 'cash,transfer,card'`);
+  await db.query(`ALTER TABLE professionals ALTER COLUMN min_advance_hours SET DEFAULT 0`).catch(() => {});
+}
+
+function normalizePaymentMethods(value) {
+  const allowed = ['cash', 'transfer', 'card'];
+  const list = Array.isArray(value) ? value : String(value || 'cash,transfer,card').split(',');
+  const clean = list.map((item) => String(item || '').trim()).filter((item) => allowed.includes(item));
+  return clean.length > 0 ? Array.from(new Set(clean)) : ['cash'];
+}
+
+function normalizeSettingsRow(row) {
+  const methods = normalizePaymentMethods(row.accepted_payment_methods);
+  return {
+    notify_new_booking: toBoolInt(row.notify_new_booking) === 1,
+    notifyNewBooking: toBoolInt(row.notify_new_booking) === 1,
+    notify_cancellation: toBoolInt(row.notify_cancellation) === 1,
+    notifyCancellation: toBoolInt(row.notify_cancellation) === 1,
+    notify_reminder: toBoolInt(row.notify_reminder) === 1,
+    notifyReminder: toBoolInt(row.notify_reminder) === 1,
+    reminder_hours_before: Number(row.reminder_hours_before || 2),
+    reminderHoursBefore: Number(row.reminder_hours_before || 2),
+    allow_client_cancellations: toBoolInt(row.allow_client_cancellations) === 1,
+    allowClientCancellations: toBoolInt(row.allow_client_cancellations) === 1,
+    cancellation_limit_minutes: Number(row.cancellation_limit_minutes || 0),
+    cancellationLimitMinutes: Number(row.cancellation_limit_minutes || 0),
+    accepted_payment_methods: methods.join(','),
+    acceptedPaymentMethods: methods,
+  };
+}
+
 function parsePositiveInt(v, fallback = null) {
   if (v === null || v === undefined || v === false || v === '' ||
       v === 'false' || v === 'null' || v === 'undefined') {
@@ -219,6 +259,58 @@ async function syncActiveServicesToLegacyTable(professionalId) {
     }
   }
 }
+
+
+// ══════════════════════════════════════════════════════════════
+// AJUSTES DEL NEGOCIO
+// ══════════════════════════════════════════════════════════════
+
+router.get('/me/settings', authMiddleware, async (req, res) => {
+  try {
+    await ensureProfessionalSettingsColumns();
+    const profId = req.professional.id;
+    const row = (await db.query(
+      `SELECT notify_new_booking, notify_cancellation, notify_reminder, reminder_hours_before,
+              allow_client_cancellations, cancellation_limit_minutes, accepted_payment_methods
+       FROM professionals WHERE id = $1 LIMIT 1`,
+      [profId]
+    )).rows[0];
+    res.json({ settings: normalizeSettingsRow(row || {}) });
+  } catch (err) {
+    console.error('GET /me/settings error:', err);
+    res.status(500).json({ error: 'Error obteniendo ajustes' });
+  }
+});
+
+router.patch('/me/settings', authMiddleware, async (req, res) => {
+  try {
+    await ensureProfessionalSettingsColumns();
+    const profId = req.professional.id;
+    const methods = normalizePaymentMethods(req.body.acceptedPaymentMethods !== undefined ? req.body.acceptedPaymentMethods : req.body.accepted_payment_methods);
+    const notifyNewBooking = toBoolInt(req.body.notifyNewBooking !== undefined ? req.body.notifyNewBooking : req.body.notify_new_booking);
+    const notifyCancellation = toBoolInt(req.body.notifyCancellation !== undefined ? req.body.notifyCancellation : req.body.notify_cancellation);
+    const notifyReminder = toBoolInt(req.body.notifyReminder !== undefined ? req.body.notifyReminder : req.body.notify_reminder);
+    const allowClientCancellations = toBoolInt(req.body.allowClientCancellations !== undefined ? req.body.allowClientCancellations : req.body.allow_client_cancellations);
+    const cancellationLimitMinutes = Math.max(0, parseInt(req.body.cancellationLimitMinutes !== undefined ? req.body.cancellationLimitMinutes : req.body.cancellation_limit_minutes, 10) || 0);
+
+    const row = (await db.query(
+      `UPDATE professionals
+       SET notify_new_booking = $1, notify_cancellation = $2, notify_reminder = $3,
+           reminder_hours_before = 2, min_advance_hours = 0,
+           allow_client_cancellations = $4, cancellation_limit_minutes = $5,
+           accepted_payment_methods = $6, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $7
+       RETURNING notify_new_booking, notify_cancellation, notify_reminder, reminder_hours_before,
+                 allow_client_cancellations, cancellation_limit_minutes, accepted_payment_methods`,
+      [notifyNewBooking, notifyCancellation, notifyReminder, allowClientCancellations, cancellationLimitMinutes, methods.join(','), profId]
+    )).rows[0];
+
+    res.json({ success: true, settings: normalizeSettingsRow(row || {}) });
+  } catch (err) {
+    console.error('PATCH /me/settings error:', err);
+    res.status(500).json({ error: 'Error guardando ajustes' });
+  }
+});
 
 // ══════════════════════════════════════════════════════════════
 // DISPONIBILIDAD
