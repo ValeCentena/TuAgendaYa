@@ -1104,9 +1104,6 @@ router.get("/public/:slug/slots", async (req, res) => {
           error: "Profesional interno no encontrado",
         });
       }
-    } else {
-      const staffRows = await ensureDefaultStaff(professional);
-      staff = staffRows.find((item) => item.is_active === true || item.is_active === 1 || item.is_active === "1") || staffRows[0] || null;
     }
 
     const availability = await getAvailabilityForDate(
@@ -1260,9 +1257,6 @@ router.post("/public/:slug/book", async (req, res) => {
           error: "Profesional interno no encontrado",
         });
       }
-    } else {
-      const staffRows = await ensureDefaultStaff(professional);
-      staff = staffRows.find((item) => item.is_active === true || item.is_active === 1 || item.is_active === "1") || staffRows[0] || null;
     }
 
     const durationMinutes = service ? Number(service.duration_minutes || 30) : 30;
