@@ -7153,6 +7153,43 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
 
 
 
+
+function MinimalCircleCheck({ checked, onChange, disabled = false }) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={() => {
+        if (!disabled && typeof onChange === 'function') {
+          onChange(!checked);
+        }
+      }}
+      style={{
+        width: 24,
+        height: 24,
+        borderRadius: 999,
+        border: checked ? '1.5px solid #0071e3' : '1.5px solid #c7c7cc',
+        background: checked ? '#0071e3' : '#fff',
+        color: '#fff',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: 13,
+        fontWeight: 950,
+        lineHeight: 1,
+        padding: 0,
+        flex: '0 0 auto',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.45 : 1,
+        boxShadow: checked ? '0 4px 10px rgba(0,113,227,0.18)' : 'none',
+      }}
+      aria-pressed={checked}
+    >
+      {checked ? '✓' : ''}
+    </button>
+  );
+}
+
 function ProfessionalSettingsSection() {
   const token = localStorage.getItem('tuagendaya_token');
   const [loading, setLoading] = useState(true);
@@ -7273,17 +7310,17 @@ function ProfessionalSettingsSection() {
 
       <div style={rowStyle}>
         <div><div style={titleStyle}>Nueva reserva</div><div style={textStyle}>Avisar al profesional cuando entra una reserva nueva.</div></div>
-        <input type="checkbox" checked={settings.notifyNewBooking} onChange={(event) => setSettings({ ...settings, notifyNewBooking: event.target.checked })} style={{ width: 22, height: 22 }} />
+        <MinimalCircleCheck checked={settings.notifyNewBooking} onChange={(checked) => setSettings({ ...settings, notifyNewBooking: checked })} />
       </div>
 
       <div style={rowStyle}>
         <div><div style={titleStyle}>Recordatorio automático</div><div style={textStyle}>Enviar recordatorio 2 horas antes del turno.</div></div>
-        <input type="checkbox" checked={settings.notifyReminder} onChange={(event) => setSettings({ ...settings, notifyReminder: event.target.checked, reminderHoursBefore: 2 })} style={{ width: 22, height: 22 }} />
+        <MinimalCircleCheck checked={settings.notifyReminder} onChange={(checked) => setSettings({ ...settings, notifyReminder: checked, reminderHoursBefore: 2 })} />
       </div>
 
       <div style={rowStyle}>
         <div><div style={titleStyle}>Cancelación del cliente</div><div style={textStyle}>Permitir que el cliente cancele desde su link de confirmación.</div></div>
-        <input type="checkbox" checked={settings.allowClientCancellations} onChange={(event) => setSettings({ ...settings, allowClientCancellations: event.target.checked })} style={{ width: 22, height: 22 }} />
+        <MinimalCircleCheck checked={settings.allowClientCancellations} onChange={(checked) => setSettings({ ...settings, allowClientCancellations: checked })} />
       </div>
 
       <div style={{ ...rowStyle, alignItems: 'flex-start' }}>
@@ -7302,7 +7339,7 @@ function ProfessionalSettingsSection() {
         <div style={textStyle}>Se usan como referencia para caja y reservas.</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10, marginTop: 12 }}>
           {paymentOptions.map((option) => (
-            <label key={option.value} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f7f7fb', border: '0.5px solid #ececf2', borderRadius: 14, padding: 12, fontSize: 13, fontWeight: 900, color: '#1a1a1a' }}>
+            <label key={option.value} style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#f7f7fb', border: settings.acceptedPaymentMethods.includes(option.value) ? '1px solid rgba(0,113,227,0.28)' : '0.5px solid #ececf2', borderRadius: 14, padding: 12, fontSize: 13, fontWeight: 900, color: '#1a1a1a', cursor: 'pointer' }}>
               <input type="checkbox" checked={(settings.acceptedPaymentMethods || []).includes(option.value)} onChange={() => togglePaymentMethod(option.value)} style={{ width: 18, height: 18 }} />
               {option.label}
             </label>

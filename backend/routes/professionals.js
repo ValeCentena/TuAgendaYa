@@ -619,13 +619,41 @@ router.delete('/me/services/:id', authMiddleware, async (req, res) => {
 });
 
 
+
+router.get('/public/:slug/settings', async (req, res) => {
+  try {
+    await ensureProfessionalSettingsColumns();
+
+    const slug = String(req.params.slug || '').trim();
+    const row = (await db.query(
+      `SELECT notify_new_booking, notify_cancellation, notify_reminder, reminder_hours_before,
+              allow_client_cancellations, cancellation_limit_minutes, accepted_payment_methods
+       FROM professionals
+       WHERE slug = $1 AND (status IS NULL OR status = 'active')
+       LIMIT 1`,
+      [slug]
+    )).rows[0];
+
+    if (!row) {
+      return res.status(404).json({ error: 'Profesional no encontrado' });
+    }
+
+    res.json({ settings: normalizeSettingsRow(row) });
+  } catch (err) {
+    console.error('GET /public/:slug/settings error:', err);
+    res.status(500).json({ error: 'Error obteniendo ajustes públicos' });
+  }
+});
+
 // GET público de servicios por slug.
 // Sirve para la página pública de reservas si consulta /api/professionals/public/:slug/services.
 router.get('/public/:slug/services', async (req, res) => {
   try {
     const slug = String(req.params.slug || '').trim();
     const prof = (await db.query(
-      `SELECT id, name, business_name, profession, slug, logo_url
+      `SELECT id, name, business_name, profession, slug, logo_url, accepted_payment_methods,
+              notify_new_booking, notify_cancellation, notify_reminder, reminder_hours_before,
+              allow_client_cancellations, cancellation_limit_minutes
        FROM professionals
        WHERE slug = $1 AND (status IS NULL OR status = 'active')
        LIMIT 1`,
@@ -648,7 +676,7 @@ router.get('/public/:slug/services', async (req, res) => {
       [prof.id]
     )).rows.map(normalizeServiceRow);
 
-    return res.json({ professional: prof, services });
+    return res.json({ professional: prof, settings: normalizeSettingsRow(prof), services });
   } catch (err) {
     console.error('GET /public/:slug/services error:', err);
     res.status(500).json({ error: 'Error interno del servidor' });

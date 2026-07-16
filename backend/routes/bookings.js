@@ -893,6 +893,30 @@ router.post("/push/subscribe", async (req, res) => {
   }
 });
 
+
+router.get("/public/:slug/settings", async (req, res) => {
+  try {
+    await ensureProfessionalSettingsColumns();
+
+    const { slug } = req.params;
+    const professional = await getProfessionalBySlug(slug);
+
+    if (!professional) {
+      return res.status(404).json({
+        error: "Profesional no encontrado",
+      });
+    }
+
+    const settings = await getProfessionalSettings(professional.id);
+
+    res.json({ settings });
+  } catch (error) {
+    res.status(500).json({
+      error: error.message || "Error obteniendo ajustes",
+    });
+  }
+});
+
 router.get("/public/:slug/staff", async (req, res) => {
   try {
     const { slug } = req.params;
@@ -914,6 +938,8 @@ router.get("/public/:slug/staff", async (req, res) => {
         address: professional.address || "",
         slug: professional.slug,
         logoUrl: null,
+        acceptedPaymentMethods: normalizePaymentMethodList(professional.accepted_payment_methods),
+        accepted_payment_methods: normalizePaymentMethodList(professional.accepted_payment_methods).join(","),
       },
       staff: staff.map(normalizePublicStaff),
     });
