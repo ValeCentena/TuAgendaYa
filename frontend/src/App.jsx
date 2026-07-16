@@ -5255,6 +5255,11 @@ function AvailabilitySection() {
     isFullDay: false,
     reason: '',
   });
+  const [rangeBlockForm, setRangeBlockForm] = useState({
+    startDate: getLocalDateKeyValue(),
+    endDate: getLocalDateKeyValue(),
+    reason: '',
+  });
 
   const getToken = () => localStorage.getItem('tuagendaya_token');
 
@@ -5399,6 +5404,53 @@ function AvailabilitySection() {
     }
   };
 
+  const saveRangeBlock = async () => {
+    const token = getToken();
+
+    if (!rangeBlockForm.startDate || !rangeBlockForm.endDate) {
+      setError('Elegí fecha desde y hasta.');
+      return;
+    }
+
+    if (rangeBlockForm.endDate < rangeBlockForm.startDate) {
+      setError('La fecha hasta no puede ser anterior a la fecha desde.');
+      return;
+    }
+
+    setSavingBlock(true);
+    setMessage('');
+    setError('');
+
+    try {
+      const response = await fetch(`${API_BASE}/bookings/blocks/range`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(rangeBlockForm),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'No se pudo bloquear el rango.');
+      }
+
+      setBlockedTimes(Array.isArray(data.blocks) ? data.blocks.map(normalizeBlockedTime) : []);
+      setRangeBlockForm({
+        startDate: getLocalDateKeyValue(),
+        endDate: getLocalDateKeyValue(),
+        reason: '',
+      });
+      setMessage('Rango bloqueado correctamente.');
+    } catch (err) {
+      setError(err.message || 'No se pudo bloquear el rango.');
+    } finally {
+      setSavingBlock(false);
+    }
+  };
+
   const deleteBlock = async (blockId) => {
     const token = getToken();
     const confirmed = window.confirm('¿Querés liberar este bloqueo?');
@@ -5530,6 +5582,53 @@ function AvailabilitySection() {
           style={{ marginTop: 12, padding: '12px 16px', borderRadius: 14, border: 'none', background: savingBlock ? '#aeaeb2' : '#0071e3', color: '#fff', fontSize: 14, fontWeight: 850, fontFamily: 'inherit', cursor: savingBlock ? 'not-allowed' : 'pointer' }}
         >
           {savingBlock ? 'Guardando...' : 'Bloquear horario'}
+        </button>
+
+        <div style={{ height: 1, background: '#eeeeef', margin: '18px 0' }} />
+
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 15, fontWeight: 900, color: '#1a1a1a' }}>Bloquear rango de fechas</div>
+          <div style={{ fontSize: 12.5, color: '#6e6e73', marginTop: 4, fontWeight: 700 }}>
+            Para vacaciones, feriados o días completos sin atención.
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+          <div>
+            <label style={smallLabelStyle}>Desde</label>
+            <DatePickerField
+              value={rangeBlockForm.startDate}
+              onChange={(value) => setRangeBlockForm((current) => ({ ...current, startDate: value, endDate: current.endDate < value ? value : current.endDate }))}
+              placeholder="Fecha inicial"
+              allowPast={false}
+            />
+          </div>
+
+          <div>
+            <label style={smallLabelStyle}>Hasta</label>
+            <DatePickerField
+              value={rangeBlockForm.endDate}
+              onChange={(value) => setRangeBlockForm({ ...rangeBlockForm, endDate: value })}
+              placeholder="Fecha final"
+              allowPast={false}
+            />
+          </div>
+        </div>
+
+        <input
+          value={rangeBlockForm.reason}
+          onChange={(event) => setRangeBlockForm({ ...rangeBlockForm, reason: event.target.value })}
+          placeholder="Motivo opcional, por ejemplo vacaciones"
+          style={{ ...inputStyle, marginBottom: 0, borderRadius: 14, border: '0.5px solid #e2e2e8', background: '#fff', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', cursor: 'text' }}
+        />
+
+        <button
+          type="button"
+          onClick={saveRangeBlock}
+          disabled={savingBlock}
+          style={{ marginTop: 12, padding: '12px 16px', borderRadius: 14, border: 'none', background: savingBlock ? '#aeaeb2' : '#1c1c1e', color: '#fff', fontSize: 14, fontWeight: 850, fontFamily: 'inherit', cursor: savingBlock ? 'not-allowed' : 'pointer' }}
+        >
+          {savingBlock ? 'Guardando...' : 'Bloquear rango'}
         </button>
 
         <div style={{ marginTop: 18, display: 'grid', gap: 8 }}>

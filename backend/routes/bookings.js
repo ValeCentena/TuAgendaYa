@@ -1013,6 +1013,72 @@ router.post("/blocks", async (req, res) => {
   }
 });
 
+
+router.post("/blocks/range", async (req, res) => {
+  try {
+    await ensureBlockedTimesTable();
+
+    const professionalId = getProfessionalIdFromRequest(req);
+    const startDate = normalizeDate(req.body.startDate ?? req.body.start_date);
+    const endDate = normalizeDate(req.body.endDate ?? req.body.end_date);
+    const reason = String(req.body.reason || "").trim() || null;
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: "Las fechas desde y hasta son obligatorias" });
+    }
+
+    if (endDate < startDate) {
+      return res.status(400).json({ error: "La fecha hasta no puede ser anterior a la fecha desde" });
+    }
+
+    const start = new Date(`${startDate}T00:00:00`);
+    const end = new Date(`${endDate}T00:00:00`);
+    const days = [];
+
+    for (let current = new Date(start); current <= end; current.setDate(current.getDate() + 1)) {
+      const year = current.getFullYear();
+      const month = String(current.getMonth() + 1).padStart(2, "0");
+      const day = String(current.getDate()).padStart(2, "0");
+      days.push(`${year}-${month}-${day}`);
+    }
+
+    if (days.length > 90) {
+      return res.status(400).json({ error: "El rango máximo permitido es de 90 días" });
+    }
+
+    for (const day of days) {
+      await db.query(
+        `
+        INSERT INTO blocked_times (
+          professional_id,
+          staff_id,
+          block_date,
+          start_time,
+          end_time,
+          is_full_day,
+          reason,
+          created_at,
+          updated_at
+        )
+        VALUES ($1, NULL, $2, NULL, NULL, true, $3, NOW(), NOW())
+        `,
+        [professionalId, day, reason]
+      );
+    }
+
+    const blocks = await listBlockedTimes(professionalId);
+
+    res.status(201).json({
+      success: true,
+      blocks,
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({
+      error: error.message || "Error guardando rango bloqueado",
+    });
+  }
+});
+
 router.delete("/blocks/:id", async (req, res) => {
   try {
     await ensureBlockedTimesTable();
