@@ -858,9 +858,14 @@ function UnifiedLoginPage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    // /login debe mostrar siempre la pantalla de inicio de sesión.
-    // No redirigimos automáticamente por tokens guardados.
-  }, []);
+    const searchParams = new URLSearchParams(location.search);
+    const forceProfessional = searchParams.get('tipo') === 'profesional';
+    const professionalToken = localStorage.getItem('tuagendaya_token');
+
+    if (forceProfessional && professionalToken) {
+      navigate('/profesional/dashboard', { replace: true });
+    }
+  }, [location.search, navigate]);
 
   const loginAsAdmin = async () => {
     const response = await fetch(`${API_BASE}/admin/login`, {
@@ -899,9 +904,12 @@ function UnifiedLoginPage() {
     localStorage.removeItem('tuagendaya_admin_token');
     localStorage.removeItem('tuagendaya_admin_user');
     localStorage.setItem('tuagendaya_token', data.token);
+    localStorage.setItem('tuagendaya_session_persistent', 'true');
 
     if (data.professional) {
       localStorage.setItem('tuagendaya_professional', JSON.stringify(data.professional));
+    } else if (!localStorage.getItem('tuagendaya_professional')) {
+      localStorage.setItem('tuagendaya_professional', JSON.stringify({}));
     }
 
     navigate('/profesional/dashboard', { replace: true });
@@ -8156,6 +8164,7 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
   const handleLogout = () => {
     localStorage.removeItem('tuagendaya_token');
     localStorage.removeItem('tuagendaya_professional');
+    localStorage.removeItem('tuagendaya_session_persistent');
     onLogout();
   };
 
@@ -9476,7 +9485,7 @@ function ProfesionalPage() {
     if (!token) return null;
 
     try {
-      return JSON.parse(localStorage.getItem('tuagendaya_professional'));
+      return JSON.parse(localStorage.getItem('tuagendaya_professional')) || {};
     } catch {
       return {};
     }
@@ -9493,7 +9502,16 @@ function ProfesionalPage() {
   };
 
   if (!professional) {
-    return <LoginForm onLogin={(prof) => setProfessional(normalizeProfessionalFromApi(prof || {}))} />;
+    return (
+      <LoginForm
+        onLogin={(prof) => {
+          const normalized = normalizeProfessionalFromApi(prof || {});
+          localStorage.setItem('tuagendaya_session_persistent', 'true');
+          localStorage.setItem('tuagendaya_professional', JSON.stringify(normalized));
+          setProfessional(normalized);
+        }}
+      />
+    );
   }
 
   return (
@@ -10189,7 +10207,14 @@ export default function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<UnifiedLoginPage />} />
 
-        <Route path="/profesional/login" element={<Navigate to="/login?tipo=profesional" replace />} />
+        <Route
+          path="/profesional/login"
+          element={
+            localStorage.getItem('tuagendaya_token')
+              ? <Navigate to="/profesional/dashboard" replace />
+              : <Navigate to="/login?tipo=profesional" replace />
+          }
+        />
         <Route path="/profesional/register" element={<RegisterPage />} />
         <Route path="/profesional/dashboard" element={<ProfessionalOnlyRoute />} />
 
