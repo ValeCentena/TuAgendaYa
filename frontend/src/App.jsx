@@ -8233,6 +8233,14 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
           font-family: inherit;
         }
 
+        .config-tab-icon {
+          display: none;
+        }
+
+        .config-tab-text {
+          display: inline;
+        }
+
         @media (max-width: 720px) {
           html, body, #root {
             width: 100%;
@@ -8337,6 +8345,14 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
             width: 100% !important;
             padding-left: 0 !important;
             padding-right: 0 !important;
+          }
+
+          .dashboard-tabs .config-tab-text {
+            display: none !important;
+          }
+
+          .dashboard-tabs .config-tab-icon {
+            display: block !important;
           }
 
           .dashboard-content-swipe {
@@ -8559,7 +8575,8 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
             aria-label="Configuración"
             title="Configuración"
           >
-            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <span className="config-tab-text">Configuración</span>
+            <svg className="config-tab-icon" width="21" height="21" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <circle cx="12" cy="12" r="3.15" stroke="currentColor" strokeWidth="1.9" />
               <path d="M12 2.9v2.05M12 19.05v2.05M5.56 5.56l1.45 1.45M16.99 16.99l1.45 1.45M2.9 12h2.05M19.05 12h2.05M5.56 18.44l1.45-1.45M16.99 7.01l1.45-1.45" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
               <circle cx="12" cy="12" r="7.25" stroke="currentColor" strokeWidth="1.45" opacity="0.55" />
