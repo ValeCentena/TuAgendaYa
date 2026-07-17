@@ -3897,6 +3897,58 @@ function CashSection() {
     .filter((booking) => getBookingPaymentStatus(booking) !== 'paid' || Math.max(getServicePrice(booking) - getPaidAmount(booking), 0) > 0)
     .slice(0, 6);
 
+  const cancelledTotal = dayBookings
+    .filter((booking) => booking.status === 'cancelled')
+    .reduce((sum, booking) => sum + getServicePrice(booking), 0);
+
+  const dailyCloseChecklist = [
+    {
+      label: 'Reservas completadas',
+      done: completedBookings.length > 0 && completedWithoutPaymentCount === 0,
+      detail: completedWithoutPaymentCount > 0 ? `${completedWithoutPaymentCount} sin marcar como pagada` : `${completedBookings.length} completada${completedBookings.length === 1 ? '' : 's'}`,
+    },
+    {
+      label: 'Pagos registrados',
+      done: totalPending <= 0 && unpaidBookingsCount === 0,
+      detail: totalPending > 0 ? `${formatMoney(totalPending)} por cobrar` : 'Sin pendientes',
+    },
+    {
+      label: 'Arqueo cargado',
+      done: countedTotal > 0,
+      detail: countedTotal > 0 ? `Contado ${formatMoney(countedTotal)}` : 'Ingresá efectivo, transferencia y POS',
+    },
+    {
+      label: 'Caja cuadrada',
+      done: countedTotal > 0 && !needsCashReview,
+      detail: countedTotal === 0 ? 'Falta arqueo' : needsCashReview ? `Diferencia ${formatMoney(cashDifference)}` : 'Sin diferencias',
+    },
+  ];
+
+  const closeReadyCount = dailyCloseChecklist.filter((item) => item.done).length;
+  const closeReadyPercent = Math.round((closeReadyCount / dailyCloseChecklist.length) * 100);
+
+  const dailyMethodRows = [
+    { key: 'cash', label: 'Efectivo', expected: expectedByMethod.cash, counted: countedByMethod.cash },
+    { key: 'transfer', label: 'Transferencia', expected: expectedByMethod.transfer, counted: countedByMethod.transfer },
+    { key: 'card', label: 'Débito / POS', expected: expectedByMethod.card, counted: countedByMethod.card },
+    { key: 'other', label: 'Otro', expected: expectedByMethod.other, counted: countedByMethod.other },
+  ];
+
+  const dailyFocusCardStyle = {
+    background: '#fff',
+    borderRadius: 24,
+    padding: '18px 18px',
+    boxShadow: '0 1px 8px rgba(0,0,0,0.06)',
+    border: '0.5px solid #ececf2',
+  };
+
+  const dailyMiniMetricStyle = (background = '#f7f7fb') => ({
+    background,
+    borderRadius: 18,
+    padding: 13,
+    border: '0.5px solid rgba(0,0,0,0.035)',
+  });
+
 
   const exportClosureRowsToCsv = (items, filename) => {
     const headers = [
@@ -4001,12 +4053,187 @@ function CashSection() {
 
   return (
     <div style={{ display: 'grid', gap: 16 }}>
+      <div style={dailyFocusCardStyle}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 950, color: '#1a1a1a', letterSpacing: '-0.01em' }}>Caja del día</div>
+            <div style={{ fontSize: 12.5, color: '#6e6e73', fontWeight: 750, marginTop: 4, lineHeight: 1.4 }}>
+              Todo lo necesario para cerrar la jornada desde el teléfono.
+            </div>
+          </div>
+
+          <div style={{ minWidth: 185, flex: '0 0 auto' }}>
+            <DatePickerField value={selectedDate} onChange={(nextDate) => setSelectedDate(nextDate || getLocalDateKeyValue())} placeholder="Elegir día" />
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 9, marginBottom: 10 }}>
+          <div style={dailyMiniMetricStyle('#ecfff3')}>
+            <div style={{ fontSize: 10.5, color: '#188038', fontWeight: 950, marginBottom: 4 }}>COBRADO</div>
+            <div style={{ fontSize: 20, color: '#188038', fontWeight: 950 }}>{formatMoney(totalCollected)}</div>
+          </div>
+          <div style={dailyMiniMetricStyle('#fff8eb')}>
+            <div style={{ fontSize: 10.5, color: '#ff9f0a', fontWeight: 950, marginBottom: 4 }}>POR COBRAR</div>
+            <div style={{ fontSize: 20, color: '#ff9f0a', fontWeight: 950 }}>{formatMoney(totalPending)}</div>
+          </div>
+          <div style={dailyMiniMetricStyle(needsCashReview ? '#fff7e8' : '#edfff3')}>
+            <div style={{ fontSize: 10.5, color: needsCashReview ? '#ff9500' : '#188038', fontWeight: 950, marginBottom: 4 }}>DIFERENCIA</div>
+            <div style={{ fontSize: 20, color: needsCashReview ? '#ff9500' : '#188038', fontWeight: 950 }}>{formatMoney(cashDifference)}</div>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8, marginBottom: 12 }}>
+          <div style={dailyMiniMetricStyle('#f7f7fb')}>
+            <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 950 }}>CITAS</div>
+            <div style={{ fontSize: 16, color: '#1a1a1a', fontWeight: 950, marginTop: 4 }}>{dayBookings.length}</div>
+          </div>
+          <div style={dailyMiniMetricStyle('#f1f0ff')}>
+            <div style={{ fontSize: 10, color: '#5e5ce6', fontWeight: 950 }}>COMPLET.</div>
+            <div style={{ fontSize: 16, color: '#5e5ce6', fontWeight: 950, marginTop: 4 }}>{completedBookings.length}</div>
+          </div>
+          <div style={dailyMiniMetricStyle('#fff8eb')}>
+            <div style={{ fontSize: 10, color: '#ff9500', fontWeight: 950 }}>PEND.</div>
+            <div style={{ fontSize: 16, color: '#ff9500', fontWeight: 950, marginTop: 4 }}>{pendingBookings.length}</div>
+          </div>
+          <div style={dailyMiniMetricStyle('#fff1f0')}>
+            <div style={{ fontSize: 10, color: '#ff453a', fontWeight: 950 }}>CANC.</div>
+            <div style={{ fontSize: 16, color: '#ff453a', fontWeight: 950, marginTop: 4 }}>{cancelledBookings.length}</div>
+          </div>
+        </div>
+
+        <div style={{ background: '#f7f7fb', borderRadius: 20, padding: 13, marginBottom: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 9 }}>
+            <div style={{ fontSize: 13, fontWeight: 950, color: '#1a1a1a' }}>Arqueo rápido</div>
+            <div style={{ fontSize: 11.5, fontWeight: 950, color: closeReadyPercent === 100 ? '#188038' : '#0071e3' }}>
+              {closeReadyCount}/{dailyCloseChecklist.length} listo
+            </div>
+          </div>
+
+          <div style={{ height: 7, borderRadius: 999, background: '#e5e5ea', overflow: 'hidden', marginBottom: 12 }}>
+            <div style={{ width: `${closeReadyPercent}%`, height: '100%', background: closeReadyPercent === 100 ? '#30d158' : '#0071e3', borderRadius: 999 }} />
+          </div>
+
+          <div style={{ display: 'grid', gap: 7 }}>
+            {dailyCloseChecklist.map((item) => (
+              <div key={item.label} style={{ display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr)', gap: 9, alignItems: 'start' }}>
+                <div style={{ width: 20, height: 20, borderRadius: 999, background: item.done ? '#30d158' : '#e5e5ea', color: item.done ? '#fff' : '#8e8e93', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 950 }}>
+                  {item.done ? '✓' : '•'}
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 12.5, color: '#1a1a1a', fontWeight: 900 }}>{item.label}</div>
+                  <div style={{ fontSize: 11.5, color: '#6e6e73', fontWeight: 750, marginTop: 1 }}>{item.detail}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 9, marginBottom: 12 }}>
+          {[
+            { key: 'cash', label: 'Efectivo', value: cashCount, setter: setCashCount },
+            { key: 'transfer', label: 'Transferencia', value: transferCount, setter: setTransferCount },
+            { key: 'card', label: 'Débito / POS', value: cardCount, setter: setCardCount },
+            { key: 'other', label: 'Otro', value: otherCount, setter: setOtherCount },
+          ].map((item) => (
+            <div key={item.key} style={{ background: '#fbfbfd', border: '0.5px solid #ececf2', borderRadius: 17, padding: 11 }}>
+              <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 950, marginBottom: 4 }}>{item.label}</div>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={item.value}
+                onChange={(event) => item.setter(event.target.value)}
+                placeholder="Contado"
+                style={{ ...inputStyle, borderRadius: 13, padding: '10px 10px', fontSize: 14, marginBottom: 0 }}
+              />
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: 'grid', gap: 7, marginBottom: 12 }}>
+          {dailyMethodRows.map((method) => {
+            const difference = method.counted - method.expected;
+            return (
+              <div key={method.key} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, alignItems: 'center', background: '#fff', border: '0.5px solid #ececf2', borderRadius: 15, padding: '10px 11px' }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 12.5, color: '#1a1a1a', fontWeight: 950 }}>{method.label}</div>
+                  <div style={{ fontSize: 11.5, color: '#8e8e93', fontWeight: 750, marginTop: 2 }}>
+                    Registrado {formatMoney(method.expected)} · Contado {formatMoney(method.counted)}
+                  </div>
+                </div>
+                <div style={{ fontSize: 12, fontWeight: 950, color: Math.abs(difference) > 0.009 ? '#ff9500' : '#188038', whiteSpace: 'nowrap' }}>
+                  {formatMoney(difference)}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {attentionItems.length > 0 && (
+          <div style={{ background: '#fff8eb', border: '0.5px solid #ffe2b8', borderRadius: 18, padding: 12, marginBottom: 12 }}>
+            <div style={{ fontSize: 12.5, color: '#b26a00', fontWeight: 950, marginBottom: 6 }}>Antes de cerrar</div>
+            <div style={{ display: 'grid', gap: 5 }}>
+              {attentionItems.map((item) => (
+                <div key={item} style={{ fontSize: 12, color: '#6e4b00', fontWeight: 800, lineHeight: 1.35 }}>• {item}</div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center' }}>
+          <button
+            type="button"
+            onClick={closeCashDay}
+            disabled={closeLoading || dayBookings.length === 0}
+            style={{
+              border: 'none',
+              borderRadius: 16,
+              padding: '13px 14px',
+              background: closeLoading || dayBookings.length === 0 ? '#f2f2f7' : '#0071e3',
+              color: closeLoading || dayBookings.length === 0 ? '#8e8e93' : '#fff',
+              fontSize: 13.5,
+              fontWeight: 950,
+              fontFamily: 'inherit',
+              cursor: closeLoading || dayBookings.length === 0 ? 'not-allowed' : 'pointer',
+              boxShadow: closeLoading || dayBookings.length === 0 ? 'none' : '0 10px 22px rgba(0,113,227,0.22)',
+            }}
+          >
+            {closeLoading ? 'Guardando...' : existingClosure ? 'Actualizar cierre' : 'Cerrar caja'}
+          </button>
+
+          <button
+            type="button"
+            onClick={exportCashCsv}
+            disabled={dayBookings.length === 0}
+            style={{
+              border: '0.5px solid #d8d8df',
+              borderRadius: 16,
+              padding: '13px 12px',
+              background: '#fff',
+              color: dayBookings.length === 0 ? '#aeaeb2' : '#1a1a1a',
+              fontSize: 12.5,
+              fontWeight: 950,
+              fontFamily: 'inherit',
+              cursor: dayBookings.length === 0 ? 'not-allowed' : 'pointer',
+            }}
+          >
+            CSV
+          </button>
+        </div>
+
+        {closeMessage && (
+          <div style={{ marginTop: 10, color: closeMessage.toLowerCase().includes('error') || closeMessage.toLowerCase().includes('no se pudo') ? '#ff453a' : '#188038', fontSize: 12.5, fontWeight: 900 }}>
+            {closeMessage}
+          </div>
+        )}
+      </div>
+
       <div style={{ background: '#fff', borderRadius: 22, padding: '22px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 18 }}>
           <div>
-            <div style={{ fontSize: 19, fontWeight: 900, color: '#1a1a1a' }}>Caja diaria</div>
+            <div style={{ fontSize: 19, fontWeight: 900, color: '#1a1a1a' }}>Detalle contable del día</div>
             <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 4, lineHeight: 1.45 }}>
-              Elegí una fecha y mirá todas las reservas, cobros, por cobrar y métodos de pago de ese día.
+              Resumen ampliado del día seleccionado.
             </div>
           </div>
 
@@ -4222,7 +4449,7 @@ function CashSection() {
       <div style={{ background: '#fff', borderRadius: 22, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)', border: '0.5px solid #ececf2' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'flex-start', flexWrap: 'wrap', marginBottom: 14 }}>
           <div>
-            <div style={{ fontSize: 17, fontWeight: 900, color: '#1a1a1a' }}>Arqueo de caja</div>
+            <div style={{ fontSize: 17, fontWeight: 900, color: '#1a1a1a' }}>Arqueo detallado</div>
             <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 750, marginTop: 4, lineHeight: 1.45 }}>
               Ingresá lo contado por método y comparalo con lo registrado en las reservas.
             </div>
@@ -4285,7 +4512,7 @@ function CashSection() {
       <div style={{ background: '#fff', borderRadius: 22, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14, flexWrap: 'wrap' }}>
           <div>
-            <div style={{ fontSize: 17, fontWeight: 900, color: '#1a1a1a' }}>Cierre de caja</div>
+            <div style={{ fontSize: 17, fontWeight: 900, color: '#1a1a1a' }}>Cierre avanzado</div>
             <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 700, marginTop: 4, lineHeight: 1.45 }}>
               Guardá un resumen fijo del día para consultar después en el historial.
             </div>
@@ -8109,6 +8336,16 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
 
           .dashboard-content-swipe {
             touch-action: pan-y;
+          }
+
+          .dashboard-panel input[type="number"] {
+            appearance: textfield;
+          }
+
+          .dashboard-panel input[type="number"]::-webkit-outer-spin-button,
+          .dashboard-panel input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
           }
 
           .dashboard-public-link {
