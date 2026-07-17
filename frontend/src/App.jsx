@@ -8503,12 +8503,14 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
 
           .services-mobile-section > div {
             border-radius: 24px !important;
-            overflow: hidden !important;
+            overflow: visible !important;
           }
 
           .services-mobile-section h2,
           .services-mobile-section h3 {
             letter-spacing: -0.01em !important;
+            padding-left: 2px !important;
+            overflow: visible !important;
           }
 
           .services-mobile-section input,
