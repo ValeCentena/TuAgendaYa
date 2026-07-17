@@ -4626,7 +4626,7 @@ function CashSection() {
                       <div style={{ fontSize: 14, fontWeight: 950 }}>{formatTime(booking.startTime ?? booking.start_time) || '--:--'}</div>
                       <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 800, marginTop: 3 }}>{formatTime(booking.endTime ?? booking.end_time) || ''}</div>
                     </div>
-                    <div style={{ minWidth: 0 }}>
+                    <div className="client-main-info" style={{ minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 950, color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{booking.clientName ?? booking.client_name ?? 'Cliente sin nombre'}</div>
                       <div style={{ fontSize: 12, color: '#6e6e73', fontWeight: 700, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {booking.serviceName ?? booking.service_name ?? 'Servicio'}{booking.staffName || booking.staff_name ? ` · ${booking.staffName ?? booking.staff_name}` : ''}
@@ -5005,6 +5005,7 @@ function ClientsSection() {
       <div style={{ marginBottom: 16 }}>
         <button
           type="button"
+          className="clients-summary-button"
           onClick={() => setShowFrequentClients((current) => !current)}
           style={{
             ...summaryCardStyle,
@@ -5088,8 +5089,8 @@ function ClientsSection() {
         )}
       </div>
 
-      <div style={{ background: '#fff', borderRadius: 22, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 16 }}>
+      <div className="clients-panel-card" style={{ background: '#fff', borderRadius: 22, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
+        <div className="clients-panel-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 16 }}>
           <div>
             <div style={{ fontSize: 17, fontWeight: 900, color: '#1a1a1a' }}>Clientes</div>
             <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 600, marginTop: 4 }}>
@@ -5099,6 +5100,7 @@ function ClientsSection() {
 
           <button
             type="button"
+            className="clients-export-button"
             onClick={() => exportClientsToCsv(filteredClients, 'clientes-tuagendaya.csv')}
             disabled={filteredClients.length === 0}
             style={{
@@ -5119,7 +5121,7 @@ function ClientsSection() {
           </button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10, marginBottom: 14 }}>
+        <div className="clients-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10, marginBottom: 14 }}>
           <div style={{ background: '#f5f5f7', borderRadius: 16, padding: 12 }}>
             <div style={{ fontSize: 10.5, color: '#8e8e93', fontWeight: 900, marginBottom: 4 }}>CLIENTES</div>
             <div style={{ fontSize: 20, color: '#1a1a1a', fontWeight: 950 }}>{clients.length}</div>
@@ -5137,6 +5139,7 @@ function ClientsSection() {
         </div>
 
         <input
+          className="clients-search-input"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           placeholder="Buscar por nombre o teléfono"
@@ -5150,7 +5153,7 @@ function ClientsSection() {
             {clients.length === 0 ? 'Todavía no hay clientes. Se van a crear automáticamente cuando hagan reservas.' : 'No encontramos clientes con esa búsqueda.'}
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div className="clients-list" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {filteredClients.map((client) => {
               const isExpanded = expandedClientKey === client.key;
               const lastBooking = client.lastBooking;
@@ -5163,6 +5166,7 @@ function ClientsSection() {
               return (
                 <div
                   key={client.key}
+                  className="client-card"
                   style={{
                     border: `1px solid ${isExpanded ? '#0071e3' : '#e8e8ed'}`,
                     borderRadius: 18,
@@ -5173,6 +5177,7 @@ function ClientsSection() {
                 >
                   <button
                     type="button"
+                    className="client-card-button"
                     onClick={() => setExpandedClientKey(isExpanded ? null : client.key)}
                     style={{
                       width: '100%',
@@ -5189,6 +5194,7 @@ function ClientsSection() {
                     }}
                   >
                     <div
+                      className="client-avatar"
                       style={{
                         width: 44,
                         height: 44,
@@ -5222,7 +5228,7 @@ function ClientsSection() {
                       )}
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div className="client-type-group" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontSize: 11, color: clientType.color, background: clientType.bg, padding: '5px 9px', borderRadius: 999, fontWeight: 900, whiteSpace: 'nowrap' }}>
                         {clientType.label}
                       </span>
@@ -5233,9 +5239,9 @@ function ClientsSection() {
                   </button>
 
                   {isExpanded && (
-                    <div style={{ padding: '0 16px 16px 16px' }}>
+                    <div className="client-expanded" style={{ padding: '0 16px 16px 16px' }}>
                       <div style={{ borderTop: '0.5px solid #eeeeef', paddingTop: 14 }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 10, marginBottom: 12 }}>
+                        <div className="client-expanded-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 10, marginBottom: 12 }}>
                           <div style={{ background: '#fafafa', borderRadius: 14, padding: 12 }}>
                             <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 800 }}>Total</div>
                             <div style={{ fontSize: 18, color: '#1a1a1a', fontWeight: 900, marginTop: 4 }}>{client.bookings.length}</div>
@@ -5262,6 +5268,7 @@ function ClientsSection() {
                             href={whatsappUrl}
                             target="_blank"
                             rel="noreferrer"
+                            className="client-whatsapp-button"
                             style={{
                               display: 'inline-flex',
                               alignItems: 'center',
@@ -5280,7 +5287,7 @@ function ClientsSection() {
                           </a>
                         )}
 
-                        <div style={{ background: '#fafafa', borderRadius: 16, padding: 14, marginBottom: 14, border: '0.5px solid #eeeeef' }}>
+                        <div className="client-notes-box" style={{ background: '#fafafa', borderRadius: 16, padding: 14, marginBottom: 14, border: '0.5px solid #eeeeef' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 8 }}>
                             <div>
                               <div style={{ fontSize: 13, color: '#1a1a1a', fontWeight: 900 }}>Notas internas</div>
@@ -5311,7 +5318,7 @@ function ClientsSection() {
                             }}
                           />
 
-                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginTop: 10 }}>
+                          <div className="client-note-footer" style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginTop: 10 }}>
                             <div style={{ fontSize: 11, color: noteStatus[client.key] === 'Nota guardada' ? '#188038' : '#8e8e93', fontWeight: 800 }}>
                               {noteStatus[client.key] || `${getClientDraftNote(client).length}/3000 caracteres`}
                             </div>
@@ -5350,7 +5357,7 @@ function ClientsSection() {
                             const statusLabel = { pending: 'Pendiente', pendiente: 'Pendiente', confirmed: 'Confirmada', confirmada: 'Confirmada', confirmado: 'Confirmado', completed: 'Completada', completada: 'Completada', completado: 'Completado', cancelled: 'Cancelada', cancelada: 'Cancelada', cancelado: 'Cancelado' }[status] || status;
 
                             return (
-                              <div key={booking.id} style={{ background: '#fafafa', borderRadius: 14, padding: '10px 12px', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 10, alignItems: 'center' }}>
+                              <div key={booking.id} className="client-history-row" style={{ background: '#fafafa', borderRadius: 14, padding: '10px 12px', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 10, alignItems: 'center' }}>
                                 <div style={{ minWidth: 0 }}>
                                   <div style={{ fontSize: 13, fontWeight: 900, color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                     {dateStr}{timeStr ? ` · ${timeStr}${endStr ? ` - ${endStr}` : ''}` : ''}
@@ -8486,6 +8493,138 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
             border-radius: 15px !important;
             font-size: 13.5px !important;
             font-weight: 900 !important;
+          }
+
+          .clients-summary-button {
+            border-radius: 22px !important;
+            padding: 15px !important;
+          }
+
+          .clients-panel-card {
+            border-radius: 24px !important;
+            padding: 16px !important;
+          }
+
+          .clients-panel-header {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 12px !important;
+          }
+
+          .clients-export-button {
+            width: 100% !important;
+            min-height: 42px !important;
+            border-radius: 15px !important;
+          }
+
+          .clients-stats-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+            gap: 8px !important;
+          }
+
+          .clients-stats-grid > div {
+            border-radius: 17px !important;
+            padding: 11px !important;
+          }
+
+          .clients-search-input {
+            border-radius: 18px !important;
+            padding: 14px 15px !important;
+            background: #f5f5f7 !important;
+            border: 0.5px solid #ececf2 !important;
+            margin-bottom: 14px !important;
+          }
+
+          .clients-list {
+            gap: 12px !important;
+          }
+
+          .client-card {
+            border-radius: 22px !important;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.055) !important;
+          }
+
+          .client-card-button {
+            grid-template-columns: 52px minmax(0, 1fr) !important;
+            gap: 11px !important;
+            align-items: start !important;
+            padding: 14px !important;
+          }
+
+          .client-avatar {
+            width: 52px !important;
+            height: 52px !important;
+            border-radius: 18px !important;
+            background: #f2f7ff !important;
+            font-size: 18px !important;
+          }
+
+          .client-main-info > div:first-child {
+            font-size: 15.5px !important;
+            letter-spacing: -0.01em !important;
+          }
+
+          .client-type-group {
+            grid-column: 1 / -1 !important;
+            margin-left: 63px !important;
+            margin-top: -8px !important;
+            flex-wrap: wrap !important;
+            justify-content: space-between !important;
+          }
+
+          .client-type-group span:first-child {
+            font-size: 10.5px !important;
+            padding: 5px 8px !important;
+          }
+
+          .client-expanded {
+            padding: 0 14px 14px 14px !important;
+          }
+
+          .client-expanded-stats {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 8px !important;
+          }
+
+          .client-whatsapp-button {
+            display: flex !important;
+            width: 100% !important;
+            min-height: 46px !important;
+            border-radius: 16px !important;
+            margin-bottom: 12px !important;
+          }
+
+          .client-notes-box {
+            border-radius: 18px !important;
+            padding: 13px !important;
+          }
+
+          .client-notes-box textarea {
+            min-height: 104px !important;
+            border-radius: 16px !important;
+          }
+
+          .client-note-footer {
+            display: grid !important;
+            grid-template-columns: 1fr !important;
+            align-items: stretch !important;
+            gap: 8px !important;
+          }
+
+          .client-note-footer button {
+            width: 100% !important;
+            min-height: 44px !important;
+            border-radius: 15px !important;
+          }
+
+          .client-history-row {
+            grid-template-columns: 1fr !important;
+            gap: 8px !important;
+            border-radius: 16px !important;
+          }
+
+          .client-history-row > div:last-child {
+            justify-self: flex-start !important;
           }
         }
       `}</style>
