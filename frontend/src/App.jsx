@@ -7917,23 +7917,73 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
     onLogout();
   };
 
+  const dashboardTabs = ['reservas', 'clientes', 'caja', 'configuracion', 'perfil'];
+  const touchStartRef = useRef(null);
+
+  const handleDashboardTouchStart = (event) => {
+    const target = event.target;
+
+    if (
+      target?.closest?.('input, textarea, select, button, a, [data-no-swipe="true"]')
+    ) {
+      touchStartRef.current = null;
+      return;
+    }
+
+    const touch = event.touches?.[0];
+    if (!touch) return;
+
+    touchStartRef.current = {
+      x: touch.clientX,
+      y: touch.clientY,
+    };
+  };
+
+  const handleDashboardTouchEnd = (event) => {
+    const start = touchStartRef.current;
+    touchStartRef.current = null;
+
+    if (!start) return;
+
+    const touch = event.changedTouches?.[0];
+    if (!touch) return;
+
+    const deltaX = touch.clientX - start.x;
+    const deltaY = touch.clientY - start.y;
+
+    if (Math.abs(deltaX) < 55 || Math.abs(deltaX) < Math.abs(deltaY) * 1.35) {
+      return;
+    }
+
+    const currentIndex = dashboardTabs.indexOf(activeTab);
+    if (currentIndex === -1) return;
+
+    const nextIndex = deltaX < 0
+      ? Math.min(currentIndex + 1, dashboardTabs.length - 1)
+      : Math.max(currentIndex - 1, 0);
+
+    if (nextIndex !== currentIndex) {
+      setActiveTab(dashboardTabs[nextIndex]);
+    }
+  };
+
   const tabStyle = (key) => ({
-    flex: '0 0 auto',
-    minWidth: key === 'configuracion' ? 54 : 92,
-    padding: key === 'configuracion' ? '12px 14px' : '12px 14px',
+    flex: 1,
+    minWidth: 0,
+    padding: key === 'configuracion' ? '10px 0' : '10px 4px',
     borderRadius: 18,
-    border: activeTab === key ? '0.5px solid rgba(0,113,227,0.18)' : '0.5px solid rgba(0,0,0,0.06)',
-    background: activeTab === key ? '#0071e3' : 'rgba(255,255,255,0.82)',
+    border: activeTab === key ? '0.5px solid rgba(0,113,227,0.18)' : '0.5px solid rgba(0,0,0,0.05)',
+    background: activeTab === key ? '#0071e3' : 'rgba(255,255,255,0.74)',
     color: activeTab === key ? '#fff' : '#1a1a1a',
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: 900,
     cursor: 'pointer',
     fontFamily: 'inherit',
-    boxShadow: activeTab === key ? '0 8px 18px rgba(0,113,227,0.22)' : '0 1px 8px rgba(0,0,0,0.035)',
+    boxShadow: activeTab === key ? '0 8px 18px rgba(0,113,227,0.22)' : '0 1px 8px rgba(0,0,0,0.025)',
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 7,
+    gap: 6,
     whiteSpace: 'nowrap',
   });
 
@@ -8022,45 +8072,43 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
             right: 10px !important;
             bottom: calc(env(safe-area-inset-bottom, 0px) + 10px) !important;
             z-index: 1000 !important;
-            display: flex !important;
+            display: grid !important;
+            grid-template-columns: 1fr 1fr 1fr 54px 1fr !important;
             align-items: center !important;
-            gap: 8px !important;
+            gap: 6px !important;
             padding: 8px !important;
             margin: 0 !important;
             border-radius: 24px !important;
-            background: rgba(255, 255, 255, 0.86) !important;
+            background: rgba(255, 255, 255, 0.88) !important;
             border: 0.5px solid rgba(255,255,255,0.72) !important;
             box-shadow: 0 12px 34px rgba(0,0,0,0.18) !important;
             backdrop-filter: blur(22px);
             -webkit-backdrop-filter: blur(22px);
-            overflow-x: auto !important;
-            overflow-y: hidden !important;
-            scroll-snap-type: x proximity;
-            -webkit-overflow-scrolling: touch;
-            scrollbar-width: none;
-          }
-
-          .dashboard-tabs::-webkit-scrollbar {
-            display: none;
+            overflow: hidden !important;
           }
 
           .dashboard-tabs button {
-            flex: 0 0 auto !important;
-            min-width: 94px !important;
+            width: 100% !important;
+            min-width: 0 !important;
             min-height: 46px !important;
-            padding: 10px 13px !important;
+            padding: 10px 4px !important;
             border-radius: 18px !important;
-            font-size: 12px !important;
+            font-size: 11.5px !important;
             line-height: 1.1 !important;
             white-space: nowrap !important;
-            scroll-snap-align: center;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
           }
 
           .dashboard-tabs button[aria-label="Configuración"] {
-            min-width: 54px !important;
-            width: 54px !important;
+            min-width: 0 !important;
+            width: 100% !important;
             padding-left: 0 !important;
             padding-right: 0 !important;
+          }
+
+          .dashboard-content-swipe {
+            touch-action: pan-y;
           }
 
           .dashboard-public-link {
@@ -8193,24 +8241,31 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
             aria-label="Configuración"
             title="Configuración"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M12 15.25A3.25 3.25 0 1 0 12 8.75a3.25 3.25 0 0 0 0 6.5Z" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M19.43 13.12c.05-.36.07-.73.07-1.12s-.02-.76-.07-1.12l2.03-1.57-1.92-3.32-2.4.97a8.2 8.2 0 0 0-1.94-1.12L14.84 3h-3.68l-.36 2.84a8.2 8.2 0 0 0-1.94 1.12l-2.4-.97-1.92 3.32 2.03 1.57c-.05.36-.07.73-.07 1.12s.02.76.07 1.12l-2.03 1.57 1.92 3.32 2.4-.97c.6.47 1.25.85 1.94 1.12l.36 2.84h3.68l.36-2.84c.69-.27 1.34-.65 1.94-1.12l2.4.97 1.92-3.32-2.03-1.57Z" stroke="currentColor" strokeWidth="1.55" strokeLinecap="round" strokeLinejoin="round" />
+            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="12" cy="12" r="3.15" stroke="currentColor" strokeWidth="1.9" />
+              <path d="M12 2.9v2.05M12 19.05v2.05M5.56 5.56l1.45 1.45M16.99 16.99l1.45 1.45M2.9 12h2.05M19.05 12h2.05M5.56 18.44l1.45-1.45M16.99 7.01l1.45-1.45" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+              <circle cx="12" cy="12" r="7.25" stroke="currentColor" strokeWidth="1.45" opacity="0.55" />
             </svg>
           </button>
           <button style={tabStyle('perfil')} onClick={() => setActiveTab('perfil')}>Perfil</button>
         </div>
 
-        {activeTab === 'reservas' && <ReservationsSection />}
-        {activeTab === 'clientes' && <ClientsSection />}
-        {activeTab === 'caja' && <CashSection />}
-        {activeTab === 'configuracion' && <ConfigurationSection />}
-        {activeTab === 'perfil' && (
-          <BusinessProfileSection
-            professional={professional}
-            onProfileUpdated={onProfileUpdated}
-          />
-        )}
+        <div
+          className="dashboard-content-swipe"
+          onTouchStart={handleDashboardTouchStart}
+          onTouchEnd={handleDashboardTouchEnd}
+        >
+          {activeTab === 'reservas' && <ReservationsSection />}
+          {activeTab === 'clientes' && <ClientsSection />}
+          {activeTab === 'caja' && <CashSection />}
+          {activeTab === 'configuracion' && <ConfigurationSection />}
+          {activeTab === 'perfil' && (
+            <BusinessProfileSection
+              professional={professional}
+              onProfileUpdated={onProfileUpdated}
+            />
+          )}
+        </div>
       </div>
     </div>
   );
