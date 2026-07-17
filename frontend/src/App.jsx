@@ -5422,32 +5422,34 @@ function AvailabilityTable({ availability, onChange }) {
   });
 
   return (
-    <div style={{ display: 'grid', gap: 10 }}>
+    <div className="availability-days-grid" style={{ display: 'grid', gap: 10 }}>
       {tableRows.map((day) => (
         <div
           key={day.dayOfWeek}
+          className={`availability-day-card ${day.isActive ? 'active' : 'inactive'}`}
           style={{
             display: 'grid',
             gridTemplateColumns: 'minmax(130px, 1.2fr) repeat(2, minmax(130px, 1fr))',
             gap: 10,
             alignItems: 'center',
-            background: 'linear-gradient(180deg, #fbfbfd 0%, #f7f7fb 100%)',
-            border: '0.5px solid #ececf2',
+            background: day.isActive ? 'linear-gradient(180deg, #fbfbfd 0%, #f7f7fb 100%)' : '#fafafa',
+            border: day.isActive ? '0.5px solid #dceaff' : '0.5px solid #ececf2',
             borderRadius: 18,
             padding: 12,
-            boxShadow: '0 1px 5px rgba(0,0,0,0.025)',
+            boxShadow: day.isActive ? '0 1px 8px rgba(0,113,227,0.045)' : '0 1px 5px rgba(0,0,0,0.025)',
           }}
         >
-          <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, fontWeight: 900, color: '#1a1a1a' }}>
+          <label className="availability-day-toggle" style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, fontWeight: 900, color: '#1a1a1a' }}>
             <input
               type="checkbox"
               checked={Boolean(day.isActive)}
               onChange={(event) => onChange(day.dayOfWeek, 'isActive', event.target.checked)}
             />
-            {day.label}
+            <span>{day.label}</span>
+            <span className="availability-day-status">{day.isActive ? 'Atiende' : 'Cerrado'}</span>
           </label>
 
-          <div>
+          <div className="availability-time-field">
             <label style={{ ...smallLabelStyle, marginBottom: 4 }}>Desde</label>
             <input
               type="text"
@@ -5460,7 +5462,7 @@ function AvailabilityTable({ availability, onChange }) {
             />
           </div>
 
-          <div>
+          <div className="availability-time-field">
             <label style={{ ...smallLabelStyle, marginBottom: 4 }}>Hasta</label>
             <input
               type="text"
@@ -5477,6 +5479,7 @@ function AvailabilityTable({ availability, onChange }) {
     </div>
   );
 }
+
 
 function AvailabilitySection() {
   const [availability, setAvailability] = useState(getDefaultAvailability());
@@ -5730,7 +5733,7 @@ function AvailabilitySection() {
   }
 
   return (
-    <div style={{ display: 'grid', gap: 16 }}>
+    <div className="availability-mobile-section" style={{ display: 'grid', gap: 16 }}>
       <div style={{ background: '#fff', borderRadius: 20, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
         <div style={{ marginBottom: 18 }}>
           <div style={{ fontSize: 17, fontWeight: 700, color: '#1a1a1a' }}>Disponibilidad general</div>
@@ -8560,6 +8563,89 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
             white-space: nowrap !important;
           }
 
+
+          .availability-mobile-section {
+            display: grid !important;
+            gap: 14px !important;
+          }
+
+          .availability-mobile-section > div {
+            border-radius: 24px !important;
+            padding: 16px !important;
+            overflow: visible !important;
+          }
+
+          .availability-mobile-section button {
+            min-height: 46px !important;
+            border-radius: 16px !important;
+            font-weight: 900 !important;
+          }
+
+          .availability-mobile-section input,
+          .availability-mobile-section select,
+          .availability-mobile-section textarea {
+            min-height: 46px !important;
+            border-radius: 15px !important;
+            font-size: 16px !important;
+          }
+
+          .availability-mobile-section div[style*="grid-template-columns"] {
+            grid-template-columns: 1fr !important;
+          }
+
+          .availability-day-card {
+            grid-template-columns: 1fr !important;
+            gap: 11px !important;
+            padding: 14px !important;
+            border-radius: 20px !important;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.045) !important;
+          }
+
+          .availability-day-toggle {
+            justify-content: space-between !important;
+            width: 100% !important;
+            background: #fff !important;
+            border: 0.5px solid #ececf2 !important;
+            border-radius: 16px !important;
+            padding: 11px 12px !important;
+          }
+
+          .availability-day-toggle input {
+            width: 20px !important;
+            height: 20px !important;
+            min-height: 20px !important;
+            flex: 0 0 auto !important;
+          }
+
+          .availability-day-toggle span:nth-child(2) {
+            flex: 1 !important;
+            font-size: 14px !important;
+            font-weight: 950 !important;
+          }
+
+          .availability-day-status {
+            flex: 0 0 auto !important;
+            border-radius: 999px !important;
+            padding: 5px 9px !important;
+            background: #f2f7ff !important;
+            color: #0071e3 !important;
+            font-size: 11px !important;
+            font-weight: 950 !important;
+          }
+
+          .availability-time-field {
+            min-width: 0 !important;
+          }
+
+          .availability-mobile-section [style*="1.2fr 1fr 1fr"],
+          .availability-mobile-section [style*="1fr 1fr"] {
+            grid-template-columns: 1fr !important;
+          }
+
+          .availability-mobile-section label {
+            font-size: 12.5px !important;
+          }
+
           .clients-summary-button {
             border-radius: 22px !important;
             padding: 15px !important;
@@ -9427,11 +9513,8 @@ function ProfessionalOnlyRoute() {
 
   useEffect(() => {
     const professionalToken = localStorage.getItem('tuagendaya_token');
-    const adminToken = localStorage.getItem('tuagendaya_admin_token');
 
-    if (!professionalToken && adminToken) {
-      localStorage.removeItem('tuagendaya_admin_token');
-      localStorage.removeItem('tuagendaya_admin_user');
+    if (!professionalToken) {
       navigate('/login?tipo=profesional', { replace: true });
       return;
     }
