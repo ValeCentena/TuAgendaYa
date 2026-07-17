@@ -6639,7 +6639,7 @@ function ServicesSection() {
   const visibleServices = services.filter((service) => String(service.name || '').trim());
 
   return (
-    <div style={{ background: '#fff', borderRadius: 20, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
+    <div className="services-mobile-section" style={{ background: '#fff', borderRadius: 20, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
       <div style={{ marginBottom: 18 }}>
         <div style={{ fontSize: 17, fontWeight: 700, color: '#1a1a1a' }}>Mis servicios</div>
         <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 4 }}>
@@ -8493,6 +8493,69 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
             border-radius: 15px !important;
             font-size: 13.5px !important;
             font-weight: 900 !important;
+          }
+
+
+          .services-mobile-section {
+            display: grid !important;
+            gap: 14px !important;
+          }
+
+          .services-mobile-section > div {
+            border-radius: 24px !important;
+            overflow: hidden !important;
+          }
+
+          .services-mobile-section h2,
+          .services-mobile-section h3 {
+            letter-spacing: -0.01em !important;
+          }
+
+          .services-mobile-section input,
+          .services-mobile-section select,
+          .services-mobile-section textarea {
+            border-radius: 15px !important;
+            min-height: 46px !important;
+            font-size: 16px !important;
+          }
+
+          .services-mobile-section button {
+            border-radius: 15px !important;
+            min-height: 44px !important;
+            touch-action: manipulation !important;
+          }
+
+          .services-mobile-section div[style*="grid-template-columns"] {
+            grid-template-columns: 1fr !important;
+          }
+
+          .services-mobile-section label {
+            font-size: 12.5px !important;
+          }
+
+          .services-mobile-section [style*="repeat(auto-fit"] {
+            grid-template-columns: 1fr !important;
+          }
+
+          .services-mobile-section [style*="repeat(2"] {
+            grid-template-columns: 1fr !important;
+          }
+
+          .services-mobile-section [style*="repeat(3"] {
+            grid-template-columns: 1fr !important;
+          }
+
+          .services-mobile-section [style*="minmax(145px"] {
+            grid-template-columns: 1fr !important;
+          }
+
+          .services-mobile-section [style*="box-shadow"] {
+            box-shadow: 0 6px 22px rgba(0,0,0,0.055) !important;
+          }
+
+          .services-mobile-section [style*="Activo"],
+          .services-mobile-section [style*="Inactivo"] {
+            white-space: nowrap !important;
           }
 
           .clients-summary-button {
