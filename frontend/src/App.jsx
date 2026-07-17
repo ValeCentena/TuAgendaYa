@@ -3059,6 +3059,7 @@ function ReservationsSection() {
             return (
               <div
                 key={b.id}
+                className="reservation-card"
                 style={{
                   border: `1px solid ${isExpanded ? '#0071e3' : isCancelled ? '#ffe0e0' : '#e8e8ed'}`,
                   borderRadius: 18,
@@ -3071,6 +3072,7 @@ function ReservationsSection() {
               >
                 <button
                   type="button"
+                  className="reservation-card-button"
                   onClick={() => setExpandedBookingId(isExpanded ? null : b.id)}
                   style={{
                     width: '100%',
@@ -3087,6 +3089,7 @@ function ReservationsSection() {
                   }}
                 >
                   <div
+                    className="reservation-time-box"
                     style={{
                       borderRadius: 14,
                       background: '#f2f2f7',
@@ -3099,7 +3102,7 @@ function ReservationsSection() {
                     {endStr && <div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 700, marginTop: 4 }}>hasta {endStr}</div>}
                   </div>
 
-                  <div style={{ minWidth: 0 }}>
+                  <div className="reservation-main-info" style={{ minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                       <div
                         style={{
@@ -3140,7 +3143,7 @@ function ReservationsSection() {
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div className="reservation-status-group" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span
                       style={{
                         fontSize: 11,
@@ -3178,6 +3181,7 @@ function ReservationsSection() {
                 {isExpanded && (
                   <div style={{ padding: '0 16px 16px 16px' }}>
                     <div
+                      className="reservation-detail-grid"
                       style={{
                         borderTop: '0.5px solid #eeeeef',
                         paddingTop: 14,
@@ -3487,6 +3491,7 @@ function ReservationsSection() {
 
                     {!isArchivedView && (canConfirm || canComplete || canCancel) && (
                       <div
+                        className="reservation-action-grid"
                         style={{
                           display: 'grid',
                           gridTemplateColumns: `repeat(${[canConfirm, canComplete, canCancel].filter(Boolean).length}, minmax(0, 1fr))`,
@@ -8389,6 +8394,82 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
           .dashboard-panel textarea {
             min-height: 42px;
             font-size: 16px !important;
+          }
+
+          .reservation-card {
+            border-radius: 22px !important;
+            margin-bottom: 12px !important;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.055) !important;
+          }
+
+          .reservation-card-button {
+            grid-template-columns: 78px minmax(0, 1fr) !important;
+            gap: 10px !important;
+            align-items: start !important;
+            padding: 14px !important;
+          }
+
+          .reservation-time-box {
+            min-height: 68px !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: center !important;
+            border-radius: 18px !important;
+            background: #f2f7ff !important;
+            color: #0071e3 !important;
+          }
+
+          .reservation-time-box > div:first-child {
+            font-size: 18px !important;
+            font-weight: 950 !important;
+            letter-spacing: -0.02em !important;
+          }
+
+          .reservation-main-info {
+            padding-top: 2px !important;
+          }
+
+          .reservation-main-info > div:first-child > div {
+            font-size: 15px !important;
+            letter-spacing: -0.01em !important;
+          }
+
+          .reservation-status-group {
+            grid-column: 1 / -1 !important;
+            margin-left: 88px !important;
+            margin-top: -26px !important;
+            flex-wrap: wrap !important;
+            justify-content: flex-start !important;
+            gap: 6px !important;
+            padding-right: 24px !important;
+          }
+
+          .reservation-status-group span {
+            font-size: 10.5px !important;
+            padding: 5px 8px !important;
+          }
+
+          .reservation-status-group span:last-child {
+            position: absolute !important;
+            right: 16px !important;
+            margin-top: 2px !important;
+          }
+
+          .reservation-detail-grid {
+            grid-template-columns: 1fr 1fr !important;
+            gap: 8px !important;
+          }
+
+          .reservation-action-grid {
+            grid-template-columns: 1fr !important;
+            gap: 8px !important;
+          }
+
+          .reservation-action-grid button {
+            min-height: 46px !important;
+            border-radius: 15px !important;
+            font-size: 13.5px !important;
+            font-weight: 900 !important;
           }
         }
       `}</style>
