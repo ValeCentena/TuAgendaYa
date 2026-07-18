@@ -420,6 +420,51 @@ router.post("/webhook/mercadopago", async (req, res, next) => {
   }
 });
 
+router.get("/admin/transfers", async (req, res, next) => {
+  try {
+    await ensureBillingSchema();
+    requireAdmin(req);
+
+    const status = String(req.query.status || "pending").trim();
+    const params = [];
+    let where = "WHERE pp.method = 'transfer'";
+
+    if (status && status !== "all") {
+      params.push(status);
+      where += ` AND pp.status = $${params.length}`;
+    }
+
+    const result = await db.query(
+      `SELECT
+         pp.*,
+         p.email AS professional_email,
+         p.name AS professional_name,
+         COALESCE(p.business_name, p.name) AS business_name,
+         p.slug,
+         p.plan AS professional_plan,
+         p.status AS professional_status
+       FROM plan_payments pp
+       JOIN professionals p ON p.id = pp.professional_id
+       ${where}
+       ORDER BY pp.created_at DESC
+       LIMIT 100`,
+      params
+    );
+
+    const payments = result.rows.map((row) => ({
+      ...row,
+      professionalEmail: row.professional_email,
+      professionalName: row.professional_name,
+      businessName: row.business_name,
+      transferReference: row.transfer_reference,
+    }));
+
+    res.json({ payments });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post("/admin/transfer/:id/approve", async (req, res, next) => {
   try {
     requireAdmin(req);

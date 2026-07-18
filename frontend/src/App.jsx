@@ -9402,6 +9402,9 @@ function AdminDashboardPage() {
   const [selectedBusinessBookings, setSelectedBusinessBookings] = useState([]);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState('');
+  const [pendingTransfers, setPendingTransfers] = useState([]);
+  const [loadingTransfers, setLoadingTransfers] = useState(false);
+  const [transferActionLoading, setTransferActionLoading] = useState('');
 
   const token = localStorage.getItem('tuagendaya_admin_token');
 
@@ -9456,6 +9459,19 @@ function AdminDashboardPage() {
     }
   }, [adminFetch, search, status]);
 
+  const loadPendingTransfers = useCallback(async () => {
+    setLoadingTransfers(true);
+
+    try {
+      const data = await adminFetch('/payments/admin/transfers?status=pending');
+      setPendingTransfers(data.payments || []);
+    } catch {
+      setPendingTransfers([]);
+    } finally {
+      setLoadingTransfers(false);
+    }
+  }, [adminFetch]);
+
   useEffect(() => {
     if (!token) {
       navigate(adminLoginPath, { replace: true });
@@ -9463,13 +9479,17 @@ function AdminDashboardPage() {
     }
 
     loadAdminData();
-  }, [token, navigate, loadAdminData, adminLoginPath]);
+    loadPendingTransfers();
+  }, [token, navigate, loadAdminData, loadPendingTransfers, adminLoginPath]);
 
   useEffect(() => {
     if (!token) return;
-    const timer = setInterval(loadAdminData, 10000);
+    const timer = setInterval(() => {
+      loadAdminData();
+      loadPendingTransfers();
+    }, 10000);
     return () => clearInterval(timer);
-  }, [token, loadAdminData]);
+  }, [token, loadAdminData, loadPendingTransfers]);
 
   const handleLogout = () => {
     localStorage.removeItem('tuagendaya_admin_token');
@@ -9527,6 +9547,42 @@ function AdminDashboardPage() {
     setDetailLoading(false);
   };
 
+  const approveTransferPayment = async (payment) => {
+    const businessName = payment.businessName || payment.business_name || payment.professionalName || payment.professional_name || 'este negocio';
+    const confirmed = window.confirm(`¿Confirmás que recibiste la transferencia de ${businessName}?`);
+    if (!confirmed) return;
+
+    setTransferActionLoading(`approve-${payment.id}`);
+
+    try {
+      await adminFetch(`/payments/admin/transfer/${payment.id}/approve`, { method: 'POST' });
+      await Promise.all([loadAdminData(), loadPendingTransfers()]);
+    } catch (err) {
+      alert(err.message || 'No se pudo aprobar la transferencia.');
+    } finally {
+      setTransferActionLoading('');
+    }
+  };
+
+  const rejectTransferPayment = async (payment) => {
+    const confirmed = window.confirm('¿Querés rechazar esta transferencia pendiente?');
+    if (!confirmed) return;
+
+    setTransferActionLoading(`reject-${payment.id}`);
+
+    try {
+      await adminFetch(`/payments/admin/transfer/${payment.id}/reject`, {
+        method: 'POST',
+        body: JSON.stringify({ note: 'Rechazada desde panel admin.' }),
+      });
+      await loadPendingTransfers();
+    } catch (err) {
+      alert(err.message || 'No se pudo rechazar la transferencia.');
+    } finally {
+      setTransferActionLoading('');
+    }
+  };
+
   const copyText = async (text, label = 'Copiado') => {
     if (!text) return;
 
@@ -9561,6 +9617,8 @@ function AdminDashboardPage() {
           .admin-business-metrics { grid-template-columns: 1fr !important; }
           .admin-business-actions { grid-template-columns: 1fr !important; }
           .admin-detail-grid { grid-template-columns: 1fr !important; }
+          .admin-transfer-card { grid-template-columns: 1fr !important; }
+          .admin-transfer-actions { grid-template-columns: 1fr !important; }
         }
       `}</style>
 
@@ -9590,6 +9648,75 @@ function AdminDashboardPage() {
               <div style={{ color: '#6e6e73', fontSize: 12, fontWeight: 800 }}>{card.label}</div>
             </div>
           ))}
+        </div>
+
+        <div style={{ background: '#fff', borderRadius: 24, padding: 22, boxShadow: '0 1px 10px rgba(0,0,0,0.06)', marginBottom: 18 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 14 }}>
+            <div>
+              <h2 style={{ margin: '0 0 6px', color: '#1a1a1a', fontSize: 20, fontWeight: 900 }}>Transferencias pendientes</h2>
+              <p style={{ margin: 0, color: '#6e6e73', fontSize: 13 }}>Aprobá pagos manuales cuando veas la transferencia en tu caja de ahorro.</p>
+            </div>
+            <button
+              type="button"
+              onClick={loadPendingTransfers}
+              disabled={loadingTransfers}
+              style={{ border: '1px solid #e0e0e5', background: '#fff', borderRadius: 14, padding: '10px 13px', color: '#0071e3', fontSize: 13, fontWeight: 900, cursor: loadingTransfers ? 'not-allowed' : 'pointer' }}
+            >
+              {loadingTransfers ? 'Actualizando...' : 'Actualizar'}
+            </button>
+          </div>
+
+          {pendingTransfers.length === 0 ? (
+            <div style={{ background: '#f7f7fb', borderRadius: 16, padding: 16, color: '#8e8e93', fontSize: 13, fontWeight: 800 }}>
+              No hay transferencias pendientes.
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gap: 10 }}>
+              {pendingTransfers.map((payment) => {
+                const amount = Number(payment.amount || 0);
+                const currency = payment.currency || 'UYU';
+                const businessName = payment.businessName || payment.business_name || payment.professionalName || payment.professional_name || 'Negocio sin nombre';
+                const email = payment.professionalEmail || payment.professional_email || '';
+                const reference = payment.transferReference || payment.transfer_reference || `Pago #${payment.id}`;
+
+                return (
+                  <div key={payment.id} className="admin-transfer-card" style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr auto', gap: 12, alignItems: 'center', border: '1px solid #e8e8ed', borderRadius: 18, padding: 14, background: '#fff' }}>
+                    <div>
+                      <div style={{ color: '#1a1a1a', fontSize: 15, fontWeight: 950 }}>{businessName}</div>
+                      <div style={{ color: '#6e6e73', fontSize: 12.5, marginTop: 3 }}>{email || 'Sin email'}</div>
+                      <div style={{ color: '#0071e3', fontSize: 12.5, fontWeight: 900, marginTop: 5 }}>Ref: {reference}</div>
+                    </div>
+
+                    <div>
+                      <div style={{ color: '#8e8e93', fontSize: 11, fontWeight: 850 }}>Monto</div>
+                      <div style={{ color: '#1a1a1a', fontSize: 18, fontWeight: 950, marginTop: 3 }}>
+                        {amount > 0 ? `${currency} ${amount}` : 'A definir'}
+                      </div>
+                    </div>
+
+                    <div className="admin-transfer-actions" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                      <button
+                        type="button"
+                        onClick={() => approveTransferPayment(payment)}
+                        disabled={transferActionLoading === `approve-${payment.id}`}
+                        style={{ border: 'none', borderRadius: 13, padding: '10px 13px', background: '#188038', color: '#fff', fontSize: 12.5, fontWeight: 950, cursor: transferActionLoading ? 'not-allowed' : 'pointer' }}
+                      >
+                        Aprobar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => rejectTransferPayment(payment)}
+                        disabled={transferActionLoading === `reject-${payment.id}`}
+                        style={{ border: '1px solid #ffd0d0', borderRadius: 13, padding: '10px 13px', background: '#fff', color: '#ff3b30', fontSize: 12.5, fontWeight: 950, cursor: transferActionLoading ? 'not-allowed' : 'pointer' }}
+                      >
+                        Rechazar
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <div style={{ background: '#fff', borderRadius: 24, padding: 22, boxShadow: '0 1px 10px rgba(0,0,0,0.06)' }}>
