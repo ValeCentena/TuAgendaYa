@@ -7069,7 +7069,7 @@ function ProfileCompletionCard({ form, professional }) {
   const info = getProfileCompletionInfo(form, professional);
 
   return (
-    <div style={{ background: info.complete ? '#edfff3' : '#fffaf2', border: `1px solid ${info.complete ? '#b7f5c8' : '#ffe2b8'}`, borderRadius: 22, padding: 16, marginBottom: 16 }}>
+    <div className="profile-completion-card" style={{ background: info.complete ? '#edfff3' : '#fffaf2', border: `1px solid ${info.complete ? '#b7f5c8' : '#ffe2b8'}`, borderRadius: 22, padding: 16, marginBottom: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 12 }}>
         <div>
           <div style={{ color: info.complete ? '#188038' : '#b26a00', fontSize: 13, fontWeight: 950, marginBottom: 4 }}>
@@ -7125,7 +7125,7 @@ function ProfilePublicPreviewCard({ form, publicLink, copyPublicLinkFromProfile 
   const address = String(form?.address || '').trim();
 
   return (
-    <div style={{ background: '#f8fafc', border: '0.5px solid #e5e7eb', borderRadius: 22, padding: 16, marginBottom: 16 }}>
+    <div className="profile-public-preview-card" style={{ background: '#f8fafc', border: '0.5px solid #e5e7eb', borderRadius: 22, padding: 16, marginBottom: 16 }}>
       <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 900, marginBottom: 10 }}>
         Vista previa pública
       </div>
@@ -7487,7 +7487,7 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
   }
 
   return (
-    <div style={{ display: 'grid', gap: 16 }}>
+    <div className="profile-mobile-section" style={{ display: 'grid', gap: 16 }}>
       <div style={{ background: '#fff', borderRadius: 20, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14, marginBottom: 16 }}>
           <div>
@@ -7556,7 +7556,7 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
 
       <div style={{ background: '#fff', borderRadius: 20, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
         <div style={{ marginBottom: 18 }}>
-          <div style={{ fontSize: 17, fontWeight: 700, color: '#1a1a1a' }}>Perfil del negocio</div>
+          <div style={{ fontSize: 19, fontWeight: 950, color: '#1a1a1a', letterSpacing: '-0.01em' }}>Perfil del negocio</div>
           <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 4 }}>
             Configurá cómo se ve tu negocio para tus clientes en la página pública de reservas.
           </div>
@@ -8653,6 +8653,67 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
 
           .availability-mobile-section label {
             font-size: 12.5px !important;
+          }
+
+
+          .profile-mobile-section {
+            display: grid !important;
+            gap: 14px !important;
+          }
+
+          .profile-mobile-section > div {
+            border-radius: 24px !important;
+            padding: 16px !important;
+            overflow: visible !important;
+          }
+
+          .profile-mobile-section input,
+          .profile-mobile-section textarea,
+          .profile-mobile-section select {
+            min-height: 46px !important;
+            border-radius: 15px !important;
+            font-size: 16px !important;
+          }
+
+          .profile-mobile-section button {
+            min-height: 46px !important;
+            border-radius: 16px !important;
+            font-weight: 900 !important;
+            touch-action: manipulation !important;
+          }
+
+          .profile-mobile-section div[style*="grid-template-columns"] {
+            grid-template-columns: 1fr !important;
+          }
+
+          .profile-mobile-section label {
+            font-size: 12.5px !important;
+            font-weight: 850 !important;
+          }
+
+          .profile-public-preview-card {
+            border-radius: 22px !important;
+            padding: 14px !important;
+            background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%) !important;
+          }
+
+          .profile-public-preview-card button {
+            width: 100% !important;
+            margin-top: 8px !important;
+          }
+
+          .profile-completion-card {
+            border-radius: 22px !important;
+            padding: 14px !important;
+          }
+
+          .profile-mobile-section [style*="Seleccionar archivo"],
+          .profile-mobile-section [style*="Quitar logo"] {
+            width: 100% !important;
+          }
+
+          .profile-mobile-section img {
+            max-width: 100% !important;
           }
 
           .clients-summary-button {
