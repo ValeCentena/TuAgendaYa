@@ -98,6 +98,8 @@ async function ensureBillingSchema() {
   await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS billing_method TEXT;`);
   await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS plan_price NUMERIC(10, 2) DEFAULT 0;`);
   await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS plan_currency TEXT DEFAULT 'UYU';`);
+  await db.query(`ALTER TABLE plan_payments ADD COLUMN IF NOT EXISTS seen_by_admin BOOLEAN DEFAULT FALSE;`).catch(() => {});
+  await db.query(`ALTER TABLE plan_payments ADD COLUMN IF NOT EXISTS notified_at TIMESTAMP;`).catch(() => {});
   await db.query(`
     CREATE TABLE IF NOT EXISTS plan_payments (
       id                  SERIAL PRIMARY KEY,
@@ -160,6 +162,8 @@ function serializePlan(professional, latestPayment) {
     expiresAt: professional.plan_expires_at,
     lastPaymentAt: professional.last_payment_at,
     latestPayment,
+    transferReference: `TY-${professional.id}`,
+    transferConcept: `TuAgendaYa plan ${professional.business_name || professional.name || professional.email}`,
     bankInfo: bankInfo(),
   };
 }
@@ -183,6 +187,8 @@ async function approvePayment(paymentId, rawPayload = null) {
          approved_at = NOW(),
          expires_at = $2,
          raw_payload = COALESCE($3, raw_payload),
+         seen_by_admin = FALSE,
+         notified_at = NOW(),
          updated_at = NOW()
      WHERE id = $1
      RETURNING *`,
@@ -231,28 +237,110 @@ router.post("/me/transfer", async (req, res, next) => {
       return res.status(404).json({ error: "Profesional no encontrado" });
     }
 
-    const reference = `TY-${professionalId}-${Date.now()}`;
+    const reference = `TY-${professionalId}`;
     const amount = getPlanAmount(professional);
     const currency = getPlanCurrency(professional);
 
-    const result = await db.query(
-      `INSERT INTO plan_payments
-       (professional_id, method, status, amount, currency, plan, period_days, transfer_reference, transfer_note)
-       VALUES ($1, 'transfer', 'pending', $2, $3, $4, 30, $5, $6)
-       RETURNING *`,
-      [professionalId, amount, currency, professional.plan || "base", reference, req.body?.note || ""]
-    );
-
     await db.query(
       `UPDATE professionals
-       SET plan_payment_status = 'pending_transfer',
-           billing_method = 'transfer',
+       SET billing_method = 'transfer',
            updated_at = NOW()
        WHERE id = $1`,
       [professionalId]
     );
 
-    res.json({ ok: true, payment: result.rows[0], bankInfo: bankInfo() });
+    res.json({
+      ok: true,
+      payment: {
+        method: "transfer",
+        amount,
+        currency,
+        transferReference: reference,
+        transferConcept: `TuAgendaYa plan ${professional.business_name || professional.name || professional.email}`,
+      },
+      bankInfo: bankInfo(),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/me/transfer-notify", async (req, res, next) => {
+  try {
+    await ensureBillingSchema();
+    const professionalId = getProfessionalIdFromRequest(req);
+    const professional = await getProfessional(professionalId);
+
+    if (!professional) {
+      return res.status(404).json({ error: "Profesional no encontrado" });
+    }
+
+    const reference = `TY-${professionalId}`;
+    const amount = getPlanAmount(professional);
+    const currency = getPlanCurrency(professional);
+
+    const existing = await db.query(
+      `SELECT *
+       FROM plan_payments
+       WHERE professional_id = $1
+         AND method = 'transfer'
+         AND status = 'pending'
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [professionalId]
+    );
+
+    let payment;
+
+    if (existing.rows[0]) {
+      const updated = await db.query(
+        `UPDATE plan_payments
+         SET amount = $2,
+             currency = $3,
+             transfer_reference = $4,
+             transfer_note = $5,
+             seen_by_admin = FALSE,
+             notified_at = NOW(),
+             updated_at = NOW()
+         WHERE id = $1
+         RETURNING *`,
+        [
+          existing.rows[0].id,
+          amount,
+          currency,
+          reference,
+          req.body?.note || "El profesional avisó que realizó la transferencia.",
+        ]
+      );
+      payment = updated.rows[0];
+    } else {
+      const inserted = await db.query(
+        `INSERT INTO plan_payments
+         (professional_id, method, status, amount, currency, plan, period_days, transfer_reference, transfer_note, seen_by_admin, notified_at)
+         VALUES ($1, 'transfer', 'pending', $2, $3, $4, 30, $5, $6, FALSE, NOW())
+         RETURNING *`,
+        [
+          professionalId,
+          amount,
+          currency,
+          professional.plan || "base",
+          reference,
+          req.body?.note || "El profesional avisó que realizó la transferencia.",
+        ]
+      );
+      payment = inserted.rows[0];
+    }
+
+    await db.query(
+      `UPDATE professionals
+       SET billing_method = 'transfer',
+           plan_payment_status = 'pending_transfer',
+           updated_at = NOW()
+       WHERE id = $1`,
+      [professionalId]
+    );
+
+    res.json({ ok: true, payment, bankInfo: bankInfo() });
   } catch (error) {
     next(error);
   }
@@ -420,89 +508,5 @@ router.post("/webhook/mercadopago", async (req, res, next) => {
   }
 });
 
-router.get("/admin/transfers", async (req, res, next) => {
-  try {
-    await ensureBillingSchema();
-    requireAdmin(req);
-
-    const status = String(req.query.status || "pending").trim();
-    const params = [];
-    let where = "WHERE pp.method = 'transfer'";
-
-    if (status && status !== "all") {
-      params.push(status);
-      where += ` AND pp.status = $${params.length}`;
-    }
-
-    const result = await db.query(
-      `SELECT
-         pp.*,
-         p.email AS professional_email,
-         p.name AS professional_name,
-         COALESCE(p.business_name, p.name) AS business_name,
-         p.slug,
-         p.plan AS professional_plan,
-         p.status AS professional_status
-       FROM plan_payments pp
-       JOIN professionals p ON p.id = pp.professional_id
-       ${where}
-       ORDER BY pp.created_at DESC
-       LIMIT 100`,
-      params
-    );
-
-    const payments = result.rows.map((row) => ({
-      ...row,
-      professionalEmail: row.professional_email,
-      professionalName: row.professional_name,
-      businessName: row.business_name,
-      transferReference: row.transfer_reference,
-    }));
-
-    res.json({ payments });
-  } catch (error) {
-    next(error);
-  }
-});
-
-router.post("/admin/transfer/:id/approve", async (req, res, next) => {
-  try {
-    requireAdmin(req);
-    const payment = await approvePayment(Number(req.params.id), { approvedBy: "admin" });
-
-    if (!payment) {
-      return res.status(404).json({ error: "Pago no encontrado" });
-    }
-
-    res.json({ ok: true, payment });
-  } catch (error) {
-    next(error);
-  }
-});
-
-router.post("/admin/transfer/:id/reject", async (req, res, next) => {
-  try {
-    await ensureBillingSchema();
-    requireAdmin(req);
-
-    const result = await db.query(
-      `UPDATE plan_payments
-       SET status = 'rejected',
-           transfer_note = COALESCE($2, transfer_note),
-           updated_at = NOW()
-       WHERE id = $1
-       RETURNING *`,
-      [Number(req.params.id), req.body?.note || null]
-    );
-
-    if (!result.rows[0]) {
-      return res.status(404).json({ error: "Pago no encontrado" });
-    }
-
-    res.json({ ok: true, payment: result.rows[0] });
-  } catch (error) {
-    next(error);
-  }
-});
 
 module.exports = router;

@@ -7187,6 +7187,8 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
   const [billingInfo, setBillingInfo] = useState(null);
   const [billingLoading, setBillingLoading] = useState(true);
   const [billingActionLoading, setBillingActionLoading] = useState('');
+  const [showTransferDetails, setShowTransferDetails] = useState(false);
+  const [transferNotifyLoading, setTransferNotifyLoading] = useState(false);
   const [profilePushStatus, setProfilePushStatus] = useState('checking');
   const [profilePushMessage, setProfilePushMessage] = useState('');
   const [profilePushLoading, setProfilePushLoading] = useState(false);
@@ -7421,6 +7423,8 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
   const planCurrency = billingInfo?.currency || professional?.planCurrency || professional?.plan_currency || 'UYU';
   const planExpiresAt = billingInfo?.expiresAt || billingInfo?.expires_at || professional?.planExpiresAt || professional?.plan_expires_at || '';
   const bankInfo = billingInfo?.bankInfo || {};
+  const transferReference = billingInfo?.transferReference || billingInfo?.transfer_reference || `TuAgendaYa-${professional?.id || publicSlug || 'plan'}`;
+  const transferConcept = billingInfo?.transferConcept || billingInfo?.transfer_concept || `TuAgendaYa plan ${professional?.businessName || professional?.business_name || professional?.name || ''}`.trim();
   const billingStatusText = billingStatus === 'paid'
     ? 'Pago'
     : billingStatus === 'overdue'
@@ -7472,32 +7476,37 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
   };
 
   const requestTransferPlanPayment = async () => {
-    setBillingActionLoading('transfer');
+    setMessage('');
+    setError('');
+    setShowTransferDetails((current) => !current);
+  };
+
+  const notifyTransferSent = async () => {
+    setTransferNotifyLoading(true);
     setMessage('');
     setError('');
 
     try {
-      const response = await fetch(`${API_BASE}/payments/me/transfer`, {
+      const response = await fetch(`${API_BASE}/payments/me/transfer-notify`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ note: 'Solicitud de pago por transferencia desde panel profesional.' }),
       });
 
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(data.error || 'No se pudo registrar la transferencia.');
+        throw new Error(data.error || 'No se pudo avisar la transferencia.');
       }
 
-      setMessage(`Solicitud de transferencia registrada. Referencia: ${data.payment?.transferReference || data.payment?.transfer_reference || 'pendiente'}`);
+      setMessage('Aviso enviado. TuAgendaYa recibió la notificación de transferencia.');
       fetchBillingInfo();
     } catch (err) {
-      setError(err.message || 'No se pudo registrar la transferencia.');
+      setError(err.message || 'No se pudo avisar la transferencia.');
     } finally {
-      setBillingActionLoading('');
+      setTransferNotifyLoading(false);
     }
   };
 
@@ -7696,19 +7705,38 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
             <button
               type="button"
               onClick={requestTransferPlanPayment}
-              disabled={billingActionLoading === 'transfer'}
-              style={{ border: '0.5px solid #d0d0d5', borderRadius: 15, padding: '12px 14px', background: '#fff', color: '#0071e3', fontSize: 13, fontWeight: 950, fontFamily: 'inherit', cursor: billingActionLoading === 'transfer' ? 'not-allowed' : 'pointer' }}
+              style={{ border: '0.5px solid #d0d0d5', borderRadius: 15, padding: '12px 14px', background: '#fff', color: '#0071e3', fontSize: 13, fontWeight: 950, fontFamily: 'inherit', cursor: 'pointer' }}
             >
-              {billingActionLoading === 'transfer' ? 'Registrando...' : 'Pagar por transferencia'}
+              {showTransferDetails ? 'Ocultar datos' : 'Ver datos para transferir'}
             </button>
           </div>
 
-          {(bankInfo.bankName || bankInfo.accountNumber || bankInfo.accountHolder) && (
-            <div style={{ marginTop: 12, background: '#f7f7fb', borderRadius: 15, padding: 12, fontSize: 12, color: '#6e6e73', fontWeight: 750, lineHeight: 1.5 }}>
-              <strong>Datos para transferencia:</strong>
-              {bankInfo.bankName ? ` ${bankInfo.bankName}` : ''}
-              {bankInfo.accountHolder ? ` · ${bankInfo.accountHolder}` : ''}
-              {bankInfo.accountNumber ? ` · Cuenta: ${bankInfo.accountNumber}` : ''}
+          {showTransferDetails && (
+            <div style={{ marginTop: 12, background: '#f7f7fb', borderRadius: 16, padding: 14, fontSize: 12.5, color: '#6e6e73', fontWeight: 750, lineHeight: 1.55 }}>
+              <div style={{ color: '#1a1a1a', fontSize: 14, fontWeight: 950, marginBottom: 8 }}>Datos para transferir</div>
+              {bankInfo.bankName && <div><strong>Banco:</strong> {bankInfo.bankName}</div>}
+              {bankInfo.accountType && <div><strong>Tipo:</strong> {bankInfo.accountType}</div>}
+              {bankInfo.accountHolder && <div><strong>Titular:</strong> {bankInfo.accountHolder}</div>}
+              {bankInfo.accountNumber && <div><strong>Cuenta:</strong> {bankInfo.accountNumber}</div>}
+              <div style={{ marginTop: 10, background: '#fff', border: '0.5px solid #e0e0e5', borderRadius: 13, padding: 11 }}>
+                <div style={{ color: '#8e8e93', fontSize: 11, fontWeight: 900, marginBottom: 3 }}>Poner en concepto / referencia</div>
+                <div style={{ color: '#0071e3', fontSize: 14, fontWeight: 950 }}>{transferReference}</div>
+              </div>
+              <div style={{ marginTop: 8 }}>
+                <strong>Detalle:</strong> {transferConcept}
+              </div>
+              <div style={{ marginTop: 8, color: '#8e8e93' }}>
+                Luego de transferir, tocá el botón para avisar a TuAgendaYa.
+              </div>
+
+              <button
+                type="button"
+                onClick={notifyTransferSent}
+                disabled={transferNotifyLoading}
+                style={{ width: '100%', marginTop: 12, border: 'none', borderRadius: 15, padding: '12px 14px', background: transferNotifyLoading ? '#aeaeb2' : '#1c1c1e', color: '#fff', fontSize: 13, fontWeight: 950, fontFamily: 'inherit', cursor: transferNotifyLoading ? 'not-allowed' : 'pointer' }}
+              >
+                {transferNotifyLoading ? 'Enviando aviso...' : 'Ya transferí'}
+              </button>
             </div>
           )}
         </div>
@@ -9402,9 +9430,6 @@ function AdminDashboardPage() {
   const [selectedBusinessBookings, setSelectedBusinessBookings] = useState([]);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState('');
-  const [pendingTransfers, setPendingTransfers] = useState([]);
-  const [loadingTransfers, setLoadingTransfers] = useState(false);
-  const [transferActionLoading, setTransferActionLoading] = useState('');
 
   const token = localStorage.getItem('tuagendaya_admin_token');
 
@@ -9459,19 +9484,6 @@ function AdminDashboardPage() {
     }
   }, [adminFetch, search, status]);
 
-  const loadPendingTransfers = useCallback(async () => {
-    setLoadingTransfers(true);
-
-    try {
-      const data = await adminFetch('/payments/admin/transfers?status=pending');
-      setPendingTransfers(data.payments || []);
-    } catch {
-      setPendingTransfers([]);
-    } finally {
-      setLoadingTransfers(false);
-    }
-  }, [adminFetch]);
-
   useEffect(() => {
     if (!token) {
       navigate(adminLoginPath, { replace: true });
@@ -9479,17 +9491,13 @@ function AdminDashboardPage() {
     }
 
     loadAdminData();
-    loadPendingTransfers();
-  }, [token, navigate, loadAdminData, loadPendingTransfers, adminLoginPath]);
+  }, [token, navigate, loadAdminData, adminLoginPath]);
 
   useEffect(() => {
     if (!token) return;
-    const timer = setInterval(() => {
-      loadAdminData();
-      loadPendingTransfers();
-    }, 10000);
+    const timer = setInterval(loadAdminData, 10000);
     return () => clearInterval(timer);
-  }, [token, loadAdminData, loadPendingTransfers]);
+  }, [token, loadAdminData]);
 
   const handleLogout = () => {
     localStorage.removeItem('tuagendaya_admin_token');
@@ -9547,42 +9555,6 @@ function AdminDashboardPage() {
     setDetailLoading(false);
   };
 
-  const approveTransferPayment = async (payment) => {
-    const businessName = payment.businessName || payment.business_name || payment.professionalName || payment.professional_name || 'este negocio';
-    const confirmed = window.confirm(`¿Confirmás que recibiste la transferencia de ${businessName}?`);
-    if (!confirmed) return;
-
-    setTransferActionLoading(`approve-${payment.id}`);
-
-    try {
-      await adminFetch(`/payments/admin/transfer/${payment.id}/approve`, { method: 'POST' });
-      await Promise.all([loadAdminData(), loadPendingTransfers()]);
-    } catch (err) {
-      alert(err.message || 'No se pudo aprobar la transferencia.');
-    } finally {
-      setTransferActionLoading('');
-    }
-  };
-
-  const rejectTransferPayment = async (payment) => {
-    const confirmed = window.confirm('¿Querés rechazar esta transferencia pendiente?');
-    if (!confirmed) return;
-
-    setTransferActionLoading(`reject-${payment.id}`);
-
-    try {
-      await adminFetch(`/payments/admin/transfer/${payment.id}/reject`, {
-        method: 'POST',
-        body: JSON.stringify({ note: 'Rechazada desde panel admin.' }),
-      });
-      await loadPendingTransfers();
-    } catch (err) {
-      alert(err.message || 'No se pudo rechazar la transferencia.');
-    } finally {
-      setTransferActionLoading('');
-    }
-  };
-
   const copyText = async (text, label = 'Copiado') => {
     if (!text) return;
 
@@ -9616,6 +9588,7 @@ function AdminDashboardPage() {
           .admin-filters { grid-template-columns: 1fr !important; }
           .admin-business-metrics { grid-template-columns: 1fr !important; }
           .admin-business-actions { grid-template-columns: 1fr !important; }
+          .admin-billing-simple { grid-template-columns: 1fr !important; }
           .admin-detail-grid { grid-template-columns: 1fr !important; }
           .admin-transfer-card { grid-template-columns: 1fr !important; }
           .admin-transfer-actions { grid-template-columns: 1fr !important; }
@@ -9648,75 +9621,6 @@ function AdminDashboardPage() {
               <div style={{ color: '#6e6e73', fontSize: 12, fontWeight: 800 }}>{card.label}</div>
             </div>
           ))}
-        </div>
-
-        <div style={{ background: '#fff', borderRadius: 24, padding: 22, boxShadow: '0 1px 10px rgba(0,0,0,0.06)', marginBottom: 18 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 14 }}>
-            <div>
-              <h2 style={{ margin: '0 0 6px', color: '#1a1a1a', fontSize: 20, fontWeight: 900 }}>Transferencias pendientes</h2>
-              <p style={{ margin: 0, color: '#6e6e73', fontSize: 13 }}>Aprobá pagos manuales cuando veas la transferencia en tu caja de ahorro.</p>
-            </div>
-            <button
-              type="button"
-              onClick={loadPendingTransfers}
-              disabled={loadingTransfers}
-              style={{ border: '1px solid #e0e0e5', background: '#fff', borderRadius: 14, padding: '10px 13px', color: '#0071e3', fontSize: 13, fontWeight: 900, cursor: loadingTransfers ? 'not-allowed' : 'pointer' }}
-            >
-              {loadingTransfers ? 'Actualizando...' : 'Actualizar'}
-            </button>
-          </div>
-
-          {pendingTransfers.length === 0 ? (
-            <div style={{ background: '#f7f7fb', borderRadius: 16, padding: 16, color: '#8e8e93', fontSize: 13, fontWeight: 800 }}>
-              No hay transferencias pendientes.
-            </div>
-          ) : (
-            <div style={{ display: 'grid', gap: 10 }}>
-              {pendingTransfers.map((payment) => {
-                const amount = Number(payment.amount || 0);
-                const currency = payment.currency || 'UYU';
-                const businessName = payment.businessName || payment.business_name || payment.professionalName || payment.professional_name || 'Negocio sin nombre';
-                const email = payment.professionalEmail || payment.professional_email || '';
-                const reference = payment.transferReference || payment.transfer_reference || `Pago #${payment.id}`;
-
-                return (
-                  <div key={payment.id} className="admin-transfer-card" style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr auto', gap: 12, alignItems: 'center', border: '1px solid #e8e8ed', borderRadius: 18, padding: 14, background: '#fff' }}>
-                    <div>
-                      <div style={{ color: '#1a1a1a', fontSize: 15, fontWeight: 950 }}>{businessName}</div>
-                      <div style={{ color: '#6e6e73', fontSize: 12.5, marginTop: 3 }}>{email || 'Sin email'}</div>
-                      <div style={{ color: '#0071e3', fontSize: 12.5, fontWeight: 900, marginTop: 5 }}>Ref: {reference}</div>
-                    </div>
-
-                    <div>
-                      <div style={{ color: '#8e8e93', fontSize: 11, fontWeight: 850 }}>Monto</div>
-                      <div style={{ color: '#1a1a1a', fontSize: 18, fontWeight: 950, marginTop: 3 }}>
-                        {amount > 0 ? `${currency} ${amount}` : 'A definir'}
-                      </div>
-                    </div>
-
-                    <div className="admin-transfer-actions" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                      <button
-                        type="button"
-                        onClick={() => approveTransferPayment(payment)}
-                        disabled={transferActionLoading === `approve-${payment.id}`}
-                        style={{ border: 'none', borderRadius: 13, padding: '10px 13px', background: '#188038', color: '#fff', fontSize: 12.5, fontWeight: 950, cursor: transferActionLoading ? 'not-allowed' : 'pointer' }}
-                      >
-                        Aprobar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => rejectTransferPayment(payment)}
-                        disabled={transferActionLoading === `reject-${payment.id}`}
-                        style={{ border: '1px solid #ffd0d0', borderRadius: 13, padding: '10px 13px', background: '#fff', color: '#ff3b30', fontSize: 12.5, fontWeight: 950, cursor: transferActionLoading ? 'not-allowed' : 'pointer' }}
-                      >
-                        Rechazar
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
         </div>
 
         <div style={{ background: '#fff', borderRadius: 24, padding: 22, boxShadow: '0 1px 10px rgba(0,0,0,0.06)' }}>
@@ -9758,6 +9662,35 @@ function AdminDashboardPage() {
                 const monthlyLimit = Number(professional.monthlyLimit || professional.monthly_limit || 1000);
                 const monthlyUsed = Number(professional.monthlyBookingsCount || professional.monthly_bookings_count || 0);
                 const monthlyPercent = monthlyLimit > 0 ? Math.min(100, Math.round((monthlyUsed / monthlyLimit) * 100)) : 0;
+                const paymentStatus = professional.planPaymentStatus || professional.plan_payment_status || 'pending';
+                const billingMethod = professional.billingMethod || professional.billing_method || 'Sin elegir';
+                const planExpiresAt = professional.planExpiresAt || professional.plan_expires_at || '';
+                const lastPaymentAt = professional.lastPaymentAt || professional.last_payment_at || '';
+                const planPrice = Number(professional.planPrice || professional.plan_price || 0);
+                const planCurrency = professional.planCurrency || professional.plan_currency || 'UYU';
+                const expiresDate = planExpiresAt ? new Date(planExpiresAt) : null;
+                const daysToExpire = expiresDate && !Number.isNaN(expiresDate.getTime())
+                  ? Math.ceil((expiresDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+                  : null;
+                const paymentLabel = paymentStatus === 'paid'
+                  ? 'Pago'
+                  : paymentStatus === 'overdue'
+                    ? 'Vencido'
+                    : paymentStatus === 'pending_transfer'
+                      ? 'Transferencia'
+                      : 'Pendiente';
+                const paymentColor = paymentStatus === 'paid' ? '#188038' : paymentStatus === 'overdue' ? '#ff3b30' : '#ff9500';
+                const paymentBg = paymentStatus === 'paid' ? '#edfff3' : paymentStatus === 'overdue' ? '#fff0f0' : '#fff7e8';
+                const billingMethodLabel = billingMethod === 'mercadopago'
+                  ? 'Automático'
+                  : billingMethod === 'transfer'
+                    ? 'Transferencia'
+                    : 'Sin elegir';
+                const formatAdminDate = (value) => {
+                  if (!value) return 'Sin dato';
+                  const parsed = new Date(value);
+                  return Number.isNaN(parsed.getTime()) ? 'Sin dato' : parsed.toLocaleDateString('es-UY');
+                };
 
                 return (
                   <div key={professional.id} style={{ border: '1px solid #e8e8ed', borderRadius: 18, padding: 16, background: '#fff', display: 'grid', gap: 12 }}>
@@ -9793,13 +9726,38 @@ function AdminDashboardPage() {
                           <div style={{ width: `${monthlyPercent}%`, height: '100%', borderRadius: 999, background: monthlyPercent >= 90 ? '#ff3b30' : '#0071e3' }} />
                         </div>
                       </div>
-                      <div style={{ background: '#f7f7fb', borderRadius: 14, padding: 12 }}>
-                        <div style={{ fontSize: 18, fontWeight: 900, color: '#1a1a1a' }}>{professional.bookingsCount || 0}</div>
-                        <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 800 }}>Reservas totales</div>
+                      <div style={{ background: paymentBg, borderRadius: 14, padding: 12 }}>
+                        <div style={{ fontSize: 18, fontWeight: 950, color: paymentColor }}>{paymentLabel}</div>
+                        <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 800 }}>Estado de pago</div>
                       </div>
                       <div style={{ background: '#f7f7fb', borderRadius: 14, padding: 12 }}>
                         <div style={{ fontSize: 18, fontWeight: 900, color: '#1a1a1a' }}>{professional.clientsCount || 0}</div>
                         <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 800 }}>Clientes</div>
+                      </div>
+                    </div>
+
+                    <div className="admin-billing-simple" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 10, background: '#fbfbfd', border: '0.5px solid #ececf2', borderRadius: 16, padding: 12 }}>
+                      <div>
+                        <div style={{ color: '#8e8e93', fontSize: 11, fontWeight: 850 }}>Vencimiento</div>
+                        <div style={{ color: daysToExpire !== null && daysToExpire < 0 ? '#ff3b30' : '#1a1a1a', fontSize: 13, fontWeight: 950, marginTop: 3 }}>
+                          {formatAdminDate(planExpiresAt)}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ color: '#8e8e93', fontSize: 11, fontWeight: 850 }}>Faltan</div>
+                        <div style={{ color: daysToExpire !== null && daysToExpire <= 3 ? '#ff9500' : '#1a1a1a', fontSize: 13, fontWeight: 950, marginTop: 3 }}>
+                          {daysToExpire === null ? 'Sin dato' : daysToExpire < 0 ? `${Math.abs(daysToExpire)} días vencido` : `${daysToExpire} días`}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ color: '#8e8e93', fontSize: 11, fontWeight: 850 }}>Último pago</div>
+                        <div style={{ color: '#1a1a1a', fontSize: 13, fontWeight: 950, marginTop: 3 }}>{formatAdminDate(lastPaymentAt)}</div>
+                      </div>
+                      <div>
+                        <div style={{ color: '#8e8e93', fontSize: 11, fontWeight: 850 }}>Cobro</div>
+                        <div style={{ color: '#1a1a1a', fontSize: 13, fontWeight: 950, marginTop: 3 }}>
+                          {billingMethodLabel}{planPrice > 0 ? ` · ${planCurrency} ${planPrice}` : ''}
+                        </div>
                       </div>
                     </div>
 

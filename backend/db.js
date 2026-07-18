@@ -353,6 +353,8 @@ async function initDB() {
       `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS billing_method TEXT`,
       `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS plan_price NUMERIC(10, 2) DEFAULT 0`,
       `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS plan_currency TEXT DEFAULT 'UYU'`,
+      `ALTER TABLE plan_payments ADD COLUMN IF NOT EXISTS seen_by_admin BOOLEAN DEFAULT FALSE`,
+      `ALTER TABLE plan_payments ADD COLUMN IF NOT EXISTS notified_at TIMESTAMP`,
       // push_subscriptions
       `ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS user_agent TEXT`,
     ];
