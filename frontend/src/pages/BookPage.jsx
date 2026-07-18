@@ -43,12 +43,51 @@ const PHONE_COUNTRIES = [
   { code: 'CA', flag: '🇨🇦', name: 'Canadá', dialCode: '1', placeholder: '4161234567' },
 ];
 
+const PUBLIC_PAYMENT_METHODS = [
+  { value: 'cash', label: 'Efectivo' },
+  { value: 'transfer', label: 'Transferencia' },
+  { value: 'card', label: 'Débito / POS' },
+];
+
+function normalizeAcceptedPaymentMethods(value) {
+  const allowed = PUBLIC_PAYMENT_METHODS.map((method) => method.value);
+  const rawList = Array.isArray(value)
+    ? value
+    : String(value || 'cash,transfer,card').split(',');
+
+  const clean = rawList
+    .map((item) => String(item || '').trim())
+    .filter((item) => allowed.includes(item));
+
+  return clean.length > 0 ? Array.from(new Set(clean)) : ['cash'];
+}
+
+function getPaymentMethodLabel(value) {
+  return PUBLIC_PAYMENT_METHODS.find((method) => method.value === value)?.label || 'Efectivo';
+}
+
 function getPhoneCountry(countryCode) {
   return PHONE_COUNTRIES.find((country) => country.code === countryCode) || PHONE_COUNTRIES[0];
 }
 
 function onlyDigits(value) {
   return String(value || '').replace(/\D/g, '');
+}
+
+
+function getCompactCountryLabel(country) {
+  const iso =
+    country?.iso ||
+    country?.code2 ||
+    country?.countryCode ||
+    country?.shortCode ||
+    country?.abbreviation ||
+    'UY';
+
+  const flag = country?.flag || '🇺🇾';
+  const dialCode = country?.dialCode || country?.code || country?.phoneCode || '+598';
+
+  return `${String(iso).toUpperCase()} ${flag} ${dialCode}`;
 }
 
 function buildInternationalPhone(countryCode, localPhone) {
@@ -160,6 +199,8 @@ export default function BookPage() {
   const [clientPhoneCountry, setClientPhoneCountry] = useState('UY');
   const [clientPhone, setClientPhone] = useState('');
   const [clientComment, setClientComment] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [acceptedPaymentMethods, setAcceptedPaymentMethods] = useState(['cash', 'transfer', 'card']);
   const [bookingDate, setBookingDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
   const [slots, setSlots] = useState([]);
@@ -181,6 +222,7 @@ export default function BookPage() {
   const selectedDateObject = parseLocalDate(bookingDate);
   const selectedPhoneCountry = getPhoneCountry(clientPhoneCountry);
   const fullClientPhone = buildInternationalPhone(clientPhoneCountry, clientPhone);
+  const visiblePaymentMethods = PUBLIC_PAYMENT_METHODS.filter((method) => acceptedPaymentMethods.includes(method.value));
 
   useEffect(() => {
     setLoadingServices(true);
@@ -192,6 +234,39 @@ export default function BookPage() {
         const activeServices = (data.services || [])
           .map(normalizeService)
           .filter((service) => service.isActive);
+
+        const methodsFromServices =
+          data.settings?.acceptedPaymentMethods ??
+          data.settings?.accepted_payment_methods ??
+          data.professional?.acceptedPaymentMethods ??
+          data.professional?.accepted_payment_methods;
+
+        if (methodsFromServices !== undefined) {
+          const normalizedMethods = normalizeAcceptedPaymentMethods(methodsFromServices);
+          setAcceptedPaymentMethods(normalizedMethods);
+
+          if (!normalizedMethods.includes(paymentMethod)) {
+            setPaymentMethod(normalizedMethods[0] || 'cash');
+          }
+        } else {
+          fetch(`${API_BASE}/professionals/public/${slug}/settings`)
+            .then((settingsResponse) => settingsResponse.ok ? settingsResponse.json() : null)
+            .then((settingsData) => {
+              if (!settingsData?.settings) return;
+
+              const normalizedMethods = normalizeAcceptedPaymentMethods(
+                settingsData.settings.acceptedPaymentMethods ??
+                settingsData.settings.accepted_payment_methods
+              );
+
+              setAcceptedPaymentMethods(normalizedMethods);
+
+              if (!normalizedMethods.includes(paymentMethod)) {
+                setPaymentMethod(normalizedMethods[0] || 'cash');
+              }
+            })
+            .catch(() => {});
+        }
 
         setServices(activeServices);
 
@@ -216,6 +291,19 @@ export default function BookPage() {
         const activeStaff = (data.staff || [])
           .map(normalizeStaff)
           .filter((member) => member.isActive);
+
+        const methodsFromBusiness =
+          data.business?.acceptedPaymentMethods ??
+          data.business?.accepted_payment_methods;
+
+        if (methodsFromBusiness !== undefined) {
+          const normalizedMethods = normalizeAcceptedPaymentMethods(methodsFromBusiness);
+          setAcceptedPaymentMethods(normalizedMethods);
+
+          if (!normalizedMethods.includes(paymentMethod)) {
+            setPaymentMethod(normalizedMethods[0] || 'cash');
+          }
+        }
 
         setBusiness(data.business || null);
         setStaff(activeStaff);
@@ -560,6 +648,12 @@ export default function BookPage() {
       return;
     }
 
+    if (!acceptedPaymentMethods.includes(paymentMethod)) {
+      setPaymentMethod(acceptedPaymentMethods[0] || 'cash');
+      setError('Elegí un método de pago disponible.');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -570,6 +664,9 @@ export default function BookPage() {
           clientName: clientName.trim(),
           clientPhone: fullClientPhone,
           comment: clientComment.trim(),
+          paymentMethod,
+          paymentStatus: 'pending',
+          amountPaid: 0,
           bookingDate,
           startTime: selectedTime,
           serviceId: Number(selectedServiceId),
@@ -605,6 +702,7 @@ export default function BookPage() {
     setClientPhoneCountry('UY');
     setClientPhone('');
     setClientComment('');
+    setPaymentMethod(acceptedPaymentMethods[0] || 'cash');
     setBookingDate('');
     setSelectedTime('');
     setSlots([]);
@@ -631,6 +729,40 @@ export default function BookPage() {
   const hasSlots = slots.length > 0;
   const businessName = business?.businessName || business?.name || 'TuAgendaYa';
 
+  const reservationSummaryText = [
+    `Reserva en ${businessName}`,
+    selectedService ? `Servicio: ${selectedService.name}` : null,
+    selectedStaff ? `Profesional: ${selectedStaff.name}` : null,
+    bookingDate ? `Fecha: ${formatDate(bookingDate)}` : null,
+    selectedTime ? `Hora: ${selectedTime}${selectedEndTime ? ` a ${selectedEndTime}` : ''}` : null,
+    clientName ? `Cliente: ${clientName}` : null,
+    fullClientPhone ? `Teléfono: +${fullClientPhone}` : null,
+    `Pago elegido: ${getPaymentMethodLabel(paymentMethod)}`,
+  ].filter(Boolean).join('\n');
+
+  const calendarDateTime = (dateValue, timeValue) => {
+    if (!dateValue || !timeValue) return '';
+    return `${dateValue.replace(/-/g, '')}T${timeValue.replace(':', '')}00`;
+  };
+
+  const calendarStart = calendarDateTime(bookingDate, selectedTime);
+  const calendarEnd = calendarDateTime(bookingDate, selectedEndTime);
+
+  const googleCalendarUrl = calendarStart && calendarEnd
+    ? `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(`Reserva en ${businessName}`)}&dates=${calendarStart}/${calendarEnd}&details=${encodeURIComponent(reservationSummaryText)}&location=${encodeURIComponent(business?.address || '')}`
+    : '';
+
+  const copyReservationSummary = async () => {
+    if (!reservationSummaryText) return;
+
+    try {
+      await navigator.clipboard?.writeText(reservationSummaryText);
+      alert('Resumen copiado');
+    } catch {
+      alert('No se pudo copiar automáticamente');
+    }
+  };
+
   const canChooseDate = Boolean(selectedServiceId && (!hasStaffChoice || selectedStaffId));
 
   return (
@@ -656,91 +788,19 @@ export default function BookPage() {
         .date-row:active { transform: scale(0.99); }
 
         @media (max-width: 640px) {
-          .public-booking-page {
-            padding: 10px !important;
-            background: #f5f5f7 !important;
-            align-items: stretch !important;
-          }
-
-          .public-booking-card {
-            max-width: none !important;
-            border-radius: 24px !important;
-            padding: 20px 14px !important;
-            box-shadow: 0 10px 34px rgba(0,0,0,0.075) !important;
-            border: 0.5px solid rgba(0,0,0,0.055) !important;
-          }
-
-          .public-booking-form {
-            display: grid !important;
-            gap: 12px !important;
-          }
-
-          .public-booking-section {
-            border-radius: 22px !important;
-            padding: 14px !important;
-            margin-bottom: 0 !important;
-            background: #f7f7fb !important;
-          }
-
-          .public-booking-section input,
-          .public-booking-section select,
-          .public-booking-section textarea {
-            min-height: 48px !important;
-            font-size: 16px !important;
-            border-radius: 16px !important;
-          }
-
-          .service-card {
-            border-radius: 18px !important;
-            padding: 14px !important;
-            min-height: 64px !important;
-          }
-
-          .public-services-grid {
-            max-height: 310px !important;
-            padding-right: 2px !important;
-          }
-
-          .date-row {
-            min-height: 64px !important;
-            border-radius: 19px !important;
-            padding: 13px !important;
-          }
-
-          .public-slots-card {
-            max-width: none !important;
-            border-radius: 20px !important;
-            padding: 13px !important;
-          }
-
-          .public-slots-grid {
-            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-            gap: 8px !important;
-            max-height: 185px !important;
-          }
-
-          .slot-btn {
-            height: 40px !important;
-            border-radius: 15px !important;
-            font-size: 13px !important;
-            font-weight: 900 !important;
-          }
-
-          .public-phone-grid {
-            grid-template-columns: 1fr !important;
-            gap: 8px !important;
-          }
-
-          .public-booking-submit {
-            min-height: 52px !important;
-            border-radius: 19px !important;
-            font-size: 16px !important;
-            font-weight: 950 !important;
-            margin-top: 2px !important;
-            position: sticky !important;
-            bottom: 10px !important;
-            z-index: 5 !important;
-          }
+          .public-booking-page { padding: 10px !important; background: #f5f5f7 !important; align-items: stretch !important; }
+          .public-booking-card { max-width: none !important; border-radius: 24px !important; padding: 20px 14px !important; box-shadow: 0 10px 34px rgba(0,0,0,0.075) !important; border: 0.5px solid rgba(0,0,0,0.055) !important; }
+          .public-booking-form { display: grid !important; gap: 12px !important; }
+          .public-booking-section { border-radius: 22px !important; padding: 14px !important; margin-bottom: 0 !important; background: #f7f7fb !important; }
+          .public-booking-section input, .public-booking-section select, .public-booking-section textarea { min-height: 48px !important; font-size: 16px !important; border-radius: 16px !important; }
+          .service-card { border-radius: 18px !important; padding: 14px !important; min-height: 64px !important; }
+          .public-services-grid { max-height: 310px !important; padding-right: 2px !important; }
+          .date-row { min-height: 64px !important; border-radius: 19px !important; padding: 13px !important; }
+          .public-slots-card { max-width: none !important; border-radius: 20px !important; padding: 13px !important; }
+          .public-slots-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 8px !important; max-height: 185px !important; }
+          .slot-btn { height: 40px !important; border-radius: 15px !important; font-size: 13px !important; font-weight: 900 !important; }
+          .public-phone-grid { grid-template-columns: 1fr !important; gap: 8px !important; }
+          .public-booking-submit { min-height: 52px !important; border-radius: 19px !important; font-size: 16px !important; font-weight: 950 !important; margin-top: 2px !important; position: sticky !important; bottom: 10px !important; z-index: 5 !important; }
         }
       `}</style>
 
@@ -781,45 +841,128 @@ export default function BookPage() {
         </div>
 
         {success ? (
-          <div style={{ textAlign: 'center', padding: '24px 0' }}>
-            <div style={{ fontSize: 44, marginBottom: 8 }}>✓</div>
+          <div style={{ textAlign: 'center', padding: '20px 0 4px' }}>
+            <div
+              style={{
+                width: 58,
+                height: 58,
+                borderRadius: 999,
+                background: '#edfff3',
+                color: '#188038',
+                display: 'grid',
+                placeItems: 'center',
+                fontSize: 31,
+                fontWeight: 950,
+                margin: '0 auto 12px',
+                border: '1px solid #b7f5c8',
+              }}
+            >
+              ✓
+            </div>
 
-            <div style={{ fontSize: 17, fontWeight: 800, color: '#30d158', marginBottom: 8 }}>
+            <div style={{ fontSize: 20, fontWeight: 900, color: '#1a1a1a', marginBottom: 6, letterSpacing: '-0.03em' }}>
               Reserva recibida
             </div>
 
-            <div style={{ background: '#f5f5f8', borderRadius: 20, padding: '16px', marginBottom: 16, textAlign: 'left' }}>
-              <div style={{ fontSize: 12, color: '#6e6e73', marginBottom: 8, fontWeight: 700 }}>Resumen del turno</div>
+            <div style={{ fontSize: 13.5, color: '#6e6e73', lineHeight: 1.45, margin: '0 auto 18px', maxWidth: 390 }}>
+              Tu reserva fue recibida correctamente. Recibirás la confirmación por WhatsApp cuando el negocio la procese.
+            </div>
 
-              <div style={{ fontSize: 15, fontWeight: 800, color: '#1a1a1a', marginBottom: 6 }}>
-                {clientName}
+            <div
+              style={{
+                background: 'linear-gradient(180deg, #ffffff 0%, #fbfbfd 100%)',
+                borderRadius: 24,
+                padding: 16,
+                marginBottom: 14,
+                textAlign: 'left',
+                border: '1px solid rgba(0,0,0,0.06)',
+                boxShadow: '0 10px 24px rgba(0,0,0,0.05)',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 12 }}>
+                <div>
+                  <div style={{ fontSize: 12, color: '#8e8e93', marginBottom: 4, fontWeight: 850 }}>
+                    Negocio
+                  </div>
+                  <div style={{ fontSize: 16, fontWeight: 900, color: '#1a1a1a' }}>
+                    {businessName}
+                  </div>
+                </div>
+
+                <div style={{ textAlign: 'right', color: '#188038', fontSize: 12.5, fontWeight: 900 }}>
+                  Recibida
+                </div>
               </div>
 
-              {selectedService && (
-                <div style={{ fontSize: 13, color: '#0071e3', marginBottom: 5, fontWeight: 650 }}>
-                  {selectedService.name} · {selectedService.durationMinutes} min
-                  {selectedService.price ? ` · $${selectedService.price}` : ''}
-                </div>
-              )}
+              <div style={{ display: 'grid', gap: 9 }}>
+                {selectedService && (
+                  <div style={{ background: '#f5f5f8', borderRadius: 16, padding: 12 }}>
+                    <div style={{ fontSize: 11.5, color: '#8e8e93', fontWeight: 850, marginBottom: 3 }}>Servicio</div>
+                    <div style={{ fontSize: 14.5, color: '#1a1a1a', fontWeight: 900 }}>
+                      {selectedService.name} · {selectedService.durationMinutes} min
+                      {selectedService.price ? ` · $${selectedService.price}` : ''}
+                    </div>
+                  </div>
+                )}
 
-              {selectedStaff && (
-                <div style={{ fontSize: 13, color: '#6e6e73', marginBottom: 5 }}>
-                  Profesional: <strong>{selectedStaff.name}</strong>
-                </div>
-              )}
+                {selectedStaff && (
+                  <div style={{ background: '#f5f5f8', borderRadius: 16, padding: 12 }}>
+                    <div style={{ fontSize: 11.5, color: '#8e8e93', fontWeight: 850, marginBottom: 3 }}>Profesional</div>
+                    <div style={{ fontSize: 14.5, color: '#1a1a1a', fontWeight: 900 }}>{selectedStaff.name}</div>
+                  </div>
+                )}
 
-              <div style={{ fontSize: 13, color: '#6e6e73' }}>
-                {formatDate(bookingDate)} · {selectedTime} a {selectedEndTime}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
+                  <div style={{ background: '#eef6ff', borderRadius: 16, padding: 12 }}>
+                    <div style={{ fontSize: 11.5, color: '#0071e3', fontWeight: 850, marginBottom: 3 }}>Fecha</div>
+                    <div style={{ fontSize: 14.5, color: '#1a1a1a', fontWeight: 900 }}>{formatDate(bookingDate)}</div>
+                  </div>
+
+                  <div style={{ background: '#eef6ff', borderRadius: 16, padding: 12 }}>
+                    <div style={{ fontSize: 11.5, color: '#0071e3', fontWeight: 850, marginBottom: 3 }}>Hora</div>
+                    <div style={{ fontSize: 14.5, color: '#1a1a1a', fontWeight: 900 }}>{selectedTime} a {selectedEndTime}</div>
+                  </div>
+                </div>
+
+                <div style={{ background: '#f5f5f8', borderRadius: 16, padding: 12 }}>
+                  <div style={{ fontSize: 11.5, color: '#8e8e93', fontWeight: 850, marginBottom: 3 }}>Cliente</div>
+                  <div style={{ fontSize: 14.5, color: '#1a1a1a', fontWeight: 900 }}>{clientName}</div>
+                  {fullClientPhone && (
+                    <div style={{ fontSize: 12.5, color: '#6e6e73', fontWeight: 700, marginTop: 4 }}>
+                      +{fullClientPhone}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 12.5, color: '#0071e3', fontWeight: 800, marginTop: 5 }}>
+                    Pago elegido: {getPaymentMethodLabel(paymentMethod)}
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div style={{ fontSize: 13, color: '#6e6e73', marginBottom: 20 }}>
-              El negocio se pondrá en contacto con vos para confirmar.
+            <div style={{ display: 'grid', gridTemplateColumns: googleCalendarUrl ? '1fr 1fr' : '1fr', gap: 9, marginBottom: 10 }}>
+              {googleCalendarUrl && (
+                <button
+                  type="button"
+                  onClick={() => window.open(googleCalendarUrl, '_blank', 'noopener,noreferrer')}
+                  style={{ padding: '12px 14px', borderRadius: 16, border: 'none', background: '#0071e3', color: '#fff', fontSize: 13.5, fontWeight: 900, fontFamily: 'inherit', cursor: 'pointer' }}
+                >
+                  Agregar al calendario
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={copyReservationSummary}
+                style={{ padding: '12px 14px', borderRadius: 16, border: '1px solid #dcdce3', background: '#fff', color: '#0071e3', fontSize: 13.5, fontWeight: 900, fontFamily: 'inherit', cursor: 'pointer' }}
+              >
+                Copiar resumen
+              </button>
             </div>
 
             <button
+              type="button"
               onClick={handleReset}
-              style={{ padding: '12px 24px', borderRadius: 16, border: 'none', background: '#0071e3', color: '#fff', fontSize: 14, fontWeight: 800, fontFamily: 'inherit', cursor: 'pointer' }}
+              style={{ width: '100%', padding: '13px 24px', borderRadius: 16, border: '1px solid #dcdce3', background: '#fff', color: '#1a1a1a', fontSize: 14, fontWeight: 850, fontFamily: 'inherit', cursor: 'pointer' }}
             >
               Hacer otra reserva
             </button>
@@ -1173,6 +1316,46 @@ export default function BookPage() {
                 />
               </div>
 
+              <label style={labelStyle}>Método de pago *</label>
+
+              {visiblePaymentMethods.length === 0 ? (
+                <div style={{ fontSize: 12, color: '#8e8e93', marginBottom: 12 }}>
+                  El negocio todavía no configuró métodos de pago.
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8, marginBottom: 12 }}>
+                  {visiblePaymentMethods.map((method) => {
+                  const selected = paymentMethod === method.value;
+
+                  return (
+                    <button
+                      key={method.value}
+                      type="button"
+                      onClick={() => setPaymentMethod(method.value)}
+                      style={{
+                        border: selected ? '1px solid #0071e3' : '0.5px solid #d8d8de',
+                        background: selected ? '#eef6ff' : '#fff',
+                        color: selected ? '#0071e3' : '#1a1a1a',
+                        borderRadius: 15,
+                        padding: '12px 10px',
+                        fontSize: 13,
+                        fontWeight: 900,
+                        fontFamily: 'inherit',
+                        cursor: 'pointer',
+                        boxShadow: selected ? '0 6px 14px rgba(0,113,227,0.10)' : '0 2px 8px rgba(0,0,0,0.03)',
+                      }}
+                    >
+                      {method.label}
+                    </button>
+                  );
+                  })}
+                </div>
+              )}
+
+              <div style={{ fontSize: 11.5, color: '#8e8e93', margin: '-4px 0 12px', lineHeight: 1.35 }}>
+                El negocio verá este método en su panel. El pago queda por cobrar hasta que el profesional lo marque como pagado.
+              </div>
+
               <label style={labelStyle}>Comentario opcional</label>
 
               <textarea
@@ -1198,13 +1381,13 @@ export default function BookPage() {
                 padding: '15px',
                 borderRadius: 18,
                 border: 'none',
-                background: loading || !selectedServiceId || (hasStaffChoice && !selectedStaffId) || !selectedTime ? '#aeaeb2' : '#0071e3',
+                background: loading || !selectedServiceId || (hasStaffChoice && !selectedStaffId) || !selectedTime || visiblePaymentMethods.length === 0 ? '#aeaeb2' : '#0071e3',
                 color: '#fff',
                 fontSize: 16,
                 fontWeight: 850,
                 fontFamily: 'inherit',
-                cursor: loading || !selectedServiceId || (hasStaffChoice && !selectedStaffId) || !selectedTime ? 'not-allowed' : 'pointer',
-                boxShadow: loading || !selectedServiceId || (hasStaffChoice && !selectedStaffId) || !selectedTime ? 'none' : '0 12px 24px rgba(0,113,227,0.18)',
+                cursor: loading || !selectedServiceId || (hasStaffChoice && !selectedStaffId) || !selectedTime || visiblePaymentMethods.length === 0 ? 'not-allowed' : 'pointer',
+                boxShadow: loading || !selectedServiceId || (hasStaffChoice && !selectedStaffId) || !selectedTime || visiblePaymentMethods.length === 0 ? 'none' : '0 12px 24px rgba(0,113,227,0.18)',
               }}
             >
               {loading ? 'Reservando...' : 'Confirmar reserva'}
