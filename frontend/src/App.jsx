@@ -7935,7 +7935,39 @@ function ProfessionalSettingsSection() {
     }
   };
 
-  const rowStyle = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, padding: '14px 0', borderBottom: '0.5px solid #ececf2' };
+  const sectionStyle = {
+    background: '#fff',
+    border: '0.5px solid #ececf2',
+    borderRadius: 20,
+    padding: 16,
+    boxShadow: '0 4px 14px rgba(0,0,0,0.035)',
+  };
+
+  const sectionHeaderStyle = {
+    fontSize: 15,
+    fontWeight: 950,
+    color: '#1a1a1a',
+    letterSpacing: '-0.01em',
+    marginBottom: 4,
+  };
+
+  const sectionTextStyle = {
+    fontSize: 12.5,
+    color: '#6e6e73',
+    fontWeight: 700,
+    lineHeight: 1.4,
+    marginBottom: 12,
+  };
+
+  const rowStyle = {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 14,
+    padding: '13px 0',
+    borderTop: '0.5px solid #f0f0f2',
+  };
+
   const titleStyle = { fontSize: 14, fontWeight: 900, color: '#1a1a1a' };
   const textStyle = { fontSize: 12, color: '#6e6e73', fontWeight: 700, lineHeight: 1.4, marginTop: 3 };
 
@@ -7948,60 +7980,111 @@ function ProfessionalSettingsSection() {
   }
 
   return (
-    <div style={{ background: '#fff', borderRadius: 22, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
-      <div style={{ fontSize: 18, fontWeight: 900, color: '#1a1a1a', marginBottom: 4 }}>Ajustes del negocio</div>
-      <div style={{ fontSize: 13, color: '#6e6e73', lineHeight: 1.45, marginBottom: 12 }}>
-        Configuración práctica para reservas, avisos y métodos de pago. Sin bloqueo por anticipación: el cliente puede reservar aunque falten pocos minutos.
+    <div className="settings-mobile-section" style={{ background: '#fff', borderRadius: 22, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
+      <div style={{ fontSize: 19, fontWeight: 950, color: '#1a1a1a', marginBottom: 4, letterSpacing: '-0.01em' }}>Ajustes del negocio</div>
+      <div style={{ fontSize: 13, color: '#6e6e73', lineHeight: 1.45, marginBottom: 16, fontWeight: 700 }}>
+        Configurá reservas, pagos y avisos sin mezclar opciones.
       </div>
 
-      <div style={rowStyle}>
-        <div><div style={titleStyle}>Nueva reserva</div><div style={textStyle}>Avisar al profesional cuando entra una reserva nueva.</div></div>
-        <MinimalCircleCheck checked={settings.notifyNewBooking} onChange={(checked) => setSettings({ ...settings, notifyNewBooking: checked })} />
-      </div>
+      <div className="settings-cards-grid" style={{ display: 'grid', gap: 12 }}>
+        <div className="settings-card" style={sectionStyle}>
+          <div style={sectionHeaderStyle}>Notificaciones</div>
+          <div style={sectionTextStyle}>Avisos importantes para el profesional.</div>
 
-      <div style={rowStyle}>
-        <div><div style={titleStyle}>Recordatorio automático</div><div style={textStyle}>Enviar recordatorio 2 horas antes del turno.</div></div>
-        <MinimalCircleCheck checked={settings.notifyReminder} onChange={(checked) => setSettings({ ...settings, notifyReminder: checked, reminderHoursBefore: 2 })} />
-      </div>
+          <div style={rowStyle}>
+            <div>
+              <div style={titleStyle}>Nueva reserva</div>
+              <div style={textStyle}>Avisar cuando entra una reserva nueva.</div>
+            </div>
+            <MinimalCircleCheck checked={settings.notifyNewBooking} onChange={(checked) => setSettings({ ...settings, notifyNewBooking: checked })} />
+          </div>
 
-      <div style={rowStyle}>
-        <div><div style={titleStyle}>Cancelación del cliente</div><div style={textStyle}>Permitir que el cliente cancele desde su link de confirmación o WhatsApp.</div></div>
-        <MinimalCircleCheck checked={settings.allowClientCancellations} onChange={(checked) => setSettings({ ...settings, allowClientCancellations: checked })} />
-      </div>
+          <div style={rowStyle}>
+            <div>
+              <div style={titleStyle}>Recordatorio 2 horas antes</div>
+              <div style={textStyle}>Enviar recordatorio automático antes del turno.</div>
+            </div>
+            <MinimalCircleCheck checked={settings.notifyReminder} onChange={(checked) => setSettings({ ...settings, notifyReminder: checked, reminderHoursBefore: 2 })} />
+          </div>
+        </div>
 
-      <div style={{ ...rowStyle, alignItems: 'flex-start' }}>
-        <div><div style={titleStyle}>Límite para cancelar</div><div style={textStyle}>Esto no limita reservas nuevas. Solo controla hasta cuándo puede cancelar el cliente desde su link.</div></div>
-        <select value={String(settings.cancellationLimitMinutes)} onChange={(event) => setSettings({ ...settings, cancellationLimitMinutes: Number(event.target.value) })} disabled={!settings.allowClientCancellations} style={{ ...inputStyle, width: 220, marginBottom: 0 }}>
-          <option value="0">Hasta la hora del turno</option>
-          <option value="30">Hasta 30 min antes</option>
-          <option value="60">Hasta 1 hora antes</option>
-          <option value="120">Hasta 2 horas antes</option>
-          <option value="360">Hasta 6 horas antes</option>
-          <option value="1440">Hasta 24 horas antes</option>
-        </select>
-      </div>
+        <div className="settings-card" style={sectionStyle}>
+          <div style={sectionHeaderStyle}>Reservas y cancelaciones</div>
+          <div style={sectionTextStyle}>Reglas para cuando el cliente confirma o cancela.</div>
 
-      <div style={{ padding: '14px 0', borderBottom: '0.5px solid #ececf2' }}>
-        <div style={titleStyle}>Métodos de pago aceptados</div>
-        <div style={textStyle}>Se usan como referencia para caja y reservas.</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10, marginTop: 12 }}>
-          {paymentOptions.map((option) => (
-            <label key={option.value} style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#f7f7fb', border: settings.acceptedPaymentMethods.includes(option.value) ? '1px solid rgba(0,113,227,0.28)' : '0.5px solid #ececf2', borderRadius: 14, padding: 12, fontSize: 13, fontWeight: 900, color: '#1a1a1a', cursor: 'pointer' }}>
-              <input type="checkbox" checked={(settings.acceptedPaymentMethods || []).includes(option.value)} onChange={() => togglePaymentMethod(option.value)} style={{ width: 18, height: 18 }} />
-              {option.label}
-            </label>
-          ))}
+          <div style={rowStyle}>
+            <div>
+              <div style={titleStyle}>Cancelación del cliente</div>
+              <div style={textStyle}>Permitir cancelar desde el link de confirmación o WhatsApp.</div>
+            </div>
+            <MinimalCircleCheck checked={settings.allowClientCancellations} onChange={(checked) => setSettings({ ...settings, allowClientCancellations: checked })} />
+          </div>
+
+          <div style={{ ...rowStyle, alignItems: 'flex-start' }}>
+            <div>
+              <div style={titleStyle}>Límite para cancelar</div>
+              <div style={textStyle}>No bloquea reservas nuevas. Solo controla hasta cuándo puede cancelar el cliente.</div>
+            </div>
+            <select
+              value={String(settings.cancellationLimitMinutes)}
+              onChange={(event) => setSettings({ ...settings, cancellationLimitMinutes: Number(event.target.value) })}
+              disabled={!settings.allowClientCancellations}
+              style={{ ...inputStyle, width: 220, marginBottom: 0 }}
+            >
+              <option value="0">Hasta la hora del turno</option>
+              <option value="30">Hasta 30 min antes</option>
+              <option value="60">Hasta 1 hora antes</option>
+              <option value="120">Hasta 2 horas antes</option>
+              <option value="360">Hasta 6 horas antes</option>
+              <option value="1440">Hasta 24 horas antes</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="settings-card" style={sectionStyle}>
+          <div style={sectionHeaderStyle}>Pagos</div>
+          <div style={sectionTextStyle}>Métodos que verá el cliente al reservar y que se usan en caja.</div>
+
+          <div className="settings-payment-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10, marginTop: 12 }}>
+            {paymentOptions.map((option) => {
+              const checked = (settings.acceptedPaymentMethods || []).includes(option.value);
+              return (
+                <label
+                  key={option.value}
+                  className={`settings-payment-option ${checked ? 'active' : ''}`}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    background: checked ? '#eef6ff' : '#f7f7fb',
+                    border: checked ? '1px solid rgba(0,113,227,0.30)' : '0.5px solid #ececf2',
+                    borderRadius: 16,
+                    padding: 13,
+                    fontSize: 13,
+                    fontWeight: 900,
+                    color: checked ? '#0071e3' : '#1a1a1a',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <MinimalCircleCheck checked={checked} onChange={() => togglePaymentMethod(option.value)} />
+                  <span>{option.label}</span>
+                </label>
+              );
+            })}
+          </div>
         </div>
       </div>
 
       {error && <div style={{ marginTop: 12, color: '#ff453a', fontSize: 13, fontWeight: 800 }}>{error}</div>}
       {message && <div style={{ marginTop: 12, color: '#188038', fontSize: 13, fontWeight: 800 }}>{message}</div>}
-      <button type="button" onClick={saveSettings} disabled={saving} style={{ marginTop: 16, border: 'none', borderRadius: 16, padding: '13px 16px', background: saving ? '#aeaeb2' : '#0071e3', color: '#fff', fontSize: 14, fontWeight: 900, fontFamily: 'inherit', cursor: saving ? 'not-allowed' : 'pointer' }}>
+
+      <button type="button" onClick={saveSettings} disabled={saving} className="settings-save-button" style={{ width: '100%', marginTop: 16, border: 'none', borderRadius: 16, padding: '14px 16px', background: saving ? '#aeaeb2' : '#0071e3', color: '#fff', fontSize: 15, fontWeight: 950, fontFamily: 'inherit', cursor: saving ? 'not-allowed' : 'pointer', boxShadow: saving ? 'none' : '0 10px 22px rgba(0,113,227,0.22)' }}>
         {saving ? 'Guardando...' : 'Guardar ajustes'}
       </button>
     </div>
   );
 }
+
 
 function ConfigurationSection() {
   const [openPanel, setOpenPanel] = useState(null);
@@ -8714,6 +8797,56 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
 
           .profile-mobile-section img {
             max-width: 100% !important;
+          }
+
+
+          .settings-mobile-section {
+            padding: 16px !important;
+            border-radius: 24px !important;
+          }
+
+          .settings-mobile-section .settings-cards-grid {
+            gap: 12px !important;
+          }
+
+          .settings-mobile-section .settings-card {
+            padding: 15px !important;
+            border-radius: 22px !important;
+          }
+
+          .settings-mobile-section .settings-card > div[style*="13px 0"] {
+            align-items: center !important;
+          }
+
+          .settings-mobile-section select,
+          .settings-mobile-section input {
+            min-height: 46px !important;
+            border-radius: 15px !important;
+            font-size: 16px !important;
+          }
+
+          .settings-mobile-section button {
+            min-height: 44px !important;
+            touch-action: manipulation !important;
+          }
+
+          .settings-mobile-section div[style*="grid-template-columns"] {
+            grid-template-columns: 1fr !important;
+          }
+
+          .settings-mobile-section .settings-payment-grid {
+            grid-template-columns: 1fr !important;
+          }
+
+          .settings-mobile-section .settings-payment-option {
+            min-height: 52px !important;
+            border-radius: 18px !important;
+          }
+
+          .settings-mobile-section .settings-save-button {
+            min-height: 50px !important;
+            border-radius: 18px !important;
+            font-size: 15.5px !important;
           }
 
           .clients-summary-button {
