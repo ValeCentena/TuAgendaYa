@@ -43,38 +43,12 @@ const PHONE_COUNTRIES = [
   { code: 'CA', flag: '🇨🇦', name: 'Canadá', dialCode: '1', placeholder: '4161234567' },
 ];
 
-const PUBLIC_PAYMENT_METHODS = [
-  { value: 'cash', label: 'Efectivo' },
-  { value: 'transfer', label: 'Transferencia' },
-  { value: 'card', label: 'Débito / POS' },
-];
-
-function getPaymentMethodLabel(value) {
-  return PUBLIC_PAYMENT_METHODS.find((method) => method.value === value)?.label || 'Efectivo';
-}
-
 function getPhoneCountry(countryCode) {
   return PHONE_COUNTRIES.find((country) => country.code === countryCode) || PHONE_COUNTRIES[0];
 }
 
 function onlyDigits(value) {
   return String(value || '').replace(/\D/g, '');
-}
-
-
-function getCompactCountryLabel(country) {
-  const iso =
-    country?.iso ||
-    country?.code2 ||
-    country?.countryCode ||
-    country?.shortCode ||
-    country?.abbreviation ||
-    'UY';
-
-  const flag = country?.flag || '🇺🇾';
-  const dialCode = country?.dialCode || country?.code || country?.phoneCode || '+598';
-
-  return `${String(iso).toUpperCase()} ${flag} ${dialCode}`;
 }
 
 function buildInternationalPhone(countryCode, localPhone) {
@@ -186,7 +160,6 @@ export default function BookPage() {
   const [clientPhoneCountry, setClientPhoneCountry] = useState('UY');
   const [clientPhone, setClientPhone] = useState('');
   const [clientComment, setClientComment] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('cash');
   const [bookingDate, setBookingDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
   const [slots, setSlots] = useState([]);
@@ -597,9 +570,6 @@ export default function BookPage() {
           clientName: clientName.trim(),
           clientPhone: fullClientPhone,
           comment: clientComment.trim(),
-          paymentMethod,
-          paymentStatus: 'pending',
-          amountPaid: 0,
           bookingDate,
           startTime: selectedTime,
           serviceId: Number(selectedServiceId),
@@ -635,7 +605,6 @@ export default function BookPage() {
     setClientPhoneCountry('UY');
     setClientPhone('');
     setClientComment('');
-    setPaymentMethod('cash');
     setBookingDate('');
     setSelectedTime('');
     setSlots([]);
@@ -662,44 +631,11 @@ export default function BookPage() {
   const hasSlots = slots.length > 0;
   const businessName = business?.businessName || business?.name || 'TuAgendaYa';
 
-  const reservationSummaryText = [
-    `Reserva en ${businessName}`,
-    selectedService ? `Servicio: ${selectedService.name}` : null,
-    selectedStaff ? `Profesional: ${selectedStaff.name}` : null,
-    bookingDate ? `Fecha: ${formatDate(bookingDate)}` : null,
-    selectedTime ? `Hora: ${selectedTime}${selectedEndTime ? ` a ${selectedEndTime}` : ''}` : null,
-    clientName ? `Cliente: ${clientName}` : null,
-    fullClientPhone ? `Teléfono: +${fullClientPhone}` : null,
-    `Pago elegido: ${getPaymentMethodLabel(paymentMethod)}`,
-  ].filter(Boolean).join('\n');
-
-  const calendarDateTime = (dateValue, timeValue) => {
-    if (!dateValue || !timeValue) return '';
-    return `${dateValue.replace(/-/g, '')}T${timeValue.replace(':', '')}00`;
-  };
-
-  const calendarStart = calendarDateTime(bookingDate, selectedTime);
-  const calendarEnd = calendarDateTime(bookingDate, selectedEndTime);
-
-  const googleCalendarUrl = calendarStart && calendarEnd
-    ? `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(`Reserva en ${businessName}`)}&dates=${calendarStart}/${calendarEnd}&details=${encodeURIComponent(reservationSummaryText)}&location=${encodeURIComponent(business?.address || '')}`
-    : '';
-
-  const copyReservationSummary = async () => {
-    if (!reservationSummaryText) return;
-
-    try {
-      await navigator.clipboard?.writeText(reservationSummaryText);
-      alert('Resumen copiado');
-    } catch {
-      alert('No se pudo copiar automáticamente');
-    }
-  };
-
   const canChooseDate = Boolean(selectedServiceId && (!hasStaffChoice || selectedStaffId));
 
   return (
     <div
+      className="public-booking-page"
       style={{
         minHeight: '100vh',
         background: '#f2f2f7',
@@ -718,10 +654,99 @@ export default function BookPage() {
         .service-card:active { transform: scale(0.98); }
         .date-row { transition: background 0.12s, border 0.12s, transform 0.12s; }
         .date-row:active { transform: scale(0.99); }
+
+        @media (max-width: 640px) {
+          .public-booking-page {
+            padding: 10px !important;
+            background: #f5f5f7 !important;
+            align-items: stretch !important;
+          }
+
+          .public-booking-card {
+            max-width: none !important;
+            border-radius: 24px !important;
+            padding: 20px 14px !important;
+            box-shadow: 0 10px 34px rgba(0,0,0,0.075) !important;
+            border: 0.5px solid rgba(0,0,0,0.055) !important;
+          }
+
+          .public-booking-form {
+            display: grid !important;
+            gap: 12px !important;
+          }
+
+          .public-booking-section {
+            border-radius: 22px !important;
+            padding: 14px !important;
+            margin-bottom: 0 !important;
+            background: #f7f7fb !important;
+          }
+
+          .public-booking-section input,
+          .public-booking-section select,
+          .public-booking-section textarea {
+            min-height: 48px !important;
+            font-size: 16px !important;
+            border-radius: 16px !important;
+          }
+
+          .service-card {
+            border-radius: 18px !important;
+            padding: 14px !important;
+            min-height: 64px !important;
+          }
+
+          .public-services-grid {
+            max-height: 310px !important;
+            padding-right: 2px !important;
+          }
+
+          .date-row {
+            min-height: 64px !important;
+            border-radius: 19px !important;
+            padding: 13px !important;
+          }
+
+          .public-slots-card {
+            max-width: none !important;
+            border-radius: 20px !important;
+            padding: 13px !important;
+          }
+
+          .public-slots-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+            gap: 8px !important;
+            max-height: 185px !important;
+          }
+
+          .slot-btn {
+            height: 40px !important;
+            border-radius: 15px !important;
+            font-size: 13px !important;
+            font-weight: 900 !important;
+          }
+
+          .public-phone-grid {
+            grid-template-columns: 1fr !important;
+            gap: 8px !important;
+          }
+
+          .public-booking-submit {
+            min-height: 52px !important;
+            border-radius: 19px !important;
+            font-size: 16px !important;
+            font-weight: 950 !important;
+            margin-top: 2px !important;
+            position: sticky !important;
+            bottom: 10px !important;
+            z-index: 5 !important;
+          }
+        }
       `}</style>
 
       <div
         ref={pageTopRef}
+        className="public-booking-card"
         style={{
           background: '#fff',
           borderRadius: 30,
@@ -756,135 +781,52 @@ export default function BookPage() {
         </div>
 
         {success ? (
-          <div style={{ textAlign: 'center', padding: '20px 0 4px' }}>
-            <div
-              style={{
-                width: 58,
-                height: 58,
-                borderRadius: 999,
-                background: '#edfff3',
-                color: '#188038',
-                display: 'grid',
-                placeItems: 'center',
-                fontSize: 31,
-                fontWeight: 950,
-                margin: '0 auto 12px',
-                border: '1px solid #b7f5c8',
-              }}
-            >
-              ✓
-            </div>
+          <div style={{ textAlign: 'center', padding: '24px 0' }}>
+            <div style={{ fontSize: 44, marginBottom: 8 }}>✓</div>
 
-            <div style={{ fontSize: 20, fontWeight: 900, color: '#1a1a1a', marginBottom: 6, letterSpacing: '-0.03em' }}>
+            <div style={{ fontSize: 17, fontWeight: 800, color: '#30d158', marginBottom: 8 }}>
               Reserva recibida
             </div>
 
-            <div style={{ fontSize: 13.5, color: '#6e6e73', lineHeight: 1.45, margin: '0 auto 18px', maxWidth: 390 }}>
-              Tu reserva fue recibida correctamente. Recibirás la confirmación por WhatsApp cuando el negocio la procese.
-            </div>
+            <div style={{ background: '#f5f5f8', borderRadius: 20, padding: '16px', marginBottom: 16, textAlign: 'left' }}>
+              <div style={{ fontSize: 12, color: '#6e6e73', marginBottom: 8, fontWeight: 700 }}>Resumen del turno</div>
 
-            <div
-              style={{
-                background: 'linear-gradient(180deg, #ffffff 0%, #fbfbfd 100%)',
-                borderRadius: 24,
-                padding: 16,
-                marginBottom: 14,
-                textAlign: 'left',
-                border: '1px solid rgba(0,0,0,0.06)',
-                boxShadow: '0 10px 24px rgba(0,0,0,0.05)',
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 12 }}>
-                <div>
-                  <div style={{ fontSize: 12, color: '#8e8e93', marginBottom: 4, fontWeight: 850 }}>
-                    Negocio
-                  </div>
-                  <div style={{ fontSize: 16, fontWeight: 900, color: '#1a1a1a' }}>
-                    {businessName}
-                  </div>
-                </div>
-
-                <div style={{ textAlign: 'right', color: '#188038', fontSize: 12.5, fontWeight: 900 }}>
-                  Recibida
-                </div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: '#1a1a1a', marginBottom: 6 }}>
+                {clientName}
               </div>
 
-              <div style={{ display: 'grid', gap: 9 }}>
-                {selectedService && (
-                  <div style={{ background: '#f5f5f8', borderRadius: 16, padding: 12 }}>
-                    <div style={{ fontSize: 11.5, color: '#8e8e93', fontWeight: 850, marginBottom: 3 }}>Servicio</div>
-                    <div style={{ fontSize: 14.5, color: '#1a1a1a', fontWeight: 900 }}>
-                      {selectedService.name} · {selectedService.durationMinutes} min
-                      {selectedService.price ? ` · $${selectedService.price}` : ''}
-                    </div>
-                  </div>
-                )}
-
-                {selectedStaff && (
-                  <div style={{ background: '#f5f5f8', borderRadius: 16, padding: 12 }}>
-                    <div style={{ fontSize: 11.5, color: '#8e8e93', fontWeight: 850, marginBottom: 3 }}>Profesional</div>
-                    <div style={{ fontSize: 14.5, color: '#1a1a1a', fontWeight: 900 }}>{selectedStaff.name}</div>
-                  </div>
-                )}
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 9 }}>
-                  <div style={{ background: '#eef6ff', borderRadius: 16, padding: 12 }}>
-                    <div style={{ fontSize: 11.5, color: '#0071e3', fontWeight: 850, marginBottom: 3 }}>Fecha</div>
-                    <div style={{ fontSize: 14.5, color: '#1a1a1a', fontWeight: 900 }}>{formatDate(bookingDate)}</div>
-                  </div>
-
-                  <div style={{ background: '#eef6ff', borderRadius: 16, padding: 12 }}>
-                    <div style={{ fontSize: 11.5, color: '#0071e3', fontWeight: 850, marginBottom: 3 }}>Hora</div>
-                    <div style={{ fontSize: 14.5, color: '#1a1a1a', fontWeight: 900 }}>{selectedTime} a {selectedEndTime}</div>
-                  </div>
+              {selectedService && (
+                <div style={{ fontSize: 13, color: '#0071e3', marginBottom: 5, fontWeight: 650 }}>
+                  {selectedService.name} · {selectedService.durationMinutes} min
+                  {selectedService.price ? ` · $${selectedService.price}` : ''}
                 </div>
-
-                <div style={{ background: '#f5f5f8', borderRadius: 16, padding: 12 }}>
-                  <div style={{ fontSize: 11.5, color: '#8e8e93', fontWeight: 850, marginBottom: 3 }}>Cliente</div>
-                  <div style={{ fontSize: 14.5, color: '#1a1a1a', fontWeight: 900 }}>{clientName}</div>
-                  {fullClientPhone && (
-                    <div style={{ fontSize: 12.5, color: '#6e6e73', fontWeight: 700, marginTop: 4 }}>
-                      +{fullClientPhone}
-                    </div>
-                  )}
-                  <div style={{ fontSize: 12.5, color: '#0071e3', fontWeight: 800, marginTop: 5 }}>
-                    Pago elegido: {getPaymentMethodLabel(paymentMethod)}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: googleCalendarUrl ? '1fr 1fr' : '1fr', gap: 9, marginBottom: 10 }}>
-              {googleCalendarUrl && (
-                <button
-                  type="button"
-                  onClick={() => window.open(googleCalendarUrl, '_blank', 'noopener,noreferrer')}
-                  style={{ padding: '12px 14px', borderRadius: 16, border: 'none', background: '#0071e3', color: '#fff', fontSize: 13.5, fontWeight: 900, fontFamily: 'inherit', cursor: 'pointer' }}
-                >
-                  Agregar al calendario
-                </button>
               )}
 
-              <button
-                type="button"
-                onClick={copyReservationSummary}
-                style={{ padding: '12px 14px', borderRadius: 16, border: '1px solid #dcdce3', background: '#fff', color: '#0071e3', fontSize: 13.5, fontWeight: 900, fontFamily: 'inherit', cursor: 'pointer' }}
-              >
-                Copiar resumen
-              </button>
+              {selectedStaff && (
+                <div style={{ fontSize: 13, color: '#6e6e73', marginBottom: 5 }}>
+                  Profesional: <strong>{selectedStaff.name}</strong>
+                </div>
+              )}
+
+              <div style={{ fontSize: 13, color: '#6e6e73' }}>
+                {formatDate(bookingDate)} · {selectedTime} a {selectedEndTime}
+              </div>
+            </div>
+
+            <div style={{ fontSize: 13, color: '#6e6e73', marginBottom: 20 }}>
+              El negocio se pondrá en contacto con vos para confirmar.
             </div>
 
             <button
-              type="button"
               onClick={handleReset}
-              style={{ width: '100%', padding: '13px 24px', borderRadius: 16, border: '1px solid #dcdce3', background: '#fff', color: '#1a1a1a', fontSize: 14, fontWeight: 850, fontFamily: 'inherit', cursor: 'pointer' }}
+              style={{ padding: '12px 24px', borderRadius: 16, border: 'none', background: '#0071e3', color: '#fff', fontSize: 14, fontWeight: 800, fontFamily: 'inherit', cursor: 'pointer' }}
             >
               Hacer otra reserva
             </button>
           </div>
         ) : (
-          <form onSubmit={handleSubmit}>
-            <div style={sectionStyle}>
+          <form onSubmit={handleSubmit} className="public-booking-form">
+            <div className="public-booking-section" style={sectionStyle}>
               <div style={sectionTitleStyle}>Elegí un servicio</div>
 
               {loadingServices ? (
@@ -897,6 +839,7 @@ export default function BookPage() {
                 </div>
               ) : (
                 <div
+                  className="public-services-grid"
                   style={{
                     display: 'grid',
                     gap: 9,
@@ -964,7 +907,7 @@ export default function BookPage() {
             </div>
 
             {hasStaffChoice && (
-              <div style={sectionStyle}>
+              <div className="public-booking-section" style={sectionStyle}>
                 <div style={sectionTitleStyle}>Elegí un profesional</div>
 
                 {loadingStaff ? (
@@ -1011,7 +954,7 @@ export default function BookPage() {
               </div>
             )}
 
-            <div style={sectionStyle}>
+            <div className="public-booking-section" style={sectionStyle}>
               <div style={sectionTitleStyle}>Elegí fecha y horario</div>
 
               <label style={labelStyle}>Fecha del turno *</label>
@@ -1068,6 +1011,7 @@ export default function BookPage() {
 
               {bookingDate && canChooseDate && (
                 <div
+                  className="public-slots-card"
                   style={{
                     marginTop: 10,
                     maxWidth: 390,
@@ -1108,6 +1052,7 @@ export default function BookPage() {
                     </div>
                   ) : (
                     <div
+                      className="public-slots-grid"
                       style={{
                         display: 'grid',
                         gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
@@ -1172,7 +1117,7 @@ export default function BookPage() {
               )}
             </div>
 
-            <div style={sectionStyle}>
+            <div className="public-booking-section" style={sectionStyle}>
               <div style={sectionTitleStyle}>Tus datos</div>
 
               <label style={labelStyle}>Nombre completo *</label>
@@ -1188,6 +1133,7 @@ export default function BookPage() {
               <label style={labelStyle}>Teléfono *</label>
 
               <div
+                className="public-phone-grid"
                 style={{
                   display: 'grid',
                   gridTemplateColumns: 'minmax(128px, 0.9fr) minmax(0, 1.4fr)',
@@ -1231,40 +1177,6 @@ export default function BookPage() {
                 Prefijo seleccionado: {selectedPhoneCountry.flag} +{selectedPhoneCountry.dialCode}. Escribí solo el número, sin el prefijo.
               </div>
 
-              <label style={labelStyle}>Método de pago *</label>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8, marginBottom: 12 }}>
-                {PUBLIC_PAYMENT_METHODS.map((method) => {
-                  const selected = paymentMethod === method.value;
-
-                  return (
-                    <button
-                      key={method.value}
-                      type="button"
-                      onClick={() => setPaymentMethod(method.value)}
-                      style={{
-                        border: selected ? '1px solid #0071e3' : '0.5px solid #d8d8de',
-                        background: selected ? '#eef6ff' : '#fff',
-                        color: selected ? '#0071e3' : '#1a1a1a',
-                        borderRadius: 15,
-                        padding: '12px 10px',
-                        fontSize: 13,
-                        fontWeight: 900,
-                        fontFamily: 'inherit',
-                        cursor: 'pointer',
-                        boxShadow: selected ? '0 6px 14px rgba(0,113,227,0.10)' : '0 2px 8px rgba(0,0,0,0.03)',
-                      }}
-                    >
-                      {method.label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div style={{ fontSize: 11.5, color: '#8e8e93', margin: '-4px 0 12px', lineHeight: 1.35 }}>
-                El negocio verá este método en su panel. El pago queda por cobrar hasta que el profesional lo marque como pagado.
-              </div>
-
               <label style={labelStyle}>Comentario opcional</label>
 
               <textarea
@@ -1283,6 +1195,7 @@ export default function BookPage() {
 
             <button
               type="submit"
+              className="public-booking-submit"
               disabled={loading || !selectedServiceId || (hasStaffChoice && !selectedStaffId) || !selectedTime}
               style={{
                 width: '100%',
