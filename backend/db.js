@@ -291,6 +291,30 @@ async function initDB() {
     }
 
     // ── Migraciones seguras — columnas añadidas después del deploy inicial ──
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS plan_payments (
+        id                  SERIAL PRIMARY KEY,
+        professional_id     INTEGER NOT NULL REFERENCES professionals(id) ON DELETE CASCADE,
+        method              TEXT NOT NULL DEFAULT 'transfer',
+        status              TEXT NOT NULL DEFAULT 'pending',
+        amount              NUMERIC(10, 2) DEFAULT 0,
+        currency            TEXT DEFAULT 'UYU',
+        plan                TEXT DEFAULT 'base',
+        period_days         INTEGER DEFAULT 30,
+        mp_preference_id    TEXT,
+        mp_payment_id       TEXT,
+        checkout_url        TEXT,
+        transfer_reference  TEXT,
+        transfer_note       TEXT,
+        raw_payload         JSONB,
+        approved_at         TIMESTAMP,
+        expires_at          TIMESTAMP,
+        created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
     const migrations = [
       // bookings
       `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS booking_date DATE`,
@@ -321,6 +345,14 @@ async function initDB() {
       `ALTER TABLE staff_availability ADD COLUMN IF NOT EXISTS staff_id INTEGER`,
       `ALTER TABLE staff_availability ADD COLUMN IF NOT EXISTS slot_duration_minutes INTEGER NOT NULL DEFAULT 30`,
       `UPDATE staff_availability SET staff_id = staff_member_id WHERE staff_id IS NULL`,
+
+      // billing / plan payments
+      `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS plan_payment_status TEXT DEFAULT 'pending'`,
+      `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS plan_expires_at TIMESTAMP`,
+      `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS last_payment_at TIMESTAMP`,
+      `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS billing_method TEXT`,
+      `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS plan_price NUMERIC(10, 2) DEFAULT 0`,
+      `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS plan_currency TEXT DEFAULT 'UYU'`,
       // push_subscriptions
       `ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS user_agent TEXT`,
     ];

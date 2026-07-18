@@ -10,6 +10,7 @@ const bookingsRoutes = require("./routes/bookings");
 const staffRoutes = require("./routes/staff");
 const adminRoutes = require("./routes/admin");
 const whatsappRoutes = require("./routes/whatsapp");
+const paymentsRoutes = require("./routes/payments");
 const { startBookingReminderWorker } = require("./services/reminders");
 
 const app = express();
@@ -55,6 +56,7 @@ app.use("/api/bookings", bookingsRoutes);
 app.use("/api/staff", staffRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/whatsapp", whatsappRoutes);
+app.use("/api/payments", paymentsRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ error: "Ruta no encontrada" });

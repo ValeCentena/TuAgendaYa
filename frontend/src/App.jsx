@@ -7184,6 +7184,9 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
   const [previewLogoMode, setPreviewLogoMode] = useState('square');
   const [planBookings, setPlanBookings] = useState([]);
   const [loadingPlan, setLoadingPlan] = useState(true);
+  const [billingInfo, setBillingInfo] = useState(null);
+  const [billingLoading, setBillingLoading] = useState(true);
+  const [billingActionLoading, setBillingActionLoading] = useState('');
   const [profilePushStatus, setProfilePushStatus] = useState('checking');
   const [profilePushMessage, setProfilePushMessage] = useState('');
   const [profilePushLoading, setProfilePushLoading] = useState(false);
@@ -7239,9 +7242,32 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
       .finally(() => setLoadingPlan(false));
   };
 
+  const fetchBillingInfo = () => {
+    if (!token) {
+      setBillingLoading(false);
+      return;
+    }
+
+    setBillingLoading(true);
+
+    fetch(`${API_BASE}/payments/me/plan`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        setBillingInfo(data.plan || data || null);
+      })
+      .catch(() => {
+        setBillingInfo(null);
+      })
+      .finally(() => setBillingLoading(false));
+  };
+
+
   useEffect(() => {
     fetchProfile();
     fetchPlanBookings();
+    fetchBillingInfo();
   }, []);
 
   useEffect(() => {
@@ -7390,6 +7416,20 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
   const publicLink = publicSlug ? `https://tuagendaya.com/reservar/${publicSlug}` : '';
   const statusText = professional?.status === 'suspended' ? 'Suspendido' : 'Activo';
   const statusColor = professional?.status === 'suspended' ? '#ff453a' : '#30d158';
+  const billingStatus = billingInfo?.paymentStatus || billingInfo?.payment_status || professional?.planPaymentStatus || professional?.plan_payment_status || 'pending';
+  const planAmount = Number(billingInfo?.amount || professional?.planPrice || professional?.plan_price || 0) || 0;
+  const planCurrency = billingInfo?.currency || professional?.planCurrency || professional?.plan_currency || 'UYU';
+  const planExpiresAt = billingInfo?.expiresAt || billingInfo?.expires_at || professional?.planExpiresAt || professional?.plan_expires_at || '';
+  const bankInfo = billingInfo?.bankInfo || {};
+  const billingStatusText = billingStatus === 'paid'
+    ? 'Pago'
+    : billingStatus === 'overdue'
+      ? 'Vencido'
+      : billingStatus === 'pending_transfer'
+        ? 'Transferencia pendiente'
+        : 'Pendiente';
+  const billingStatusColor = billingStatus === 'paid' ? '#188038' : billingStatus === 'overdue' ? '#ff453a' : '#ff9f0a';
+  const planExpiresLabel = planExpiresAt ? new Date(planExpiresAt).toLocaleDateString('es-UY') : 'Sin vencimiento cargado';
 
   const copyPublicLinkFromProfile = async () => {
     if (!publicLink) return;
@@ -7399,6 +7439,65 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
       setMessage('Link público copiado correctamente.');
     } catch {
       setError('No se pudo copiar el link.');
+    }
+  };
+
+
+  const startAutomaticPlanPayment = async () => {
+    setBillingActionLoading('automatic');
+    setMessage('');
+    setError('');
+
+    try {
+      const response = await fetch(`${API_BASE}/payments/me/checkout`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || !data.checkoutUrl) {
+        throw new Error(data.error || 'No se pudo iniciar el pago automático.');
+      }
+
+      window.location.href = data.checkoutUrl;
+    } catch (err) {
+      setError(err.message || 'No se pudo iniciar el pago automático.');
+    } finally {
+      setBillingActionLoading('');
+    }
+  };
+
+  const requestTransferPlanPayment = async () => {
+    setBillingActionLoading('transfer');
+    setMessage('');
+    setError('');
+
+    try {
+      const response = await fetch(`${API_BASE}/payments/me/transfer`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ note: 'Solicitud de pago por transferencia desde panel profesional.' }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || 'No se pudo registrar la transferencia.');
+      }
+
+      setMessage(`Solicitud de transferencia registrada. Referencia: ${data.payment?.transferReference || data.payment?.transfer_reference || 'pendiente'}`);
+      fetchBillingInfo();
+    } catch (err) {
+      setError(err.message || 'No se pudo registrar la transferencia.');
+    } finally {
+      setBillingActionLoading('');
     }
   };
 
@@ -7551,6 +7650,67 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
           >
             Copiar link
           </button>
+        </div>
+
+        <div className="plan-payment-card" style={{ marginTop: 14, background: '#fff', border: '0.5px solid #e8e8ed', borderRadius: 18, padding: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 12 }}>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 950, color: '#1a1a1a' }}>Pago del plan</div>
+              <div style={{ fontSize: 12.5, color: '#6e6e73', fontWeight: 700, marginTop: 3 }}>
+                Elegí cobro automático por Mercado Pago o transferencia manual.
+              </div>
+            </div>
+            <div style={{ borderRadius: 999, padding: '6px 10px', background: billingStatus === 'paid' ? '#edfff3' : '#fff8ee', color: billingStatusColor, fontSize: 11.5, fontWeight: 950, whiteSpace: 'nowrap' }}>
+              {billingLoading ? 'Revisando...' : billingStatusText}
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10, marginBottom: 12 }}>
+            <div style={{ background: '#f7f7fb', borderRadius: 15, padding: 12 }}>
+              <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 850 }}>Monto</div>
+              <div style={{ fontSize: 17, color: '#1a1a1a', fontWeight: 950, marginTop: 3 }}>
+                {planAmount > 0 ? `${planCurrency} ${planAmount}` : 'A definir'}
+              </div>
+            </div>
+            <div style={{ background: '#f7f7fb', borderRadius: 15, padding: 12 }}>
+              <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 850 }}>Vence</div>
+              <div style={{ fontSize: 14, color: '#1a1a1a', fontWeight: 950, marginTop: 5 }}>{planExpiresLabel}</div>
+            </div>
+            <div style={{ background: '#f7f7fb', borderRadius: 15, padding: 12 }}>
+              <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 850 }}>Método</div>
+              <div style={{ fontSize: 14, color: '#1a1a1a', fontWeight: 950, marginTop: 5 }}>
+                {billingInfo?.billingMethod === 'transfer' ? 'Transferencia' : billingInfo?.billingMethod === 'mercadopago' ? 'Automático' : 'Sin elegir'}
+              </div>
+            </div>
+          </div>
+
+          <div className="plan-payment-actions" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <button
+              type="button"
+              onClick={startAutomaticPlanPayment}
+              disabled={billingActionLoading === 'automatic'}
+              style={{ border: 'none', borderRadius: 15, padding: '12px 14px', background: '#0071e3', color: '#fff', fontSize: 13, fontWeight: 950, fontFamily: 'inherit', cursor: billingActionLoading === 'automatic' ? 'not-allowed' : 'pointer' }}
+            >
+              {billingActionLoading === 'automatic' ? 'Abriendo...' : 'Pagar automático'}
+            </button>
+            <button
+              type="button"
+              onClick={requestTransferPlanPayment}
+              disabled={billingActionLoading === 'transfer'}
+              style={{ border: '0.5px solid #d0d0d5', borderRadius: 15, padding: '12px 14px', background: '#fff', color: '#0071e3', fontSize: 13, fontWeight: 950, fontFamily: 'inherit', cursor: billingActionLoading === 'transfer' ? 'not-allowed' : 'pointer' }}
+            >
+              {billingActionLoading === 'transfer' ? 'Registrando...' : 'Pagar por transferencia'}
+            </button>
+          </div>
+
+          {(bankInfo.bankName || bankInfo.accountNumber || bankInfo.accountHolder) && (
+            <div style={{ marginTop: 12, background: '#f7f7fb', borderRadius: 15, padding: 12, fontSize: 12, color: '#6e6e73', fontWeight: 750, lineHeight: 1.5 }}>
+              <strong>Datos para transferencia:</strong>
+              {bankInfo.bankName ? ` ${bankInfo.bankName}` : ''}
+              {bankInfo.accountHolder ? ` · ${bankInfo.accountHolder}` : ''}
+              {bankInfo.accountNumber ? ` · Cuenta: ${bankInfo.accountNumber}` : ''}
+            </div>
+          )}
         </div>
       </div>
 
@@ -8847,6 +9007,24 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
             min-height: 50px !important;
             border-radius: 18px !important;
             font-size: 15.5px !important;
+          }
+
+          .plan-payment-card {
+            border-radius: 20px !important;
+            padding: 13px !important;
+          }
+
+          .plan-payment-card div[style*="repeat(3"] {
+            grid-template-columns: 1fr !important;
+          }
+
+          .plan-payment-actions {
+            grid-template-columns: 1fr !important;
+          }
+
+          .plan-payment-actions button {
+            min-height: 48px !important;
+            border-radius: 17px !important;
           }
 
           .clients-summary-button {
