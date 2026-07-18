@@ -643,6 +643,77 @@ function isTruthyDatabaseValue(value) {
   );
 }
 
+const PLAN_GRACE_DAYS = Number(process.env.PLAN_GRACE_DAYS || 5);
+
+function getPlanAccessStatus(professional) {
+  if (!professional) {
+    return {
+      canBook: false,
+      reason: "not_found",
+      message: "Agenda no disponible.",
+      graceDaysLeft: 0,
+    };
+  }
+
+  if (professional.status === "suspended") {
+    return {
+      canBook: false,
+      reason: "suspended",
+      message: "Agenda no disponible temporalmente.",
+      graceDaysLeft: 0,
+    };
+  }
+
+  const expiresRaw = professional.plan_expires_at || professional.planExpiresAt;
+
+  if (!expiresRaw) {
+    return {
+      canBook: true,
+      reason: "no_expiration",
+      message: "",
+      graceDaysLeft: null,
+    };
+  }
+
+  const expiresAt = new Date(expiresRaw);
+
+  if (Number.isNaN(expiresAt.getTime())) {
+    return {
+      canBook: true,
+      reason: "invalid_expiration",
+      message: "",
+      graceDaysLeft: null,
+    };
+  }
+
+  const now = new Date();
+  const graceUntil = new Date(expiresAt);
+  graceUntil.setDate(graceUntil.getDate() + PLAN_GRACE_DAYS);
+
+  if (now <= graceUntil) {
+    const diffMs = graceUntil.getTime() - now.getTime();
+    return {
+      canBook: true,
+      reason: now > expiresAt ? "grace" : "active",
+      message: now > expiresAt
+        ? `El plan está vencido, pero el negocio está dentro del período de gracia de ${PLAN_GRACE_DAYS} días.`
+        : "",
+      graceDaysLeft: Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24))),
+      planExpiresAt: expiresAt.toISOString(),
+      graceUntil: graceUntil.toISOString(),
+    };
+  }
+
+  return {
+    canBook: false,
+    reason: "expired",
+    message: "Agenda temporalmente pausada. El negocio debe regularizar el pago para recibir nuevas reservas.",
+    graceDaysLeft: 0,
+    planExpiresAt: expiresAt.toISOString(),
+    graceUntil: graceUntil.toISOString(),
+  };
+}
+
 function isAvailabilityActive(availability) {
   if (!availability) return false;
 
@@ -675,7 +746,7 @@ async function getProfessionalBySlug(slug) {
     `
     SELECT *
     FROM professionals
-    WHERE slug = $1 AND status = 'active'
+    WHERE slug = $1
     `,
     [slug]
   );
@@ -1187,6 +1258,7 @@ router.get("/public/:slug/staff", async (req, res) => {
     }
 
     const staff = await getPublicStaffForProfessional(professional);
+    const access = getPlanAccessStatus(professional);
 
     res.json({
       business: {
@@ -1196,8 +1268,10 @@ router.get("/public/:slug/staff", async (req, res) => {
         address: professional.address || "",
         slug: professional.slug,
         logoUrl: null,
+        access,
       },
-      staff: staff.map(normalizePublicStaff),
+      access,
+      staff: access.canBook ? staff.map(normalizePublicStaff) : [],
     });
   } catch (error) {
     res.status(500).json({
@@ -1224,6 +1298,16 @@ router.get("/public/:slug/slots", async (req, res) => {
     if (!professional) {
       return res.status(404).json({
         error: "Profesional no encontrado",
+      });
+    }
+
+    const access = getPlanAccessStatus(professional);
+
+    if (!access.canBook) {
+      return res.status(403).json({
+        error: access.message,
+        access,
+        slots: [],
       });
     }
 
@@ -1360,6 +1444,15 @@ router.post("/public/:slug/book", async (req, res) => {
     if (!professional) {
       return res.status(404).json({
         error: "Profesional no encontrado",
+      });
+    }
+
+    const access = getPlanAccessStatus(professional);
+
+    if (!access.canBook) {
+      return res.status(403).json({
+        error: access.message,
+        access,
       });
     }
 

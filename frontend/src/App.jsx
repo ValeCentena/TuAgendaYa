@@ -7434,6 +7434,25 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
         : 'Pendiente';
   const billingStatusColor = billingStatus === 'paid' ? '#188038' : billingStatus === 'overdue' ? '#ff453a' : '#ff9f0a';
   const planExpiresLabel = planExpiresAt ? new Date(planExpiresAt).toLocaleDateString('es-UY') : 'Sin vencimiento cargado';
+  const planGraceDays = Number(billingInfo?.graceDays || billingInfo?.grace_days || 5);
+  const planExpiresDate = planExpiresAt ? new Date(planExpiresAt) : null;
+  const planGraceUntil = planExpiresDate && !Number.isNaN(planExpiresDate.getTime())
+    ? new Date(planExpiresDate.getTime() + planGraceDays * 24 * 60 * 60 * 1000)
+    : null;
+  const planDaysToExpire = planExpiresDate && !Number.isNaN(planExpiresDate.getTime())
+    ? Math.ceil((planExpiresDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+    : null;
+  const planGraceDaysLeft = planGraceUntil
+    ? Math.ceil((planGraceUntil.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+    : null;
+  const shouldShowPlanReminder = billingStatus !== 'paid' || (planDaysToExpire !== null && planDaysToExpire <= 5);
+  const planReminderText = planDaysToExpire === null
+    ? 'Tu plan no tiene vencimiento cargado. Revisá el pago para mantener tu agenda activa.'
+    : planDaysToExpire >= 0
+      ? `Tu plan vence en ${planDaysToExpire} día${planDaysToExpire === 1 ? '' : 's'}. Luego tenés ${planGraceDays} días de gracia para pagar.`
+      : planGraceDaysLeft > 0
+        ? `Tu plan venció. Te quedan ${planGraceDaysLeft} día${planGraceDaysLeft === 1 ? '' : 's'} de gracia para pagar antes de pausar las reservas públicas.`
+        : 'Tu período de gracia terminó. Tu link público queda pausado hasta regularizar el pago.';
 
   const copyPublicLinkFromProfile = async () => {
     if (!publicLink) return;
@@ -7660,6 +7679,17 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
             Copiar link
           </button>
         </div>
+
+        {shouldShowPlanReminder && (
+          <div style={{ marginTop: 14, background: planGraceDaysLeft !== null && planGraceDaysLeft <= 0 ? '#fff0f0' : '#fff8ee', border: '0.5px solid #ffe2b8', borderRadius: 18, padding: 14 }}>
+            <div style={{ color: planGraceDaysLeft !== null && planGraceDaysLeft <= 0 ? '#ff3b30' : '#b26a00', fontSize: 14, fontWeight: 950, marginBottom: 4 }}>
+              Recordatorio de pago
+            </div>
+            <div style={{ color: '#6e6e73', fontSize: 12.5, fontWeight: 750, lineHeight: 1.45 }}>
+              {planReminderText}
+            </div>
+          </div>
+        )}
 
         <div className="plan-payment-card" style={{ marginTop: 14, background: '#fff', border: '0.5px solid #e8e8ed', borderRadius: 18, padding: 14 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 12 }}>

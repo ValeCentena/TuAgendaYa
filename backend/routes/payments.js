@@ -162,6 +162,7 @@ function serializePlan(professional, latestPayment) {
     expiresAt: professional.plan_expires_at,
     lastPaymentAt: professional.last_payment_at,
     latestPayment,
+    graceDays: Number(process.env.PLAN_GRACE_DAYS || 5),
     transferReference: `TY-${professional.id}`,
     transferConcept: `TuAgendaYa plan ${professional.business_name || professional.name || professional.email}`,
     bankInfo: bankInfo(),

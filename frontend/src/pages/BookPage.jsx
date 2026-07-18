@@ -212,6 +212,7 @@ export default function BookPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
+  const [accessStatus, setAccessStatus] = useState(null);
 
   const selectedService = services.find((service) => String(service.id) === String(selectedServiceId));
   const selectedStaff = staff.find((member) => String(member.id) === String(selectedStaffId));
@@ -231,6 +232,16 @@ export default function BookPage() {
     fetch(`${API_BASE}/professionals/public/${slug}/services`)
       .then((r) => r.json())
       .then((data) => {
+        if (data.access) {
+          setAccessStatus(data.access);
+        }
+
+        if (data.access && data.access.canBook === false) {
+          setServices([]);
+          setError(data.access.message || 'Agenda temporalmente pausada.');
+          return;
+        }
+
         const activeServices = (data.services || [])
           .map(normalizeService)
           .filter((service) => service.isActive);
@@ -288,6 +299,17 @@ export default function BookPage() {
     fetch(`${API_BASE}/bookings/public/${slug}/staff`)
       .then((r) => r.json())
       .then((data) => {
+        if (data.access || data.business?.access) {
+          const nextAccess = data.access || data.business?.access;
+          setAccessStatus(nextAccess);
+
+          if (nextAccess && nextAccess.canBook === false) {
+            setStaff([]);
+            setError(nextAccess.message || 'Agenda temporalmente pausada.');
+            return;
+          }
+        }
+
         const activeStaff = (data.staff || [])
           .map(normalizeStaff)
           .filter((member) => member.isActive);
@@ -346,7 +368,13 @@ export default function BookPage() {
 
     fetch(`${API_BASE}/bookings/public/${slug}/slots?${params.toString()}`)
       .then((r) => r.json())
-      .then((data) => setSlots(data.slots || []))
+      .then((data) => {
+        if (data.access) {
+          setAccessStatus(data.access);
+          setError(data.error || data.access.message || 'Agenda temporalmente pausada.');
+        }
+        setSlots(data.slots || []);
+      })
       .catch(() => setSlots([]))
       .finally(() => setLoadingSlots(false));
   }, [bookingDate, selectedServiceId, selectedStaffId, staff.length, slug]);
@@ -677,6 +705,10 @@ export default function BookPage() {
       const data = await res.json();
 
       if (!res.ok) {
+        if (data.access) {
+          setAccessStatus(data.access);
+        }
+
         setError(data.error || 'No se pudo confirmar la reserva.');
 
         if (res.status === 409) {
