@@ -1173,10 +1173,6 @@ export default function BookPage() {
                 />
               </div>
 
-              <div style={{ fontSize: 11.5, color: '#8e8e93', margin: '-1px 0 10px', lineHeight: 1.35 }}>
-                Prefijo seleccionado: {selectedPhoneCountry.flag} +{selectedPhoneCountry.dialCode}. Escribí solo el número, sin el prefijo.
-              </div>
-
               <label style={labelStyle}>Comentario opcional</label>
 
               <textarea
