@@ -10286,7 +10286,7 @@ function LandingPage() {
           gap: 34px;
           color: #20263a;
           font-size: 14.5px;
-          font-weight: 850;
+          font-weight: 760;
         }
 
         .landing-nav-actions-v2 {
@@ -10346,35 +10346,39 @@ function LandingPage() {
           gap: 8px;
           padding: 8px 13px;
           border-radius: 999px;
-          background: rgba(0,113,227,0.10);
+          background: rgba(0,113,227,0.09);
           color: #006edb;
           border: 0.5px solid rgba(0,113,227,0.13);
           font-size: 13px;
-          font-weight: 950;
+          font-weight: 850;
           margin-bottom: 24px;
         }
 
         .landing-title-v2 {
           margin: 0;
-          max-width: 650px;
-          font-size: clamp(48px, 4.8vw, 82px);
-          line-height: 0.96;
-          letter-spacing: -0.062em;
-          font-weight: 1000;
+          max-width: 680px;
+          font-family: "Nunito", "Avenir Next", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          font-size: clamp(46px, 4.35vw, 74px);
+          line-height: 1.035;
+          letter-spacing: -0.052em;
+          font-weight: 850;
           color: #080f25;
+          text-wrap: balance;
         }
 
         .landing-title-v2 span {
-          color: #006ee8;
+          color: #0071e3;
+          font-weight: 900;
         }
 
         .landing-subtitle-v2 {
           margin: 24px 0 0;
-          max-width: 605px;
+          max-width: 610px;
           color: #4b5567;
           font-size: 18px;
-          line-height: 1.55;
-          font-weight: 750;
+          line-height: 1.58;
+          font-weight: 650;
+          letter-spacing: -0.012em;
         }
 
         .landing-actions-v2 {
@@ -10604,6 +10608,32 @@ function LandingPage() {
           padding: 18px;
         }
 
+        .landing-share-icons-v2 {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin-top: 10px;
+        }
+
+        .landing-share-icon-v2 {
+          width: 32px;
+          height: 32px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 10px;
+          background: #fff;
+          border: 0.5px solid rgba(15,23,42,0.09);
+          box-shadow: 0 8px 20px rgba(15,23,42,0.055);
+        }
+
+        .landing-share-icon-v2 svg {
+          width: 18px;
+          height: 18px;
+          display: block;
+        }
+
+
         .landing-promo-card-v2 {
           right: 12px;
           top: 230px;
@@ -10696,8 +10726,9 @@ function LandingPage() {
           }
 
           .landing-title-v2 {
-            font-size: 44px;
-            line-height: 1.02;
+            font-size: 41px;
+            line-height: 1.06;
+            letter-spacing: -0.045em;
           }
 
           .landing-subtitle-v2 {
@@ -10951,8 +10982,38 @@ function LandingPage() {
               tuagendaya.com/mi-negocio ⧉
             </div>
             <div style={{ color: '#667085', fontSize: 12, fontWeight: 850, marginTop: 12 }}>Compartir por</div>
-            <div style={{ display: 'flex', gap: 10, marginTop: 9, fontSize: 19 }}>
-              <span>🟢</span><span>📸</span><span>🔵</span><span>🔗</span>
+            <div className="landing-share-icons-v2" aria-label="Canales para compartir">
+              <span className="landing-share-icon-v2" title="WhatsApp">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path fill="#25D366" d="M20.5 11.8c0 4.8-3.9 8.7-8.7 8.7-1.5 0-3-.4-4.2-1.1L3 20.6l1.2-4.4c-.8-1.3-1.2-2.8-1.2-4.4C3 7 6.9 3.1 11.8 3.1s8.7 3.9 8.7 8.7Z"/>
+                  <path fill="#fff" d="M9.2 7.5c-.2-.5-.4-.5-.6-.5h-.5c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.4s1 2.8 1.2 3c.1.2 2 3.2 5 4.3 2.5.9 3 .7 3.5.7.5-.1 1.7-.7 2-1.4.2-.7.2-1.3.2-1.4-.1-.1-.3-.2-.6-.4l-1.9-.9c-.3-.1-.5-.2-.7.2-.2.3-.8.9-1 1.1-.2.2-.4.2-.7.1-.3-.2-1.3-.5-2.5-1.5-.9-.8-1.5-1.8-1.7-2.1-.2-.3 0-.5.1-.6l.5-.6c.2-.2.2-.3.3-.5.1-.2.1-.4 0-.6L9.2 7.5Z"/>
+                </svg>
+              </span>
+              <span className="landing-share-icon-v2" title="Instagram">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <defs>
+                    <linearGradient id="igLandingGradient" x1="4" y1="20" x2="20" y2="4">
+                      <stop offset="0%" stopColor="#F58529"/>
+                      <stop offset="45%" stopColor="#DD2A7B"/>
+                      <stop offset="100%" stopColor="#515BD4"/>
+                    </linearGradient>
+                  </defs>
+                  <rect x="4" y="4" width="16" height="16" rx="5" fill="url(#igLandingGradient)"/>
+                  <circle cx="12" cy="12" r="3.2" fill="none" stroke="#fff" strokeWidth="1.8"/>
+                  <circle cx="16.8" cy="7.2" r="1.1" fill="#fff"/>
+                </svg>
+              </span>
+              <span className="landing-share-icon-v2" title="Facebook">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="12" cy="12" r="9" fill="#1877F2"/>
+                  <path fill="#fff" d="M13.2 19v-6h2l.3-2.3h-2.3V9.2c0-.7.2-1.1 1.2-1.1h1.2V6.1c-.2 0-1-.1-1.8-.1-1.8 0-3 1.1-3 3v1.7h-2V13h2v6h2.4Z"/>
+                </svg>
+              </span>
+              <span className="landing-share-icon-v2" title="Copiar link">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path fill="none" stroke="#344054" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M10.5 13.5 13.5 10.5M8.8 15.2a4 4 0 0 1 0-5.7l1.7-1.7a4 4 0 0 1 5.7 5.7l-.8.8M15.2 8.8a4 4 0 0 1 0 5.7l-1.7 1.7a4 4 0 0 1-5.7-5.7l.8-.8"/>
+                </svg>
+              </span>
             </div>
           </div>
 
