@@ -10203,13 +10203,13 @@ function LandingPage() {
   const navigate = useNavigate();
 
   const heroFeatures = [
-    { icon: '▣', label: 'Hasta 1000 reservas/mes' },
-    { icon: '◌', label: 'WhatsApp' },
-    { icon: '▭', label: 'Cobro automático' },
-    { icon: '⌁', label: 'Transferencia' },
-    { icon: '◷', label: 'Historial' },
-    { icon: '▯', label: 'App instalable' },
-    { icon: '◇', label: 'Multi profesional' },
+    { label: 'Hasta 1000 reservas/mes' },
+    { label: 'WhatsApp' },
+    { label: 'Cobro automático' },
+    { label: 'Transferencia' },
+    { label: 'Historial' },
+    { label: 'App instalable' },
+    { label: 'Multi profesional' },
   ];
 
   const sidebarItems = [
@@ -10427,29 +10427,18 @@ function LandingPage() {
         .landing-feature-chip-v2 {
           display: inline-flex;
           align-items: center;
-          gap: 9px;
+          justify-content: center;
+          gap: 0;
           border-radius: 15px;
           background: rgba(255,255,255,0.76);
           border: 0.5px solid rgba(15,23,42,0.10);
-          padding: 10px 13px;
+          padding: 10px 15px;
           color: #263143;
           font-size: 13px;
           font-weight: 850;
           box-shadow: 0 9px 28px rgba(15,23,42,0.04);
-        }
-
-        .landing-feature-chip-v2 span:first-child {
-          width: 18px;
-          height: 18px;
-          border-radius: 7px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          color: #0071e3;
-          background: rgba(0,113,227,0.08);
-          font-size: 11px;
-          font-weight: 950;
-          line-height: 1;
+          text-align: center;
+          min-height: 42px;
         }
 
         .landing-offer-v2 {
@@ -10861,14 +10850,13 @@ function LandingPage() {
               Crear cuenta →
             </button>
             <button className="landing-demo-cta-v2" type="button" onClick={goLogin}>
-              Ver demo ◉
+              Iniciar sesión
             </button>
           </div>
 
           <div className="landing-feature-grid-v2">
             {heroFeatures.map((feature) => (
               <div className="landing-feature-chip-v2" key={feature.label}>
-                <span>{feature.icon}</span>
                 <span>{feature.label}</span>
               </div>
             ))}
