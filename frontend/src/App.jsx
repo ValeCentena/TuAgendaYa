@@ -7698,7 +7698,7 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
         {shouldShowPlanReminder && (
           <div style={{ marginTop: 14, background: planGraceDaysLeft !== null && planGraceDaysLeft <= 0 ? '#fff0f0' : '#fff8ee', border: '0.5px solid #ffe2b8', borderRadius: 18, padding: 14 }}>
             <div style={{ color: planGraceDaysLeft !== null && planGraceDaysLeft <= 0 ? '#ff3b30' : '#b26a00', fontSize: 14, fontWeight: 950, marginBottom: 4 }}>
-              {isPromoFree || isPromoDiscount ? 'Promoción de lanzamiento' : 'Recordatorio de pago'}
+              Recordatorio de pago
             </div>
             <div style={{ color: '#6e6e73', fontSize: 12.5, fontWeight: 750, lineHeight: 1.45 }}>
               {planReminderText}
@@ -7710,12 +7710,12 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
           Promoción y pago
         </div>
 
-        <div className="plan-payment-card" style={{ marginTop: 8, background: '#fff', border: '0.5px solid #e8e8ed', borderRadius: 18, padding: 14 }}>
+        <div className="plan-payment-card" style={{ marginTop: 14, background: '#fff', border: '0.5px solid #e8e8ed', borderRadius: 18, padding: 14 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 12 }}>
             <div>
               <div style={{ fontSize: 15, fontWeight: 950, color: '#1a1a1a' }}>Pago del plan</div>
               <div style={{ fontSize: 12.5, color: '#6e6e73', fontWeight: 700, marginTop: 3 }}>
-                Acá podés ver la promoción, pagar por Mercado Pago o ver los datos para transferir.
+                Elegí cobro automático por Mercado Pago o transferencia manual.
               </div>
             </div>
             <div style={{ borderRadius: 999, padding: '6px 10px', background: billingStatus === 'paid' ? '#edfff3' : '#fff8ee', color: billingStatusColor, fontSize: 11.5, fontWeight: 950, whiteSpace: 'nowrap' }}>
