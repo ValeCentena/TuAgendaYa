@@ -7706,10 +7706,6 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
           </div>
         )}
 
-        <div id="pago-del-plan" style={{ marginTop: 14, color: '#1a1a1a', fontSize: 16, fontWeight: 950 }}>
-          Promoción y pago
-        </div>
-
         <div className="plan-payment-card" style={{ marginTop: 14, background: '#fff', border: '0.5px solid #e8e8ed', borderRadius: 18, padding: 14 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 12 }}>
             <div>
