@@ -7425,6 +7425,13 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
   const bankInfo = billingInfo?.bankInfo || {};
   const transferReference = billingInfo?.transferReference || billingInfo?.transfer_reference || `TuAgendaYa-${professional?.id || publicSlug || 'plan'}`;
   const transferConcept = billingInfo?.transferConcept || billingInfo?.transfer_concept || `TuAgendaYa plan ${professional?.businessName || professional?.business_name || professional?.name || ''}`.trim();
+  const promotion = billingInfo?.promotion || {};
+  const promoStage = promotion.stage || 'normal';
+  const promoLabel = promotion.label || '';
+  const promoDaysLeft = Number(promotion.daysLeft || promotion.days_left || 0);
+  const basePlanAmount = Number(billingInfo?.baseAmount || billingInfo?.base_amount || planAmount || 0) || 0;
+  const isPromoFree = promoStage === 'free';
+  const isPromoDiscount = promoStage === 'discount';
   const billingStatusText = isPromoFree
     ? 'Gratis'
     : isPromoDiscount
@@ -7436,15 +7443,8 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
           : billingStatus === 'pending_transfer'
             ? 'Transferencia pendiente'
             : 'Pendiente';
-  const billingStatusColor = billingStatus === 'paid' ? '#188038' : billingStatus === 'overdue' ? '#ff453a' : '#ff9f0a';
+  const billingStatusColor = isPromoFree || isPromoDiscount ? '#0071e3' : billingStatus === 'paid' ? '#188038' : billingStatus === 'overdue' ? '#ff453a' : '#ff9f0a';
   const planExpiresLabel = planExpiresAt ? new Date(planExpiresAt).toLocaleDateString('es-UY') : 'Sin vencimiento cargado';
-  const promotion = billingInfo?.promotion || {};
-  const promoStage = promotion.stage || 'normal';
-  const promoLabel = promotion.label || '';
-  const promoDaysLeft = Number(promotion.daysLeft || promotion.days_left || 0);
-  const basePlanAmount = Number(billingInfo?.baseAmount || billingInfo?.base_amount || planAmount || 0) || 0;
-  const isPromoFree = promoStage === 'free';
-  const isPromoDiscount = promoStage === 'discount';
   const planGraceDays = Number(billingInfo?.graceDays || billingInfo?.grace_days || 5);
   const planExpiresDate = planExpiresAt ? new Date(planExpiresAt) : null;
   const planGraceUntil = planExpiresDate && !Number.isNaN(planExpiresDate.getTime())
@@ -7698,7 +7698,7 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
         {shouldShowPlanReminder && (
           <div style={{ marginTop: 14, background: planGraceDaysLeft !== null && planGraceDaysLeft <= 0 ? '#fff0f0' : '#fff8ee', border: '0.5px solid #ffe2b8', borderRadius: 18, padding: 14 }}>
             <div style={{ color: planGraceDaysLeft !== null && planGraceDaysLeft <= 0 ? '#ff3b30' : '#b26a00', fontSize: 14, fontWeight: 950, marginBottom: 4 }}>
-              Recordatorio de pago
+              {isPromoFree || isPromoDiscount ? 'Promoción de lanzamiento' : 'Recordatorio de pago'}
             </div>
             <div style={{ color: '#6e6e73', fontSize: 12.5, fontWeight: 750, lineHeight: 1.45 }}>
               {planReminderText}
@@ -7706,12 +7706,16 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
           </div>
         )}
 
-        <div className="plan-payment-card" style={{ marginTop: 14, background: '#fff', border: '0.5px solid #e8e8ed', borderRadius: 18, padding: 14 }}>
+        <div id="pago-del-plan" style={{ marginTop: 14, color: '#1a1a1a', fontSize: 16, fontWeight: 950 }}>
+          Promoción y pago
+        </div>
+
+        <div className="plan-payment-card" style={{ marginTop: 8, background: '#fff', border: '0.5px solid #e8e8ed', borderRadius: 18, padding: 14 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 12 }}>
             <div>
               <div style={{ fontSize: 15, fontWeight: 950, color: '#1a1a1a' }}>Pago del plan</div>
               <div style={{ fontSize: 12.5, color: '#6e6e73', fontWeight: 700, marginTop: 3 }}>
-                Elegí cobro automático por Mercado Pago o transferencia manual.
+                Acá ves si está gratis, con descuento o si corresponde pagar.
               </div>
             </div>
             <div style={{ borderRadius: 999, padding: '6px 10px', background: billingStatus === 'paid' ? '#edfff3' : '#fff8ee', color: billingStatusColor, fontSize: 11.5, fontWeight: 950, whiteSpace: 'nowrap' }}>
