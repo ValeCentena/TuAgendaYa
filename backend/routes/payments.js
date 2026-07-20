@@ -73,7 +73,14 @@ function getApiUrl() {
 }
 
 function getPlanAmount(professional) {
-  return Number(professional.plan_price || process.env.PLAN_BASE_PRICE || 0) || 0;
+  const professionalPrice = Number(professional?.plan_price || 0);
+  const envPrice = Number(process.env.PLAN_BASE_PRICE || 0);
+
+  if (professionalPrice > 0) {
+    return professionalPrice;
+  }
+
+  return envPrice > 0 ? envPrice : 0;
 }
 
 function getPlanCurrency(professional) {
