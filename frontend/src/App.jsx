@@ -10203,13 +10203,13 @@ function LandingPage() {
   const navigate = useNavigate();
 
   const heroFeatures = [
-    { icon: '📅', label: 'Hasta 1000 reservas/mes' },
-    { icon: '💬', label: 'WhatsApp' },
-    { icon: '💳', label: 'Cobro automático' },
-    { icon: '🏦', label: 'Transferencia' },
-    { icon: '🕘', label: 'Historial' },
-    { icon: '📲', label: 'App instalable' },
-    { icon: '👥', label: 'Multi profesional' },
+    { icon: '▣', label: 'Hasta 1000 reservas/mes' },
+    { icon: '◌', label: 'WhatsApp' },
+    { icon: '▭', label: 'Cobro automático' },
+    { icon: '⌁', label: 'Transferencia' },
+    { icon: '◷', label: 'Historial' },
+    { icon: '▯', label: 'App instalable' },
+    { icon: '◇', label: 'Multi profesional' },
   ];
 
   const sidebarItems = [
@@ -10434,8 +10434,22 @@ function LandingPage() {
           padding: 10px 13px;
           color: #263143;
           font-size: 13px;
-          font-weight: 900;
+          font-weight: 850;
           box-shadow: 0 9px 28px rgba(15,23,42,0.04);
+        }
+
+        .landing-feature-chip-v2 span:first-child {
+          width: 18px;
+          height: 18px;
+          border-radius: 7px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          color: #0071e3;
+          background: rgba(0,113,227,0.08);
+          font-size: 11px;
+          font-weight: 950;
+          line-height: 1;
         }
 
         .landing-offer-v2 {
@@ -10456,10 +10470,12 @@ function LandingPage() {
           width: 58px;
           height: 58px;
           border-radius: 20px;
-          background: rgba(255,255,255,0.20);
+          background: rgba(255,255,255,0.18);
           display: grid;
           place-items: center;
-          font-size: 27px;
+          font-size: 26px;
+          font-weight: 900;
+          line-height: 1;
         }
 
         .landing-offer-v2 small {
@@ -10859,7 +10875,7 @@ function LandingPage() {
           </div>
 
           <div className="landing-offer-v2">
-            <div className="landing-offer-icon-v2">🎁</div>
+            <div className="landing-offer-icon-v2">✦</div>
             <div>
               <small>Lanzamiento por tiempo limitado</small>
               <strong>2 meses gratis + 2 meses al 50%</strong>
@@ -10898,7 +10914,7 @@ function LandingPage() {
             <div className="landing-dash-main-v2">
               <div className="landing-dash-header-v2">
                 <div>
-                  <div style={{ fontSize: 22, fontWeight: 1000, color: '#101828', letterSpacing: '-0.5px' }}>¡Hola, Juan! 👋</div>
+                  <div style={{ fontSize: 22, fontWeight: 1000, color: '#101828', letterSpacing: '-0.5px' }}>Hola, Juan</div>
                   <div style={{ marginTop: 3, color: '#667085', fontSize: 12.5, fontWeight: 800 }}>Este es el resumen de tu negocio hoy.</div>
                 </div>
                 <button type="button" style={{ border: '0.5px solid rgba(15,23,42,0.11)', background: '#fff', borderRadius: 14, padding: '10px 12px', fontFamily: 'inherit', color: '#111827', fontWeight: 950 }}>
@@ -11019,7 +11035,7 @@ function LandingPage() {
 
           <div className="landing-floating-card-v2 landing-promo-card-v2">
             <div style={{ display: 'inline-flex', borderRadius: 999, padding: '7px 10px', background: '#eef6ff', color: '#0071e3', fontSize: 11.5, fontWeight: 1000, marginBottom: 12 }}>
-              Promoción de lanzamiento ✨
+              Promoción de lanzamiento
             </div>
             <div style={{ color: '#0071e3', fontSize: 26, fontWeight: 1000, letterSpacing: '-0.8px' }}>2 meses gratis</div>
             <div style={{ color: '#111827', fontSize: 24, fontWeight: 1000, letterSpacing: '-0.7px' }}>+ 2 meses al 50%</div>
@@ -11030,7 +11046,7 @@ function LandingPage() {
 
           <div className="landing-floating-card-v2 landing-reminder-card-v2">
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ width: 42, height: 42, borderRadius: 16, background: '#eafff1', display: 'grid', placeItems: 'center', fontSize: 21 }}>💬</div>
+              <div style={{ width: 42, height: 42, borderRadius: 16, background: '#eafff1', display: 'grid', placeItems: 'center', fontSize: 21 }}>✉</div>
               <div>
                 <div style={{ color: '#111827', fontSize: 14, fontWeight: 1000 }}>Recordatorio enviado</div>
                 <div style={{ color: '#667085', fontSize: 12, fontWeight: 850 }}>Hoy 08:45</div>
