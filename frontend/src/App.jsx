@@ -7425,15 +7425,26 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
   const bankInfo = billingInfo?.bankInfo || {};
   const transferReference = billingInfo?.transferReference || billingInfo?.transfer_reference || `TuAgendaYa-${professional?.id || publicSlug || 'plan'}`;
   const transferConcept = billingInfo?.transferConcept || billingInfo?.transfer_concept || `TuAgendaYa plan ${professional?.businessName || professional?.business_name || professional?.name || ''}`.trim();
-  const billingStatusText = billingStatus === 'paid'
-    ? 'Pago'
-    : billingStatus === 'overdue'
-      ? 'Vencido'
-      : billingStatus === 'pending_transfer'
-        ? 'Transferencia pendiente'
-        : 'Pendiente';
+  const billingStatusText = isPromoFree
+    ? 'Gratis'
+    : isPromoDiscount
+      ? '50% descuento'
+      : billingStatus === 'paid'
+        ? 'Pago'
+        : billingStatus === 'overdue'
+          ? 'Vencido'
+          : billingStatus === 'pending_transfer'
+            ? 'Transferencia pendiente'
+            : 'Pendiente';
   const billingStatusColor = billingStatus === 'paid' ? '#188038' : billingStatus === 'overdue' ? '#ff453a' : '#ff9f0a';
   const planExpiresLabel = planExpiresAt ? new Date(planExpiresAt).toLocaleDateString('es-UY') : 'Sin vencimiento cargado';
+  const promotion = billingInfo?.promotion || {};
+  const promoStage = promotion.stage || 'normal';
+  const promoLabel = promotion.label || '';
+  const promoDaysLeft = Number(promotion.daysLeft || promotion.days_left || 0);
+  const basePlanAmount = Number(billingInfo?.baseAmount || billingInfo?.base_amount || planAmount || 0) || 0;
+  const isPromoFree = promoStage === 'free';
+  const isPromoDiscount = promoStage === 'discount';
   const planGraceDays = Number(billingInfo?.graceDays || billingInfo?.grace_days || 5);
   const planExpiresDate = planExpiresAt ? new Date(planExpiresAt) : null;
   const planGraceUntil = planExpiresDate && !Number.isNaN(planExpiresDate.getTime())
@@ -7445,14 +7456,18 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
   const planGraceDaysLeft = planGraceUntil
     ? Math.ceil((planGraceUntil.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     : null;
-  const shouldShowPlanReminder = billingStatus !== 'paid' || (planDaysToExpire !== null && planDaysToExpire <= 5);
-  const planReminderText = planDaysToExpire === null
-    ? 'Tu plan no tiene vencimiento cargado. Revisá el pago para mantener tu agenda activa.'
-    : planDaysToExpire >= 0
-      ? `Tu plan vence en ${planDaysToExpire} día${planDaysToExpire === 1 ? '' : 's'}. Luego tenés ${planGraceDays} días de gracia para pagar.`
-      : planGraceDaysLeft > 0
-        ? `Tu plan venció. Te quedan ${planGraceDaysLeft} día${planGraceDaysLeft === 1 ? '' : 's'} de gracia para pagar antes de pausar las reservas públicas.`
-        : 'Tu período de gracia terminó. Tu link público queda pausado hasta regularizar el pago.';
+  const shouldShowPlanReminder = isPromoFree || isPromoDiscount || billingStatus !== 'paid' || (planDaysToExpire !== null && planDaysToExpire <= 5);
+  const planReminderText = isPromoFree
+    ? `Promoción de lanzamiento activa: te quedan ${promoDaysLeft} día${promoDaysLeft === 1 ? '' : 's'} gratis. Después tenés 2 meses con 50% de descuento.`
+    : isPromoDiscount
+      ? `Promoción de lanzamiento activa: estás pagando con 50% de descuento. Te quedan ${promoDaysLeft} día${promoDaysLeft === 1 ? '' : 's'} de precio promocional.`
+      : planDaysToExpire === null
+        ? 'Tu plan no tiene vencimiento cargado. Revisá el pago para mantener tu agenda activa.'
+        : planDaysToExpire >= 0
+          ? `Tu plan vence en ${planDaysToExpire} día${planDaysToExpire === 1 ? '' : 's'}. Luego tenés ${planGraceDays} días de gracia para pagar.`
+          : planGraceDaysLeft > 0
+            ? `Tu plan venció. Te quedan ${planGraceDaysLeft} día${planGraceDaysLeft === 1 ? '' : 's'} de gracia para pagar antes de pausar las reservas públicas.`
+            : 'Tu período de gracia terminó. Tu link público queda pausado hasta regularizar el pago.';
 
   const copyPublicLinkFromProfile = async () => {
     if (!publicLink) return;
@@ -7683,7 +7698,7 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
         {shouldShowPlanReminder && (
           <div style={{ marginTop: 14, background: planGraceDaysLeft !== null && planGraceDaysLeft <= 0 ? '#fff0f0' : '#fff8ee', border: '0.5px solid #ffe2b8', borderRadius: 18, padding: 14 }}>
             <div style={{ color: planGraceDaysLeft !== null && planGraceDaysLeft <= 0 ? '#ff3b30' : '#b26a00', fontSize: 14, fontWeight: 950, marginBottom: 4 }}>
-              Recordatorio de pago
+              {isPromoFree || isPromoDiscount ? 'Promoción de lanzamiento' : 'Recordatorio de pago'}
             </div>
             <div style={{ color: '#6e6e73', fontSize: 12.5, fontWeight: 750, lineHeight: 1.45 }}>
               {planReminderText}
@@ -7691,12 +7706,16 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
           </div>
         )}
 
-        <div className="plan-payment-card" style={{ marginTop: 14, background: '#fff', border: '0.5px solid #e8e8ed', borderRadius: 18, padding: 14 }}>
+        <div id="pago-del-plan" style={{ marginTop: 14, color: '#1a1a1a', fontSize: 16, fontWeight: 950 }}>
+          Promoción y pago
+        </div>
+
+        <div className="plan-payment-card" style={{ marginTop: 8, background: '#fff', border: '0.5px solid #e8e8ed', borderRadius: 18, padding: 14 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 12 }}>
             <div>
               <div style={{ fontSize: 15, fontWeight: 950, color: '#1a1a1a' }}>Pago del plan</div>
               <div style={{ fontSize: 12.5, color: '#6e6e73', fontWeight: 700, marginTop: 3 }}>
-                Elegí cobro automático por Mercado Pago o transferencia manual.
+                Acá podés ver la promoción, pagar por Mercado Pago o ver los datos para transferir.
               </div>
             </div>
             <div style={{ borderRadius: 999, padding: '6px 10px', background: billingStatus === 'paid' ? '#edfff3' : '#fff8ee', color: billingStatusColor, fontSize: 11.5, fontWeight: 950, whiteSpace: 'nowrap' }}>
@@ -7708,8 +7727,13 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
             <div style={{ background: '#f7f7fb', borderRadius: 15, padding: 12 }}>
               <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 850 }}>Monto</div>
               <div style={{ fontSize: 17, color: '#1a1a1a', fontWeight: 950, marginTop: 3 }}>
-                {planAmount > 0 ? `${planCurrency} ${planAmount}` : 'A definir'}
+                {isPromoFree ? 'Gratis' : planAmount > 0 ? `${planCurrency} ${planAmount}` : 'A definir'}
               </div>
+              {isPromoDiscount && basePlanAmount > planAmount && (
+                <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 850, marginTop: 3, textDecoration: 'line-through' }}>
+                  {planCurrency} {basePlanAmount}
+                </div>
+              )}
             </div>
             <div style={{ background: '#f7f7fb', borderRadius: 15, padding: 12 }}>
               <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 850 }}>Vence</div>
@@ -7727,10 +7751,10 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
             <button
               type="button"
               onClick={startAutomaticPlanPayment}
-              disabled={billingActionLoading === 'automatic'}
-              style={{ border: 'none', borderRadius: 15, padding: '12px 14px', background: '#0071e3', color: '#fff', fontSize: 13, fontWeight: 950, fontFamily: 'inherit', cursor: billingActionLoading === 'automatic' ? 'not-allowed' : 'pointer' }}
+              disabled={billingActionLoading === 'automatic' || isPromoFree}
+              style={{ border: 'none', borderRadius: 15, padding: '12px 14px', background: isPromoFree ? '#d1d1d6' : '#0071e3', color: '#fff', fontSize: 13, fontWeight: 950, fontFamily: 'inherit', cursor: (billingActionLoading === 'automatic' || isPromoFree) ? 'not-allowed' : 'pointer' }}
             >
-              {billingActionLoading === 'automatic' ? 'Abriendo...' : 'Pagar automático'}
+              {isPromoFree ? 'Gratis activo' : billingActionLoading === 'automatic' ? 'Abriendo...' : isPromoDiscount ? 'Pagar con 50%' : 'Pagar automático'}
             </button>
             <button
               type="button"
@@ -9702,13 +9726,20 @@ function AdminDashboardPage() {
                 const daysToExpire = expiresDate && !Number.isNaN(expiresDate.getTime())
                   ? Math.ceil((expiresDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
                   : null;
-                const paymentLabel = paymentStatus === 'paid'
-                  ? 'Pago'
-                  : paymentStatus === 'overdue'
-                    ? 'Vencido'
-                    : paymentStatus === 'pending_transfer'
-                      ? 'Transferencia'
-                      : 'Pendiente';
+                const promotion = professional.promotion || professional.planPromotion || professional.plan_promotion || {};
+                const promoStage = promotion.stage || 'normal';
+                const promoLabel = promoStage === 'free' ? 'Gratis' : promoStage === 'discount' ? '50% descuento' : '';
+                const paymentLabel = promoStage === 'free'
+                  ? 'Gratis'
+                  : promoStage === 'discount'
+                    ? '50% desc.'
+                    : paymentStatus === 'paid'
+                      ? 'Pago'
+                      : paymentStatus === 'overdue'
+                        ? 'Vencido'
+                        : paymentStatus === 'pending_transfer'
+                          ? 'Transferencia'
+                          : 'Pendiente';
                 const paymentColor = paymentStatus === 'paid' ? '#188038' : paymentStatus === 'overdue' ? '#ff3b30' : '#ff9500';
                 const paymentBg = paymentStatus === 'paid' ? '#edfff3' : paymentStatus === 'overdue' ? '#fff0f0' : '#fff7e8';
                 const billingMethodLabel = billingMethod === 'mercadopago'
