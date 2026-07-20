@@ -87,6 +87,91 @@ function getPlanCurrency(professional) {
   return professional.plan_currency || process.env.PLAN_CURRENCY || "UYU";
 }
 
+
+const PROMO_FREE_MONTHS = Number(process.env.PROMO_FREE_MONTHS || 2);
+const PROMO_DISCOUNT_MONTHS = Number(process.env.PROMO_DISCOUNT_MONTHS || 2);
+const PROMO_DISCOUNT_PERCENT = Number(process.env.PROMO_DISCOUNT_PERCENT || 50);
+const BILLING_PERIOD_DAYS = Number(process.env.BILLING_PERIOD_DAYS || 30);
+
+function addMonthsSafe(date, months) {
+  const result = new Date(date);
+  result.setMonth(result.getMonth() + Number(months || 0));
+  return result;
+}
+
+function getPromotionStartDate(professional) {
+  const raw =
+    professional?.promo_started_at ||
+    professional?.promoStartedAt ||
+    professional?.created_at ||
+    professional?.createdAt ||
+    professional?.created_date ||
+    null;
+
+  const parsed = raw ? new Date(raw) : new Date();
+
+  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+}
+
+function getLaunchPromotionStatus(professional, now = new Date()) {
+  const start = getPromotionStartDate(professional);
+  const freeUntil = addMonthsSafe(start, PROMO_FREE_MONTHS);
+  const discountUntil = addMonthsSafe(freeUntil, PROMO_DISCOUNT_MONTHS);
+  const baseAmount = getPlanAmount(professional);
+  const currency = getPlanCurrency(professional);
+  const discountAmount = Math.round((baseAmount * (100 - PROMO_DISCOUNT_PERCENT)) / 100);
+
+  if (now < freeUntil) {
+    return {
+      active: true,
+      stage: "free",
+      label: "2 meses gratis",
+      baseAmount,
+      amount: 0,
+      currency,
+      discountPercent: 100,
+      startedAt: start,
+      freeUntil,
+      discountUntil,
+      nextChargeAt: freeUntil,
+      daysLeft: Math.max(0, Math.ceil((freeUntil.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))),
+    };
+  }
+
+  if (now < discountUntil) {
+    return {
+      active: true,
+      stage: "discount",
+      label: `${PROMO_DISCOUNT_PERCENT}% descuento`,
+      baseAmount,
+      amount: discountAmount,
+      currency,
+      discountPercent: PROMO_DISCOUNT_PERCENT,
+      startedAt: start,
+      freeUntil,
+      discountUntil,
+      nextChargeAt: now,
+      daysLeft: Math.max(0, Math.ceil((discountUntil.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))),
+    };
+  }
+
+  return {
+    active: false,
+    stage: "normal",
+    label: "Precio normal",
+    baseAmount,
+    amount: baseAmount,
+    currency,
+    discountPercent: 0,
+    startedAt: start,
+    freeUntil,
+    discountUntil,
+    nextChargeAt: now,
+    daysLeft: 0,
+  };
+}
+
+
 function createReference() {
   if (crypto.randomUUID) return crypto.randomUUID();
   return crypto.randomBytes(18).toString("hex");
@@ -155,20 +240,23 @@ async function getLatestPayment(professionalId) {
 }
 
 function serializePlan(professional, latestPayment) {
-  const amount = getPlanAmount(professional);
-  const currency = getPlanCurrency(professional);
+  const promotion = getLaunchPromotionStatus(professional);
+  const amount = promotion.amount;
+  const currency = promotion.currency;
   const status = professional.plan_payment_status || (latestPayment?.status === "pending" && latestPayment?.method === "transfer" ? "pending_transfer" : "pending");
 
   return {
     plan: professional.plan || "base",
     status: professional.status || "active",
-    paymentStatus: status,
+    paymentStatus: promotion.stage === "free" ? "promo_free" : status,
     billingMethod: professional.billing_method || latestPayment?.method || "",
     amount,
+    baseAmount: promotion.baseAmount,
     currency,
     expiresAt: professional.plan_expires_at,
     lastPaymentAt: professional.last_payment_at,
     latestPayment,
+    promotion,
     graceDays: Number(process.env.PLAN_GRACE_DAYS || 5),
     transferReference: `TY-${professional.id}`,
     transferConcept: `TuAgendaYa plan ${professional.business_name || professional.name || professional.email}`,
@@ -246,8 +334,9 @@ router.post("/me/transfer", async (req, res, next) => {
     }
 
     const reference = `TY-${professionalId}`;
-    const amount = getPlanAmount(professional);
-    const currency = getPlanCurrency(professional);
+    const promotion = getLaunchPromotionStatus(professional);
+    const amount = promotion.amount;
+    const currency = promotion.currency;
 
     await db.query(
       `UPDATE professionals
@@ -263,6 +352,7 @@ router.post("/me/transfer", async (req, res, next) => {
         method: "transfer",
         amount,
         currency,
+        promotion,
         transferReference: reference,
         transferConcept: `TuAgendaYa plan ${professional.business_name || professional.name || professional.email}`,
       },
@@ -284,8 +374,19 @@ router.post("/me/transfer-notify", async (req, res, next) => {
     }
 
     const reference = `TY-${professionalId}`;
-    const amount = getPlanAmount(professional);
-    const currency = getPlanCurrency(professional);
+    const promotion = getLaunchPromotionStatus(professional);
+    const amount = promotion.amount;
+    const currency = promotion.currency;
+
+    if (promotion.stage === "free") {
+      return res.json({
+        ok: true,
+        free: true,
+        message: "Tu negocio todavía está dentro de los 2 meses gratis.",
+        promotion,
+        bankInfo: bankInfo(),
+      });
+    }
 
     const existing = await db.query(
       `SELECT *
@@ -370,13 +471,21 @@ router.post("/me/checkout", async (req, res, next) => {
       return res.status(500).json({ error: "Falta configurar MERCADOPAGO_ACCESS_TOKEN en Render." });
     }
 
-    const amount = getPlanAmount(professional);
+    const promotion = getLaunchPromotionStatus(professional);
+    const amount = promotion.amount;
+
+    if (promotion.stage === "free") {
+      return res.status(400).json({
+        error: "Tu negocio todavía está dentro de los 2 meses gratis. No necesitás pagar ahora.",
+        promotion,
+      });
+    }
 
     if (!amount || amount <= 0) {
       return res.status(400).json({ error: "Falta configurar el precio del plan." });
     }
 
-    const currency = getPlanCurrency(professional);
+    const currency = promotion.currency;
     const reference = createReference();
 
     const paymentInsert = await db.query(
@@ -393,7 +502,7 @@ router.post("/me/checkout", async (req, res, next) => {
     const preference = {
       items: [
         {
-          title: `TuAgendaYa - Plan ${professional.plan || "Base"}`,
+          title: promotion.stage === "discount" ? `TuAgendaYa - Plan con ${PROMO_DISCOUNT_PERCENT}% descuento` : `TuAgendaYa - Plan ${professional.plan || "Base"}`,
           quantity: 1,
           currency_id: currency,
           unit_price: amount,

@@ -643,6 +643,44 @@ function isTruthyDatabaseValue(value) {
   );
 }
 
+
+const PROMO_FREE_MONTHS = Number(process.env.PROMO_FREE_MONTHS || 2);
+const PROMO_DISCOUNT_MONTHS = Number(process.env.PROMO_DISCOUNT_MONTHS || 2);
+
+function addMonthsSafe(date, months) {
+  const result = new Date(date);
+  result.setMonth(result.getMonth() + Number(months || 0));
+  return result;
+}
+
+function getPromotionStartDate(professional) {
+  const raw =
+    professional?.promo_started_at ||
+    professional?.created_at ||
+    professional?.createdAt ||
+    null;
+
+  const parsed = raw ? new Date(raw) : new Date();
+  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+}
+
+function getLaunchPromotionStatus(professional, now = new Date()) {
+  const start = getPromotionStartDate(professional);
+  const freeUntil = addMonthsSafe(start, PROMO_FREE_MONTHS);
+  const discountUntil = addMonthsSafe(freeUntil, PROMO_DISCOUNT_MONTHS);
+
+  if (now < freeUntil) {
+    return { active: true, stage: "free", freeUntil, discountUntil };
+  }
+
+  if (now < discountUntil) {
+    return { active: true, stage: "discount", freeUntil, discountUntil };
+  }
+
+  return { active: false, stage: "normal", freeUntil, discountUntil };
+}
+
+
 const PLAN_GRACE_DAYS = Number(process.env.PLAN_GRACE_DAYS || 5);
 
 function getPlanAccessStatus(professional) {
@@ -661,6 +699,18 @@ function getPlanAccessStatus(professional) {
       reason: "suspended",
       message: "Agenda no disponible temporalmente.",
       graceDaysLeft: 0,
+    };
+  }
+
+  const promotion = getLaunchPromotionStatus(professional);
+
+  if (promotion.stage === "free" || promotion.stage === "discount") {
+    return {
+      canBook: true,
+      reason: `promo_${promotion.stage}`,
+      message: "",
+      graceDaysLeft: null,
+      promotion,
     };
   }
 
