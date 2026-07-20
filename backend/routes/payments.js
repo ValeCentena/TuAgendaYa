@@ -72,6 +72,143 @@ function getApiUrl() {
   return process.env.API_PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || "https://tuagendaya-api.onrender.com";
 }
 
+function parseMercadoPagoSignatureHeader(xSignature = "") {
+  return String(xSignature)
+    .split(",")
+    .map((part) => part.trim().split("="))
+    .reduce((acc, [key, value]) => {
+      if (key && value) acc[key] = value;
+      return acc;
+    }, {});
+}
+
+function validateMercadoPagoSignature(req, paymentId) {
+  const secret = process.env.MERCADOPAGO_WEBHOOK_SECRET;
+
+  if (!secret) {
+    return { required: false, valid: null, reason: "secret_not_configured" };
+  }
+
+  const xSignature = req.headers["x-signature"] || "";
+  const xRequestId = req.headers["x-request-id"] || "";
+  const parsed = parseMercadoPagoSignatureHeader(xSignature);
+  const ts = parsed.ts;
+  const v1 = parsed.v1;
+
+  if (!xSignature || !xRequestId || !ts || !v1 || !paymentId) {
+    return { required: true, valid: false, reason: "missing_signature_data" };
+  }
+
+  const manifest = `id:${paymentId};request-id:${xRequestId};ts:${ts};`;
+  const hash = crypto.createHmac("sha256", secret).update(manifest).digest("hex");
+
+  const expected = Buffer.from(hash, "hex");
+  const received = Buffer.from(v1, "hex");
+
+  if (expected.length !== received.length) {
+    return { required: true, valid: false, reason: "signature_length_mismatch" };
+  }
+
+  const valid = crypto.timingSafeEqual(expected, received);
+
+  return { required: true, valid, reason: valid ? "valid" : "invalid_signature" };
+}
+
+function mapMercadoPagoStatus(status) {
+  const normalized = String(status || "").trim().toLowerCase();
+
+  if (normalized === "approved") return "approved";
+  if (["pending", "in_process", "authorized"].includes(normalized)) return "pending";
+  if (["rejected", "cancelled", "canceled"].includes(normalized)) return "failed";
+  if (["refunded", "charged_back"].includes(normalized)) return normalized;
+
+  return normalized || "pending";
+}
+
+function getPaymentIdFromNotification(req) {
+  return (
+    req.query["data.id"] ||
+    req.query.data_id ||
+    req.body?.data?.id ||
+    req.body?.id ||
+    req.body?.resource ||
+    ""
+  );
+}
+
+function getPaymentTypeFromNotification(req) {
+  return String(req.query.type || req.body?.type || req.body?.topic || req.query.topic || "").trim();
+}
+
+async function updatePaymentAttemptFromMercadoPago(planPaymentId, paymentId, paymentData, mappedStatus, signatureResult) {
+  await db.query(
+    `UPDATE plan_payments
+     SET mp_payment_id = $2,
+         mp_status = $3,
+         mp_status_detail = $4,
+         webhook_event_id = $5,
+         webhook_signature_validated = $6,
+         raw_payload = $7,
+         updated_at = NOW()
+     WHERE id = $1`,
+    [
+      planPaymentId,
+      String(paymentId),
+      String(paymentData.status || mappedStatus || ""),
+      paymentData.status_detail || null,
+      paymentData.id ? String(paymentData.id) : String(paymentId),
+      signatureResult.valid === true,
+      paymentData,
+    ]
+  );
+}
+
+async function markPaymentAttemptFailed(planPaymentId, paymentId, paymentData, mappedStatus, signatureResult) {
+  const updated = await db.query(
+    `UPDATE plan_payments
+     SET status = $2,
+         mp_payment_id = $3,
+         mp_status = $4,
+         mp_status_detail = $5,
+         webhook_event_id = $6,
+         webhook_signature_validated = $7,
+         raw_payload = $8,
+         seen_by_admin = FALSE,
+         notified_at = NOW(),
+         updated_at = NOW()
+     WHERE id = $1
+     RETURNING *`,
+    [
+      planPaymentId,
+      mappedStatus,
+      String(paymentId),
+      String(paymentData.status || mappedStatus || ""),
+      paymentData.status_detail || null,
+      paymentData.id ? String(paymentData.id) : String(paymentId),
+      signatureResult.valid === true,
+      paymentData,
+    ]
+  );
+
+  const payment = updated.rows[0];
+
+  if (payment) {
+    await db.query(
+      `UPDATE professionals
+       SET plan_payment_status = CASE
+             WHEN plan_payment_status = 'paid' AND plan_expires_at IS NOT NULL AND plan_expires_at > NOW() THEN plan_payment_status
+             ELSE 'pending'
+           END,
+           billing_method = 'mercadopago',
+           updated_at = NOW()
+       WHERE id = $1`,
+      [payment.professional_id]
+    );
+  }
+
+  return payment;
+}
+
 function getPlanAmount(professional) {
   const professionalPrice = Number(professional?.plan_price || 0);
   const envPrice = Number(process.env.PLAN_BASE_PRICE || 0);
@@ -86,91 +223,6 @@ function getPlanAmount(professional) {
 function getPlanCurrency(professional) {
   return professional.plan_currency || process.env.PLAN_CURRENCY || "UYU";
 }
-
-
-const PROMO_FREE_MONTHS = Number(process.env.PROMO_FREE_MONTHS || 2);
-const PROMO_DISCOUNT_MONTHS = Number(process.env.PROMO_DISCOUNT_MONTHS || 2);
-const PROMO_DISCOUNT_PERCENT = Number(process.env.PROMO_DISCOUNT_PERCENT || 50);
-const BILLING_PERIOD_DAYS = Number(process.env.BILLING_PERIOD_DAYS || 30);
-
-function addMonthsSafe(date, months) {
-  const result = new Date(date);
-  result.setMonth(result.getMonth() + Number(months || 0));
-  return result;
-}
-
-function getPromotionStartDate(professional) {
-  const raw =
-    professional?.promo_started_at ||
-    professional?.promoStartedAt ||
-    professional?.created_at ||
-    professional?.createdAt ||
-    professional?.created_date ||
-    null;
-
-  const parsed = raw ? new Date(raw) : new Date();
-
-  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
-}
-
-function getLaunchPromotionStatus(professional, now = new Date()) {
-  const start = getPromotionStartDate(professional);
-  const freeUntil = addMonthsSafe(start, PROMO_FREE_MONTHS);
-  const discountUntil = addMonthsSafe(freeUntil, PROMO_DISCOUNT_MONTHS);
-  const baseAmount = getPlanAmount(professional);
-  const currency = getPlanCurrency(professional);
-  const discountAmount = Math.round((baseAmount * (100 - PROMO_DISCOUNT_PERCENT)) / 100);
-
-  if (now < freeUntil) {
-    return {
-      active: true,
-      stage: "free",
-      label: "2 meses gratis",
-      baseAmount,
-      amount: 0,
-      currency,
-      discountPercent: 100,
-      startedAt: start,
-      freeUntil,
-      discountUntil,
-      nextChargeAt: freeUntil,
-      daysLeft: Math.max(0, Math.ceil((freeUntil.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))),
-    };
-  }
-
-  if (now < discountUntil) {
-    return {
-      active: true,
-      stage: "discount",
-      label: `${PROMO_DISCOUNT_PERCENT}% descuento`,
-      baseAmount,
-      amount: discountAmount,
-      currency,
-      discountPercent: PROMO_DISCOUNT_PERCENT,
-      startedAt: start,
-      freeUntil,
-      discountUntil,
-      nextChargeAt: now,
-      daysLeft: Math.max(0, Math.ceil((discountUntil.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))),
-    };
-  }
-
-  return {
-    active: false,
-    stage: "normal",
-    label: "Precio normal",
-    baseAmount,
-    amount: baseAmount,
-    currency,
-    discountPercent: 0,
-    startedAt: start,
-    freeUntil,
-    discountUntil,
-    nextChargeAt: now,
-    daysLeft: 0,
-  };
-}
-
 
 function createReference() {
   if (crypto.randomUUID) return crypto.randomUUID();
@@ -214,6 +266,12 @@ async function ensureBillingSchema() {
       updated_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
   `);
+
+  await db.query(`ALTER TABLE plan_payments ADD COLUMN IF NOT EXISTS mp_status TEXT;`).catch(() => {});
+  await db.query(`ALTER TABLE plan_payments ADD COLUMN IF NOT EXISTS mp_status_detail TEXT;`).catch(() => {});
+  await db.query(`ALTER TABLE plan_payments ADD COLUMN IF NOT EXISTS webhook_event_id TEXT;`).catch(() => {});
+  await db.query(`ALTER TABLE plan_payments ADD COLUMN IF NOT EXISTS webhook_signature_validated BOOLEAN DEFAULT FALSE;`).catch(() => {});
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_plan_payments_mp_payment_id ON plan_payments(mp_payment_id);`).catch(() => {});
 }
 
 function bankInfo() {
@@ -240,23 +298,20 @@ async function getLatestPayment(professionalId) {
 }
 
 function serializePlan(professional, latestPayment) {
-  const promotion = getLaunchPromotionStatus(professional);
-  const amount = promotion.amount;
-  const currency = promotion.currency;
+  const amount = getPlanAmount(professional);
+  const currency = getPlanCurrency(professional);
   const status = professional.plan_payment_status || (latestPayment?.status === "pending" && latestPayment?.method === "transfer" ? "pending_transfer" : "pending");
 
   return {
     plan: professional.plan || "base",
     status: professional.status || "active",
-    paymentStatus: promotion.stage === "free" ? "promo_free" : status,
+    paymentStatus: status,
     billingMethod: professional.billing_method || latestPayment?.method || "",
     amount,
-    baseAmount: promotion.baseAmount,
     currency,
     expiresAt: professional.plan_expires_at,
     lastPaymentAt: professional.last_payment_at,
     latestPayment,
-    promotion,
     graceDays: Number(process.env.PLAN_GRACE_DAYS || 5),
     transferReference: `TY-${professional.id}`,
     transferConcept: `TuAgendaYa plan ${professional.business_name || professional.name || professional.email}`,
@@ -334,9 +389,8 @@ router.post("/me/transfer", async (req, res, next) => {
     }
 
     const reference = `TY-${professionalId}`;
-    const promotion = getLaunchPromotionStatus(professional);
-    const amount = promotion.amount;
-    const currency = promotion.currency;
+    const amount = getPlanAmount(professional);
+    const currency = getPlanCurrency(professional);
 
     await db.query(
       `UPDATE professionals
@@ -352,7 +406,6 @@ router.post("/me/transfer", async (req, res, next) => {
         method: "transfer",
         amount,
         currency,
-        promotion,
         transferReference: reference,
         transferConcept: `TuAgendaYa plan ${professional.business_name || professional.name || professional.email}`,
       },
@@ -374,19 +427,8 @@ router.post("/me/transfer-notify", async (req, res, next) => {
     }
 
     const reference = `TY-${professionalId}`;
-    const promotion = getLaunchPromotionStatus(professional);
-    const amount = promotion.amount;
-    const currency = promotion.currency;
-
-    if (promotion.stage === "free") {
-      return res.json({
-        ok: true,
-        free: true,
-        message: "Tu negocio todavía está dentro de los 2 meses gratis.",
-        promotion,
-        bankInfo: bankInfo(),
-      });
-    }
+    const amount = getPlanAmount(professional);
+    const currency = getPlanCurrency(professional);
 
     const existing = await db.query(
       `SELECT *
@@ -471,21 +513,13 @@ router.post("/me/checkout", async (req, res, next) => {
       return res.status(500).json({ error: "Falta configurar MERCADOPAGO_ACCESS_TOKEN en Render." });
     }
 
-    const promotion = getLaunchPromotionStatus(professional);
-    const amount = promotion.amount;
-
-    if (promotion.stage === "free") {
-      return res.status(400).json({
-        error: "Tu negocio todavía está dentro de los 2 meses gratis. No necesitás pagar ahora.",
-        promotion,
-      });
-    }
+    const amount = getPlanAmount(professional);
 
     if (!amount || amount <= 0) {
       return res.status(400).json({ error: "Falta configurar el precio del plan." });
     }
 
-    const currency = promotion.currency;
+    const currency = getPlanCurrency(professional);
     const reference = createReference();
 
     const paymentInsert = await db.query(
@@ -502,7 +536,7 @@ router.post("/me/checkout", async (req, res, next) => {
     const preference = {
       items: [
         {
-          title: promotion.stage === "discount" ? `TuAgendaYa - Plan con ${PROMO_DISCOUNT_PERCENT}% descuento` : `TuAgendaYa - Plan ${professional.plan || "Base"}`,
+          title: `TuAgendaYa - Plan ${professional.plan || "Base"}`,
           quantity: 1,
           currency_id: currency,
           unit_price: amount,
@@ -519,7 +553,7 @@ router.post("/me/checkout", async (req, res, next) => {
         pending: `${getFrontendUrl()}/profesional/dashboard?payment=pending`,
       },
       auto_return: "approved",
-      notification_url: `${getApiUrl()}/api/payments/webhook/mercadopago`,
+      notification_url: `${getApiUrl()}/api/payments/webhook/mercadopago?source_news=webhooks`,
       statement_descriptor: "TUAGENDAYA",
       metadata: {
         professional_id: professionalId,
@@ -570,21 +604,39 @@ router.post("/me/checkout", async (req, res, next) => {
   }
 });
 
+router.get("/webhook/mercadopago/health", (req, res) => {
+  res.json({
+    ok: true,
+    service: "tuagendaya-mercadopago-webhook",
+    mode: process.env.MERCADOPAGO_WEBHOOK_SECRET ? "signature_enabled" : "signature_optional",
+  });
+});
+
 router.post("/webhook/mercadopago", async (req, res, next) => {
   try {
     await ensureBillingSchema();
 
-    const type = req.query.type || req.body?.type || req.body?.topic;
-    const paymentId = req.query["data.id"] || req.body?.data?.id || req.body?.id;
+    const type = getPaymentTypeFromNotification(req);
+    const paymentId = getPaymentIdFromNotification(req);
 
-    if (type !== "payment" || !paymentId) {
-      return res.json({ ok: true });
+    if (type && type !== "payment") {
+      return res.json({ ok: true, ignored: true, type });
+    }
+
+    if (!paymentId) {
+      return res.json({ ok: true, ignored: true, reason: "missing_payment_id" });
+    }
+
+    const signatureResult = validateMercadoPagoSignature(req, paymentId);
+
+    if (signatureResult.required && !signatureResult.valid) {
+      return res.status(401).json({ ok: false, error: "invalid_mercadopago_signature" });
     }
 
     const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
 
     if (!accessToken) {
-      return res.json({ ok: false, error: "missing_access_token" });
+      return res.status(500).json({ ok: false, error: "missing_access_token" });
     }
 
     const paymentResponse = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
@@ -594,32 +646,35 @@ router.post("/webhook/mercadopago", async (req, res, next) => {
     const paymentData = await paymentResponse.json().catch(() => ({}));
 
     if (!paymentResponse.ok) {
-      return res.json({ ok: false });
+      return res.status(200).json({ ok: false, error: "mercadopago_payment_lookup_failed" });
     }
 
     const externalReference = String(paymentData.external_reference || "");
     const match = externalReference.match(/^plan_payment:(\d+)$/);
 
     if (!match) {
-      return res.json({ ok: true });
+      return res.json({ ok: true, ignored: true, reason: "external_reference_not_tuagendaya" });
     }
 
     const planPaymentId = Number(match[1]);
+    const mappedStatus = mapMercadoPagoStatus(paymentData.status);
 
-    await db.query(
-      `UPDATE plan_payments
-       SET mp_payment_id = $2,
-           raw_payload = $3,
-           updated_at = NOW()
-       WHERE id = $1`,
-      [planPaymentId, String(paymentId), paymentData]
-    );
+    await updatePaymentAttemptFromMercadoPago(planPaymentId, paymentId, paymentData, mappedStatus, signatureResult);
 
-    if (paymentData.status === "approved") {
+    if (mappedStatus === "approved") {
       await approvePayment(planPaymentId, paymentData);
+    } else if (["failed", "refunded", "charged_back"].includes(mappedStatus)) {
+      await markPaymentAttemptFailed(planPaymentId, paymentId, paymentData, mappedStatus, signatureResult);
     }
 
-    res.json({ ok: true });
+    return res.json({
+      ok: true,
+      paymentId: String(paymentId),
+      planPaymentId,
+      mercadoPagoStatus: paymentData.status || null,
+      status: mappedStatus,
+      signature: signatureResult.reason,
+    });
   } catch (error) {
     next(error);
   }

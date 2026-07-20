@@ -280,6 +280,7 @@ async function initDB() {
       `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS allow_client_cancellations INTEGER DEFAULT 1`,
       `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS cancellation_limit_minutes INTEGER DEFAULT 0`,
       `CREATE INDEX IF NOT EXISTS idx_blocked_times_professional_date ON blocked_times(professional_id, block_date)`,
+      `CREATE INDEX IF NOT EXISTS idx_plan_payments_mp_payment_id ON plan_payments(mp_payment_id)`,
     ];
 
     for (const sql of indices) {
@@ -353,9 +354,12 @@ async function initDB() {
       `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS billing_method TEXT`,
       `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS plan_price NUMERIC(10, 2) DEFAULT 0`,
       `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS plan_currency TEXT DEFAULT 'UYU'`,
-      `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS promo_started_at TIMESTAMP`,
       `ALTER TABLE plan_payments ADD COLUMN IF NOT EXISTS seen_by_admin BOOLEAN DEFAULT FALSE`,
       `ALTER TABLE plan_payments ADD COLUMN IF NOT EXISTS notified_at TIMESTAMP`,
+      `ALTER TABLE plan_payments ADD COLUMN IF NOT EXISTS mp_status TEXT`,
+      `ALTER TABLE plan_payments ADD COLUMN IF NOT EXISTS mp_status_detail TEXT`,
+      `ALTER TABLE plan_payments ADD COLUMN IF NOT EXISTS webhook_event_id TEXT`,
+      `ALTER TABLE plan_payments ADD COLUMN IF NOT EXISTS webhook_signature_validated BOOLEAN DEFAULT FALSE`,
       // push_subscriptions
       `ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS user_agent TEXT`,
     ];
