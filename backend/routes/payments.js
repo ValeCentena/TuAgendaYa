@@ -11,6 +11,131 @@ function getTokenFromHeader(req) {
   return authHeader.slice(7);
 }
 
+
+function getLaunchPromotionConfig(professional = {}) {
+  const freeMonths = Number(professional.promo_free_months ?? process.env.PROMO_FREE_MONTHS ?? 2) || 2;
+  const discountMonths = Number(professional.promo_discount_months ?? process.env.PROMO_DISCOUNT_MONTHS ?? 2) || 2;
+  const discountPercent = Number(professional.promo_discount_percent ?? process.env.PROMO_DISCOUNT_PERCENT ?? 50) || 50;
+  const basePrice = Number(professional.plan_price ?? process.env.PLAN_BASE_PRICE ?? 600) || 600;
+  const currency = professional.plan_currency || process.env.PLAN_CURRENCY || "UYU";
+  const startedAt = professional.promo_started_at || professional.created_at || new Date().toISOString();
+
+  return {
+    freeMonths,
+    discountMonths,
+    discountPercent,
+    basePrice,
+    currency,
+    startedAt,
+  };
+}
+
+function addMonthsSafe(date, months) {
+  const copy = new Date(date);
+  const day = copy.getDate();
+  copy.setMonth(copy.getMonth() + months);
+
+  if (copy.getDate() < day) {
+    copy.setDate(0);
+  }
+
+  return copy;
+}
+
+function getPromotionState(professional = {}) {
+  const config = getLaunchPromotionConfig(professional);
+  const startDate = new Date(config.startedAt);
+
+  if (Number.isNaN(startDate.getTime())) {
+    return {
+      stage: "normal",
+      label: "Precio normal",
+      daysLeft: 0,
+      amount: config.basePrice,
+      baseAmount: config.basePrice,
+      discountPercent: 0,
+      currency: config.currency,
+      startedAt: config.startedAt,
+      freeUntil: null,
+      discountUntil: null,
+    };
+  }
+
+  const now = new Date();
+  const freeUntilDate = addMonthsSafe(startDate, config.freeMonths);
+  const discountUntilDate = addMonthsSafe(freeUntilDate, config.discountMonths);
+  const dayMs = 24 * 60 * 60 * 1000;
+
+  if (now < freeUntilDate) {
+    return {
+      stage: "free",
+      label: `${config.freeMonths} meses gratis`,
+      daysLeft: Math.max(0, Math.ceil((freeUntilDate.getTime() - now.getTime()) / dayMs)),
+      amount: 0,
+      baseAmount: config.basePrice,
+      discountPercent: 100,
+      currency: config.currency,
+      startedAt: startDate.toISOString(),
+      freeUntil: freeUntilDate.toISOString(),
+      discountUntil: discountUntilDate.toISOString(),
+    };
+  }
+
+  if (now < discountUntilDate) {
+    const amount = Math.round(config.basePrice * (100 - config.discountPercent)) / 100;
+    return {
+      stage: "discount",
+      label: `${config.discountPercent}% de descuento`,
+      daysLeft: Math.max(0, Math.ceil((discountUntilDate.getTime() - now.getTime()) / dayMs)),
+      amount,
+      baseAmount: config.basePrice,
+      discountPercent: config.discountPercent,
+      currency: config.currency,
+      startedAt: startDate.toISOString(),
+      freeUntil: freeUntilDate.toISOString(),
+      discountUntil: discountUntilDate.toISOString(),
+    };
+  }
+
+  return {
+    stage: "normal",
+    label: "Precio normal",
+    daysLeft: 0,
+    amount: config.basePrice,
+    baseAmount: config.basePrice,
+    discountPercent: 0,
+    currency: config.currency,
+    startedAt: startDate.toISOString(),
+    freeUntil: freeUntilDate.toISOString(),
+    discountUntil: discountUntilDate.toISOString(),
+  };
+}
+
+async function ensureProfessionalPromotion(professionalId) {
+  const freeMonths = Number(process.env.PROMO_FREE_MONTHS || 2) || 2;
+  const discountMonths = Number(process.env.PROMO_DISCOUNT_MONTHS || 2) || 2;
+  const discountPercent = Number(process.env.PROMO_DISCOUNT_PERCENT || 50) || 50;
+  const basePrice = Number(process.env.PLAN_BASE_PRICE || 600) || 600;
+  const currency = process.env.PLAN_CURRENCY || "UYU";
+
+  await db.query(
+    `
+      UPDATE professionals
+      SET
+        promo_started_at = COALESCE(promo_started_at, created_at, NOW()),
+        promo_free_months = COALESCE(promo_free_months, $2),
+        promo_discount_months = COALESCE(promo_discount_months, $3),
+        promo_discount_percent = COALESCE(promo_discount_percent, $4),
+        plan_price = COALESCE(plan_price, $5),
+        plan_currency = COALESCE(plan_currency, $6),
+        monthly_limit = COALESCE(monthly_limit, 1000)
+      WHERE id = $1
+    `,
+    [professionalId, freeMonths, discountMonths, discountPercent, basePrice, currency]
+  );
+}
+
+
 function getProfessionalIdFromRequest(req) {
   const token = getTokenFromHeader(req);
 
@@ -236,6 +361,12 @@ function addDays(date, days) {
 }
 
 async function ensureBillingSchema() {
+
+  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS promo_started_at TIMESTAMP`).catch(() => {});
+  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS promo_free_months INTEGER DEFAULT 2`).catch(() => {});
+  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS promo_discount_months INTEGER DEFAULT 2`).catch(() => {});
+  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS promo_discount_percent INTEGER DEFAULT 50`).catch(() => {});
+
   await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS plan_payment_status TEXT DEFAULT 'pending';`);
   await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS plan_expires_at TIMESTAMP;`);
   await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS last_payment_at TIMESTAMP;`);
@@ -336,27 +467,35 @@ async function normalizePaidStatusFromExpiration(professional) {
 
 
 function serializePlan(professional, latestPayment) {
-  const amount = getPlanAmount(professional);
-  const currency = getPlanCurrency(professional);
+  const promotion = getPromotionState(professional);
   const isPaidByExpiration = hasFuturePlanExpiration(professional);
   const status = isPaidByExpiration
     ? "paid"
     : professional.plan_payment_status || (latestPayment?.status === "pending" && latestPayment?.method === "transfer" ? "pending_transfer" : "pending");
 
   return {
-    plan: professional.plan || "base",
-    status: professional.status || "active",
+    plan: isPaidByExpiration && String(professional.plan || "gratis").toLowerCase() === "gratis" ? "Profesional" : professional.plan || "gratis",
+    monthlyLimit: Number(professional.monthly_limit || 1000),
+    monthly_limit: Number(professional.monthly_limit || 1000),
     paymentStatus: status,
-    billingMethod: professional.billing_method || latestPayment?.method || "",
-    amount,
-    currency,
-    expiresAt: professional.plan_expires_at,
-    lastPaymentAt: professional.last_payment_at,
-    latestPayment,
+    payment_status: status,
+    expiresAt: professional.plan_expires_at || null,
+    expires_at: professional.plan_expires_at || null,
+    lastPaymentAt: professional.last_payment_at || latestPayment?.approved_at || null,
+    last_payment_at: professional.last_payment_at || latestPayment?.approved_at || null,
+    billingMethod: professional.billing_method || latestPayment?.method || null,
+    billing_method: professional.billing_method || latestPayment?.method || null,
+    amount: promotion.amount,
+    baseAmount: promotion.baseAmount,
+    base_amount: promotion.baseAmount,
+    currency: promotion.currency,
     graceDays: Number(process.env.PLAN_GRACE_DAYS || 5),
-    transferReference: `TY-${professional.id}`,
-    transferConcept: `TuAgendaYa plan ${professional.business_name || professional.name || professional.email}`,
-    bankInfo: bankInfo(),
+    grace_days: Number(process.env.PLAN_GRACE_DAYS || 5),
+    promotion,
+    transferReference: latestPayment?.transfer_reference || `TuAgendaYa-${professional.id}`,
+    transfer_reference: latestPayment?.transfer_reference || `TuAgendaYa-${professional.id}`,
+    latestPayment,
+    latest_payment: latestPayment,
   };
 }
 
@@ -411,6 +550,8 @@ router.get("/me/plan", async (req, res, next) => {
     if (!professional) {
       return res.status(404).json({ error: "Profesional no encontrado" });
     }
+
+    await ensureProfessionalPromotion(professionalId);
 
     const normalizedProfessional = await normalizePaidStatusFromExpiration(professional);
     const latestPayment = await getLatestPayment(professionalId);
@@ -549,19 +690,31 @@ router.post("/me/checkout", async (req, res, next) => {
       return res.status(404).json({ error: "Profesional no encontrado" });
     }
 
+    await ensureProfessionalPromotion(professionalId);
+
+    const promotion = getPromotionState(professional);
+
+    if (promotion.stage === "free") {
+      return res.status(400).json({
+        ok: false,
+        error: "Tu cuenta todavía está dentro de los meses gratis. No corresponde pagar ahora.",
+        promotion,
+      });
+    }
+
     const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
 
     if (!accessToken) {
       return res.status(500).json({ error: "Falta configurar MERCADOPAGO_ACCESS_TOKEN en Render." });
     }
 
-    const amount = getPlanAmount(professional);
+    const amount = Number(promotion.amount || 0);
 
     if (!amount || amount <= 0) {
       return res.status(400).json({ error: "Falta configurar el precio del plan." });
     }
 
-    const currency = getPlanCurrency(professional);
+    const currency = promotion.currency || getPlanCurrency(professional);
     const reference = createReference();
 
     const paymentInsert = await db.query(

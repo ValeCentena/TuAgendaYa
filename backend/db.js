@@ -393,4 +393,39 @@ initDB().catch(err => {
   process.exit(1);
 });
 
+
+async function ensureLaunchPromotionSchema() {
+  await query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS promo_started_at TIMESTAMP`);
+  await query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS promo_free_months INTEGER DEFAULT 2`);
+  await query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS promo_discount_months INTEGER DEFAULT 2`);
+  await query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS promo_discount_percent INTEGER DEFAULT 50`);
+  await query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS plan_price NUMERIC(10, 2)`);
+  await query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS plan_currency TEXT DEFAULT 'UYU'`);
+  await query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS plan_payment_status TEXT DEFAULT 'pending'`);
+  await query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS plan_expires_at TIMESTAMP`);
+  await query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS last_payment_at TIMESTAMP`);
+  await query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS billing_method TEXT`);
+  await query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS monthly_limit INTEGER DEFAULT 1000`);
+
+  await query(`
+    UPDATE professionals
+    SET
+      promo_started_at = COALESCE(promo_started_at, created_at, NOW()),
+      promo_free_months = COALESCE(promo_free_months, 2),
+      promo_discount_months = COALESCE(promo_discount_months, 2),
+      promo_discount_percent = COALESCE(promo_discount_percent, 50),
+      plan_price = COALESCE(plan_price, ${Number(process.env.PLAN_BASE_PRICE || 600)}),
+      plan_currency = COALESCE(plan_currency, '${String(process.env.PLAN_CURRENCY || "UYU").replace(/'/g, "''")}'),
+      monthly_limit = COALESCE(monthly_limit, 1000)
+    WHERE promo_started_at IS NULL
+       OR promo_free_months IS NULL
+       OR promo_discount_months IS NULL
+       OR promo_discount_percent IS NULL
+       OR plan_price IS NULL
+       OR plan_currency IS NULL
+       OR monthly_limit IS NULL
+  `);
+}
+
+
 module.exports = pool;

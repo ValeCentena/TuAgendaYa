@@ -7773,7 +7773,7 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
             <div>
               <div style={{ fontSize: 15, fontWeight: 950, color: '#1a1a1a' }}>Pago del plan</div>
               <div style={{ fontSize: 12.5, color: '#6e6e73', fontWeight: 700, marginTop: 3 }}>
-                Acá ves si está gratis, con descuento o si corresponde pagar.
+                Acá ves si está gratis, con 50% de descuento o si corresponde pagar.
               </div>
             </div>
             <div style={{ borderRadius: 999, padding: '6px 10px', background: billingStatus === 'paid' ? '#edfff3' : '#fff8ee', color: billingStatusColor, fontSize: 11.5, fontWeight: 950, whiteSpace: 'nowrap' }}>
