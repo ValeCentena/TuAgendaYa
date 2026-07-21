@@ -297,10 +297,51 @@ async function getLatestPayment(professionalId) {
   return result.rows[0] || null;
 }
 
+
+function hasFuturePlanExpiration(professional) {
+  const raw = professional?.plan_expires_at || professional?.planExpiresAt;
+
+  if (!raw) return false;
+
+  const expires = new Date(raw);
+
+  if (Number.isNaN(expires.getTime())) return false;
+
+  return expires.getTime() > Date.now();
+}
+
+async function normalizePaidStatusFromExpiration(professional) {
+  if (!professional || !professional.id) return professional;
+
+  const shouldBePaid = hasFuturePlanExpiration(professional);
+
+  if (!shouldBePaid || professional.plan_payment_status === "paid") {
+    return professional;
+  }
+
+  const result = await db.query(
+    `UPDATE professionals
+     SET plan_payment_status = 'paid',
+         status = 'active',
+         billing_method = COALESCE(NULLIF(billing_method, ''), 'mercadopago'),
+         last_payment_at = COALESCE(last_payment_at, NOW()),
+         updated_at = NOW()
+     WHERE id = $1
+     RETURNING *`,
+    [professional.id]
+  );
+
+  return result.rows[0] || professional;
+}
+
+
 function serializePlan(professional, latestPayment) {
   const amount = getPlanAmount(professional);
   const currency = getPlanCurrency(professional);
-  const status = professional.plan_payment_status || (latestPayment?.status === "pending" && latestPayment?.method === "transfer" ? "pending_transfer" : "pending");
+  const isPaidByExpiration = hasFuturePlanExpiration(professional);
+  const status = isPaidByExpiration
+    ? "paid"
+    : professional.plan_payment_status || (latestPayment?.status === "pending" && latestPayment?.method === "transfer" ? "pending_transfer" : "pending");
 
   return {
     plan: professional.plan || "base",
@@ -371,8 +412,9 @@ router.get("/me/plan", async (req, res, next) => {
       return res.status(404).json({ error: "Profesional no encontrado" });
     }
 
+    const normalizedProfessional = await normalizePaidStatusFromExpiration(professional);
     const latestPayment = await getLatestPayment(professionalId);
-    res.json({ plan: serializePlan(professional, latestPayment) });
+    res.json({ plan: serializePlan(normalizedProfessional, latestPayment) });
   } catch (error) {
     next(error);
   }
@@ -680,7 +722,7 @@ router.post("/me/sync-mercadopago", async (req, res, next) => {
       updatedPayment = await markPaymentAttemptFailed(planPaymentId, paymentId, paymentData, mappedStatus, signatureResult);
     }
 
-    const professional = await getProfessional(professionalId);
+    const professional = await normalizePaidStatusFromExpiration(await getProfessional(professionalId));
     const latestPayment = await getLatestPayment(professionalId);
 
     return res.json({
