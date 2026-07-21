@@ -9766,7 +9766,7 @@ function AdminDashboardPage() {
                 const monthlyLimit = Number(professional.monthlyLimit || professional.monthly_limit || 1000);
                 const monthlyUsed = Number(professional.monthlyBookingsCount || professional.monthly_bookings_count || 0);
                 const monthlyPercent = monthlyLimit > 0 ? Math.min(100, Math.round((monthlyUsed / monthlyLimit) * 100)) : 0;
-                const paymentStatus = professional.planPaymentStatus || professional.plan_payment_status || 'pending';
+                const rawPaymentStatus = professional.planPaymentStatus || professional.plan_payment_status || 'pending';
                 const billingMethod = professional.billingMethod || professional.billing_method || 'Sin elegir';
                 const planExpiresAt = professional.planExpiresAt || professional.plan_expires_at || '';
                 const lastPaymentAt = professional.lastPaymentAt || professional.last_payment_at || '';
@@ -9776,8 +9776,10 @@ function AdminDashboardPage() {
                 const daysToExpire = expiresDate && !Number.isNaN(expiresDate.getTime())
                   ? Math.ceil((expiresDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
                   : null;
+                const isPaidByExpiration = daysToExpire !== null && daysToExpire >= 0;
+                const paymentStatus = isPaidByExpiration ? 'paid' : rawPaymentStatus;
                 const promotion = professional.promotion || professional.planPromotion || professional.plan_promotion || {};
-                const promoStage = promotion.stage || 'normal';
+                const promoStage = isPaidByExpiration ? 'normal' : promotion.stage || 'normal';
                 const promoLabel = promoStage === 'free' ? 'Gratis' : promoStage === 'discount' ? '50% descuento' : '';
                 const paymentLabel = promoStage === 'free'
                   ? 'Gratis'
