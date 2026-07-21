@@ -7271,20 +7271,19 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
     const paymentStatus = params.get('payment') || params.get('collection_status') || params.get('status');
     const paymentId = params.get('payment_id') || params.get('collection_id');
 
-    if (!token || !paymentId || paymentStatus !== 'success') {
+    if (!paymentId || paymentStatus !== 'success') {
       return;
     }
+
+    localStorage.setItem('tuagendaya_pending_mp_payment_id', paymentId);
 
     setPaymentSyncLoading(true);
     setMessage('Confirmando pago con Mercado Pago...');
 
     try {
-      const response = await fetch(`${API_BASE}/payments/me/sync-mercadopago`, {
+      const response = await fetch(`${API_BASE}/payments/sync-mercadopago-return`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ paymentId }),
       });
 
@@ -7298,9 +7297,13 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
         setBillingInfo(data.plan);
       }
 
+      localStorage.removeItem('tuagendaya_pending_mp_payment_id');
       setMessage('Pago confirmado. Tu plan fue actualizado correctamente.');
       window.history.replaceState({}, document.title, window.location.pathname);
-      fetchBillingInfo();
+
+      if (token) {
+        fetchBillingInfo();
+      }
     } catch (syncError) {
       setError(syncError.message || 'El pago se acreditó, pero no pudimos sincronizarlo automáticamente.');
     } finally {
@@ -7544,6 +7547,11 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
       if (!response.ok || !data.checkoutUrl) {
         throw new Error(data.error || 'No se pudo iniciar el pago automático.');
       }
+
+      if (data.paymentId) {
+        localStorage.setItem('tuagendaya_pending_plan_payment_id', String(data.paymentId));
+      }
+      localStorage.setItem('tuagendaya_returning_from_mp', '1');
 
       window.location.href = data.checkoutUrl;
     } catch (err) {
