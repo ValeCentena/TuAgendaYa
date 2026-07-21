@@ -7187,6 +7187,7 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
   const [billingInfo, setBillingInfo] = useState(null);
   const [billingLoading, setBillingLoading] = useState(true);
   const [billingActionLoading, setBillingActionLoading] = useState('');
+  const [paymentSyncLoading, setPaymentSyncLoading] = useState(false);
   const [showTransferDetails, setShowTransferDetails] = useState(false);
   const [transferNotifyLoading, setTransferNotifyLoading] = useState(false);
   const [profilePushStatus, setProfilePushStatus] = useState('checking');
@@ -7265,11 +7266,54 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
       .finally(() => setBillingLoading(false));
   };
 
+  const syncMercadoPagoReturn = async () => {
+    const params = new URLSearchParams(window.location.search || '');
+    const paymentStatus = params.get('payment') || params.get('collection_status') || params.get('status');
+    const paymentId = params.get('payment_id') || params.get('collection_id');
+
+    if (!token || !paymentId || paymentStatus !== 'success') {
+      return;
+    }
+
+    setPaymentSyncLoading(true);
+    setMessage('Confirmando pago con Mercado Pago...');
+
+    try {
+      const response = await fetch(`${API_BASE}/payments/me/sync-mercadopago`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ paymentId }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || data.ok === false) {
+        throw new Error(data.error || 'No se pudo confirmar el pago automáticamente.');
+      }
+
+      if (data.plan) {
+        setBillingInfo(data.plan);
+      }
+
+      setMessage('Pago confirmado. Tu plan fue actualizado correctamente.');
+      window.history.replaceState({}, document.title, window.location.pathname);
+      fetchBillingInfo();
+    } catch (syncError) {
+      setError(syncError.message || 'El pago se acreditó, pero no pudimos sincronizarlo automáticamente.');
+    } finally {
+      setPaymentSyncLoading(false);
+    }
+  };
+
 
   useEffect(() => {
     fetchProfile();
     fetchPlanBookings();
     fetchBillingInfo();
+    syncMercadoPagoReturn();
   }, []);
 
   useEffect(() => {
@@ -7709,6 +7753,12 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
         <div id="pago-del-plan" style={{ marginTop: 14, color: '#1a1a1a', fontSize: 16, fontWeight: 950 }}>
           Promoción y pago
         </div>
+
+        {paymentSyncLoading && (
+          <div style={{ marginTop: 10, borderRadius: 14, padding: '10px 12px', background: '#eef6ff', border: '0.5px solid #cfe5ff', color: '#0071e3', fontSize: 12.5, fontWeight: 850 }}>
+            Confirmando pago con Mercado Pago...
+          </div>
+        )}
 
         <div className="plan-payment-card" style={{ marginTop: 8, background: '#fff', border: '0.5px solid #e8e8ed', borderRadius: 18, padding: 14 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 12 }}>

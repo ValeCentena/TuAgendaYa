@@ -604,6 +604,101 @@ router.post("/me/checkout", async (req, res, next) => {
   }
 });
 
+
+router.post("/me/sync-mercadopago", async (req, res, next) => {
+  try {
+    await ensureBillingSchema();
+
+    const professionalId = getProfessionalIdFromRequest(req);
+    const paymentId = String(req.body?.paymentId || req.body?.collectionId || req.query.payment_id || req.query.collection_id || "").trim();
+
+    if (!paymentId) {
+      return res.status(400).json({
+        ok: false,
+        error: "Falta payment_id de Mercado Pago.",
+      });
+    }
+
+    const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
+
+    if (!accessToken) {
+      return res.status(500).json({
+        ok: false,
+        error: "Falta configurar MERCADOPAGO_ACCESS_TOKEN en Render.",
+      });
+    }
+
+    const paymentResponse = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    const paymentData = await paymentResponse.json().catch(() => ({}));
+
+    if (!paymentResponse.ok) {
+      return res.status(502).json({
+        ok: false,
+        error: "Mercado Pago no pudo confirmar el pago.",
+        details: paymentData?.message || null,
+      });
+    }
+
+    const externalReference = String(paymentData.external_reference || "");
+    const match = externalReference.match(/^plan_payment:(\d+)$/);
+
+    if (!match) {
+      return res.status(400).json({
+        ok: false,
+        error: "Este pago no pertenece a un plan de TuAgendaYa.",
+        externalReference,
+      });
+    }
+
+    const planPaymentId = Number(match[1]);
+
+    const planPaymentResult = await db.query(
+      `SELECT * FROM plan_payments WHERE id = $1 AND professional_id = $2`,
+      [planPaymentId, professionalId]
+    );
+
+    if (planPaymentResult.rows.length === 0) {
+      return res.status(403).json({
+        ok: false,
+        error: "Este pago no pertenece a esta cuenta profesional.",
+      });
+    }
+
+    const mappedStatus = mapMercadoPagoStatus(paymentData.status);
+    const signatureResult = { required: false, valid: null, reason: "manual_return_sync" };
+
+    await updatePaymentAttemptFromMercadoPago(planPaymentId, paymentId, paymentData, mappedStatus, signatureResult);
+
+    let updatedPayment = null;
+
+    if (mappedStatus === "approved") {
+      updatedPayment = await approvePayment(planPaymentId, paymentData);
+    } else if (["failed", "refunded", "charged_back"].includes(mappedStatus)) {
+      updatedPayment = await markPaymentAttemptFailed(planPaymentId, paymentId, paymentData, mappedStatus, signatureResult);
+    }
+
+    const professional = await getProfessional(professionalId);
+    const latestPayment = await getLatestPayment(professionalId);
+
+    return res.json({
+      ok: true,
+      synced: true,
+      paymentId,
+      planPaymentId,
+      mercadoPagoStatus: paymentData.status || null,
+      status: mappedStatus,
+      payment: updatedPayment || latestPayment,
+      plan: professional ? serializePlan(professional, latestPayment) : null,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+
 router.get("/webhook/mercadopago/health", (req, res) => {
   res.json({
     ok: true,
