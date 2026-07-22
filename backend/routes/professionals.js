@@ -91,51 +91,9 @@ function mergeAvailWithDefaults(rows, professionalId) {
 // ── Helpers servicios ─────────────────────────────────────────
 
 function getDefaultServices(profession) {
-  const p = (profession || '').toLowerCase();
-  if (p.includes('peluq') || p.includes('barber') || p.includes('cabello') || p.includes('pelo')) {
-    return [
-      { name: 'Corte de pelo', description: null, duration_minutes: 30, price: 0 },
-      { name: 'Coloración',    description: null, duration_minutes: 60, price: 0 },
-      { name: 'Tratamiento',   description: null, duration_minutes: 45, price: 0 },
-    ];
-  }
-  if (p.includes('estet') || p.includes('belleza') || p.includes('manicur') || p.includes('uñas')) {
-    return [
-      { name: 'Manicura',        description: null, duration_minutes: 30, price: 0 },
-      { name: 'Pedicura',        description: null, duration_minutes: 45, price: 0 },
-      { name: 'Diseño de uñas',  description: null, duration_minutes: 60, price: 0 },
-    ];
-  }
-  if (p.includes('medic') || p.includes('doctor') || p.includes('psicolog') ||
-      p.includes('psiquiatr') || p.includes('nutricion') || p.includes('nutrición')) {
-    return [
-      { name: 'Consulta', description: null, duration_minutes: 30, price: 0 },
-      { name: 'Control',  description: null, duration_minutes: 20, price: 0 },
-    ];
-  }
-  if (p.includes('abogad') || p.includes('contador') || p.includes('contad') || p.includes('asesor')) {
-    return [
-      { name: 'Consulta', description: null, duration_minutes: 60, price: 0 },
-      { name: 'Reunión',  description: null, duration_minutes: 90, price: 0 },
-    ];
-  }
-  if (p.includes('kinesiol') || p.includes('fisio') || p.includes('masaj') || p.includes('osteopat')) {
-    return [
-      { name: 'Sesión',  description: null, duration_minutes: 60, price: 0 },
-      { name: 'Masaje',  description: null, duration_minutes: 45, price: 0 },
-    ];
-  }
-  if (p.includes('entrenad') || p.includes('personal trainer') ||
-      p.includes('fitness')  || p.includes('gimnasio')) {
-    return [
-      { name: 'Clase personal', description: null, duration_minutes: 60, price: 0 },
-      { name: 'Evaluación',     description: null, duration_minutes: 30, price: 0 },
-    ];
-  }
-  return [
-    { name: 'Corte',    description: null, duration_minutes: 30, price: 0 },
-    { name: 'Consulta', description: null, duration_minutes: 30, price: 0 },
-  ];
+  // No se generan servicios por defecto.
+  // El profesional debe crear manualmente sus propios servicios.
+  return [];
 }
 
 
@@ -205,6 +163,10 @@ function normalizeServiceRow(row) {
   const priceNumber = row.price === null || row.price === undefined ? 0 : Number(row.price);
   return {
     ...row,
+    id: row.id,
+    serviceId: row.id,
+    service_id: row.id,
+    professional_service_id: row.id,
     duration_minutes: duration,
     durationMinutes: duration,
     duration,
@@ -213,6 +175,55 @@ function normalizeServiceRow(row) {
     isActive: toServiceBool(row.is_active, true),
   };
 }
+
+async function cleanupDefaultServicesForProfessional(professionalId) {
+  await db.query(
+    `
+      DELETE FROM professional_services
+      WHERE professional_id = $1
+        AND LOWER(TRIM(name)) IN (
+          'corte de pelo',
+          'coloración',
+          'coloracion',
+          'tratamiento',
+          'corte',
+          'consulta'
+        )
+        AND (
+          price IS NULL
+          OR price = 0
+          OR duration_minutes IN (20, 30, 45, 60, 90)
+        )
+    `,
+    [professionalId]
+  ).catch((error) => {
+    console.warn('cleanupDefaultServicesForProfessional skipped:', error.message);
+  });
+
+  await db.query(
+    `
+      DELETE FROM services
+      WHERE professional_id = $1
+        AND LOWER(TRIM(name)) IN (
+          'corte de pelo',
+          'coloración',
+          'coloracion',
+          'tratamiento',
+          'corte',
+          'consulta'
+        )
+        AND (
+          price IS NULL
+          OR price = 0
+          OR duration IN (20, 30, 45, 60, 90)
+        )
+    `,
+    [professionalId]
+  ).catch((error) => {
+    console.warn('cleanupDefaultServicesForProfessional legacy skipped:', error.message);
+  });
+}
+
 
 // Mantiene compatibilidad con pantallas/rutas viejas que todavía leen la tabla `services`.
 // La tabla principal nueva es `professional_services`, pero el link público puede consultar `services`.
@@ -425,8 +436,9 @@ router.get('/me/services', authMiddleware, async (req, res) => {
   try {
     const profId = req.professional.id;
 
-    // Mostramos solo servicios activos. Los eliminados quedan desactivados
-    // para no romper reservas viejas que los referencian.
+    // Limpia los servicios de ejemplo que se habían generado antes.
+    await cleanupDefaultServicesForProfessional(profId);
+
     const rows = (await db.query(
       `SELECT id, professional_id, name, description, duration_minutes, price, is_active, created_at, updated_at
        FROM professional_services
@@ -435,38 +447,8 @@ router.get('/me/services', authMiddleware, async (req, res) => {
       [profId]
     )).rows;
 
-    if (rows.length === 0) {
-      const total = parseInt((await db.query(
-        'SELECT COUNT(*) AS total FROM professional_services WHERE professional_id = $1',
-        [profId]
-      )).rows[0].total, 10);
-
-      // Solo sugerimos defaults si la cuenta nunca tuvo servicios creados.
-      // Si el usuario eliminó servicios, no los hacemos reaparecer.
-      if (total === 0) {
-        const prof = (await db.query(
-          'SELECT profession FROM professionals WHERE id = $1',
-          [profId]
-        )).rows[0];
-
-        const defaults = getDefaultServices(prof ? prof.profession : '').map(s => normalizeServiceRow({
-          id:               null,
-          professional_id:  profId,
-          name:             s.name,
-          description:      s.description,
-          duration_minutes: s.duration_minutes,
-          price:            s.price,
-          is_active:        1,
-          created_at:       null,
-          updated_at:       null,
-          _is_default:      true,
-        }));
-
-        return res.json({ services: defaults });
-      }
-    }
-
-    // Sincronizamos con la tabla legacy `services` para que el link público vea lo mismo.
+    // No se devuelven servicios sugeridos ni creados por defecto.
+    // Si no hay servicios, la lista queda vacía y el profesional debe crear el primero.
     await syncActiveServicesToLegacyTable(profId).catch(err => {
       console.warn('syncActiveServicesToLegacyTable skipped:', err.message);
     });
@@ -511,7 +493,18 @@ router.post('/me/services', authMiddleware, async (req, res) => {
       console.warn('syncActiveServicesToLegacyTable skipped:', err.message);
     });
 
-    res.status(201).json({ service: normalizeServiceRow(result.rows[0]) });
+    const rows = (await db.query(
+      `SELECT id, professional_id, name, description, duration_minutes, price, is_active, created_at, updated_at
+       FROM professional_services
+       WHERE professional_id = $1 AND (is_active IS NULL OR is_active::text IN ('1','true','t'))
+       ORDER BY id ASC`,
+      [profId]
+    )).rows;
+
+    res.status(201).json({
+      service: normalizeServiceRow(result.rows[0]),
+      services: rows.map(normalizeServiceRow),
+    });
   } catch (err) {
     console.error('POST /me/services error:', err);
     res.status(500).json({ error: 'Error al crear el servicio' });
@@ -565,7 +558,18 @@ router.patch('/me/services/:id', authMiddleware, async (req, res) => {
       console.warn('syncActiveServicesToLegacyTable skipped:', err.message);
     });
 
-    res.json({ service: normalizeServiceRow(updated) });
+    const rows = (await db.query(
+      `SELECT id, professional_id, name, description, duration_minutes, price, is_active, created_at, updated_at
+       FROM professional_services
+       WHERE professional_id = $1 AND (is_active IS NULL OR is_active::text IN ('1','true','t'))
+       ORDER BY id ASC`,
+      [profId]
+    )).rows;
+
+    res.json({
+      service: normalizeServiceRow(updated),
+      services: rows.map(normalizeServiceRow),
+    });
   } catch (err) {
     console.error('PATCH /me/services/:id error:', err);
     res.status(500).json({ error: 'Error al actualizar el servicio' });
@@ -611,7 +615,19 @@ router.delete('/me/services/:id', authMiddleware, async (req, res) => {
       });
     }
 
-    res.json({ success: true, message: 'Servicio desactivado' });
+    const rows = (await db.query(
+      `SELECT id, professional_id, name, description, duration_minutes, price, is_active, created_at, updated_at
+       FROM professional_services
+       WHERE professional_id = $1 AND (is_active IS NULL OR is_active::text IN ('1','true','t'))
+       ORDER BY id ASC`,
+      [profId]
+    )).rows;
+
+    res.json({
+      success: true,
+      message: 'Servicio eliminado',
+      services: rows.map(normalizeServiceRow),
+    });
   } catch (err) {
     console.error('DELETE /me/services/:id error:', err);
     res.status(500).json({ error: 'Error al eliminar el servicio' });
