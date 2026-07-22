@@ -428,4 +428,18 @@ async function ensureLaunchPromotionSchema() {
 }
 
 
+
+async function cleanupDefaultServices() {
+  await query(`
+    DELETE FROM professional_services
+    WHERE LOWER(TRIM(name)) IN ('corte de pelo', 'coloración', 'coloracion', 'tratamiento')
+      AND (
+        price IS NULL
+        OR price = 0
+        OR duration_minutes IN (30, 45, 60)
+      )
+  `).catch(() => {});
+}
+
+
 module.exports = pool;

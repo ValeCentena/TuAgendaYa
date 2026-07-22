@@ -1601,206 +1601,32 @@ function RegisterPage() {
 
 
 function SetupChecklistSection() {
-  const [services, setServices] = useState([]);
-  const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [copied, setCopied] = useState(false);
-  const [hidden, setHidden] = useState(() => localStorage.getItem('tuagendaya_onboarding_hidden') === 'true');
-  const token = localStorage.getItem('tuagendaya_token');
-
-  useEffect(() => {
-    if (!token) return;
-
-    let active = true;
-
-    async function load() {
-      setLoading(true);
-
-      const headers = { Authorization: `Bearer ${token}` };
-      const safeFetch = async (path) => {
-        try {
-          const response = await fetch(`${API_BASE}${path}`, { headers });
-          const data = await response.json().catch(() => ({}));
-          return response.ok ? data : {};
-        } catch {
-          return {};
-        }
-      };
-
-      const [servicesData, profileData] = await Promise.all([
-        safeFetch('/professionals/me/services'),
-        safeFetch('/auth/me'),
-      ]);
-
-      if (!active) return;
-
-      const realServices = (servicesData.services || [])
-        .map(normalizeService)
-        .filter((service) => String(service.name || '').trim());
-
-      setServices(realServices);
-      setProfile(profileData.professional || profileData.user || profileData || null);
-      setLoading(false);
-    }
-
-    load();
-
-    return () => {
-      active = false;
-    };
-  }, [token]);
-
-  const publicSlug = profile?.slug || '';
-  const publicLink = publicSlug ? `https://tuagendaya.com/reservar/${publicSlug}` : '';
-
-  const accountCreated = true;
-  const hasRealServices = services.length > 0;
-  const hasConfiguredAvailability = localStorage.getItem('tuagendaya_onboarding_availability_configured') === 'true';
-  const hasBusinessLogo = Boolean(profile?.logoUrl || profile?.logo_url);
-
-  const steps = [
-    {
-      title: 'Cuenta creada',
-      text: 'Tu acceso profesional ya está listo.',
-      done: accountCreated,
-    },
-    {
-      title: 'Crear primer servicio',
-      text: hasRealServices ? `${services.length} servicio${services.length === 1 ? '' : 's'} creado${services.length === 1 ? '' : 's'}.` : 'Todavía no tenés servicios. Creá uno para que tus clientes puedan reservar.',
-      done: hasRealServices,
-    },
-    {
-      title: 'Configurar horarios',
-      text: hasConfiguredAvailability ? 'Ya guardaste tus horarios reales de atención.' : 'Entrá a Configuración y guardá tus horarios. Los horarios por defecto no cuentan.',
-      done: hasConfiguredAvailability,
-    },
-    {
-      title: 'Cargar logo',
-      text: hasBusinessLogo ? 'Tu negocio ya tiene logo cargado.' : 'Cargá un logo para que el link público se vea profesional.',
-      done: hasBusinessLogo,
-    },
-  ];
-
-  const completed = steps.filter((step) => step.done).length;
-  const percent = Math.round((completed / steps.length) * 100);
-  const nextStep = steps.find((step) => !step.done);
-  const isReady = completed === steps.length;
-
-  if (hidden && isReady) return null;
-
-  const copyLink = async () => {
-    if (!publicLink) return;
-
-    try {
-      await navigator.clipboard.writeText(publicLink);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
-    } catch {
-      setCopied(false);
-    }
-  };
-
-  const hideGuide = () => {
-    localStorage.setItem('tuagendaya_onboarding_hidden', 'true');
-    setHidden(true);
-  };
-
-  if (loading) {
-    return (
-      <section className="onboarding-card-clean">
-        <style>{setupChecklistStyles}</style>
-        <div className="onboarding-loading">Revisando configuración inicial...</div>
-      </section>
-    );
-  }
-
   return (
-    <section className="onboarding-card-clean">
+    <section className="agenda-start-notice">
       <style>{setupChecklistStyles}</style>
 
-      <div className="onboarding-head-clean">
-        <div>
-          <div className="onboarding-eyebrow-clean">Primeros pasos</div>
-          <h2>{isReady ? 'Tu agenda está lista' : 'Terminá de configurar tu agenda'}</h2>
-          <p>
-            {isReady
-              ? 'Ya tenés lo esencial pronto. Compartí tu link público para empezar a recibir reservas.'
-              : 'Al crear la cuenta solo queda completo el acceso. El profesional debe cargar servicios, horarios y logo.'}
-          </p>
-        </div>
-
-        <div className="onboarding-score-clean">
-          <strong>{completed}/{steps.length}</strong>
-          <span>{percent}%</span>
-        </div>
+      <div>
+        <div className="agenda-start-pill">Configuración inicial</div>
+        <h2>Configurá tu agenda a tu gusto</h2>
+        <p>
+          Entrá a <strong>Configuración</strong> para cargar tus servicios, horarios, métodos de pago y ajustes antes de empezar a compartir tu link público.
+        </p>
       </div>
-
-      <div className="onboarding-progress-clean">
-        <div style={{ width: `${percent}%` }} />
-      </div>
-
-      <div className="onboarding-next-clean">
-        {isReady ? (
-          <>
-            <div>
-              <span>Link público</span>
-              <strong>{publicLink || 'Link listo'}</strong>
-            </div>
-            <button type="button" onClick={copyLink} disabled={!publicLink}>
-              {copied ? 'Copiado' : 'Copiar link'}
-            </button>
-          </>
-        ) : (
-          <>
-            <div>
-              <span>Próximo paso recomendado</span>
-              <strong>{nextStep?.title || 'Completar configuración'}</strong>
-            </div>
-            <small>{nextStep?.text}</small>
-          </>
-        )}
-      </div>
-
-      <div className="onboarding-steps-clean">
-        {steps.map((step) => (
-          <article key={step.title} className={step.done ? 'done' : ''}>
-            <div className="onboarding-check-clean">{step.done ? '✓' : ''}</div>
-            <div>
-              <h3>{step.title}</h3>
-              <p>{step.text}</p>
-            </div>
-          </article>
-        ))}
-      </div>
-
-      {isReady && (
-        <div className="onboarding-footer-clean">
-          <span>Todo listo. Esta guía puede ocultarse.</span>
-          <button type="button" onClick={hideGuide}>Ocultar guía</button>
-        </div>
-      )}
     </section>
   );
 }
 
 const setupChecklistStyles = `
-  .onboarding-card-clean {
+  .agenda-start-notice {
     background: #ffffff;
     border: 0.5px solid #e8e8ed;
     border-radius: 24px;
-    padding: 18px;
+    padding: 18px 20px;
     margin-bottom: 16px;
     box-shadow: 0 1px 10px rgba(0,0,0,0.045);
   }
 
-  .onboarding-head-clean {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 14px;
-    align-items: flex-start;
-  }
-
-  .onboarding-eyebrow-clean {
+  .agenda-start-pill {
     display: inline-flex;
     align-items: center;
     min-height: 26px;
@@ -1813,7 +1639,7 @@ const setupChecklistStyles = `
     margin-bottom: 9px;
   }
 
-  .onboarding-head-clean h2 {
+  .agenda-start-notice h2 {
     margin: 0;
     color: #1a1a1a;
     font-size: 21px;
@@ -1822,7 +1648,7 @@ const setupChecklistStyles = `
     letter-spacing: -0.015em;
   }
 
-  .onboarding-head-clean p {
+  .agenda-start-notice p {
     margin: 7px 0 0;
     color: #6e6e73;
     font-size: 13.5px;
@@ -1830,227 +1656,23 @@ const setupChecklistStyles = `
     font-weight: 650;
   }
 
-  .onboarding-score-clean {
-    min-width: 76px;
-    border-radius: 18px;
-    background: #f5f5f7;
-    padding: 11px 12px;
-    text-align: center;
-  }
-
-  .onboarding-score-clean strong {
-    display: block;
-    color: #0071e3;
-    font-size: 20px;
-    line-height: 1;
-    font-weight: 950;
-  }
-
-  .onboarding-score-clean span {
-    display: block;
-    color: #6e6e73;
-    font-size: 11px;
-    font-weight: 850;
-    margin-top: 5px;
-  }
-
-  .onboarding-progress-clean {
-    height: 7px;
-    border-radius: 999px;
-    background: #e5e5ea;
-    overflow: hidden;
-    margin: 16px 0 12px;
-  }
-
-  .onboarding-progress-clean div {
-    height: 100%;
-    border-radius: 999px;
-    background: #0071e3;
-    transition: width 0.22s ease;
-  }
-
-  .onboarding-next-clean {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    align-items: center;
-    border-radius: 16px;
-    background: #f7f9ff;
-    border: 1px solid #dceaff;
-    padding: 12px;
-    margin-bottom: 12px;
-  }
-
-  .onboarding-next-clean span {
-    display: block;
-    color: #8e8e93;
-    font-size: 11.5px;
-    font-weight: 900;
-    margin-bottom: 3px;
-  }
-
-  .onboarding-next-clean strong {
-    display: block;
+  .agenda-start-notice strong {
     color: #1a1a1a;
-    font-size: 13.5px;
     font-weight: 950;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .onboarding-next-clean small {
-    color: #6e6e73;
-    font-size: 12.5px;
-    font-weight: 700;
-    line-height: 1.35;
-    text-align: right;
-  }
-
-  .onboarding-next-clean button,
-  .onboarding-footer-clean button {
-    border: none;
-    border-radius: 13px;
-    background: #0071e3;
-    color: #fff;
-    padding: 9px 12px;
-    font-size: 12.5px;
-    font-weight: 950;
-    font-family: inherit;
-    cursor: pointer;
-    white-space: nowrap;
-  }
-
-  .onboarding-next-clean button:disabled {
-    background: #c7c7cc;
-    cursor: not-allowed;
-  }
-
-  .onboarding-steps-clean {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 9px;
-  }
-
-  .onboarding-steps-clean article {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: 9px;
-    padding: 12px;
-    border-radius: 16px;
-    border: 0.5px solid #e8e8ed;
-    background: #fff;
-  }
-
-  .onboarding-steps-clean article.done {
-    background: #fbfffc;
-    border-color: #d8f5e1;
-  }
-
-  .onboarding-check-clean {
-    width: 23px;
-    height: 23px;
-    border-radius: 999px;
-    background: #f2f2f7;
-    color: #fff;
-    display: grid;
-    place-items: center;
-    font-size: 12px;
-    font-weight: 950;
-  }
-
-  .onboarding-steps-clean article.done .onboarding-check-clean {
-    background: #188038;
-  }
-
-  .onboarding-steps-clean h3 {
-    margin: 0;
-    color: #1a1a1a;
-    font-size: 13.5px;
-    font-weight: 950;
-  }
-
-  .onboarding-steps-clean p {
-    margin: 4px 0 0;
-    color: #6e6e73;
-    font-size: 11.8px;
-    line-height: 1.35;
-    font-weight: 650;
-  }
-
-  .onboarding-footer-clean {
-    margin-top: 12px;
-    border-radius: 15px;
-    padding: 11px 12px;
-    background: #edfff3;
-    border: 1px solid #c9f5d6;
-    color: #188038;
-    font-size: 12.5px;
-    font-weight: 850;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-  }
-
-  .onboarding-footer-clean button {
-    background: #188038;
-  }
-
-  .onboarding-loading {
-    color: #8e8e93;
-    font-size: 14px;
-    font-weight: 850;
-    text-align: center;
-    padding: 14px;
-  }
-
-  @media (max-width: 920px) {
-    .onboarding-steps-clean {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
   }
 
   @media (max-width: 760px) {
-    .onboarding-card-clean {
+    .agenda-start-notice {
       border-radius: 22px;
       padding: 15px;
     }
 
-    .onboarding-head-clean {
-      grid-template-columns: 1fr auto;
-      gap: 10px;
-    }
-
-    .onboarding-head-clean h2 {
+    .agenda-start-notice h2 {
       font-size: 18.5px;
     }
 
-    .onboarding-head-clean p {
+    .agenda-start-notice p {
       font-size: 12.5px;
-    }
-
-    .onboarding-score-clean {
-      min-width: 68px;
-      padding: 10px 9px;
-    }
-
-    .onboarding-next-clean {
-      display: grid;
-      gap: 8px;
-      align-items: stretch;
-    }
-
-    .onboarding-next-clean small {
-      text-align: left;
-    }
-
-    .onboarding-steps-clean {
-      grid-template-columns: 1fr;
-    }
-
-    .onboarding-footer-clean {
-      display: grid;
-      gap: 9px;
     }
   }
 `;
@@ -5680,7 +5302,6 @@ function AvailabilitySection() {
         if (Array.isArray(data.availability)) {
           setAvailability(data.availability.map(normalizeAvailabilityItem));
         }
-        localStorage.setItem('tuagendaya_onboarding_availability_configured', 'true');
         setMessage('Disponibilidad general guardada correctamente.');
       }
     } catch {
@@ -9477,7 +9098,6 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
             </button>
           </div>
         </div>
-
         <SetupChecklistSection />
 
         <div className="dashboard-tabs" style={{ display: 'flex', gap: 10, marginBottom: 16, overflowX: 'auto' }}>
