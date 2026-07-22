@@ -1602,10 +1602,10 @@ function RegisterPage() {
 
 function SetupChecklistSection() {
   const [services, setServices] = useState([]);
-  const [staff, setStaff] = useState([]);
   const [profile, setProfile] = useState(null);
-  const [availability, setAvailability] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
+  const [hidden, setHidden] = useState(() => localStorage.getItem('tuagendaya_onboarding_hidden') === 'true');
   const token = localStorage.getItem('tuagendaya_token');
 
   useEffect(() => {
@@ -1627,19 +1627,15 @@ function SetupChecklistSection() {
         }
       };
 
-      const [servicesData, staffData, profileData, availabilityData] = await Promise.all([
+      const [servicesData, profileData] = await Promise.all([
         safeFetch('/professionals/me/services'),
-        safeFetch('/staff/me'),
         safeFetch('/auth/me'),
-        safeFetch('/professionals/me/availability'),
       ]);
 
       if (!active) return;
 
       setServices((servicesData.services || []).map(normalizeService).filter((service) => String(service.name || '').trim()));
-      setStaff(staffData.staff || staffData.members || []);
       setProfile(profileData.professional || profileData.user || profileData || null);
-      setAvailability(availabilityData.availability || availabilityData.days || []);
       setLoading(false);
     }
 
@@ -1650,323 +1646,407 @@ function SetupChecklistSection() {
     };
   }, [token]);
 
-  const hasServices = services.length > 0;
-  const hasStaff = staff.length > 0;
-  const hasProfile = Boolean(profile?.businessName || profile?.business_name || profile?.name || profile?.slug);
-  const hasPublicLink = Boolean(profile?.slug);
-  const hasAvailability = availability.some((day) => {
-    const active = day?.isActive ?? day?.is_active ?? day?.active;
-    const start = day?.startTime || day?.start_time || day?.start;
-    const end = day?.endTime || day?.end_time || day?.end;
-    return Boolean(active && start && end);
-  });
+  const publicSlug = profile?.slug || '';
+  const publicLink = publicSlug ? `https://tuagendaya.com/reservar/${publicSlug}` : '';
 
-  const items = [
+  const accountCreated = true;
+  const hasRealServices = services.length > 0;
+  const hasConfiguredAvailability = localStorage.getItem('tuagendaya_onboarding_availability_configured') === 'true';
+  const hasBusinessLogo = Boolean(profile?.logoUrl || profile?.logo_url);
+
+  const steps = [
     {
-      title: 'Servicio creado',
-      description: hasServices ? `${services.length} servicio${services.length === 1 ? '' : 's'} listo${services.length === 1 ? '' : 's'}.` : 'Creá al menos un servicio para que el cliente pueda reservar.',
-      done: hasServices,
+      title: 'Cuenta creada',
+      text: 'Tu acceso profesional ya está listo.',
+      done: accountCreated,
     },
     {
-      title: 'Profesional cargado',
-      description: hasStaff ? `${staff.length} profesional${staff.length === 1 ? '' : 'es'} configurado${staff.length === 1 ? '' : 's'}.` : 'Agregá el profesional que va a atender los turnos.',
-      done: hasStaff,
+      title: 'Crear servicios',
+      text: hasRealServices ? `${services.length} servicio${services.length === 1 ? '' : 's'} creado${services.length === 1 ? '' : 's'}.` : 'Creá los servicios que tus clientes van a reservar.',
+      done: hasRealServices,
     },
     {
-      title: 'Horarios configurados',
-      description: hasAvailability ? 'Ya hay días y horarios activos.' : 'Definí horarios de atención para mostrar turnos disponibles.',
-      done: hasAvailability,
+      title: 'Configurar horarios',
+      text: hasConfiguredAvailability ? 'Ya configuraste tus horarios reales de atención.' : 'Revisá y guardá tus horarios. Los horarios por defecto no cuentan como configurados.',
+      done: hasConfiguredAvailability,
     },
     {
-      title: 'Link público listo',
-      description: hasPublicLink ? `tuagendaya.com/reservar/${profile.slug}` : 'Completá el perfil para generar el link público.',
-      done: hasProfile && hasPublicLink,
+      title: 'Cargar logo',
+      text: hasBusinessLogo ? 'Tu negocio ya tiene logo cargado.' : 'Cargá un logo para que tu link público se vea profesional.',
+      done: hasBusinessLogo,
     },
   ];
 
-  const completed = items.filter((item) => item.done).length;
-  const percent = Math.round((completed / items.length) * 100);
-  const nextItem = items.find((item) => !item.done);
+  const completed = steps.filter((step) => step.done).length;
+  const percent = Math.round((completed / steps.length) * 100);
+  const nextStep = steps.find((step) => !step.done);
+  const isReady = completed === steps.length;
+
+  if (hidden && isReady) return null;
+
+  const copyLink = async () => {
+    if (!publicLink) return;
+
+    try {
+      await navigator.clipboard.writeText(publicLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  const hideGuide = () => {
+    localStorage.setItem('tuagendaya_onboarding_hidden', 'true');
+    setHidden(true);
+  };
 
   if (loading) {
     return (
-      <section className="setup-checklist-card">
+      <section className="onboarding-card-clean">
         <style>{setupChecklistStyles}</style>
-        <div className="setup-checklist-loading">Revisando configuración inicial...</div>
+        <div className="onboarding-loading">Revisando configuración inicial...</div>
       </section>
     );
   }
 
   return (
-    <section className="setup-checklist-card">
+    <section className="onboarding-card-clean">
       <style>{setupChecklistStyles}</style>
 
-      <div className="setup-checklist-header">
+      <div className="onboarding-head-clean">
         <div>
-          <div className="setup-checklist-eyebrow">Configuración inicial</div>
-          <h2>Prepará tu agenda para recibir reservas</h2>
-          <p>Completá estos pasos para que el link público funcione correctamente.</p>
+          <div className="onboarding-eyebrow-clean">Primeros pasos</div>
+          <h2>{isReady ? 'Tu agenda está lista' : 'Terminá de configurar tu agenda'}</h2>
+          <p>
+            {isReady
+              ? 'Ya tenés lo esencial pronto. Compartí tu link público para empezar a recibir reservas.'
+              : 'Al crear la cuenta solo queda marcado el acceso. Servicios, horarios y logo deben configurarse manualmente.'}
+          </p>
         </div>
 
-        <div className="setup-checklist-score">
-          <strong>{completed}/{items.length}</strong>
-          <span>{percent}% listo</span>
+        <div className="onboarding-score-clean">
+          <strong>{completed}/{steps.length}</strong>
+          <span>{percent}%</span>
         </div>
       </div>
 
-      <div className="setup-checklist-progress">
+      <div className="onboarding-progress-clean">
         <div style={{ width: `${percent}%` }} />
       </div>
 
-      {nextItem ? (
-        <div className="setup-checklist-next">
-          <span>Próximo paso</span>
-          <strong>{nextItem.title}</strong>
-        </div>
-      ) : (
-        <div className="setup-checklist-ready">Tu agenda está lista para recibir reservas.</div>
-      )}
-
-      <div className="setup-checklist-grid">
-        {items.map((item) => (
-          <article key={item.title} className={`setup-checklist-item ${item.done ? 'done' : ''}`}>
-            <div className="setup-checklist-icon">{item.done ? '✓' : '•'}</div>
+      <div className="onboarding-next-clean">
+        {isReady ? (
+          <>
             <div>
-              <h3>{item.title}</h3>
-              <p>{item.description}</p>
+              <span>Link público</span>
+              <strong>{publicLink || 'Link listo'}</strong>
+            </div>
+            <button type="button" onClick={copyLink} disabled={!publicLink}>
+              {copied ? 'Copiado' : 'Copiar link'}
+            </button>
+          </>
+        ) : (
+          <>
+            <div>
+              <span>Próximo paso recomendado</span>
+              <strong>{nextStep?.title || 'Completar configuración'}</strong>
+            </div>
+            <small>{nextStep?.text}</small>
+          </>
+        )}
+      </div>
+
+      <div className="onboarding-steps-clean">
+        {steps.map((step) => (
+          <article key={step.title} className={step.done ? 'done' : ''}>
+            <div className="onboarding-check-clean">{step.done ? '✓' : ''}</div>
+            <div>
+              <h3>{step.title}</h3>
+              <p>{step.text}</p>
             </div>
           </article>
         ))}
       </div>
+
+      {isReady && (
+        <div className="onboarding-footer-clean">
+          <span>Todo listo. Esta guía puede ocultarse.</span>
+          <button type="button" onClick={hideGuide}>Ocultar guía</button>
+        </div>
+      )}
     </section>
   );
 }
 
 const setupChecklistStyles = `
-  .setup-checklist-card {
-    background: #fff;
-    border-radius: 28px;
-    padding: 22px;
-    box-shadow: 0 1px 10px rgba(0,0,0,0.06);
-    border: 0.5px solid rgba(0,0,0,0.05);
+  .onboarding-card-clean {
+    background: #ffffff;
+    border: 0.5px solid #e8e8ed;
+    border-radius: 24px;
+    padding: 18px;
     margin-bottom: 16px;
-    overflow: hidden;
+    box-shadow: 0 1px 10px rgba(0,0,0,0.045);
   }
 
-  .setup-checklist-header {
-    display: flex;
-    justify-content: space-between;
+  .onboarding-head-clean {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 14px;
     align-items: flex-start;
-    gap: 16px;
   }
 
-  .setup-checklist-eyebrow {
+  .onboarding-eyebrow-clean {
     display: inline-flex;
-    min-height: 28px;
     align-items: center;
-    padding: 6px 10px;
+    min-height: 26px;
+    padding: 5px 10px;
     border-radius: 999px;
     background: #eef6ff;
     color: #0071e3;
     font-size: 12px;
-    font-weight: 850;
-    margin-bottom: 10px;
+    font-weight: 900;
+    margin-bottom: 9px;
   }
 
-  .setup-checklist-header h2 {
+  .onboarding-head-clean h2 {
     margin: 0;
     color: #1a1a1a;
-    font-size: 22px;
+    font-size: 21px;
     line-height: 1.15;
-    font-weight: 900;
-    letter-spacing: -0.01em;
+    font-weight: 950;
+    letter-spacing: -0.015em;
   }
 
-  .setup-checklist-header p {
-    margin: 8px 0 0;
+  .onboarding-head-clean p {
+    margin: 7px 0 0;
     color: #6e6e73;
-    font-size: 14px;
+    font-size: 13.5px;
     line-height: 1.45;
-    font-weight: 600;
+    font-weight: 650;
   }
 
-  .setup-checklist-score {
-    flex: 0 0 auto;
-    min-width: 88px;
-    border-radius: 20px;
-    padding: 13px 14px;
+  .onboarding-score-clean {
+    min-width: 76px;
+    border-radius: 18px;
     background: #f5f5f7;
+    padding: 11px 12px;
     text-align: center;
   }
 
-  .setup-checklist-score strong {
+  .onboarding-score-clean strong {
     display: block;
     color: #0071e3;
-    font-size: 22px;
+    font-size: 20px;
     line-height: 1;
-    font-weight: 900;
+    font-weight: 950;
   }
 
-  .setup-checklist-score span {
+  .onboarding-score-clean span {
     display: block;
     color: #6e6e73;
-    font-size: 11.5px;
-    font-weight: 800;
+    font-size: 11px;
+    font-weight: 850;
     margin-top: 5px;
   }
 
-  .setup-checklist-progress {
-    height: 8px;
+  .onboarding-progress-clean {
+    height: 7px;
     border-radius: 999px;
     background: #e5e5ea;
     overflow: hidden;
-    margin: 18px 0 14px;
+    margin: 16px 0 12px;
   }
 
-  .setup-checklist-progress div {
+  .onboarding-progress-clean div {
     height: 100%;
     border-radius: 999px;
     background: #0071e3;
+    transition: width 0.22s ease;
   }
 
-  .setup-checklist-next,
-  .setup-checklist-ready {
-    border-radius: 18px;
-    padding: 14px;
-    margin-bottom: 14px;
-    font-size: 13px;
-  }
-
-  .setup-checklist-next {
+  .onboarding-next-clean {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+    border-radius: 16px;
     background: #f7f9ff;
     border: 1px solid #dceaff;
-    display: flex;
-    gap: 10px;
-    align-items: center;
+    padding: 12px;
+    margin-bottom: 12px;
   }
 
-  .setup-checklist-next span {
+  .onboarding-next-clean span {
+    display: block;
     color: #8e8e93;
-    font-weight: 800;
-  }
-
-  .setup-checklist-next strong {
-    color: #1a1a1a;
+    font-size: 11.5px;
     font-weight: 900;
+    margin-bottom: 3px;
   }
 
-  .setup-checklist-ready {
-    background: #edfff3;
-    border: 1px solid #b7f5c8;
-    color: #188038;
-    font-weight: 850;
+  .onboarding-next-clean strong {
+    display: block;
+    color: #1a1a1a;
+    font-size: 13.5px;
+    font-weight: 950;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
-  .setup-checklist-grid {
+  .onboarding-next-clean small {
+    color: #6e6e73;
+    font-size: 12.5px;
+    font-weight: 700;
+    line-height: 1.35;
+    text-align: right;
+  }
+
+  .onboarding-next-clean button,
+  .onboarding-footer-clean button {
+    border: none;
+    border-radius: 13px;
+    background: #0071e3;
+    color: #fff;
+    padding: 9px 12px;
+    font-size: 12.5px;
+    font-weight: 950;
+    font-family: inherit;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .onboarding-next-clean button:disabled {
+    background: #c7c7cc;
+    cursor: not-allowed;
+  }
+
+  .onboarding-steps-clean {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 9px;
   }
 
-  .setup-checklist-item {
+  .onboarding-steps-clean article {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
-    gap: 12px;
-    align-items: start;
-    border: 1px solid #e8e8ed;
+    gap: 9px;
+    padding: 12px;
+    border-radius: 16px;
+    border: 0.5px solid #e8e8ed;
     background: #fff;
-    border-radius: 18px;
-    padding: 14px;
   }
 
-  .setup-checklist-item.done {
+  .onboarding-steps-clean article.done {
     background: #fbfffc;
     border-color: #d8f5e1;
   }
 
-  .setup-checklist-icon {
-    width: 28px;
-    height: 28px;
+  .onboarding-check-clean {
+    width: 23px;
+    height: 23px;
     border-radius: 999px;
     background: #f2f2f7;
-    color: #8e8e93;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 900;
-  }
-
-  .setup-checklist-item.done .setup-checklist-icon {
-    background: #188038;
     color: #fff;
+    display: grid;
+    place-items: center;
+    font-size: 12px;
+    font-weight: 950;
   }
 
-  .setup-checklist-item h3 {
+  .onboarding-steps-clean article.done .onboarding-check-clean {
+    background: #188038;
+  }
+
+  .onboarding-steps-clean h3 {
     margin: 0;
     color: #1a1a1a;
-    font-size: 15px;
-    font-weight: 900;
-    letter-spacing: -0.006em;
+    font-size: 13.5px;
+    font-weight: 950;
   }
 
-  .setup-checklist-item p {
-    margin: 5px 0 0;
+  .onboarding-steps-clean p {
+    margin: 4px 0 0;
     color: #6e6e73;
-    font-size: 12.5px;
-    line-height: 1.4;
-    font-weight: 600;
+    font-size: 11.8px;
+    line-height: 1.35;
+    font-weight: 650;
   }
 
-  .setup-checklist-loading {
+  .onboarding-footer-clean {
+    margin-top: 12px;
+    border-radius: 15px;
+    padding: 11px 12px;
+    background: #edfff3;
+    border: 1px solid #c9f5d6;
+    color: #188038;
+    font-size: 12.5px;
+    font-weight: 850;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .onboarding-footer-clean button {
+    background: #188038;
+  }
+
+  .onboarding-loading {
     color: #8e8e93;
     font-size: 14px;
-    font-weight: 800;
+    font-weight: 850;
     text-align: center;
-    padding: 18px;
+    padding: 14px;
+  }
+
+  @media (max-width: 920px) {
+    .onboarding-steps-clean {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
   }
 
   @media (max-width: 760px) {
-    .setup-checklist-card {
-      border-radius: 24px;
-      padding: 16px 14px;
+    .onboarding-card-clean {
+      border-radius: 22px;
+      padding: 15px;
     }
 
-    .setup-checklist-header {
-      display: grid;
+    .onboarding-head-clean {
       grid-template-columns: 1fr auto;
       gap: 10px;
     }
 
-    .setup-checklist-header h2 {
-      font-size: 19px;
+    .onboarding-head-clean h2 {
+      font-size: 18.5px;
     }
 
-    .setup-checklist-header p {
+    .onboarding-head-clean p {
       font-size: 12.5px;
     }
 
-    .setup-checklist-score {
-      min-width: 72px;
-      padding: 11px 10px;
-      border-radius: 17px;
+    .onboarding-score-clean {
+      min-width: 68px;
+      padding: 10px 9px;
     }
 
-    .setup-checklist-score strong {
-      font-size: 19px;
-    }
-
-    .setup-checklist-next {
+    .onboarding-next-clean {
       display: grid;
-      gap: 7px;
+      gap: 8px;
+      align-items: stretch;
     }
 
-    .setup-checklist-grid {
+    .onboarding-next-clean small {
+      text-align: left;
+    }
+
+    .onboarding-steps-clean {
       grid-template-columns: 1fr;
     }
 
-    .setup-checklist-item {
-      border-radius: 17px;
-      padding: 13px;
+    .onboarding-footer-clean {
+      display: grid;
+      gap: 9px;
     }
   }
 `;
@@ -5596,6 +5676,7 @@ function AvailabilitySection() {
         if (Array.isArray(data.availability)) {
           setAvailability(data.availability.map(normalizeAvailabilityItem));
         }
+        localStorage.setItem('tuagendaya_onboarding_availability_configured', 'true');
         setMessage('Disponibilidad general guardada correctamente.');
       }
     } catch {
@@ -6550,13 +6631,20 @@ function ServicesSection() {
   };
 
   const startEditing = (service) => {
-    setEditingId(service.id);
+    const serviceId = service?.id ?? service?.serviceId ?? service?.service_id;
+
+    if (serviceId === null || serviceId === undefined || serviceId === '') {
+      setError('No se puede editar este servicio porque no tiene identificador válido. Actualizá la página e intentá de nuevo.');
+      return;
+    }
+
+    setEditingId(String(serviceId));
     setEditing({
-      name: service.name,
+      name: service.name || '',
       description: service.description || '',
       durationMinutes: service.durationMinutes || 30,
-      price: service.price || '',
-      isActive: service.isActive,
+      price: service.price ?? '',
+      isActive: Boolean(service.isActive),
     });
   };
 
@@ -6566,12 +6654,19 @@ function ServicesSection() {
   };
 
   const saveEditing = async (serviceId) => {
+    const cleanServiceId = serviceId ?? editingId;
+
+    if (cleanServiceId === null || cleanServiceId === undefined || cleanServiceId === '') {
+      setError('No se pudo guardar: el servicio no tiene identificador válido.');
+      return;
+    }
+
     setError('');
     setMessage('');
     setSaving(true);
 
     try {
-      const res = await fetch(`${API_BASE}/professionals/me/services/${serviceId}`, {
+      const res = await fetch(`${API_BASE}/professionals/me/services/${cleanServiceId}`, {
         method: 'PATCH',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -6614,6 +6709,11 @@ function ServicesSection() {
   };
 
   const deleteService = async (serviceId) => {
+    if (serviceId === null || serviceId === undefined || serviceId === '') {
+      setError('No se puede eliminar este servicio porque no tiene identificador válido. Actualizá la página e intentá de nuevo.');
+      return;
+    }
+
     const confirmDelete = window.confirm('¿Querés eliminar este servicio? Esta acción lo quita de la lista de servicios. Las reservas ya creadas se mantienen.');
     if (!confirmDelete) return;
 
@@ -6647,7 +6747,13 @@ function ServicesSection() {
     }
   };
 
-  const visibleServices = services.filter((service) => String(service.name || '').trim());
+  const visibleServices = services
+    .map((service, index) => ({
+      ...service,
+      _uiKey: String(service.id ?? service.serviceId ?? service.service_id ?? `service-${index}`),
+      _hasValidId: !(service.id === null || service.id === undefined || service.id === ''),
+    }))
+    .filter((service) => String(service.name || '').trim());
 
   return (
     <div className="services-mobile-section" style={{ background: '#fff', borderRadius: 20, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
@@ -6731,11 +6837,12 @@ function ServicesSection() {
         <div style={{ textAlign: 'center', color: '#aeaeb2', padding: 28 }}>Cargando servicios...</div>
       ) : visibleServices.length === 0 ? null : (
         visibleServices.map((service) => {
-          const isEditing = editingId === service.id;
+          const serviceId = service.id ?? service.serviceId ?? service.service_id;
+          const isEditing = editingId !== null && editingId !== undefined && serviceId !== null && serviceId !== undefined && serviceId !== '' && String(editingId) === String(serviceId);
 
           return (
             <div
-              key={service.id}
+              key={service._uiKey}
               style={{
                 border: '1px solid #e8e8ed',
                 borderRadius: 16,
@@ -6789,11 +6896,12 @@ function ServicesSection() {
                     onChange={(e) => setEditing({ ...editing, description: e.target.value })}
                   />
 
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#1a1a1a', marginBottom: 12 }}>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 9, fontSize: 13, color: '#1a1a1a', marginBottom: 12, padding: '8px 10px', borderRadius: 12, background: '#fff', border: '0.5px solid #dcdce3', fontWeight: 750 }}>
                     <input
                       type="checkbox"
-                      checked={editing.isActive}
+                      checked={Boolean(editing.isActive)}
                       onChange={(e) => setEditing({ ...editing, isActive: e.target.checked })}
+                      style={{ width: 16, height: 16, margin: 0 }}
                     />
                     Servicio activo
                   </label>
@@ -6801,7 +6909,7 @@ function ServicesSection() {
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
                       type="button"
-                      onClick={() => saveEditing(service.id)}
+                      onClick={() => saveEditing(serviceId)}
                       disabled={saving}
                       style={{ flex: 1, padding: '10px', borderRadius: 10, border: 'none', background: '#0071e3', color: '#fff', fontWeight: 700, cursor: 'pointer' }}
                     >
@@ -6846,16 +6954,17 @@ function ServicesSection() {
                     <button
                       type="button"
                       onClick={() => startEditing(service)}
-                      style={{ flex: 1, padding: '9px', borderRadius: 10, border: '0.5px solid #d0d0d5', background: '#fff', color: '#1a1a1a', fontWeight: 700, cursor: 'pointer' }}
+                      disabled={!service._hasValidId}
+                      style={{ flex: 1, padding: '9px', borderRadius: 10, border: '0.5px solid #d0d0d5', background: '#fff', color: service._hasValidId ? '#1a1a1a' : '#aeaeb2', fontWeight: 700, cursor: service._hasValidId ? 'pointer' : 'not-allowed' }}
                     >
                       Editar
                     </button>
 
                     <button
                       type="button"
-                      onClick={() => deleteService(service.id)}
-                      disabled={saving}
-                      style={{ flex: 1, padding: '9px', borderRadius: 10, border: 'none', background: '#ff453a', color: '#fff', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}
+                      onClick={() => deleteService(serviceId)}
+                      disabled={saving || !service._hasValidId}
+                      style={{ flex: 1, padding: '9px', borderRadius: 10, border: 'none', background: service._hasValidId ? '#ff453a' : '#d1d1d6', color: '#fff', fontWeight: 700, cursor: (saving || !service._hasValidId) ? 'not-allowed' : 'pointer' }}
                     >
                       Eliminar
                     </button>
