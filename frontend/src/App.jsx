@@ -9376,6 +9376,8 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
           </div>
         </div>
 
+        <SetupChecklistSection />
+
         <div className="dashboard-tabs" style={{ display: 'flex', gap: 10, marginBottom: 16, overflowX: 'auto' }}>
           <button style={tabStyle('reservas')} onClick={() => setActiveTab('reservas')}>Reservas</button>
           <button style={tabStyle('clientes')} onClick={() => setActiveTab('clientes')}>Clientes</button>
