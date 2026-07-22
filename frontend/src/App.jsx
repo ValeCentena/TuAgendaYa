@@ -1600,12 +1600,14 @@ function RegisterPage() {
 }
 
 
-function SetupChecklistSection() {
+function SetupChecklistSection({ professional, onGoToConfig, onGoToProfile, onCopyPublicLink }) {
   const [services, setServices] = useState([]);
   const [staff, setStaff] = useState([]);
-  const [profile, setProfile] = useState(null);
+  const [profile, setProfile] = useState(professional || null);
   const [availability, setAvailability] = useState([]);
+  const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [dismissed, setDismissed] = useState(() => localStorage.getItem('tuagendaya_onboarding_dismissed') === 'true');
   const token = localStorage.getItem('tuagendaya_token');
 
   useEffect(() => {
@@ -1627,19 +1629,21 @@ function SetupChecklistSection() {
         }
       };
 
-      const [servicesData, staffData, profileData, availabilityData] = await Promise.all([
+      const [servicesData, staffData, profileData, availabilityData, settingsData] = await Promise.all([
         safeFetch('/professionals/me/services'),
         safeFetch('/staff/me'),
         safeFetch('/auth/me'),
         safeFetch('/professionals/me/availability'),
+        safeFetch('/professionals/me/settings'),
       ]);
 
       if (!active) return;
 
       setServices((servicesData.services || []).map(normalizeService).filter((service) => String(service.name || '').trim()));
       setStaff(staffData.staff || staffData.members || []);
-      setProfile(profileData.professional || profileData.user || profileData || null);
+      setProfile(profileData.professional || profileData.user || profileData || professional || null);
       setAvailability(availabilityData.availability || availabilityData.days || []);
+      setSettings(settingsData.settings || settingsData || null);
       setLoading(false);
     }
 
@@ -1648,7 +1652,7 @@ function SetupChecklistSection() {
     return () => {
       active = false;
     };
-  }, [token]);
+  }, [token, professional]);
 
   const hasServices = services.length > 0;
   const hasStaff = staff.length > 0;
@@ -1660,91 +1664,139 @@ function SetupChecklistSection() {
     const end = day?.endTime || day?.end_time || day?.end;
     return Boolean(active && start && end);
   });
+  const hasPaymentMethods = Array.isArray(settings?.acceptedPaymentMethods || settings?.accepted_payment_methods)
+    ? (settings.acceptedPaymentMethods || settings.accepted_payment_methods).length > 0
+    : true;
+
+  const publicLink = hasPublicLink ? `https://tuagendaya.com/reservar/${profile.slug}` : '';
+  const businessName = profile?.businessName || profile?.business_name || profile?.name || 'tu negocio';
 
   const items = [
     {
-      title: 'Servicio creado',
-      description: hasServices ? `${services.length} servicio${services.length === 1 ? '' : 's'} listo${services.length === 1 ? '' : 's'}.` : 'Creá al menos un servicio para que el cliente pueda reservar.',
+      title: 'Servicios',
+      description: hasServices ? `${services.length} servicio${services.length === 1 ? '' : 's'} visible${services.length === 1 ? '' : 's'} para tus clientes.` : 'Creá al menos un servicio con nombre, duración y precio.',
       done: hasServices,
+      action: 'Gestionar servicios',
+      onClick: () => onGoToConfig?.('services'),
     },
     {
-      title: 'Profesional cargado',
-      description: hasStaff ? `${staff.length} profesional${staff.length === 1 ? '' : 'es'} configurado${staff.length === 1 ? '' : 's'}.` : 'Agregá el profesional que va a atender los turnos.',
-      done: hasStaff,
-    },
-    {
-      title: 'Horarios configurados',
-      description: hasAvailability ? 'Ya hay días y horarios activos.' : 'Definí horarios de atención para mostrar turnos disponibles.',
+      title: 'Horarios',
+      description: hasAvailability ? 'Tus días y horarios ya generan turnos disponibles.' : 'Configurá los días y horas en los que querés recibir reservas.',
       done: hasAvailability,
+      action: 'Configurar horarios',
+      onClick: () => onGoToConfig?.('availability'),
     },
     {
-      title: 'Link público listo',
-      description: hasPublicLink ? `tuagendaya.com/reservar/${profile.slug}` : 'Completá el perfil para generar el link público.',
+      title: 'Perfil público',
+      description: hasProfile && hasPublicLink ? `${businessName} ya tiene link público.` : 'Completá nombre, teléfono, dirección y link público del negocio.',
       done: hasProfile && hasPublicLink,
+      action: 'Completar perfil',
+      onClick: onGoToProfile,
+    },
+    {
+      title: 'Métodos de pago',
+      description: hasPaymentMethods ? 'Tus clientes ya pueden elegir cómo pagar la reserva.' : 'Elegí si aceptás efectivo, transferencia o débito/POS.',
+      done: hasPaymentMethods,
+      action: 'Configurar pagos',
+      onClick: () => onGoToConfig?.('settings'),
     },
   ];
 
   const completed = items.filter((item) => item.done).length;
   const percent = Math.round((completed / items.length) * 100);
   const nextItem = items.find((item) => !item.done);
+  const isReady = completed === items.length;
 
-  if (loading) {
-    return (
-      <section className="setup-checklist-card">
-        <style>{setupChecklistStyles}</style>
-        <div className="setup-checklist-loading">Revisando configuración inicial...</div>
-      </section>
-    );
+  if (dismissed && isReady) {
+    return null;
   }
 
+  const dismissGuide = () => {
+    localStorage.setItem('tuagendaya_onboarding_dismissed', 'true');
+    setDismissed(true);
+  };
+
   return (
-    <section className="setup-checklist-card">
+    <section className={`setup-checklist-card ${isReady ? 'ready' : ''}`}>
       <style>{setupChecklistStyles}</style>
 
-      <div className="setup-checklist-header">
-        <div>
-          <div className="setup-checklist-eyebrow">Configuración inicial</div>
-          <h2>Prepará tu agenda para recibir reservas</h2>
-          <p>Completá estos pasos para que el link público funcione correctamente.</p>
-        </div>
-
-        <div className="setup-checklist-score">
-          <strong>{completed}/{items.length}</strong>
-          <span>{percent}% listo</span>
-        </div>
-      </div>
-
-      <div className="setup-checklist-progress">
-        <div style={{ width: `${percent}%` }} />
-      </div>
-
-      {nextItem ? (
-        <div className="setup-checklist-next">
-          <span>Próximo paso</span>
-          <strong>{nextItem.title}</strong>
-        </div>
+      {loading ? (
+        <div className="setup-checklist-loading">Revisando configuración inicial...</div>
       ) : (
-        <div className="setup-checklist-ready">Tu agenda está lista para recibir reservas.</div>
-      )}
-
-      <div className="setup-checklist-grid">
-        {items.map((item) => (
-          <article key={item.title} className={`setup-checklist-item ${item.done ? 'done' : ''}`}>
-            <div className="setup-checklist-icon">{item.done ? '✓' : '•'}</div>
-            <div>
-              <h3>{item.title}</h3>
-              <p>{item.description}</p>
+        <>
+          <div className="setup-checklist-top">
+            <div className="setup-checklist-copy">
+              <div className="setup-checklist-eyebrow">Primeros pasos</div>
+              <h2>{isReady ? 'Tu agenda está lista para recibir reservas' : 'Prepará tu agenda para empezar a vender'}</h2>
+              <p>
+                {isReady
+                  ? 'Ya tenés lo principal configurado. Copiá tu link público y compartilo con tus clientes.'
+                  : 'Completá lo esencial para que tus clientes puedan reservar sin ayuda y tu panel quede listo para trabajar.'}
+              </p>
             </div>
-          </article>
-        ))}
-      </div>
+
+            <div className="setup-checklist-score" aria-label={`${percent}% listo`}>
+              <strong>{completed}/{items.length}</strong>
+              <span>{percent}% listo</span>
+            </div>
+          </div>
+
+          <div className="setup-checklist-progress" aria-hidden="true">
+            <div style={{ width: `${percent}%` }} />
+          </div>
+
+          <div className="setup-checklist-highlight">
+            {nextItem ? (
+              <>
+                <span>Próximo paso</span>
+                <strong>{nextItem.title}</strong>
+                <button type="button" onClick={nextItem.onClick}>{nextItem.action}</button>
+              </>
+            ) : (
+              <>
+                <span>Link público</span>
+                <strong>{publicLink || 'Listo para compartir'}</strong>
+                <button type="button" onClick={onCopyPublicLink} disabled={!publicLink}>
+                  Copiar link
+                </button>
+              </>
+            )}
+          </div>
+
+          <div className="setup-checklist-grid">
+            {items.map((item) => (
+              <article key={item.title} className={`setup-checklist-item ${item.done ? 'done' : ''}`}>
+                <div className="setup-checklist-dot">{item.done ? '✓' : ''}</div>
+                <div className="setup-checklist-item-body">
+                  <h3>{item.title}</h3>
+                  <p>{item.description}</p>
+                  {!item.done && (
+                    <button type="button" onClick={item.onClick}>
+                      {item.action}
+                    </button>
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
+
+          {isReady && (
+            <div className="setup-checklist-footer">
+              <span>Todo listo. Esta guía se puede ocultar cuando quieras.</span>
+              <button type="button" onClick={dismissGuide}>Ocultar guía</button>
+            </div>
+          )}
+        </>
+      )}
     </section>
   );
 }
 
 const setupChecklistStyles = `
   .setup-checklist-card {
-    background: #fff;
+    background:
+      radial-gradient(circle at 92% 8%, rgba(0,113,227,0.09), transparent 28%),
+      linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
     border-radius: 28px;
     padding: 22px;
     box-shadow: 0 1px 10px rgba(0,0,0,0.06);
@@ -1753,11 +1805,18 @@ const setupChecklistStyles = `
     overflow: hidden;
   }
 
-  .setup-checklist-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
+  .setup-checklist-card.ready {
+    border-color: rgba(24,128,56,0.16);
+    background:
+      radial-gradient(circle at 92% 8%, rgba(24,128,56,0.10), transparent 28%),
+      linear-gradient(180deg, #ffffff 0%, #fbfffc 100%);
+  }
+
+  .setup-checklist-top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 16px;
+    align-items: flex-start;
   }
 
   .setup-checklist-eyebrow {
@@ -1769,30 +1828,31 @@ const setupChecklistStyles = `
     background: #eef6ff;
     color: #0071e3;
     font-size: 12px;
-    font-weight: 850;
+    font-weight: 900;
     margin-bottom: 10px;
   }
 
-  .setup-checklist-header h2 {
+  .setup-checklist-copy h2 {
     margin: 0;
     color: #1a1a1a;
-    font-size: 22px;
-    line-height: 1.15;
-    font-weight: 900;
-    letter-spacing: -0.01em;
+    font-size: 23px;
+    line-height: 1.12;
+    font-weight: 950;
+    letter-spacing: -0.018em;
   }
 
-  .setup-checklist-header p {
+  .setup-checklist-copy p {
     margin: 8px 0 0;
     color: #6e6e73;
     font-size: 14px;
     line-height: 1.45;
-    font-weight: 600;
+    font-weight: 650;
+    max-width: 720px;
   }
 
   .setup-checklist-score {
     flex: 0 0 auto;
-    min-width: 88px;
+    min-width: 90px;
     border-radius: 20px;
     padding: 13px 14px;
     background: #f5f5f7;
@@ -1802,16 +1862,16 @@ const setupChecklistStyles = `
   .setup-checklist-score strong {
     display: block;
     color: #0071e3;
-    font-size: 22px;
+    font-size: 23px;
     line-height: 1;
-    font-weight: 900;
+    font-weight: 950;
   }
 
   .setup-checklist-score span {
     display: block;
     color: #6e6e73;
     font-size: 11.5px;
-    font-weight: 800;
+    font-weight: 850;
     margin-top: 5px;
   }
 
@@ -1826,57 +1886,72 @@ const setupChecklistStyles = `
   .setup-checklist-progress div {
     height: 100%;
     border-radius: 999px;
-    background: #0071e3;
+    background: linear-gradient(90deg, #0071e3 0%, #0057ff 100%);
+    transition: width 0.25s ease;
   }
 
-  .setup-checklist-next,
-  .setup-checklist-ready {
+  .setup-checklist-highlight {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
     border-radius: 18px;
     padding: 14px;
     margin-bottom: 14px;
-    font-size: 13px;
-  }
-
-  .setup-checklist-next {
     background: #f7f9ff;
     border: 1px solid #dceaff;
-    display: flex;
-    gap: 10px;
-    align-items: center;
   }
 
-  .setup-checklist-next span {
+  .setup-checklist-highlight span {
     color: #8e8e93;
-    font-weight: 800;
-  }
-
-  .setup-checklist-next strong {
-    color: #1a1a1a;
+    font-size: 12.5px;
     font-weight: 900;
   }
 
-  .setup-checklist-ready {
-    background: #edfff3;
-    border: 1px solid #b7f5c8;
-    color: #188038;
-    font-weight: 850;
+  .setup-checklist-highlight strong {
+    color: #1a1a1a;
+    font-size: 13.5px;
+    font-weight: 950;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .setup-checklist-highlight button,
+  .setup-checklist-item button,
+  .setup-checklist-footer button {
+    border: none;
+    border-radius: 13px;
+    background: #0071e3;
+    color: #fff;
+    padding: 9px 12px;
+    font-size: 12.5px;
+    font-weight: 950;
+    font-family: inherit;
+    cursor: pointer;
+  }
+
+  .setup-checklist-highlight button:disabled {
+    background: #c7c7cc;
+    cursor: not-allowed;
   }
 
   .setup-checklist-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 10px;
   }
 
   .setup-checklist-item {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
-    gap: 12px;
+    gap: 11px;
     align-items: start;
     border: 1px solid #e8e8ed;
-    background: #fff;
+    background: rgba(255,255,255,0.82);
     border-radius: 18px;
     padding: 14px;
+    min-height: 150px;
   }
 
   .setup-checklist-item.done {
@@ -1884,19 +1959,21 @@ const setupChecklistStyles = `
     border-color: #d8f5e1;
   }
 
-  .setup-checklist-icon {
-    width: 28px;
-    height: 28px;
+  .setup-checklist-dot {
+    width: 26px;
+    height: 26px;
     border-radius: 999px;
     background: #f2f2f7;
     color: #8e8e93;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: 900;
+    font-weight: 950;
+    font-size: 13px;
+    flex: 0 0 auto;
   }
 
-  .setup-checklist-item.done .setup-checklist-icon {
+  .setup-checklist-item.done .setup-checklist-dot {
     background: #188038;
     color: #fff;
   }
@@ -1904,25 +1981,58 @@ const setupChecklistStyles = `
   .setup-checklist-item h3 {
     margin: 0;
     color: #1a1a1a;
-    font-size: 15px;
-    font-weight: 900;
+    font-size: 14.5px;
+    font-weight: 950;
     letter-spacing: -0.006em;
   }
 
   .setup-checklist-item p {
     margin: 5px 0 0;
     color: #6e6e73;
-    font-size: 12.5px;
-    line-height: 1.4;
-    font-weight: 600;
+    font-size: 12.2px;
+    line-height: 1.38;
+    font-weight: 650;
+  }
+
+  .setup-checklist-item button {
+    margin-top: 11px;
+    background: #eef6ff;
+    color: #0071e3;
+    border: 0.5px solid rgba(0,113,227,0.14);
+  }
+
+  .setup-checklist-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-top: 14px;
+    padding: 12px 14px;
+    border-radius: 16px;
+    background: #edfff3;
+    border: 1px solid #c9f5d6;
+    color: #188038;
+    font-size: 12.8px;
+    font-weight: 850;
+  }
+
+  .setup-checklist-footer button {
+    background: #188038;
+    white-space: nowrap;
   }
 
   .setup-checklist-loading {
     color: #8e8e93;
     font-size: 14px;
-    font-weight: 800;
+    font-weight: 850;
     text-align: center;
     padding: 18px;
+  }
+
+  @media (max-width: 920px) {
+    .setup-checklist-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
   }
 
   @media (max-width: 760px) {
@@ -1931,17 +2041,16 @@ const setupChecklistStyles = `
       padding: 16px 14px;
     }
 
-    .setup-checklist-header {
-      display: grid;
+    .setup-checklist-top {
       grid-template-columns: 1fr auto;
       gap: 10px;
     }
 
-    .setup-checklist-header h2 {
+    .setup-checklist-copy h2 {
       font-size: 19px;
     }
 
-    .setup-checklist-header p {
+    .setup-checklist-copy p {
       font-size: 12.5px;
     }
 
@@ -1955,9 +2064,14 @@ const setupChecklistStyles = `
       font-size: 19px;
     }
 
-    .setup-checklist-next {
-      display: grid;
+    .setup-checklist-highlight {
+      grid-template-columns: 1fr;
       gap: 7px;
+      align-items: stretch;
+    }
+
+    .setup-checklist-highlight strong {
+      white-space: normal;
     }
 
     .setup-checklist-grid {
@@ -1967,6 +2081,12 @@ const setupChecklistStyles = `
     .setup-checklist-item {
       border-radius: 17px;
       padding: 13px;
+      min-height: auto;
+    }
+
+    .setup-checklist-footer {
+      display: grid;
+      gap: 10px;
     }
   }
 `;
@@ -9375,6 +9495,13 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
             </button>
           </div>
         </div>
+
+        <SetupChecklistSection
+          professional={professional}
+          onGoToConfig={() => setActiveTab('configuracion')}
+          onGoToProfile={() => setActiveTab('perfil')}
+          onCopyPublicLink={handleCopyPublicLink}
+        />
 
         <div className="dashboard-tabs" style={{ display: 'flex', gap: 10, marginBottom: 16, overflowX: 'auto' }}>
           <button style={tabStyle('reservas')} onClick={() => setActiveTab('reservas')}>Reservas</button>
