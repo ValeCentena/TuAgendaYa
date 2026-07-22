@@ -1602,12 +1602,10 @@ function RegisterPage() {
 
 function SetupChecklistSection() {
   const [services, setServices] = useState([]);
+  const [staff, setStaff] = useState([]);
   const [profile, setProfile] = useState(null);
   const [availability, setAvailability] = useState([]);
-  const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [copied, setCopied] = useState(false);
-  const [hidden, setHidden] = useState(() => localStorage.getItem('tuagendaya_onboarding_hidden') === 'true');
   const token = localStorage.getItem('tuagendaya_token');
 
   useEffect(() => {
@@ -1629,19 +1627,19 @@ function SetupChecklistSection() {
         }
       };
 
-      const [servicesData, profileData, availabilityData, settingsData] = await Promise.all([
+      const [servicesData, staffData, profileData, availabilityData] = await Promise.all([
         safeFetch('/professionals/me/services'),
+        safeFetch('/staff/me'),
         safeFetch('/auth/me'),
         safeFetch('/professionals/me/availability'),
-        safeFetch('/professionals/me/settings'),
       ]);
 
       if (!active) return;
 
       setServices((servicesData.services || []).map(normalizeService).filter((service) => String(service.name || '').trim()));
+      setStaff(staffData.staff || staffData.members || []);
       setProfile(profileData.professional || profileData.user || profileData || null);
       setAvailability(availabilityData.availability || availabilityData.days || []);
-      setSettings(settingsData.settings || settingsData || null);
       setLoading(false);
     }
 
@@ -1653,6 +1651,7 @@ function SetupChecklistSection() {
   }, [token]);
 
   const hasServices = services.length > 0;
+  const hasStaff = staff.length > 0;
   const hasProfile = Boolean(profile?.businessName || profile?.business_name || profile?.name || profile?.slug);
   const hasPublicLink = Boolean(profile?.slug);
   const hasAvailability = availability.some((day) => {
@@ -1662,403 +1661,312 @@ function SetupChecklistSection() {
     return Boolean(active && start && end);
   });
 
-  const acceptedPaymentMethods = settings?.acceptedPaymentMethods || settings?.accepted_payment_methods || [];
-  const hasPaymentMethods = Array.isArray(acceptedPaymentMethods) ? acceptedPaymentMethods.length > 0 : true;
-  const publicLink = hasPublicLink ? `https://tuagendaya.com/reservar/${profile.slug}` : '';
-
-  const steps = [
+  const items = [
     {
-      title: 'Servicios',
-      text: hasServices ? `${services.length} servicio${services.length === 1 ? '' : 's'} listo${services.length === 1 ? '' : 's'}.` : 'Creá los servicios que tus clientes van a reservar.',
+      title: 'Servicio creado',
+      description: hasServices ? `${services.length} servicio${services.length === 1 ? '' : 's'} listo${services.length === 1 ? '' : 's'}.` : 'Creá al menos un servicio para que el cliente pueda reservar.',
       done: hasServices,
     },
     {
-      title: 'Horarios',
-      text: hasAvailability ? 'Tus horarios ya generan turnos disponibles.' : 'Definí los días y horas de atención.',
+      title: 'Profesional cargado',
+      description: hasStaff ? `${staff.length} profesional${staff.length === 1 ? '' : 'es'} configurado${staff.length === 1 ? '' : 's'}.` : 'Agregá el profesional que va a atender los turnos.',
+      done: hasStaff,
+    },
+    {
+      title: 'Horarios configurados',
+      description: hasAvailability ? 'Ya hay días y horarios activos.' : 'Definí horarios de atención para mostrar turnos disponibles.',
       done: hasAvailability,
     },
     {
-      title: 'Perfil público',
-      text: hasProfile && hasPublicLink ? 'Tu link público ya está listo para compartir.' : 'Completá los datos visibles de tu negocio.',
+      title: 'Link público listo',
+      description: hasPublicLink ? `tuagendaya.com/reservar/${profile.slug}` : 'Completá el perfil para generar el link público.',
       done: hasProfile && hasPublicLink,
-    },
-    {
-      title: 'Métodos de pago',
-      text: hasPaymentMethods ? 'Tus métodos de pago están configurados.' : 'Elegí cómo podrán pagar tus clientes.',
-      done: hasPaymentMethods,
     },
   ];
 
-  const completed = steps.filter((step) => step.done).length;
-  const percent = Math.round((completed / steps.length) * 100);
-  const nextStep = steps.find((step) => !step.done);
-  const isReady = completed === steps.length;
-
-  if (hidden && isReady) return null;
-
-  const copyLink = async () => {
-    if (!publicLink) return;
-
-    try {
-      await navigator.clipboard.writeText(publicLink);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
-    } catch {
-      setCopied(false);
-    }
-  };
-
-  const hideGuide = () => {
-    localStorage.setItem('tuagendaya_onboarding_hidden', 'true');
-    setHidden(true);
-  };
+  const completed = items.filter((item) => item.done).length;
+  const percent = Math.round((completed / items.length) * 100);
+  const nextItem = items.find((item) => !item.done);
 
   if (loading) {
     return (
-      <section className="onboarding-card-clean">
+      <section className="setup-checklist-card">
         <style>{setupChecklistStyles}</style>
-        <div className="onboarding-loading">Revisando configuración inicial...</div>
+        <div className="setup-checklist-loading">Revisando configuración inicial...</div>
       </section>
     );
   }
 
   return (
-    <section className="onboarding-card-clean">
+    <section className="setup-checklist-card">
       <style>{setupChecklistStyles}</style>
 
-      <div className="onboarding-head-clean">
+      <div className="setup-checklist-header">
         <div>
-          <div className="onboarding-eyebrow-clean">Primeros pasos</div>
-          <h2>{isReady ? 'Tu agenda está lista' : 'Prepará tu agenda para recibir reservas'}</h2>
-          <p>
-            {isReady
-              ? 'Ya tenés lo esencial configurado. Compartí tu link público para empezar a recibir reservas.'
-              : 'Completá lo principal para que tus clientes puedan reservar sin ayuda.'}
-          </p>
+          <div className="setup-checklist-eyebrow">Configuración inicial</div>
+          <h2>Prepará tu agenda para recibir reservas</h2>
+          <p>Completá estos pasos para que el link público funcione correctamente.</p>
         </div>
 
-        <div className="onboarding-score-clean">
-          <strong>{completed}/{steps.length}</strong>
-          <span>{percent}%</span>
+        <div className="setup-checklist-score">
+          <strong>{completed}/{items.length}</strong>
+          <span>{percent}% listo</span>
         </div>
       </div>
 
-      <div className="onboarding-progress-clean">
+      <div className="setup-checklist-progress">
         <div style={{ width: `${percent}%` }} />
       </div>
 
-      <div className="onboarding-next-clean">
-        {isReady ? (
-          <>
-            <div>
-              <span>Link público</span>
-              <strong>{publicLink || 'Link listo'}</strong>
-            </div>
-            <button type="button" onClick={copyLink} disabled={!publicLink}>
-              {copied ? 'Copiado' : 'Copiar link'}
-            </button>
-          </>
-        ) : (
-          <>
-            <div>
-              <span>Próximo paso recomendado</span>
-              <strong>{nextStep?.title || 'Completar configuración'}</strong>
-            </div>
-            <small>{nextStep?.text}</small>
-          </>
-        )}
-      </div>
+      {nextItem ? (
+        <div className="setup-checklist-next">
+          <span>Próximo paso</span>
+          <strong>{nextItem.title}</strong>
+        </div>
+      ) : (
+        <div className="setup-checklist-ready">Tu agenda está lista para recibir reservas.</div>
+      )}
 
-      <div className="onboarding-steps-clean">
-        {steps.map((step) => (
-          <article key={step.title} className={step.done ? 'done' : ''}>
-            <div className="onboarding-check-clean">{step.done ? '✓' : ''}</div>
+      <div className="setup-checklist-grid">
+        {items.map((item) => (
+          <article key={item.title} className={`setup-checklist-item ${item.done ? 'done' : ''}`}>
+            <div className="setup-checklist-icon">{item.done ? '✓' : '•'}</div>
             <div>
-              <h3>{step.title}</h3>
-              <p>{step.text}</p>
+              <h3>{item.title}</h3>
+              <p>{item.description}</p>
             </div>
           </article>
         ))}
       </div>
-
-      {isReady && (
-        <div className="onboarding-footer-clean">
-          <span>Todo listo. Esta guía puede ocultarse.</span>
-          <button type="button" onClick={hideGuide}>Ocultar guía</button>
-        </div>
-      )}
     </section>
   );
 }
 
 const setupChecklistStyles = `
-  .onboarding-card-clean {
-    background: #ffffff;
-    border: 0.5px solid #e8e8ed;
-    border-radius: 24px;
-    padding: 18px;
+  .setup-checklist-card {
+    background: #fff;
+    border-radius: 28px;
+    padding: 22px;
+    box-shadow: 0 1px 10px rgba(0,0,0,0.06);
+    border: 0.5px solid rgba(0,0,0,0.05);
     margin-bottom: 16px;
-    box-shadow: 0 1px 10px rgba(0,0,0,0.045);
+    overflow: hidden;
   }
 
-  .onboarding-head-clean {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 14px;
+  .setup-checklist-header {
+    display: flex;
+    justify-content: space-between;
     align-items: flex-start;
+    gap: 16px;
   }
 
-  .onboarding-eyebrow-clean {
+  .setup-checklist-eyebrow {
     display: inline-flex;
+    min-height: 28px;
     align-items: center;
-    min-height: 26px;
-    padding: 5px 10px;
+    padding: 6px 10px;
     border-radius: 999px;
     background: #eef6ff;
     color: #0071e3;
     font-size: 12px;
-    font-weight: 900;
-    margin-bottom: 9px;
+    font-weight: 850;
+    margin-bottom: 10px;
   }
 
-  .onboarding-head-clean h2 {
+  .setup-checklist-header h2 {
     margin: 0;
     color: #1a1a1a;
-    font-size: 21px;
+    font-size: 22px;
     line-height: 1.15;
-    font-weight: 950;
-    letter-spacing: -0.015em;
+    font-weight: 900;
+    letter-spacing: -0.01em;
   }
 
-  .onboarding-head-clean p {
-    margin: 7px 0 0;
+  .setup-checklist-header p {
+    margin: 8px 0 0;
     color: #6e6e73;
-    font-size: 13.5px;
+    font-size: 14px;
     line-height: 1.45;
-    font-weight: 650;
+    font-weight: 600;
   }
 
-  .onboarding-score-clean {
-    min-width: 76px;
-    border-radius: 18px;
+  .setup-checklist-score {
+    flex: 0 0 auto;
+    min-width: 88px;
+    border-radius: 20px;
+    padding: 13px 14px;
     background: #f5f5f7;
-    padding: 11px 12px;
     text-align: center;
   }
 
-  .onboarding-score-clean strong {
+  .setup-checklist-score strong {
     display: block;
     color: #0071e3;
-    font-size: 20px;
+    font-size: 22px;
     line-height: 1;
-    font-weight: 950;
+    font-weight: 900;
   }
 
-  .onboarding-score-clean span {
+  .setup-checklist-score span {
     display: block;
     color: #6e6e73;
-    font-size: 11px;
-    font-weight: 850;
+    font-size: 11.5px;
+    font-weight: 800;
     margin-top: 5px;
   }
 
-  .onboarding-progress-clean {
-    height: 7px;
+  .setup-checklist-progress {
+    height: 8px;
     border-radius: 999px;
     background: #e5e5ea;
     overflow: hidden;
-    margin: 16px 0 12px;
+    margin: 18px 0 14px;
   }
 
-  .onboarding-progress-clean div {
+  .setup-checklist-progress div {
     height: 100%;
     border-radius: 999px;
     background: #0071e3;
-    transition: width 0.22s ease;
   }
 
-  .onboarding-next-clean {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    align-items: center;
-    border-radius: 16px;
+  .setup-checklist-next,
+  .setup-checklist-ready {
+    border-radius: 18px;
+    padding: 14px;
+    margin-bottom: 14px;
+    font-size: 13px;
+  }
+
+  .setup-checklist-next {
     background: #f7f9ff;
     border: 1px solid #dceaff;
-    padding: 12px;
-    margin-bottom: 12px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
   }
 
-  .onboarding-next-clean span {
-    display: block;
+  .setup-checklist-next span {
     color: #8e8e93;
-    font-size: 11.5px;
-    font-weight: 900;
-    margin-bottom: 3px;
+    font-weight: 800;
   }
 
-  .onboarding-next-clean strong {
-    display: block;
+  .setup-checklist-next strong {
     color: #1a1a1a;
-    font-size: 13.5px;
-    font-weight: 950;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    font-weight: 900;
   }
 
-  .onboarding-next-clean small {
-    color: #6e6e73;
-    font-size: 12.5px;
-    font-weight: 700;
-    line-height: 1.35;
-    text-align: right;
+  .setup-checklist-ready {
+    background: #edfff3;
+    border: 1px solid #b7f5c8;
+    color: #188038;
+    font-weight: 850;
   }
 
-  .onboarding-next-clean button,
-  .onboarding-footer-clean button {
-    border: none;
-    border-radius: 13px;
-    background: #0071e3;
-    color: #fff;
-    padding: 9px 12px;
-    font-size: 12.5px;
-    font-weight: 950;
-    font-family: inherit;
-    cursor: pointer;
-    white-space: nowrap;
-  }
-
-  .onboarding-next-clean button:disabled {
-    background: #c7c7cc;
-    cursor: not-allowed;
-  }
-
-  .onboarding-steps-clean {
+  .setup-checklist-grid {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 9px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
   }
 
-  .onboarding-steps-clean article {
+  .setup-checklist-item {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
-    gap: 9px;
-    padding: 12px;
-    border-radius: 16px;
-    border: 0.5px solid #e8e8ed;
+    gap: 12px;
+    align-items: start;
+    border: 1px solid #e8e8ed;
     background: #fff;
+    border-radius: 18px;
+    padding: 14px;
   }
 
-  .onboarding-steps-clean article.done {
+  .setup-checklist-item.done {
     background: #fbfffc;
     border-color: #d8f5e1;
   }
 
-  .onboarding-check-clean {
-    width: 23px;
-    height: 23px;
+  .setup-checklist-icon {
+    width: 28px;
+    height: 28px;
     border-radius: 999px;
     background: #f2f2f7;
-    color: #fff;
-    display: grid;
-    place-items: center;
-    font-size: 12px;
-    font-weight: 950;
-  }
-
-  .onboarding-steps-clean article.done .onboarding-check-clean {
-    background: #188038;
-  }
-
-  .onboarding-steps-clean h3 {
-    margin: 0;
-    color: #1a1a1a;
-    font-size: 13.5px;
-    font-weight: 950;
-  }
-
-  .onboarding-steps-clean p {
-    margin: 4px 0 0;
-    color: #6e6e73;
-    font-size: 11.8px;
-    line-height: 1.35;
-    font-weight: 650;
-  }
-
-  .onboarding-footer-clean {
-    margin-top: 12px;
-    border-radius: 15px;
-    padding: 11px 12px;
-    background: #edfff3;
-    border: 1px solid #c9f5d6;
-    color: #188038;
-    font-size: 12.5px;
-    font-weight: 850;
+    color: #8e8e93;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 10px;
+    justify-content: center;
+    font-weight: 900;
   }
 
-  .onboarding-footer-clean button {
+  .setup-checklist-item.done .setup-checklist-icon {
     background: #188038;
+    color: #fff;
   }
 
-  .onboarding-loading {
+  .setup-checklist-item h3 {
+    margin: 0;
+    color: #1a1a1a;
+    font-size: 15px;
+    font-weight: 900;
+    letter-spacing: -0.006em;
+  }
+
+  .setup-checklist-item p {
+    margin: 5px 0 0;
+    color: #6e6e73;
+    font-size: 12.5px;
+    line-height: 1.4;
+    font-weight: 600;
+  }
+
+  .setup-checklist-loading {
     color: #8e8e93;
     font-size: 14px;
-    font-weight: 850;
+    font-weight: 800;
     text-align: center;
-    padding: 14px;
-  }
-
-  @media (max-width: 920px) {
-    .onboarding-steps-clean {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
+    padding: 18px;
   }
 
   @media (max-width: 760px) {
-    .onboarding-card-clean {
-      border-radius: 22px;
-      padding: 15px;
+    .setup-checklist-card {
+      border-radius: 24px;
+      padding: 16px 14px;
     }
 
-    .onboarding-head-clean {
+    .setup-checklist-header {
+      display: grid;
       grid-template-columns: 1fr auto;
       gap: 10px;
     }
 
-    .onboarding-head-clean h2 {
-      font-size: 18.5px;
+    .setup-checklist-header h2 {
+      font-size: 19px;
     }
 
-    .onboarding-head-clean p {
+    .setup-checklist-header p {
       font-size: 12.5px;
     }
 
-    .onboarding-score-clean {
-      min-width: 68px;
-      padding: 10px 9px;
+    .setup-checklist-score {
+      min-width: 72px;
+      padding: 11px 10px;
+      border-radius: 17px;
     }
 
-    .onboarding-next-clean {
+    .setup-checklist-score strong {
+      font-size: 19px;
+    }
+
+    .setup-checklist-next {
       display: grid;
-      gap: 8px;
-      align-items: stretch;
+      gap: 7px;
     }
 
-    .onboarding-next-clean small {
-      text-align: left;
-    }
-
-    .onboarding-steps-clean {
+    .setup-checklist-grid {
       grid-template-columns: 1fr;
     }
 
-    .onboarding-footer-clean {
-      display: grid;
-      gap: 9px;
+    .setup-checklist-item {
+      border-radius: 17px;
+      padding: 13px;
     }
   }
 `;
@@ -9467,8 +9375,6 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
             </button>
           </div>
         </div>
-
-        <SetupChecklistSection />
 
         <div className="dashboard-tabs" style={{ display: 'flex', gap: 10, marginBottom: 16, overflowX: 'auto' }}>
           <button style={tabStyle('reservas')} onClick={() => setActiveTab('reservas')}>Reservas</button>
