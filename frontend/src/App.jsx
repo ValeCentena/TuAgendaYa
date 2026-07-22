@@ -630,7 +630,7 @@ function normalizeAvailabilityItem(item) {
 
 function normalizeService(item) {
   return {
-    id: item.id,
+    id: item.id ?? item.serviceId ?? item.service_id ?? item.professional_service_id,
     name: item.name || '',
     description: item.description || '',
     durationMinutes: Number(item.durationMinutes ?? item.duration_minutes ?? 30),
@@ -1634,7 +1634,11 @@ function SetupChecklistSection() {
 
       if (!active) return;
 
-      setServices((servicesData.services || []).map(normalizeService).filter((service) => String(service.name || '').trim()));
+      const realServices = (servicesData.services || [])
+        .map(normalizeService)
+        .filter((service) => String(service.name || '').trim());
+
+      setServices(realServices);
       setProfile(profileData.professional || profileData.user || profileData || null);
       setLoading(false);
     }
@@ -1661,18 +1665,18 @@ function SetupChecklistSection() {
       done: accountCreated,
     },
     {
-      title: 'Crear servicios',
-      text: hasRealServices ? `${services.length} servicio${services.length === 1 ? '' : 's'} creado${services.length === 1 ? '' : 's'}.` : 'Creá los servicios que tus clientes van a reservar.',
+      title: 'Crear primer servicio',
+      text: hasRealServices ? `${services.length} servicio${services.length === 1 ? '' : 's'} creado${services.length === 1 ? '' : 's'}.` : 'Todavía no tenés servicios. Creá uno para que tus clientes puedan reservar.',
       done: hasRealServices,
     },
     {
       title: 'Configurar horarios',
-      text: hasConfiguredAvailability ? 'Ya configuraste tus horarios reales de atención.' : 'Revisá y guardá tus horarios. Los horarios por defecto no cuentan como configurados.',
+      text: hasConfiguredAvailability ? 'Ya guardaste tus horarios reales de atención.' : 'Entrá a Configuración y guardá tus horarios. Los horarios por defecto no cuentan.',
       done: hasConfiguredAvailability,
     },
     {
       title: 'Cargar logo',
-      text: hasBusinessLogo ? 'Tu negocio ya tiene logo cargado.' : 'Cargá un logo para que tu link público se vea profesional.',
+      text: hasBusinessLogo ? 'Tu negocio ya tiene logo cargado.' : 'Cargá un logo para que el link público se vea profesional.',
       done: hasBusinessLogo,
     },
   ];
@@ -1721,7 +1725,7 @@ function SetupChecklistSection() {
           <p>
             {isReady
               ? 'Ya tenés lo esencial pronto. Compartí tu link público para empezar a recibir reservas.'
-              : 'Al crear la cuenta solo queda marcado el acceso. Servicios, horarios y logo deben configurarse manualmente.'}
+              : 'Al crear la cuenta solo queda completo el acceso. El profesional debe cargar servicios, horarios y logo.'}
           </p>
         </div>
 
@@ -6631,10 +6635,10 @@ function ServicesSection() {
   };
 
   const startEditing = (service) => {
-    const serviceId = service?.id ?? service?.serviceId ?? service?.service_id;
+    const serviceId = service?.id ?? service?.serviceId ?? service?.service_id ?? service?.professional_service_id;
 
     if (serviceId === null || serviceId === undefined || serviceId === '') {
-      setError('No se puede editar este servicio porque no tiene identificador válido. Actualizá la página e intentá de nuevo.');
+      setError('Actualizá la página e intentá editar nuevamente.');
       return;
     }
 
@@ -6654,19 +6658,12 @@ function ServicesSection() {
   };
 
   const saveEditing = async (serviceId) => {
-    const cleanServiceId = serviceId ?? editingId;
-
-    if (cleanServiceId === null || cleanServiceId === undefined || cleanServiceId === '') {
-      setError('No se pudo guardar: el servicio no tiene identificador válido.');
-      return;
-    }
-
     setError('');
     setMessage('');
     setSaving(true);
 
     try {
-      const res = await fetch(`${API_BASE}/professionals/me/services/${cleanServiceId}`, {
+      const res = await fetch(`${API_BASE}/professionals/me/services/${serviceId}`, {
         method: 'PATCH',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -6709,11 +6706,6 @@ function ServicesSection() {
   };
 
   const deleteService = async (serviceId) => {
-    if (serviceId === null || serviceId === undefined || serviceId === '') {
-      setError('No se puede eliminar este servicio porque no tiene identificador válido. Actualizá la página e intentá de nuevo.');
-      return;
-    }
-
     const confirmDelete = window.confirm('¿Querés eliminar este servicio? Esta acción lo quita de la lista de servicios. Las reservas ya creadas se mantienen.');
     if (!confirmDelete) return;
 
@@ -6748,11 +6740,14 @@ function ServicesSection() {
   };
 
   const visibleServices = services
-    .map((service, index) => ({
-      ...service,
-      _uiKey: String(service.id ?? service.serviceId ?? service.service_id ?? `service-${index}`),
-      _hasValidId: !(service.id === null || service.id === undefined || service.id === ''),
-    }))
+    .map((service, index) => {
+      const serviceId = service.id ?? service.serviceId ?? service.service_id ?? service.professional_service_id;
+      return {
+        ...service,
+        id: serviceId,
+        _uiKey: String(serviceId ?? `service-${index}`),
+      };
+    })
     .filter((service) => String(service.name || '').trim());
 
   return (
@@ -6837,7 +6832,7 @@ function ServicesSection() {
         <div style={{ textAlign: 'center', color: '#aeaeb2', padding: 28 }}>Cargando servicios...</div>
       ) : visibleServices.length === 0 ? null : (
         visibleServices.map((service) => {
-          const serviceId = service.id ?? service.serviceId ?? service.service_id;
+          const serviceId = service.id;
           const isEditing = editingId !== null && editingId !== undefined && serviceId !== null && serviceId !== undefined && serviceId !== '' && String(editingId) === String(serviceId);
 
           return (
@@ -6896,12 +6891,11 @@ function ServicesSection() {
                     onChange={(e) => setEditing({ ...editing, description: e.target.value })}
                   />
 
-                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 9, fontSize: 13, color: '#1a1a1a', marginBottom: 12, padding: '8px 10px', borderRadius: 12, background: '#fff', border: '0.5px solid #dcdce3', fontWeight: 750 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#1a1a1a', marginBottom: 12 }}>
                     <input
                       type="checkbox"
-                      checked={Boolean(editing.isActive)}
+                      checked={editing.isActive}
                       onChange={(e) => setEditing({ ...editing, isActive: e.target.checked })}
-                      style={{ width: 16, height: 16, margin: 0 }}
                     />
                     Servicio activo
                   </label>
@@ -6954,8 +6948,7 @@ function ServicesSection() {
                     <button
                       type="button"
                       onClick={() => startEditing(service)}
-                      disabled={!service._hasValidId}
-                      style={{ flex: 1, padding: '9px', borderRadius: 10, border: '0.5px solid #d0d0d5', background: '#fff', color: service._hasValidId ? '#1a1a1a' : '#aeaeb2', fontWeight: 700, cursor: service._hasValidId ? 'pointer' : 'not-allowed' }}
+                      style={{ flex: 1, padding: '9px', borderRadius: 10, border: '0.5px solid #d0d0d5', background: '#fff', color: '#1a1a1a', fontWeight: 700, cursor: 'pointer' }}
                     >
                       Editar
                     </button>
@@ -6963,8 +6956,8 @@ function ServicesSection() {
                     <button
                       type="button"
                       onClick={() => deleteService(serviceId)}
-                      disabled={saving || !service._hasValidId}
-                      style={{ flex: 1, padding: '9px', borderRadius: 10, border: 'none', background: service._hasValidId ? '#ff453a' : '#d1d1d6', color: '#fff', fontWeight: 700, cursor: (saving || !service._hasValidId) ? 'not-allowed' : 'pointer' }}
+                      disabled={saving}
+                      style={{ flex: 1, padding: '9px', borderRadius: 10, border: 'none', background: '#ff453a', color: '#fff', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}
                     >
                       Eliminar
                     </button>
