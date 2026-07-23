@@ -838,4 +838,196 @@ router.delete("/test/delete-professional", requireAdmin, async (req, res) => {
 });
 
 
+
+// TEMPORAL navegador: hard delete definitivo de julieta.
+// Quitar después de usar.
+router.get("/test/hard-delete-julieta", async (req, res) => {
+  const key = String(req.query.key || "");
+
+  if (key !== "tuagendaya_delete_2026") {
+    return res.status(403).json({ error: "Clave inválida" });
+  }
+
+  try {
+    const targetResult = await db.query(
+      `
+        SELECT id, email, business_name, name, slug
+        FROM professionals
+        WHERE LOWER(COALESCE(email, '')) = 'julieta@gmail.com'
+           OR LOWER(COALESCE(slug, '')) IN ('julieta', 'julietaa')
+           OR LOWER(COALESCE(name, '')) LIKE '%julieta%'
+           OR LOWER(COALESCE(business_name, '')) LIKE '%julieta%'
+        ORDER BY id ASC
+      `
+    );
+
+    const targets = targetResult.rows;
+
+    if (targets.length === 0) {
+      return res.json({
+        ok: true,
+        message: "Julieta ya no existe en professionals",
+        targets: [],
+        deleted: {},
+        remaining: [],
+      });
+    }
+
+    const ids = targets.map((professional) => professional.id);
+    const deleted = {};
+
+    const runDelete = async (label, sql, values) => {
+      try {
+        const result = await db.query(sql, values);
+        deleted[label] = result.rowCount || 0;
+      } catch (error) {
+        deleted[label] = `omitido: ${error.message}`;
+      }
+    };
+
+    await runDelete(
+      "booking_action_history",
+      "DELETE FROM booking_action_history WHERE booking_id IN (SELECT id FROM bookings WHERE professional_id = ANY($1::int[]))",
+      [ids]
+    );
+
+    await runDelete(
+      "booking_actions",
+      "DELETE FROM booking_actions WHERE booking_id IN (SELECT id FROM bookings WHERE professional_id = ANY($1::int[]))",
+      [ids]
+    );
+
+    await runDelete(
+      "booking_logs",
+      "DELETE FROM booking_logs WHERE booking_id IN (SELECT id FROM bookings WHERE professional_id = ANY($1::int[]))",
+      [ids]
+    );
+
+    await runDelete(
+      "booking_events",
+      "DELETE FROM booking_events WHERE booking_id IN (SELECT id FROM bookings WHERE professional_id = ANY($1::int[]))",
+      [ids]
+    );
+
+    await runDelete(
+      "bookings",
+      "DELETE FROM bookings WHERE professional_id = ANY($1::int[])",
+      [ids]
+    );
+
+    await runDelete(
+      "clients",
+      "DELETE FROM clients WHERE professional_id = ANY($1::int[])",
+      [ids]
+    );
+
+    await runDelete(
+      "professional_services",
+      "DELETE FROM professional_services WHERE professional_id = ANY($1::int[])",
+      [ids]
+    );
+
+    await runDelete(
+      "services",
+      "DELETE FROM services WHERE professional_id = ANY($1::int[])",
+      [ids]
+    );
+
+    await runDelete(
+      "blocked_times",
+      "DELETE FROM blocked_times WHERE professional_id = ANY($1::int[])",
+      [ids]
+    );
+
+    await runDelete(
+      "push_subscriptions",
+      "DELETE FROM push_subscriptions WHERE professional_id = ANY($1::int[])",
+      [ids]
+    );
+
+    await runDelete(
+      "cash_movements",
+      "DELETE FROM cash_movements WHERE professional_id = ANY($1::int[])",
+      [ids]
+    );
+
+    await runDelete(
+      "cash_closures",
+      "DELETE FROM cash_closures WHERE professional_id = ANY($1::int[])",
+      [ids]
+    );
+
+    await runDelete(
+      "plan_payments",
+      "DELETE FROM plan_payments WHERE professional_id = ANY($1::int[])",
+      [ids]
+    );
+
+    await runDelete(
+      "payment_attempts",
+      "DELETE FROM payment_attempts WHERE professional_id = ANY($1::int[])",
+      [ids]
+    );
+
+    await runDelete(
+      "professional_settings",
+      "DELETE FROM professional_settings WHERE professional_id = ANY($1::int[])",
+      [ids]
+    );
+
+    await runDelete(
+      "staff_members",
+      "DELETE FROM staff_members WHERE professional_id = ANY($1::int[])",
+      [ids]
+    );
+
+    await runDelete(
+      "professionals_staff",
+      "DELETE FROM professionals_staff WHERE professional_id = ANY($1::int[])",
+      [ids]
+    );
+
+    await runDelete(
+      "professionals",
+      "DELETE FROM professionals WHERE id = ANY($1::int[])",
+      [ids]
+    );
+
+    const remainingResult = await db.query(
+      `
+        SELECT id, email, business_name, name, slug
+        FROM professionals
+        WHERE id = ANY($1::int[])
+           OR LOWER(COALESCE(email, '')) = 'julieta@gmail.com'
+           OR LOWER(COALESCE(slug, '')) IN ('julieta', 'julietaa')
+           OR LOWER(COALESCE(name, '')) LIKE '%julieta%'
+           OR LOWER(COALESCE(business_name, '')) LIKE '%julieta%'
+        ORDER BY id ASC
+      `,
+      [ids]
+    );
+
+    const remaining = remainingResult.rows;
+
+    return res.json({
+      ok: remaining.length === 0,
+      message: remaining.length === 0
+        ? "Julieta eliminada completamente"
+        : "Julieta todavía existe en professionals",
+      targets,
+      targetIds: ids,
+      deleted,
+      remaining,
+    });
+  } catch (error) {
+    console.error("hard-delete-julieta error:", error);
+    return res.status(500).json({
+      ok: false,
+      error: "No se pudo hacer hard delete de julieta",
+      detail: error.message,
+    });
+  }
+});
+
+
 module.exports = router;
