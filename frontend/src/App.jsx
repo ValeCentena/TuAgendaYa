@@ -9511,21 +9511,26 @@ function AdminDashboardPage() {
                 const isPaidByExpiration = daysToExpire !== null && daysToExpire >= 0;
                 const paymentStatus = isPaidByExpiration ? 'paid' : rawPaymentStatus;
                 const promotion = professional.promotion || professional.planPromotion || professional.plan_promotion || {};
-                const promoStage = isPaidByExpiration ? 'normal' : promotion.stage || 'normal';
-                const promoLabel = promoStage === 'free' ? 'Gratis' : promoStage === 'discount' ? '50% descuento' : '';
-                const paymentLabel = promoStage === 'free'
-                  ? 'Gratis'
-                  : promoStage === 'discount'
-                    ? '50% desc.'
-                    : paymentStatus === 'paid'
-                      ? 'Pago'
-                      : paymentStatus === 'overdue'
-                        ? 'Vencido'
-                        : paymentStatus === 'pending_transfer'
-                          ? 'Transferencia'
-                          : 'Pendiente';
-                const paymentColor = paymentStatus === 'paid' ? '#188038' : paymentStatus === 'overdue' ? '#ff3b30' : '#ff9500';
-                const paymentBg = paymentStatus === 'paid' ? '#edfff3' : paymentStatus === 'overdue' ? '#fff0f0' : '#fff7e8';
+                const promoStage = isPaidByExpiration ? 'normal' : promotion.stage || professional.promoStage || professional.promo_stage || 'normal';
+                const planNameClean = String(planName || '').trim().toLowerCase();
+                const isTrialPlan = !isPaidByExpiration && (
+                  promoStage === 'free' ||
+                  promoStage === 'discount' ||
+                  planNameClean === 'free' ||
+                  planNameClean === 'gratis'
+                );
+                const promoLabel = promoStage === 'free' ? 'Estado de prueba' : promoStage === 'discount' ? 'Prueba 50%' : '';
+                const paymentLabel = isTrialPlan
+                  ? 'Estado de prueba'
+                  : paymentStatus === 'paid'
+                    ? 'Pago'
+                    : paymentStatus === 'overdue'
+                      ? 'Vencido'
+                      : paymentStatus === 'pending_transfer'
+                        ? 'Transferencia'
+                        : 'Pendiente';
+                const paymentColor = isTrialPlan ? '#0071e3' : paymentStatus === 'paid' ? '#188038' : paymentStatus === 'overdue' ? '#ff3b30' : '#ff9500';
+                const paymentBg = isTrialPlan ? '#eef6ff' : paymentStatus === 'paid' ? '#edfff3' : paymentStatus === 'overdue' ? '#fff0f0' : '#fff7e8';
                 const billingMethodLabel = billingMethod === 'mercadopago'
                   ? 'Automático'
                   : billingMethod === 'transfer'
