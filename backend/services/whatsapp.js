@@ -135,7 +135,7 @@ async function sendWhatsApp(phone, text) {
   return sendCloudMessage(payload);
 }
 
-async function sendTemplateMessage(phone, templateName, languageCode, parameters = []) {
+async function sendTemplateMessage(phone, templateName, languageCode, parameters = [], buttonPayloads = []) {
   const to = normalizePhone(phone);
 
   if (!to) {
@@ -147,6 +147,32 @@ async function sendTemplateMessage(phone, templateName, languageCode, parameters
     };
   }
 
+  const components = [
+    {
+      type: "body",
+      parameters: parameters.map((value) => ({
+        type: "text",
+        text: String(value || ""),
+      })),
+    },
+  ];
+
+  buttonPayloads.forEach((payloadValue, index) => {
+    if (!payloadValue) return;
+
+    components.push({
+      type: "button",
+      sub_type: "quick_reply",
+      index: String(index),
+      parameters: [
+        {
+          type: "payload",
+          payload: String(payloadValue),
+        },
+      ],
+    });
+  });
+
   const payload = {
     messaging_product: "whatsapp",
     recipient_type: "individual",
@@ -157,15 +183,7 @@ async function sendTemplateMessage(phone, templateName, languageCode, parameters
       language: {
         code: languageCode || process.env.WHATSAPP_TEMPLATE_LANGUAGE || "es_UY",
       },
-      components: [
-        {
-          type: "body",
-          parameters: parameters.map((value) => ({
-            type: "text",
-            text: String(value || ""),
-          })),
-        },
-      ],
+      components,
     },
   };
 
@@ -221,11 +239,29 @@ async function sendBookingConfirmationTemplate(booking = {}, professional = {}) 
     getBookingValue(booking, "start_time", "startTime", "time")
   );
 
+  const token = getBookingValue(
+    booking,
+    "confirmation_token",
+    "confirmationToken",
+    "token"
+  );
+
+  const bookingId = getBookingValue(booking, "id", "bookingId");
+
+  const confirmId = token
+    ? `confirm_booking:${token}`
+    : `confirm_booking_id:${bookingId}`;
+
+  const cancelId = token
+    ? `cancel_booking:${token}`
+    : `cancel_booking_id:${bookingId}`;
+
   const result = await sendTemplateMessage(
     clientPhone,
     templateName,
     process.env.WHATSAPP_TEMPLATE_LANGUAGE || "es_UY",
-    [clientName, businessName, serviceName, bookingDate, startTime]
+    [clientName, businessName, serviceName, bookingDate, startTime],
+    [confirmId, cancelId]
   );
 
   console.log(`WhatsApp booking template sent to ${normalizePhone(clientPhone)}`);

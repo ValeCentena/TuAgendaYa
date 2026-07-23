@@ -16,6 +16,75 @@ function getButtonPayload(message) {
   );
 }
 
+function getMessagePhone(message) {
+  return String(message?.from || message?.wa_id || message?.contacts?.[0]?.wa_id || "").replace(/\D/g, "");
+}
+
+function normalizePhoneDigits(value) {
+  const digits = String(value || "").replace(/\D/g, "");
+
+  if (!digits) return "";
+
+  if (digits.startsWith("598") && digits.length >= 11) {
+    return digits;
+  }
+
+  if (digits.length === 8 && digits.startsWith("9")) {
+    return `598${digits}`;
+  }
+
+  if (digits.length === 9 && digits.startsWith("09")) {
+    return `598${digits.slice(1)}`;
+  }
+
+  if (digits.length > 8 && digits.startsWith("0")) {
+    return `598${digits.slice(1)}`;
+  }
+
+  return digits;
+}
+
+function isConfirmText(text) {
+  const clean = String(text || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  return [
+    "acepto",
+    "confirmo",
+    "confirmar",
+    "si",
+    "si confirmo",
+    "si, confirmo",
+    "sí",
+    "sí, confirmo",
+    "confirmado",
+    "voy",
+    "asisto",
+  ].includes(clean);
+}
+
+function isCancelText(text) {
+  const clean = String(text || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  return [
+    "cancelar",
+    "cancelo",
+    "no",
+    "no puedo asistir",
+    "no asisto",
+    "no voy",
+    "rechazar",
+    "rechazo",
+  ].includes(clean);
+}
+
 function parseBookingAction(payload) {
   const raw = String(payload || "").trim();
   const text = raw.toLowerCase();
@@ -54,10 +123,53 @@ function parseBookingAction(payload) {
     };
   }
 
+  if (isConfirmText(raw)) {
+    return {
+      action: "confirm",
+      token: null,
+      id: null,
+      generic: true,
+    };
+  }
+
+  if (isCancelText(raw)) {
+    return {
+      action: "cancel",
+      token: null,
+      id: null,
+      generic: true,
+    };
+  }
+
   return null;
 }
 
-async function updateBookingFromWhatsApp(action, token, id) {
+
+async function findLatestPendingBookingByPhone(phone) {
+  const normalized = normalizePhoneDigits(phone);
+
+  if (!normalized) return null;
+
+  const last8 = normalized.slice(-8);
+
+  const result = await db.query(
+    `
+      SELECT *
+      FROM bookings
+      WHERE status IN ('pending', 'created')
+        AND client_phone IS NOT NULL
+        AND RIGHT(REGEXP_REPLACE(client_phone, '\\D', '', 'g'), 8) = $1
+        AND booking_date >= CURRENT_DATE - INTERVAL '2 days'
+      ORDER BY booking_date ASC, start_time ASC, created_at DESC, id DESC
+      LIMIT 1
+    `,
+    [last8]
+  );
+
+  return result.rows[0] || null;
+}
+
+async function updateBookingFromWhatsApp(action, token, id, phone = null) {
   if (!action) return null;
 
   const nextStatus = action === "confirm" ? "confirmed" : "cancelled";
@@ -110,6 +222,34 @@ async function updateBookingFromWhatsApp(action, token, id) {
     return result.rows[0] || null;
   }
 
+  if (phone) {
+    const latest = await findLatestPendingBookingByPhone(phone);
+
+    if (!latest) return null;
+
+    const result = await db.query(
+      `
+        UPDATE bookings
+        SET
+          status = $2,
+          client_confirmed_at = CASE
+            WHEN $2 = 'confirmed' THEN NOW()
+            ELSE client_confirmed_at
+          END,
+          client_cancelled_at = CASE
+            WHEN $2 = 'cancelled' THEN NOW()
+            ELSE client_cancelled_at
+          END,
+          updated_at = NOW()
+        WHERE id = $1
+        RETURNING *
+      `,
+      [latest.id, nextStatus]
+    );
+
+    return result.rows[0] || null;
+  }
+
   return null;
 }
 
@@ -151,7 +291,8 @@ router.post("/webhook", async (req, res) => {
           const booking = await updateBookingFromWhatsApp(
             parsed.action,
             parsed.token,
-            parsed.id
+            parsed.id,
+            getMessagePhone(message)
           );
 
           if (booking) {
@@ -162,7 +303,7 @@ router.post("/webhook", async (req, res) => {
             console.warn(
               `WhatsApp ${parsed.action} sin reserva. Token: ${
                 parsed.token || "-"
-              } ID: ${parsed.id || "-"}`
+              } ID: ${parsed.id || "-"} Teléfono: ${getMessagePhone(message) || "-"}`
             );
           }
         }
