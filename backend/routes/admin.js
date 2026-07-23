@@ -615,6 +615,133 @@ router.get("/reset-test-data", async (req, res) => {
 });
 
 
+
+async function deleteProfessionalCompletelyByEmail(email) {
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+
+  if (!normalizedEmail) {
+    return {
+      ok: false,
+      status: 400,
+      body: { error: "Falta email" },
+    };
+  }
+
+  const client = await db.getClient?.();
+
+  const run = async (query, values = []) => {
+    if (client) return client.query(query, values);
+    return db.query(query, values);
+  };
+
+  try {
+    if (client) await client.query("BEGIN");
+
+    const professionalResult = await run(
+      "SELECT id, email, business_name, name, slug FROM professionals WHERE LOWER(email) = $1 LIMIT 1",
+      [normalizedEmail]
+    );
+
+    const professional = professionalResult.rows[0];
+
+    if (!professional) {
+      if (client) await client.query("ROLLBACK");
+      return {
+        ok: false,
+        status: 404,
+        body: { error: "Profesional no encontrado", email: normalizedEmail },
+      };
+    }
+
+    const professionalId = professional.id;
+    const deleted = {};
+
+    const deleteQueries = [
+      ["booking_action_history", "booking_id IN (SELECT id FROM bookings WHERE professional_id = $1)"],
+      ["booking_actions", "booking_id IN (SELECT id FROM bookings WHERE professional_id = $1)"],
+      ["booking_logs", "booking_id IN (SELECT id FROM bookings WHERE professional_id = $1)"],
+      ["booking_events", "booking_id IN (SELECT id FROM bookings WHERE professional_id = $1)"],
+      ["push_subscriptions", "professional_id = $1"],
+      ["blocked_times", "professional_id = $1"],
+      ["cash_closures", "professional_id = $1"],
+      ["cash_movements", "professional_id = $1"],
+      ["plan_payments", "professional_id = $1"],
+      ["payment_attempts", "professional_id = $1"],
+      ["professional_settings", "professional_id = $1"],
+      ["professional_services", "professional_id = $1"],
+      ["services", "professional_id = $1"],
+      ["staff_members", "professional_id = $1"],
+      ["professionals_staff", "professional_id = $1"],
+      ["clients", "professional_id = $1"],
+      ["bookings", "professional_id = $1"],
+    ];
+
+    for (const [table, where] of deleteQueries) {
+      try {
+        const result = await run(`DELETE FROM ${table} WHERE ${where}`, [professionalId]);
+        deleted[table] = result.rowCount || 0;
+      } catch (error) {
+        deleted[table] = `omitido: ${error.message}`;
+      }
+    }
+
+    const finalDelete = await run(
+      "DELETE FROM professionals WHERE id = $1 RETURNING id, email, business_name, name, slug",
+      [professionalId]
+    );
+
+    deleted.professionals = finalDelete.rowCount || 0;
+
+    if (client) await client.query("COMMIT");
+
+    return {
+      ok: true,
+      status: 200,
+      body: {
+        ok: true,
+        message: "Profesional eliminado completamente",
+        professional: finalDelete.rows[0] || professional,
+        deleted,
+      },
+    };
+  } catch (error) {
+    if (client) await client.query("ROLLBACK");
+    console.error("deleteProfessionalCompletelyByEmail error:", error);
+    return {
+      ok: false,
+      status: 500,
+      body: {
+        error: "No se pudo eliminar el profesional",
+        detail: error.message,
+      },
+    };
+  } finally {
+    if (client) client.release();
+  }
+}
+
+// TEMPORAL navegador: borrar julieta con clave.
+// Quitar después de usar.
+router.get("/test/delete-professional-browser", async (req, res) => {
+  const key = String(req.query.key || "");
+  const email = String(req.query.email || "").trim().toLowerCase();
+
+  if (key !== "tuagendaya_delete_2026") {
+    return res.status(403).json({ error: "Clave inválida" });
+  }
+
+  if (email !== "julieta@gmail.com") {
+    return res.status(400).json({
+      error: "Por seguridad este endpoint temporal solo borra julieta@gmail.com",
+    });
+  }
+
+  const result = await deleteProfessionalCompletelyByEmail(email);
+
+  return res.status(result.status).json(result.body);
+});
+
+
 // TEMPORAL: eliminar profesional de prueba con todos sus datos.
 // Quitar después de usar.
 router.delete("/test/delete-professional", requireAdmin, async (req, res) => {
