@@ -280,7 +280,6 @@ async function initDB() {
       `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS allow_client_cancellations INTEGER DEFAULT 1`,
       `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS cancellation_limit_minutes INTEGER DEFAULT 0`,
       `CREATE INDEX IF NOT EXISTS idx_blocked_times_professional_date ON blocked_times(professional_id, block_date)`,
-      `CREATE INDEX IF NOT EXISTS idx_plan_payments_mp_payment_id ON plan_payments(mp_payment_id)`,
     ];
 
     for (const sql of indices) {
@@ -292,30 +291,6 @@ async function initDB() {
     }
 
     // ── Migraciones seguras — columnas añadidas después del deploy inicial ──
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS plan_payments (
-        id                  SERIAL PRIMARY KEY,
-        professional_id     INTEGER NOT NULL REFERENCES professionals(id) ON DELETE CASCADE,
-        method              TEXT NOT NULL DEFAULT 'transfer',
-        status              TEXT NOT NULL DEFAULT 'pending',
-        amount              NUMERIC(10, 2) DEFAULT 0,
-        currency            TEXT DEFAULT 'UYU',
-        plan                TEXT DEFAULT 'base',
-        period_days         INTEGER DEFAULT 30,
-        mp_preference_id    TEXT,
-        mp_payment_id       TEXT,
-        checkout_url        TEXT,
-        transfer_reference  TEXT,
-        transfer_note       TEXT,
-        raw_payload         JSONB,
-        approved_at         TIMESTAMP,
-        expires_at          TIMESTAMP,
-        created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
-
     const migrations = [
       // bookings
       `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS booking_date DATE`,
@@ -346,20 +321,6 @@ async function initDB() {
       `ALTER TABLE staff_availability ADD COLUMN IF NOT EXISTS staff_id INTEGER`,
       `ALTER TABLE staff_availability ADD COLUMN IF NOT EXISTS slot_duration_minutes INTEGER NOT NULL DEFAULT 30`,
       `UPDATE staff_availability SET staff_id = staff_member_id WHERE staff_id IS NULL`,
-
-      // billing / plan payments
-      `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS plan_payment_status TEXT DEFAULT 'pending'`,
-      `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS plan_expires_at TIMESTAMP`,
-      `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS last_payment_at TIMESTAMP`,
-      `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS billing_method TEXT`,
-      `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS plan_price NUMERIC(10, 2) DEFAULT 0`,
-      `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS plan_currency TEXT DEFAULT 'UYU'`,
-      `ALTER TABLE plan_payments ADD COLUMN IF NOT EXISTS seen_by_admin BOOLEAN DEFAULT FALSE`,
-      `ALTER TABLE plan_payments ADD COLUMN IF NOT EXISTS notified_at TIMESTAMP`,
-      `ALTER TABLE plan_payments ADD COLUMN IF NOT EXISTS mp_status TEXT`,
-      `ALTER TABLE plan_payments ADD COLUMN IF NOT EXISTS mp_status_detail TEXT`,
-      `ALTER TABLE plan_payments ADD COLUMN IF NOT EXISTS webhook_event_id TEXT`,
-      `ALTER TABLE plan_payments ADD COLUMN IF NOT EXISTS webhook_signature_validated BOOLEAN DEFAULT FALSE`,
       // push_subscriptions
       `ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS user_agent TEXT`,
     ];
@@ -392,54 +353,5 @@ initDB().catch(err => {
   console.error('Error inicializando la base de datos:', err);
   process.exit(1);
 });
-
-
-async function ensureLaunchPromotionSchema() {
-  await query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS promo_started_at TIMESTAMP`);
-  await query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS promo_free_months INTEGER DEFAULT 2`);
-  await query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS promo_discount_months INTEGER DEFAULT 2`);
-  await query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS promo_discount_percent INTEGER DEFAULT 50`);
-  await query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS plan_price NUMERIC(10, 2)`);
-  await query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS plan_currency TEXT DEFAULT 'UYU'`);
-  await query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS plan_payment_status TEXT DEFAULT 'pending'`);
-  await query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS plan_expires_at TIMESTAMP`);
-  await query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS last_payment_at TIMESTAMP`);
-  await query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS billing_method TEXT`);
-  await query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS monthly_limit INTEGER DEFAULT 1000`);
-
-  await query(`
-    UPDATE professionals
-    SET
-      promo_started_at = COALESCE(promo_started_at, created_at, NOW()),
-      promo_free_months = COALESCE(promo_free_months, 2),
-      promo_discount_months = COALESCE(promo_discount_months, 2),
-      promo_discount_percent = COALESCE(promo_discount_percent, 50),
-      plan_price = COALESCE(plan_price, ${Number(process.env.PLAN_BASE_PRICE || 600)}),
-      plan_currency = COALESCE(plan_currency, '${String(process.env.PLAN_CURRENCY || "UYU").replace(/'/g, "''")}'),
-      monthly_limit = COALESCE(monthly_limit, 1000)
-    WHERE promo_started_at IS NULL
-       OR promo_free_months IS NULL
-       OR promo_discount_months IS NULL
-       OR promo_discount_percent IS NULL
-       OR plan_price IS NULL
-       OR plan_currency IS NULL
-       OR monthly_limit IS NULL
-  `);
-}
-
-
-
-async function cleanupDefaultServices() {
-  await query(`
-    DELETE FROM professional_services
-    WHERE LOWER(TRIM(name)) IN ('corte de pelo', 'coloración', 'coloracion', 'tratamiento')
-      AND (
-        price IS NULL
-        OR price = 0
-        OR duration_minutes IN (30, 45, 60)
-      )
-  `).catch(() => {});
-}
-
 
 module.exports = pool;

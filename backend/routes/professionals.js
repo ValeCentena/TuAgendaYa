@@ -117,6 +117,13 @@ function normalizePaymentMethods(value) {
   return clean.length > 0 ? Array.from(new Set(clean)) : ['cash'];
 }
 
+
+function setNoStoreHeaders(res) {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+}
+
 function normalizeSettingsRow(row) {
   const methods = normalizePaymentMethods(row.accepted_payment_methods);
   return {
@@ -228,6 +235,15 @@ async function cleanupDefaultServicesForProfessional(professionalId) {
 // Mantiene compatibilidad con pantallas/rutas viejas que todavía leen la tabla `services`.
 // La tabla principal nueva es `professional_services`, pero el link público puede consultar `services`.
 async function syncActiveServicesToLegacyTable(professionalId) {
+  await db.query(
+    `UPDATE services
+     SET active = 0
+     WHERE professional_id = $1`,
+    [professionalId]
+  ).catch(err => {
+    console.warn('Legacy services deactivate skipped:', err.message);
+  });
+
   const activeServices = (await db.query(
     `SELECT id, name, description, duration_minutes, price, is_active
      FROM professional_services
@@ -638,6 +654,7 @@ router.delete('/me/services/:id', authMiddleware, async (req, res) => {
 
 router.get('/public/:slug/settings', async (req, res) => {
   try {
+    setNoStoreHeaders(res);
     await ensureProfessionalSettingsColumns();
 
     const slug = String(req.params.slug || '').trim();
@@ -665,6 +682,7 @@ router.get('/public/:slug/settings', async (req, res) => {
 // Sirve para la página pública de reservas si consulta /api/professionals/public/:slug/services.
 router.get('/public/:slug/services', async (req, res) => {
   try {
+    setNoStoreHeaders(res);
     const slug = String(req.params.slug || '').trim();
     const prof = (await db.query(
       `SELECT id, name, business_name, profession, slug, logo_url, accepted_payment_methods,

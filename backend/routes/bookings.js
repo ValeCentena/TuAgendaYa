@@ -608,6 +608,53 @@ function normalizeBooking(row) {
   };
 }
 
+
+function setNoStoreHeaders(res) {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+}
+
+function normalizePublicService(row) {
+  const duration = Number(row.duration_minutes ?? row.duration ?? row.durationMinutes ?? 30) || 30;
+  const price = Number(row.price ?? 0) || 0;
+
+  return {
+    id: row.id,
+    serviceId: row.id,
+    service_id: row.id,
+    professional_service_id: row.id,
+    name: row.name || '',
+    description: row.description || '',
+    durationMinutes: duration,
+    duration_minutes: duration,
+    duration,
+    price,
+    isActive: isTruthyDatabaseValue(row.is_active ?? row.active ?? true),
+    is_active: isTruthyDatabaseValue(row.is_active ?? row.active ?? true),
+  };
+}
+
+function normalizeAcceptedPaymentMethods(value) {
+  const allowed = ['cash', 'transfer', 'card'];
+  const list = Array.isArray(value) ? value : String(value || 'cash,transfer,card').split(',');
+  const clean = list.map((item) => String(item || '').trim()).filter((item) => allowed.includes(item));
+  return clean.length > 0 ? clean : ['cash', 'transfer', 'card'];
+}
+
+function normalizePublicSettings(row = {}) {
+  const methods = normalizeAcceptedPaymentMethods(row.accepted_payment_methods ?? row.acceptedPaymentMethods);
+
+  return {
+    acceptedPaymentMethods: methods,
+    accepted_payment_methods: methods,
+    allowClientCancellations: row.allow_client_cancellations !== undefined ? isTruthyDatabaseValue(row.allow_client_cancellations) : true,
+    allow_client_cancellations: row.allow_client_cancellations !== undefined ? isTruthyDatabaseValue(row.allow_client_cancellations) : true,
+    cancellationLimitMinutes: Number(row.cancellation_limit_minutes || 0),
+    cancellation_limit_minutes: Number(row.cancellation_limit_minutes || 0),
+  };
+}
+
 function normalizePublicBooking(row) {
   return {
     id: row.id,
@@ -643,127 +690,6 @@ function isTruthyDatabaseValue(value) {
   );
 }
 
-
-const PROMO_FREE_MONTHS = Number(process.env.PROMO_FREE_MONTHS || 2);
-const PROMO_DISCOUNT_MONTHS = Number(process.env.PROMO_DISCOUNT_MONTHS || 2);
-
-function addMonthsSafe(date, months) {
-  const result = new Date(date);
-  result.setMonth(result.getMonth() + Number(months || 0));
-  return result;
-}
-
-function getPromotionStartDate(professional) {
-  const raw =
-    professional?.promo_started_at ||
-    professional?.created_at ||
-    professional?.createdAt ||
-    null;
-
-  const parsed = raw ? new Date(raw) : new Date();
-  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
-}
-
-function getLaunchPromotionStatus(professional, now = new Date()) {
-  const start = getPromotionStartDate(professional);
-  const freeUntil = addMonthsSafe(start, PROMO_FREE_MONTHS);
-  const discountUntil = addMonthsSafe(freeUntil, PROMO_DISCOUNT_MONTHS);
-
-  if (now < freeUntil) {
-    return { active: true, stage: "free", freeUntil, discountUntil };
-  }
-
-  if (now < discountUntil) {
-    return { active: true, stage: "discount", freeUntil, discountUntil };
-  }
-
-  return { active: false, stage: "normal", freeUntil, discountUntil };
-}
-
-
-const PLAN_GRACE_DAYS = Number(process.env.PLAN_GRACE_DAYS || 5);
-
-function getPlanAccessStatus(professional) {
-  if (!professional) {
-    return {
-      canBook: false,
-      reason: "not_found",
-      message: "Agenda no disponible.",
-      graceDaysLeft: 0,
-    };
-  }
-
-  if (professional.status === "suspended") {
-    return {
-      canBook: false,
-      reason: "suspended",
-      message: "Agenda no disponible temporalmente.",
-      graceDaysLeft: 0,
-    };
-  }
-
-  const promotion = getLaunchPromotionStatus(professional);
-
-  if (promotion.stage === "free" || promotion.stage === "discount") {
-    return {
-      canBook: true,
-      reason: `promo_${promotion.stage}`,
-      message: "",
-      graceDaysLeft: null,
-      promotion,
-    };
-  }
-
-  const expiresRaw = professional.plan_expires_at || professional.planExpiresAt;
-
-  if (!expiresRaw) {
-    return {
-      canBook: true,
-      reason: "no_expiration",
-      message: "",
-      graceDaysLeft: null,
-    };
-  }
-
-  const expiresAt = new Date(expiresRaw);
-
-  if (Number.isNaN(expiresAt.getTime())) {
-    return {
-      canBook: true,
-      reason: "invalid_expiration",
-      message: "",
-      graceDaysLeft: null,
-    };
-  }
-
-  const now = new Date();
-  const graceUntil = new Date(expiresAt);
-  graceUntil.setDate(graceUntil.getDate() + PLAN_GRACE_DAYS);
-
-  if (now <= graceUntil) {
-    const diffMs = graceUntil.getTime() - now.getTime();
-    return {
-      canBook: true,
-      reason: now > expiresAt ? "grace" : "active",
-      message: now > expiresAt
-        ? `El plan está vencido, pero el negocio está dentro del período de gracia de ${PLAN_GRACE_DAYS} días.`
-        : "",
-      graceDaysLeft: Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24))),
-      planExpiresAt: expiresAt.toISOString(),
-      graceUntil: graceUntil.toISOString(),
-    };
-  }
-
-  return {
-    canBook: false,
-    reason: "expired",
-    message: "Agenda temporalmente pausada. El negocio debe regularizar el pago para recibir nuevas reservas.",
-    graceDaysLeft: 0,
-    planExpiresAt: expiresAt.toISOString(),
-    graceUntil: graceUntil.toISOString(),
-  };
-}
-
 function isAvailabilityActive(availability) {
   if (!availability) return false;
 
@@ -796,7 +722,8 @@ async function getProfessionalBySlug(slug) {
     `
     SELECT *
     FROM professionals
-    WHERE slug = $1
+    WHERE slug = $1 AND (status IS NULL OR status = 'active')
+    LIMIT 1
     `,
     [slug]
   );
@@ -815,9 +742,10 @@ async function getServiceForProfessional(professionalId, serviceId) {
     FROM professional_services
     WHERE id = $1
       AND professional_id = $2
-      AND is_active = true
+      AND (is_active IS NULL OR is_active::text IN ('1','true','t'))
+    LIMIT 1
     `,
-    [serviceId, professionalId]
+    [Number(serviceId), professionalId]
   );
 
   return result.rows[0] || null;
@@ -1296,8 +1224,96 @@ router.delete("/blocks/:id", async (req, res) => {
   }
 });
 
+
+router.get("/public/:slug/services", async (req, res) => {
+  try {
+    setNoStoreHeaders(res);
+
+    const { slug } = req.params;
+    const professional = await getProfessionalBySlug(slug);
+
+    if (!professional) {
+      return res.status(404).json({
+        error: "Profesional no encontrado",
+      });
+    }
+
+    const result = await db.query(
+      `
+      SELECT id, professional_id, name, description, duration_minutes, price, is_active, created_at, updated_at
+      FROM professional_services
+      WHERE professional_id = $1
+        AND (is_active IS NULL OR is_active::text IN ('1','true','t'))
+      ORDER BY id ASC
+      `,
+      [professional.id]
+    );
+
+    const services = result.rows.map(normalizePublicService);
+
+    res.json({
+      professional: {
+        id: professional.id,
+        name: professional.name,
+        businessName: professional.business_name || professional.name,
+        business_name: professional.business_name || professional.name,
+        address: professional.address || "",
+        slug: professional.slug,
+        logoUrl: professional.logo_url || null,
+        logo_url: professional.logo_url || null,
+        acceptedPaymentMethods: normalizeAcceptedPaymentMethods(professional.accepted_payment_methods),
+        accepted_payment_methods: normalizeAcceptedPaymentMethods(professional.accepted_payment_methods),
+      },
+      business: {
+        id: professional.id,
+        name: professional.name,
+        businessName: professional.business_name || professional.name,
+        business_name: professional.business_name || professional.name,
+        address: professional.address || "",
+        slug: professional.slug,
+        logoUrl: professional.logo_url || null,
+        logo_url: professional.logo_url || null,
+        acceptedPaymentMethods: normalizeAcceptedPaymentMethods(professional.accepted_payment_methods),
+        accepted_payment_methods: normalizeAcceptedPaymentMethods(professional.accepted_payment_methods),
+      },
+      settings: normalizePublicSettings(professional),
+      services,
+    });
+  } catch (error) {
+    console.error("GET /public/:slug/services error:", error);
+    res.status(500).json({
+      error: error.message || "Error obteniendo servicios públicos",
+    });
+  }
+});
+
+router.get("/public/:slug/settings", async (req, res) => {
+  try {
+    setNoStoreHeaders(res);
+
+    const { slug } = req.params;
+    const professional = await getProfessionalBySlug(slug);
+
+    if (!professional) {
+      return res.status(404).json({
+        error: "Profesional no encontrado",
+      });
+    }
+
+    res.json({
+      settings: normalizePublicSettings(professional),
+    });
+  } catch (error) {
+    console.error("GET /public/:slug/settings error:", error);
+    res.status(500).json({
+      error: error.message || "Error obteniendo ajustes públicos",
+    });
+  }
+});
+
 router.get("/public/:slug/staff", async (req, res) => {
   try {
+    setNoStoreHeaders(res);
     const { slug } = req.params;
     const professional = await getProfessionalBySlug(slug);
 
@@ -1308,20 +1324,21 @@ router.get("/public/:slug/staff", async (req, res) => {
     }
 
     const staff = await getPublicStaffForProfessional(professional);
-    const access = getPlanAccessStatus(professional);
 
     res.json({
       business: {
         id: professional.id,
         name: professional.name,
         businessName: professional.business_name || professional.name,
+        business_name: professional.business_name || professional.name,
         address: professional.address || "",
         slug: professional.slug,
-        logoUrl: null,
-        access,
+        logoUrl: professional.logo_url || null,
+        logo_url: professional.logo_url || null,
+        acceptedPaymentMethods: normalizeAcceptedPaymentMethods(professional.accepted_payment_methods),
+        accepted_payment_methods: normalizeAcceptedPaymentMethods(professional.accepted_payment_methods),
       },
-      access,
-      staff: access.canBook ? staff.map(normalizePublicStaff) : [],
+      staff: staff.map(normalizePublicStaff),
     });
   } catch (error) {
     res.status(500).json({
@@ -1332,6 +1349,7 @@ router.get("/public/:slug/staff", async (req, res) => {
 
 router.get("/public/:slug/slots", async (req, res) => {
   try {
+    setNoStoreHeaders(res);
     const { slug } = req.params;
     const bookingDate = normalizeDate(req.query.date);
     const serviceId = req.query.serviceId || req.query.service_id || null;
@@ -1348,16 +1366,6 @@ router.get("/public/:slug/slots", async (req, res) => {
     if (!professional) {
       return res.status(404).json({
         error: "Profesional no encontrado",
-      });
-    }
-
-    const access = getPlanAccessStatus(professional);
-
-    if (!access.canBook) {
-      return res.status(403).json({
-        error: access.message,
-        access,
-        slots: [],
       });
     }
 
@@ -1494,15 +1502,6 @@ router.post("/public/:slug/book", async (req, res) => {
     if (!professional) {
       return res.status(404).json({
         error: "Profesional no encontrado",
-      });
-    }
-
-    const access = getPlanAccessStatus(professional);
-
-    if (!access.canBook) {
-      return res.status(403).json({
-        error: access.message,
-        access,
       });
     }
 

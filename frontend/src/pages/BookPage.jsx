@@ -3,6 +3,29 @@ import { useParams } from 'react-router-dom';
 
 const API_BASE = 'https://tuagendaya-api.onrender.com/api';
 
+async function fetchJsonNoCache(url) {
+  const separator = url.includes('?') ? '&' : '?';
+  const response = await fetch(`${url}${separator}_=${Date.now()}`, {
+    cache: 'no-store',
+    headers: {
+      'Cache-Control': 'no-cache',
+      Pragma: 'no-cache',
+    },
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const error = new Error(data?.error || 'No se pudo cargar la información.');
+    error.status = response.status;
+    error.data = data;
+    throw error;
+  }
+
+  return data;
+}
+
+
 const MONTH_NAMES = [
   'enero',
   'febrero',
@@ -212,7 +235,6 @@ export default function BookPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
-  const [accessStatus, setAccessStatus] = useState(null);
 
   const selectedService = services.find((service) => String(service.id) === String(selectedServiceId));
   const selectedStaff = staff.find((member) => String(member.id) === String(selectedStaffId));
@@ -226,42 +248,46 @@ export default function BookPage() {
   const visiblePaymentMethods = PUBLIC_PAYMENT_METHODS.filter((method) => acceptedPaymentMethods.includes(method.value));
 
   useEffect(() => {
-    setLoadingServices(true);
-    setError('');
+    let active = true;
 
-    fetch(`${API_BASE}/professionals/public/${slug}/services`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.access) {
-          setAccessStatus(data.access);
+    async function loadPublicServices() {
+      setLoadingServices(true);
+      setError('');
+
+      try {
+        let data;
+
+        try {
+          data = await fetchJsonNoCache(`${API_BASE}/professionals/public/${slug}/services`);
+        } catch (primaryError) {
+          data = await fetchJsonNoCache(`${API_BASE}/bookings/public/${slug}/services`);
         }
 
-        if (data.access && data.access.canBook === false) {
-          setServices([]);
-          setError(data.access.message || 'Agenda temporalmente pausada.');
-          return;
-        }
+        if (!active) return;
 
         const activeServices = (data.services || [])
           .map(normalizeService)
-          .filter((service) => service.isActive);
+          .filter((service) => service.isActive && service.id !== null && service.id !== undefined && String(service.id) !== '');
 
         const methodsFromServices =
           data.settings?.acceptedPaymentMethods ??
           data.settings?.accepted_payment_methods ??
           data.professional?.acceptedPaymentMethods ??
-          data.professional?.accepted_payment_methods;
+          data.professional?.accepted_payment_methods ??
+          data.business?.acceptedPaymentMethods ??
+          data.business?.accepted_payment_methods;
 
         if (methodsFromServices !== undefined) {
           const normalizedMethods = normalizeAcceptedPaymentMethods(methodsFromServices);
           setAcceptedPaymentMethods(normalizedMethods);
 
-          if (!normalizedMethods.includes(paymentMethod)) {
-            setPaymentMethod(normalizedMethods[0] || 'cash');
-          }
+          setPaymentMethod((current) => (
+            normalizedMethods.includes(current)
+              ? current
+              : normalizedMethods[0] || 'cash'
+          ));
         } else {
-          fetch(`${API_BASE}/professionals/public/${slug}/settings`)
-            .then((settingsResponse) => settingsResponse.ok ? settingsResponse.json() : null)
+          fetchJsonNoCache(`${API_BASE}/professionals/public/${slug}/settings`)
             .then((settingsData) => {
               if (!settingsData?.settings) return;
 
@@ -272,44 +298,55 @@ export default function BookPage() {
 
               setAcceptedPaymentMethods(normalizedMethods);
 
-              if (!normalizedMethods.includes(paymentMethod)) {
-                setPaymentMethod(normalizedMethods[0] || 'cash');
-              }
+              setPaymentMethod((current) => (
+                normalizedMethods.includes(current)
+                  ? current
+                  : normalizedMethods[0] || 'cash'
+              ));
             })
             .catch(() => {});
         }
 
+        setBusiness((current) => data.business || data.professional || current);
         setServices(activeServices);
 
-        if (activeServices.length > 0) {
-          setSelectedServiceId(String(activeServices[0].id));
-        }
-      })
-      .catch(() => {
+        setSelectedServiceId((current) => {
+          if (current && activeServices.some((service) => String(service.id) === String(current))) {
+            return String(current);
+          }
+
+          return activeServices.length > 0 ? String(activeServices[0].id) : '';
+        });
+      } catch {
+        if (!active) return;
+
         setServices([]);
+        setSelectedServiceId('');
         setError('No se pudieron cargar los servicios.');
-      })
-      .finally(() => setLoadingServices(false));
+      } finally {
+        if (active) setLoadingServices(false);
+      }
+    }
+
+    loadPublicServices();
+
+    const reloadOnFocus = () => loadPublicServices();
+    window.addEventListener('focus', reloadOnFocus);
+    window.addEventListener('pageshow', reloadOnFocus);
+
+    return () => {
+      active = false;
+      window.removeEventListener('focus', reloadOnFocus);
+      window.removeEventListener('pageshow', reloadOnFocus);
+    };
   }, [slug]);
 
   useEffect(() => {
     setLoadingStaff(true);
     setError('');
 
-    fetch(`${API_BASE}/bookings/public/${slug}/staff`)
-      .then((r) => r.json())
+    fetchJsonNoCache(`${API_BASE}/bookings/public/${slug}/staff`)
       .then((data) => {
-        if (data.access || data.business?.access) {
-          const nextAccess = data.access || data.business?.access;
-          setAccessStatus(nextAccess);
-
-          if (nextAccess && nextAccess.canBook === false) {
-            setStaff([]);
-            setError(nextAccess.message || 'Agenda temporalmente pausada.');
-            return;
-          }
-        }
-
         const activeStaff = (data.staff || [])
           .map(normalizeStaff)
           .filter((member) => member.isActive);
@@ -366,15 +403,8 @@ export default function BookPage() {
       params.set('staffId', String(selectedStaffId));
     }
 
-    fetch(`${API_BASE}/bookings/public/${slug}/slots?${params.toString()}`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.access) {
-          setAccessStatus(data.access);
-          setError(data.error || data.access.message || 'Agenda temporalmente pausada.');
-        }
-        setSlots(data.slots || []);
-      })
+    fetchJsonNoCache(`${API_BASE}/bookings/public/${slug}/slots?${params.toString()}`)
+      .then((data) => setSlots(data.slots || []))
       .catch(() => setSlots([]))
       .finally(() => setLoadingSlots(false));
   }, [bookingDate, selectedServiceId, selectedStaffId, staff.length, slug]);
@@ -435,8 +465,7 @@ export default function BookPage() {
       params.set('staffId', String(selectedStaffId));
     }
 
-    fetch(`${API_BASE}/bookings/public/${slug}/slots?${params.toString()}`)
-      .then((r) => r.json())
+    fetchJsonNoCache(`${API_BASE}/bookings/public/${slug}/slots?${params.toString()}`)
       .then((data) => setSlots(data.slots || []))
       .catch(() => {})
       .finally(() => setLoadingSlots(false));
@@ -705,10 +734,6 @@ export default function BookPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        if (data.access) {
-          setAccessStatus(data.access);
-        }
-
         setError(data.error || 'No se pudo confirmar la reserva.');
 
         if (res.status === 409) {
