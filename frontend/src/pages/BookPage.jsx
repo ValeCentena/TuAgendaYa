@@ -180,15 +180,13 @@ function isSameDay(a, b) {
 }
 
 function normalizeService(item) {
-  const activeValue = item.isActive ?? item.is_active ?? item.active;
-
   return {
-    id: item.id ?? item.serviceId ?? item.service_id ?? item.professional_service_id,
+    id: item.id,
     name: item.name || '',
     description: item.description || '',
-    durationMinutes: Number(item.durationMinutes ?? item.duration_minutes ?? item.duration ?? 30),
+    durationMinutes: Number(item.durationMinutes ?? item.duration_minutes ?? 30),
     price: item.price === null || item.price === undefined || item.price === '' ? '' : String(item.price),
-    isActive: activeValue === undefined || activeValue === null ? true : Boolean(activeValue === true || activeValue === 1 || activeValue === '1' || activeValue === 'true' || activeValue === 't'),
+    isActive: item.isActive ?? item.is_active ?? item.active ?? true,
   };
 }
 
@@ -265,24 +263,9 @@ export default function BookPage() {
           data = await fetchJsonNoCache(`${API_BASE}/bookings/public/${slug}/services`);
         }
 
-        let rawServices = Array.isArray(data.services) ? data.services : [];
-
-        if (rawServices.length === 0) {
-          try {
-            const fallbackData = await fetchJsonNoCache(`${API_BASE}/bookings/public/${slug}/services`);
-
-            if (Array.isArray(fallbackData.services) && fallbackData.services.length > 0) {
-              data = fallbackData;
-              rawServices = fallbackData.services;
-            }
-          } catch {
-            // Sin fallback disponible.
-          }
-        }
-
         if (!active) return;
 
-        const activeServices = rawServices
+        const activeServices = (data.services || [])
           .map(normalizeService)
           .filter((service) => service.isActive && service.id !== null && service.id !== undefined && String(service.id) !== '');
 

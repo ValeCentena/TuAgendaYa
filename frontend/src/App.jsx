@@ -618,7 +618,7 @@ function getDefaultAvailability() {
 function normalizeAvailabilityItem(item) {
   return {
     dayOfWeek: Number(item.dayOfWeek ?? item.day_of_week ?? 0),
-    isActive: Boolean(item.isActive ?? item.is_active),
+    isActive: item.isActive ?? item.is_active ?? item.active ?? true,
     startTime: String(item.startTime ?? item.start_time ?? '09:00').slice(0, 5),
     endTime: String(item.endTime ?? item.end_time ?? '18:00').slice(0, 5),
     slotDurationMinutes: Number(item.slotDurationMinutes ?? item.slot_duration_minutes ?? 30),
@@ -629,15 +629,13 @@ function normalizeAvailabilityItem(item) {
 }
 
 function normalizeService(item) {
-  const activeValue = item.isActive ?? item.is_active ?? item.active;
-
   return {
     id: item.id ?? item.serviceId ?? item.service_id ?? item.professional_service_id,
     name: item.name || '',
     description: item.description || '',
-    durationMinutes: Number(item.durationMinutes ?? item.duration_minutes ?? item.duration ?? 30),
+    durationMinutes: Number(item.durationMinutes ?? item.duration_minutes ?? 30),
     price: item.price === null || item.price === undefined || item.price === '' ? '' : String(item.price),
-    isActive: activeValue === undefined || activeValue === null ? true : Boolean(activeValue === true || activeValue === 1 || activeValue === '1' || activeValue === 'true' || activeValue === 't'),
+    isActive: item.isActive ?? item.is_active ?? item.active ?? true,
   };
 }
 
@@ -648,7 +646,7 @@ function normalizeStaff(item) {
     phone: item.phone || '',
     email: item.email || '',
     color: item.color || '#0071e3',
-    isActive: Boolean(item.isActive ?? item.is_active),
+    isActive: item.isActive ?? item.is_active ?? item.active ?? true,
   };
 }
 
@@ -6240,6 +6238,14 @@ function StaffSection() {
   );
 }
 
+function getStoredProfessionalForServiceSync() {
+  try {
+    return JSON.parse(localStorage.getItem('tuagendaya_professional')) || {};
+  } catch {
+    return {};
+  }
+}
+
 function ServicesSection() {
   const [services, setServices] = useState([]);
   const [form, setForm] = useState({
@@ -6310,8 +6316,6 @@ function ServicesSection() {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache',
-          Pragma: 'no-cache',
         },
         body: JSON.stringify({
           name: form.name.trim(),
@@ -6320,50 +6324,32 @@ function ServicesSection() {
           duration_minutes: Number(form.durationMinutes),
           duration: Number(form.durationMinutes),
           price: form.price === '' ? null : Number(form.price),
-          isActive: true,
-          is_active: true,
+          professionalEmail: getStoredProfessionalForServiceSync().email,
+          professionalSlug: getStoredProfessionalForServiceSync().slug,
         }),
       });
 
-      const data = await res.json().catch(() => ({}));
+      const data = await res.json();
 
       if (!res.ok) {
         setError(data.error || 'No se pudo crear el servicio.');
-        return;
-      }
-
-      const refreshResponse = await fetch(`${API_BASE}/professionals/me/services?_=${Date.now()}`, {
-        cache: 'no-store',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Cache-Control': 'no-cache',
-          Pragma: 'no-cache',
-        },
-      });
-
-      const refreshedData = await refreshResponse.json().catch(() => ({}));
-
-      if (!refreshResponse.ok) {
-        setError(refreshedData.error || 'El servicio se creó, pero no se pudo recargar la lista. Actualizá la página.');
-        return;
-      }
-
-      const refreshedServices = (refreshedData.services || []).map(normalizeService);
-      const createdId = data.service?.id ?? data.service?.serviceId ?? data.service?.service_id ?? data.service?.professional_service_id;
-      const serviceWasPersisted = createdId
-        ? refreshedServices.some((service) => String(service.id) === String(createdId))
-        : refreshedServices.some((service) => normalizeSearchText(service.name) === normalizeSearchText(form.name));
-
-      if (!serviceWasPersisted) {
-        setServices(refreshedServices);
-        setError('El servidor respondió, pero el servicio no quedó guardado. Cerrá sesión, volvé a entrar y probá de nuevo.');
-        return;
-      }
-
-      setServices(refreshedServices);
-      resetForm();
-      window.dispatchEvent(new Event('tuagendaya:setup-updated'));
+      } else {
+        window.dispatchEvent(new Event('tuagendaya:setup-updated'));
       setMessage('Servicio creado correctamente.');
+        resetForm();
+
+        if (Array.isArray(data.services)) {
+          setServices(data.services.map(normalizeService));
+        } else if (data.service) {
+          setServices((current) => {
+            const created = normalizeService(data.service);
+            const withoutDuplicate = current.filter((service) => String(service.id) !== String(created.id));
+            return [created, ...withoutDuplicate];
+          });
+        } else {
+          fetchServices();
+        }
+      }
     } catch {
       setError('No se pudo conectar con el servidor.');
     } finally {

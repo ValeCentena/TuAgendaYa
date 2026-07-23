@@ -736,7 +736,7 @@ async function getServiceForProfessional(professionalId, serviceId) {
     return null;
   }
 
-  const professionalService = await db.query(
+  const result = await db.query(
     `
     SELECT *
     FROM professional_services
@@ -748,24 +748,7 @@ async function getServiceForProfessional(professionalId, serviceId) {
     [Number(serviceId), professionalId]
   );
 
-  if (professionalService.rows[0]) {
-    return professionalService.rows[0];
-  }
-
-  const legacyService = await db.query(
-    `
-    SELECT id, professional_id, name, description, duration AS duration_minutes, price,
-           CASE WHEN active IS NULL THEN TRUE ELSE active::text IN ('1','true','t') END AS is_active
-    FROM services
-    WHERE id = $1
-      AND professional_id = $2
-      AND (active IS NULL OR active::text IN ('1','true','t'))
-    LIMIT 1
-    `,
-    [Number(serviceId), professionalId]
-  ).catch(() => ({ rows: [] }));
-
-  return legacyService.rows[0] || null;
+  return result.rows[0] || null;
 }
 
 async function getStaffForProfessional(professionalId, staffId) {
@@ -1255,7 +1238,7 @@ router.get("/public/:slug/services", async (req, res) => {
       });
     }
 
-    let serviceRows = (await db.query(
+    const result = await db.query(
       `
       SELECT id, professional_id, name, description, duration_minutes, price, is_active, created_at, updated_at
       FROM professional_services
@@ -1264,24 +1247,9 @@ router.get("/public/:slug/services", async (req, res) => {
       ORDER BY id ASC
       `,
       [professional.id]
-    )).rows;
+    );
 
-    if (serviceRows.length === 0) {
-      serviceRows = (await db.query(
-        `
-        SELECT id, professional_id, name, description, duration AS duration_minutes, price,
-               CASE WHEN active IS NULL THEN TRUE ELSE active::text IN ('1','true','t') END AS is_active,
-               created_at, updated_at
-        FROM services
-        WHERE professional_id = $1
-          AND (active IS NULL OR active::text IN ('1','true','t'))
-        ORDER BY id ASC
-        `,
-        [professional.id]
-      )).rows;
-    }
-
-    const services = serviceRows.map(normalizePublicService);
+    const services = result.rows.map(normalizePublicService);
 
     res.json({
       professional: {
