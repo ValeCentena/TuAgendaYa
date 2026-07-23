@@ -1601,6 +1601,91 @@ function RegisterPage() {
 
 
 function SetupChecklistSection() {
+  const [shouldShowNotice, setShouldShowNotice] = useState(false);
+  const [loadingSetup, setLoadingSetup] = useState(true);
+  const token = localStorage.getItem('tuagendaya_token');
+
+  useEffect(() => {
+    if (!token) {
+      setShouldShowNotice(false);
+      setLoadingSetup(false);
+      return;
+    }
+
+    let active = true;
+
+    async function loadSetupState() {
+      setLoadingSetup(true);
+
+      const headers = { Authorization: `Bearer ${token}` };
+
+      const safeFetch = async (path) => {
+        try {
+          const response = await fetch(`${API_BASE}${path}`, { headers });
+          const data = await response.json().catch(() => ({}));
+          return response.ok ? data : {};
+        } catch {
+          return {};
+        }
+      };
+
+      const [servicesData, profileData, availabilityData, settingsData] = await Promise.all([
+        safeFetch('/professionals/me/services'),
+        safeFetch('/auth/me'),
+        safeFetch('/professionals/me/availability'),
+        safeFetch('/professionals/me/settings'),
+      ]);
+
+      if (!active) return;
+
+      const services = (servicesData.services || [])
+        .map(normalizeService)
+        .filter((service) => String(service.name || '').trim());
+
+      const profile = profileData.professional || profileData.user || profileData || {};
+      const availability = availabilityData.availability || availabilityData.days || [];
+      const settings = settingsData.settings || settingsData || {};
+
+      const hasServices = services.length > 0;
+      const hasLogo = Boolean(profile.logoUrl || profile.logo_url);
+
+      const hasAvailability = availability.some((day) => {
+        const isActive = day?.isActive ?? day?.is_active ?? day?.active;
+        const start = day?.startTime || day?.start_time || day?.start;
+        const end = day?.endTime || day?.end_time || day?.end;
+        return Boolean(isActive && start && end);
+      });
+
+      const acceptedPaymentMethods = settings.acceptedPaymentMethods || settings.accepted_payment_methods || [];
+      const hasPaymentMethods = Array.isArray(acceptedPaymentMethods)
+        ? acceptedPaymentMethods.length > 0
+        : Boolean(acceptedPaymentMethods);
+
+      const isPanelReady =
+        hasServices &&
+        hasLogo &&
+        hasAvailability &&
+        hasPaymentMethods;
+
+      setShouldShowNotice(!isPanelReady);
+      setLoadingSetup(false);
+    }
+
+    loadSetupState();
+
+    const refreshSetupState = () => loadSetupState();
+    window.addEventListener('tuagendaya:setup-updated', refreshSetupState);
+
+    return () => {
+      active = false;
+      window.removeEventListener('tuagendaya:setup-updated', refreshSetupState);
+    };
+  }, [token]);
+
+  if (loadingSetup || !shouldShowNotice) {
+    return null;
+  }
+
   return (
     <section className="agenda-start-notice">
       <style>{setupChecklistStyles}</style>
@@ -5302,6 +5387,7 @@ function AvailabilitySection() {
         if (Array.isArray(data.availability)) {
           setAvailability(data.availability.map(normalizeAvailabilityItem));
         }
+        window.dispatchEvent(new Event('tuagendaya:setup-updated'));
         setMessage('Disponibilidad general guardada correctamente.');
       }
     } catch {
@@ -6233,7 +6319,8 @@ function ServicesSection() {
       if (!res.ok) {
         setError(data.error || 'No se pudo crear el servicio.');
       } else {
-        setMessage('Servicio creado correctamente.');
+        window.dispatchEvent(new Event('tuagendaya:setup-updated'));
+      setMessage('Servicio creado correctamente.');
         resetForm();
 
         if (Array.isArray(data.services)) {
@@ -6307,7 +6394,8 @@ function ServicesSection() {
       if (!res.ok) {
         setError(data.error || 'No se pudo actualizar el servicio.');
       } else {
-        setMessage('Servicio actualizado correctamente.');
+        window.dispatchEvent(new Event('tuagendaya:setup-updated'));
+      setMessage('Servicio actualizado correctamente.');
         cancelEditing();
 
         if (Array.isArray(data.services)) {
@@ -6345,7 +6433,8 @@ function ServicesSection() {
       if (!res.ok) {
         setError(data.error || 'No se pudo eliminar el servicio.');
       } else {
-        setMessage('Servicio eliminado correctamente.');
+        window.dispatchEvent(new Event('tuagendaya:setup-updated'));
+      setMessage('Servicio eliminado correctamente.');
 
         if (Array.isArray(data.services)) {
           setServices(data.services.map(normalizeService));
@@ -7950,6 +8039,7 @@ function ProfessionalSettingsSection() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'No se pudo guardar la configuración.');
       if (data.settings) setSettings((current) => ({ ...current, ...data.settings, reminderHoursBefore: 2 }));
+      window.dispatchEvent(new Event('tuagendaya:setup-updated'));
       setMessage('Configuración guardada correctamente.');
     } catch (err) {
       setError(err.message || 'No se pudo guardar la configuración.');
