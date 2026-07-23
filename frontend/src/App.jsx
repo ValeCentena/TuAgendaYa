@@ -10860,15 +10860,7 @@ function LandingPage() {
             </div>
           </div>
         </section>
-      
-      <footer style={{ maxWidth: 1120, margin: '0 auto', padding: '18px 0 8px', display: 'flex', gap: 14, justifyContent: 'center', flexWrap: 'wrap', color: '#6e6e73', fontSize: 12.5, fontWeight: 750 }}>
-        <a href="/terminos" style={{ color: '#6e6e73', textDecoration: 'none' }}>Términos</a>
-        <span>·</span>
-        <a href="/privacidad" style={{ color: '#6e6e73', textDecoration: 'none' }}>Privacidad</a>
-        <span>·</span>
-        <a href="/soporte" style={{ color: '#6e6e73', textDecoration: 'none' }}>Soporte</a>
-      </footer>
-</main>
+      </main>
 
       <section className="landing-shell-v2 landing-trust-row-v2">
         <div>◴ Más tiempo para lo importante</div>
@@ -10882,124 +10874,70 @@ function LandingPage() {
 
 
 export default 
-function LegalShell({ title, subtitle, children }) {
+function LegalShell({ type }) {
+  const pages = {
+    terms: {
+      title: 'Términos y condiciones',
+      subtitle: 'Condiciones generales de uso de TuAgendaYa.',
+      blocks: [
+        ['Uso del servicio', 'TuAgendaYa es una plataforma para gestionar reservas de profesionales y negocios. Cada profesional es responsable de configurar sus servicios, horarios, precios y condiciones de atención.'],
+        ['Reservas', 'Las reservas dependen de la disponibilidad configurada por cada profesional. TuAgendaYa facilita la organización, pero la prestación del servicio corresponde al negocio registrado.'],
+        ['Pagos del plan', 'El acceso al plan profesional puede incluir promociones, descuentos o cobros mensuales según la configuración vigente.'],
+        ['Responsabilidad del profesional', 'El profesional debe mantener sus datos actualizados, atender sus reservas y cumplir con la normativa aplicable a su actividad.'],
+      ],
+    },
+    privacy: {
+      title: 'Política de privacidad',
+      subtitle: 'Resumen sobre el uso de datos en TuAgendaYa.',
+      blocks: [
+        ['Datos registrados', 'TuAgendaYa puede almacenar datos del profesional, del negocio, servicios, horarios, reservas, clientes, teléfonos y correos necesarios para operar la agenda.'],
+        ['Uso de la información', 'La información se utiliza para crear reservas, enviar confirmaciones, recordatorios, notificaciones y administrar el panel profesional.'],
+        ['WhatsApp y correo', 'La plataforma puede enviar comunicaciones automáticas relacionadas con reservas y recordatorios si el profesional usa esas funciones.'],
+        ['Seguridad', 'Se aplican medidas técnicas razonables para proteger la información, aunque ningún sistema conectado a internet puede garantizar seguridad absoluta.'],
+      ],
+    },
+    support: {
+      title: 'Soporte y contacto',
+      subtitle: 'Ayuda para cuentas, pagos y funcionamiento de la agenda.',
+      blocks: [
+        ['Contacto', 'Para soporte escribí a soporte@tuagendaya.com indicando nombre del negocio, correo de la cuenta y descripción del problema.'],
+        ['Qué incluir', 'Incluí el link público, captura de pantalla si corresponde y los pasos para reproducir el inconveniente.'],
+        ['Clientes finales', 'Si sos cliente final y querés cambiar o cancelar una reserva, usá el link de confirmación o contactá directamente al negocio.'],
+      ],
+    },
+  };
+
+  const page = pages[type] || pages.support;
+
   return (
     <main style={{ minHeight: '100vh', background: '#f5f5f7', padding: '34px 18px', fontFamily: 'inherit' }}>
-      <section style={{ maxWidth: 880, margin: '0 auto', background: '#fff', borderRadius: 28, padding: '28px', boxShadow: '0 1px 12px rgba(0,0,0,0.06)', border: '0.5px solid #e8e8ed' }}>
+      <section style={{ maxWidth: 880, margin: '0 auto', background: '#fff', borderRadius: 28, padding: 28, boxShadow: '0 1px 12px rgba(0,0,0,0.06)', border: '0.5px solid #e8e8ed' }}>
         <a href="/" style={{ display: 'inline-flex', color: '#0071e3', textDecoration: 'none', fontSize: 13, fontWeight: 900, marginBottom: 18 }}>
           Volver a TuAgendaYa
         </a>
 
-        <div style={{ marginBottom: 24 }}>
-          <div style={{ display: 'inline-flex', padding: '6px 10px', borderRadius: 999, background: '#eef6ff', color: '#0071e3', fontSize: 12, fontWeight: 900, marginBottom: 10 }}>
-            Información legal
-          </div>
-          <h1 style={{ margin: 0, color: '#1a1a1a', fontSize: 34, lineHeight: 1.05, letterSpacing: '-0.025em', fontWeight: 950 }}>
-            {title}
-          </h1>
-          <p style={{ margin: '10px 0 0', color: '#6e6e73', fontSize: 15, lineHeight: 1.5, fontWeight: 650 }}>
-            {subtitle}
-          </p>
+        <div style={{ display: 'inline-flex', padding: '6px 10px', borderRadius: 999, background: '#eef6ff', color: '#0071e3', fontSize: 12, fontWeight: 900, marginBottom: 10 }}>
+          Información legal
         </div>
 
-        <div style={{ display: 'grid', gap: 18, color: '#1a1a1a', fontSize: 14, lineHeight: 1.6 }}>
-          {children}
+        <h1 style={{ margin: 0, color: '#1a1a1a', fontSize: 34, lineHeight: 1.05, letterSpacing: '-0.025em', fontWeight: 950 }}>
+          {page.title}
+        </h1>
+
+        <p style={{ margin: '10px 0 24px', color: '#6e6e73', fontSize: 15, lineHeight: 1.5, fontWeight: 650 }}>
+          {page.subtitle}
+        </p>
+
+        <div style={{ display: 'grid', gap: 18 }}>
+          {page.blocks.map(([title, text]) => (
+            <article key={title} style={{ borderTop: '1px solid #e8e8ed', paddingTop: 16 }}>
+              <h2 style={{ margin: '0 0 6px', color: '#1a1a1a', fontSize: 18, fontWeight: 950 }}>{title}</h2>
+              <p style={{ margin: 0, color: '#5f6368', fontSize: 14, lineHeight: 1.6, fontWeight: 600 }}>{text}</p>
+            </article>
+          ))}
         </div>
       </section>
     </main>
-  );
-}
-
-function LegalBlock({ title, children }) {
-  return (
-    <article style={{ borderTop: '1px solid #e8e8ed', paddingTop: 16 }}>
-      <h2 style={{ margin: '0 0 6px', color: '#1a1a1a', fontSize: 18, fontWeight: 950 }}>
-        {title}
-      </h2>
-      <div style={{ color: '#5f6368', fontSize: 14, lineHeight: 1.6, fontWeight: 600 }}>
-        {children}
-      </div>
-    </article>
-  );
-}
-
-function TermsPage() {
-  return (
-    <LegalShell
-      title="Términos y condiciones"
-      subtitle="Condiciones generales de uso de TuAgendaYa para profesionales, negocios y clientes finales."
-    >
-      <LegalBlock title="1. Uso del servicio">
-        <p>TuAgendaYa es una plataforma de gestión de reservas para profesionales y negocios. Cada profesional es responsable de configurar sus servicios, horarios, precios, métodos de pago y condiciones de atención.</p>
-      </LegalBlock>
-
-      <LegalBlock title="2. Reservas">
-        <p>Las reservas generadas por clientes finales dependen de la disponibilidad configurada por cada profesional. TuAgendaYa facilita la organización, pero la prestación del servicio corresponde al profesional o negocio registrado.</p>
-      </LegalBlock>
-
-      <LegalBlock title="3. Pagos del plan">
-        <p>El acceso al plan profesional puede incluir períodos promocionales, descuentos o cobros mensuales según la configuración vigente. El incumplimiento de pagos puede limitar o suspender el acceso a nuevas reservas.</p>
-      </LegalBlock>
-
-      <LegalBlock title="4. Responsabilidad del profesional">
-        <p>El profesional se compromete a mantener datos correctos, atender sus reservas, informar cambios y cumplir con la normativa aplicable a su actividad.</p>
-      </LegalBlock>
-
-      <LegalBlock title="5. Cambios en el servicio">
-        <p>TuAgendaYa podrá actualizar funcionalidades, condiciones o precios para mejorar el servicio. Los cambios importantes serán comunicados por los canales disponibles.</p>
-      </LegalBlock>
-    </LegalShell>
-  );
-}
-
-function PrivacyPage() {
-  return (
-    <LegalShell
-      title="Política de privacidad"
-      subtitle="Resumen claro sobre el uso de datos en TuAgendaYa."
-    >
-      <LegalBlock title="1. Datos que se registran">
-        <p>TuAgendaYa puede almacenar datos del profesional, datos del negocio, servicios, horarios, reservas, clientes, teléfonos, correos y mensajes necesarios para operar la agenda.</p>
-      </LegalBlock>
-
-      <LegalBlock title="2. Uso de la información">
-        <p>La información se utiliza para crear reservas, enviar confirmaciones, recordatorios, notificaciones, administrar pagos del plan y permitir el funcionamiento del panel profesional.</p>
-      </LegalBlock>
-
-      <LegalBlock title="3. Comunicación por WhatsApp y correo">
-        <p>Al usar la plataforma, el profesional puede activar comunicaciones automáticas para confirmar reservas, enviar recordatorios o recibir avisos operativos.</p>
-      </LegalBlock>
-
-      <LegalBlock title="4. Seguridad">
-        <p>Se aplican medidas técnicas razonables para proteger la información. Aun así, ningún sistema conectado a internet puede garantizar seguridad absoluta.</p>
-      </LegalBlock>
-
-      <LegalBlock title="5. Solicitudes sobre datos">
-        <p>Los usuarios pueden solicitar correcciones o eliminación de datos escribiendo al canal de soporte indicado por TuAgendaYa.</p>
-      </LegalBlock>
-    </LegalShell>
-  );
-}
-
-function SupportPage() {
-  return (
-    <LegalShell
-      title="Soporte y contacto"
-      subtitle="Canales básicos para ayuda, consultas comerciales o problemas técnicos."
-    >
-      <LegalBlock title="Contacto">
-        <p>Para soporte, consultas de cuenta, pagos o funcionamiento de la agenda, escribí al canal oficial de TuAgendaYa.</p>
-        <p style={{ marginTop: 8 }}><strong>Email:</strong> soporte@tuagendaya.com</p>
-      </LegalBlock>
-
-      <LegalBlock title="Qué incluir en tu consulta">
-        <p>Indicá el nombre del negocio, correo de la cuenta, link público y una descripción clara del problema. Si es posible, agregá captura de pantalla.</p>
-      </LegalBlock>
-
-      <LegalBlock title="Clientes finales">
-        <p>Si sos cliente final y querés cambiar o cancelar una reserva, usá el link de confirmación o contactá directamente al negocio donde reservaste.</p>
-      </LegalBlock>
-    </LegalShell>
   );
 }
 
@@ -11029,9 +10967,9 @@ function App() {
         <Route path="/admin-app" element={<Navigate to="/login" replace />} />
         <Route path="/admin-app/dashboard" element={<AdminDashboardPage />} />
 
-        <Route path="/terminos" element={<TermsPage />} />
-        <Route path="/privacidad" element={<PrivacyPage />} />
-        <Route path="/soporte" element={<SupportPage />} />
+        <Route path="/terminos" element={<LegalShell type="terms" />} />
+        <Route path="/privacidad" element={<LegalShell type="privacy" />} />
+        <Route path="/soporte" element={<LegalShell type="support" />} />
         <Route path="/reservar/:slug" element={<BookPage />} />
         <Route path="/:slug" element={<BookPage />} />
       </Routes>
