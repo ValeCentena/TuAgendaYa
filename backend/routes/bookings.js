@@ -655,6 +655,91 @@ function normalizePublicSettings(row = {}) {
   };
 }
 
+
+async function ensureProfessionalServicesTable() {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS professional_services (
+      id SERIAL PRIMARY KEY,
+      professional_id INTEGER NOT NULL REFERENCES professionals(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      description TEXT,
+      duration_minutes INTEGER DEFAULT 30,
+      price NUMERIC(10, 2) DEFAULT 0,
+      is_active BOOLEAN DEFAULT TRUE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  `).catch(() => {});
+
+  await db.query(`ALTER TABLE professional_services ADD COLUMN IF NOT EXISTS description TEXT;`).catch(() => {});
+  await db.query(`ALTER TABLE professional_services ADD COLUMN IF NOT EXISTS duration_minutes INTEGER DEFAULT 30;`).catch(() => {});
+  await db.query(`ALTER TABLE professional_services ADD COLUMN IF NOT EXISTS price NUMERIC(10, 2) DEFAULT 0;`).catch(() => {});
+  await db.query(`ALTER TABLE professional_services ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;`).catch(() => {});
+  await db.query(`ALTER TABLE professional_services ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;`).catch(() => {});
+  await db.query(`ALTER TABLE professional_services ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;`).catch(() => {});
+}
+
+async function syncLegacyServicesToProfessionalTable(professionalId) {
+  await ensureProfessionalServicesTable();
+
+  const legacyServices = (await db.query(
+    `SELECT id, name, description, duration, price, active
+     FROM services
+     WHERE professional_id = $1
+       AND (active IS NULL OR active::text IN ('1','true','t'))
+       AND TRIM(COALESCE(name, '')) <> ''
+     ORDER BY id ASC`,
+    [professionalId]
+  ).catch(() => ({ rows: [] }))).rows;
+
+  for (const service of legacyServices) {
+    const exists = (await db.query(
+      `SELECT id
+       FROM professional_services
+       WHERE professional_id = $1
+         AND LOWER(TRIM(name)) = LOWER(TRIM($2))
+       LIMIT 1`,
+      [professionalId, service.name]
+    )).rows[0];
+
+    if (!exists) {
+      await db.query(
+        `INSERT INTO professional_services
+           (professional_id, name, description, duration_minutes, price, is_active)
+         VALUES ($1, $2, $3, $4, $5, TRUE)`,
+        [
+          professionalId,
+          service.name,
+          service.description || null,
+          Number(service.duration || 30) || 30,
+          Number(service.price) || 0,
+        ]
+      );
+    }
+  }
+}
+
+async function getPublicServicesForProfessional(professionalId) {
+  await ensureProfessionalServicesTable();
+  await syncLegacyServicesToProfessionalTable(professionalId).catch((error) => {
+    console.warn("syncLegacyServicesToProfessionalTable skipped:", error.message);
+  });
+
+  const result = await db.query(
+    `
+    SELECT id, professional_id, name, description, duration_minutes, price, is_active, created_at, updated_at
+    FROM professional_services
+    WHERE professional_id = $1
+      AND (is_active IS NULL OR is_active::text IN ('1','true','t'))
+      AND TRIM(COALESCE(name, '')) <> ''
+    ORDER BY id ASC
+    `,
+    [professionalId]
+  );
+
+  return result.rows.map(normalizePublicService);
+}
+
 function normalizePublicBooking(row) {
   return {
     id: row.id,
@@ -736,6 +821,11 @@ async function getServiceForProfessional(professionalId, serviceId) {
     return null;
   }
 
+  await ensureProfessionalServicesTable();
+  await syncLegacyServicesToProfessionalTable(professionalId).catch((error) => {
+    console.warn("syncLegacyServicesToProfessionalTable skipped:", error.message);
+  });
+
   const result = await db.query(
     `
     SELECT *
@@ -748,7 +838,30 @@ async function getServiceForProfessional(professionalId, serviceId) {
     [Number(serviceId), professionalId]
   );
 
-  return result.rows[0] || null;
+  if (result.rows[0]) {
+    return result.rows[0];
+  }
+
+  const legacy = await db.query(
+    `
+    SELECT
+      id,
+      professional_id,
+      name,
+      description,
+      duration AS duration_minutes,
+      price,
+      active AS is_active
+    FROM services
+    WHERE id = $1
+      AND professional_id = $2
+      AND (active IS NULL OR active::text IN ('1','true','t'))
+    LIMIT 1
+    `,
+    [Number(serviceId), professionalId]
+  ).catch(() => ({ rows: [] }));
+
+  return legacy.rows[0] || null;
 }
 
 async function getStaffForProfessional(professionalId, staffId) {
@@ -1238,18 +1351,7 @@ router.get("/public/:slug/services", async (req, res) => {
       });
     }
 
-    const result = await db.query(
-      `
-      SELECT id, professional_id, name, description, duration_minutes, price, is_active, created_at, updated_at
-      FROM professional_services
-      WHERE professional_id = $1
-        AND (is_active IS NULL OR is_active::text IN ('1','true','t'))
-      ORDER BY id ASC
-      `,
-      [professional.id]
-    );
-
-    const services = result.rows.map(normalizePublicService);
+    const services = await getPublicServicesForProfessional(professional.id);
 
     res.json({
       professional: {

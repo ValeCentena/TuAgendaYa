@@ -180,13 +180,21 @@ function isSameDay(a, b) {
 }
 
 function normalizeService(item) {
+  const id = item.id ?? item.serviceId ?? item.service_id ?? item.professional_service_id;
+  const activeValue = item.isActive ?? item.is_active ?? item.active;
+
   return {
-    id: item.id,
+    id,
+    serviceId: id,
+    service_id: id,
+    professional_service_id: id,
     name: item.name || '',
     description: item.description || '',
-    durationMinutes: Number(item.durationMinutes ?? item.duration_minutes ?? 30),
+    durationMinutes: Number(item.durationMinutes ?? item.duration_minutes ?? item.duration ?? 30),
     price: item.price === null || item.price === undefined || item.price === '' ? '' : String(item.price),
-    isActive: Boolean(item.isActive ?? item.is_active),
+    isActive: activeValue === undefined || activeValue === null || activeValue === ''
+      ? true
+      : activeValue === true || activeValue === 1 || activeValue === '1' || String(activeValue).toLowerCase() === 'true' || String(activeValue).toLowerCase() === 't',
   };
 }
 
@@ -250,32 +258,64 @@ export default function BookPage() {
   useEffect(() => {
     let active = true;
 
+    async function requestServices(url) {
+      const data = await fetchJsonNoCache(url);
+      const normalized = (data.services || [])
+        .map(normalizeService)
+        .filter((service) => (
+          service.isActive &&
+          service.id !== null &&
+          service.id !== undefined &&
+          String(service.id) !== '' &&
+          String(service.name || '').trim() !== ''
+        ));
+
+      return { data, services: normalized };
+    }
+
     async function loadPublicServices() {
       setLoadingServices(true);
       setError('');
 
       try {
-        let data;
+        const urls = [
+          `${API_BASE}/professionals/public/${slug}/services`,
+          `${API_BASE}/bookings/public/${slug}/services`,
+        ];
 
-        try {
-          data = await fetchJsonNoCache(`${API_BASE}/professionals/public/${slug}/services`);
-        } catch (primaryError) {
-          data = await fetchJsonNoCache(`${API_BASE}/bookings/public/${slug}/services`);
+        let selectedData = null;
+        let activeServices = [];
+
+        for (const url of urls) {
+          try {
+            const result = await requestServices(url);
+            selectedData = result.data;
+
+            if (result.services.length > 0 || !activeServices.length) {
+              activeServices = result.services;
+            }
+
+            if (result.services.length > 0) {
+              break;
+            }
+          } catch {
+            // Probamos la siguiente ruta pública compatible.
+          }
         }
 
         if (!active) return;
 
-        const activeServices = (data.services || [])
-          .map(normalizeService)
-          .filter((service) => service.isActive && service.id !== null && service.id !== undefined && String(service.id) !== '');
+        if (!selectedData) {
+          throw new Error('No se pudo cargar el profesional.');
+        }
 
         const methodsFromServices =
-          data.settings?.acceptedPaymentMethods ??
-          data.settings?.accepted_payment_methods ??
-          data.professional?.acceptedPaymentMethods ??
-          data.professional?.accepted_payment_methods ??
-          data.business?.acceptedPaymentMethods ??
-          data.business?.accepted_payment_methods;
+          selectedData.settings?.acceptedPaymentMethods ??
+          selectedData.settings?.accepted_payment_methods ??
+          selectedData.professional?.acceptedPaymentMethods ??
+          selectedData.professional?.accepted_payment_methods ??
+          selectedData.business?.acceptedPaymentMethods ??
+          selectedData.business?.accepted_payment_methods;
 
         if (methodsFromServices !== undefined) {
           const normalizedMethods = normalizeAcceptedPaymentMethods(methodsFromServices);
@@ -307,7 +347,7 @@ export default function BookPage() {
             .catch(() => {});
         }
 
-        setBusiness((current) => data.business || data.professional || current);
+        setBusiness((current) => selectedData.business || selectedData.professional || current);
         setServices(activeServices);
 
         setSelectedServiceId((current) => {

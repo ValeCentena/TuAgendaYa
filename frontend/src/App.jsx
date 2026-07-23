@@ -629,13 +629,21 @@ function normalizeAvailabilityItem(item) {
 }
 
 function normalizeService(item) {
+  const id = item.id ?? item.serviceId ?? item.service_id ?? item.professional_service_id;
+  const activeValue = item.isActive ?? item.is_active ?? item.active;
+
   return {
-    id: item.id ?? item.serviceId ?? item.service_id ?? item.professional_service_id,
+    id,
+    serviceId: id,
+    service_id: id,
+    professional_service_id: id,
     name: item.name || '',
     description: item.description || '',
-    durationMinutes: Number(item.durationMinutes ?? item.duration_minutes ?? 30),
+    durationMinutes: Number(item.durationMinutes ?? item.duration_minutes ?? item.duration ?? 30),
     price: item.price === null || item.price === undefined || item.price === '' ? '' : String(item.price),
-    isActive: Boolean(item.isActive ?? item.is_active),
+    isActive: activeValue === undefined || activeValue === null || activeValue === ''
+      ? true
+      : activeValue === true || activeValue === 1 || activeValue === '1' || String(activeValue).toLowerCase() === 'true' || String(activeValue).toLowerCase() === 't',
   };
 }
 
@@ -6256,6 +6264,26 @@ function ServicesSection() {
   const { serviceExample, descriptionExample } = getProfessionExamples();
   const token = localStorage.getItem('tuagendaya_token');
 
+  const syncPublicServices = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/professionals/me/services/sync-public`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (response.ok && Array.isArray(data.services)) {
+        setServices(data.services.map(normalizeService));
+      }
+
+      return data;
+    } catch {
+      return null;
+    }
+  };
+
+
   const fetchServices = () => {
     setLoading(true);
     setError('');
@@ -6319,8 +6347,9 @@ function ServicesSection() {
       if (!res.ok) {
         setError(data.error || 'No se pudo crear el servicio.');
       } else {
+        await syncPublicServices();
         window.dispatchEvent(new Event('tuagendaya:setup-updated'));
-      setMessage('Servicio creado correctamente.');
+        setMessage('Servicio creado correctamente.');
         resetForm();
 
         if (Array.isArray(data.services)) {
@@ -6394,8 +6423,9 @@ function ServicesSection() {
       if (!res.ok) {
         setError(data.error || 'No se pudo actualizar el servicio.');
       } else {
+        await syncPublicServices();
         window.dispatchEvent(new Event('tuagendaya:setup-updated'));
-      setMessage('Servicio actualizado correctamente.');
+        setMessage('Servicio actualizado correctamente.');
         cancelEditing();
 
         if (Array.isArray(data.services)) {
@@ -6433,8 +6463,9 @@ function ServicesSection() {
       if (!res.ok) {
         setError(data.error || 'No se pudo eliminar el servicio.');
       } else {
+        await syncPublicServices();
         window.dispatchEvent(new Event('tuagendaya:setup-updated'));
-      setMessage('Servicio eliminado correctamente.');
+        setMessage('Servicio eliminado correctamente.');
 
         if (Array.isArray(data.services)) {
           setServices(data.services.map(normalizeService));
