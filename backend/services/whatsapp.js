@@ -481,38 +481,32 @@ async function sendBusinessBookingNotification(booking = {}, professional = {}) 
   return result;
 }
 
-async function sendReminder(booking = {}, professional = {}) {
-  const clientName =
-    getBookingValue(booking, "client_name", "clientName", "name", "nombre") ||
-    "cliente";
 
-  const businessName =
-    professional?.business_name ||
-    professional?.businessName ||
-    professional?.name ||
-    getBookingValue(
+async function sendBookingReminderConfirmationMessage(booking = {}, professional = {}) {
+  const templateName =
+    process.env.WHATSAPP_REMINDER_TEMPLATE ||
+    process.env.WHATSAPP_CONFIRMATION_TEMPLATE ||
+    process.env.WHATSAPP_BOOKING_TEMPLATE ||
+    "";
+
+  if (templateName) {
+    return sendBookingConfirmationTemplate(
       booking,
-      "business_name",
-      "businessName",
-      "professional_name",
-      "professionalName"
-    ) ||
-    "TuAgendaYa";
+      professional
+    );
+  }
 
-  const bookingDate = formatDateForMessage(
-    getBookingValue(booking, "booking_date", "bookingDate", "date")
+  return sendBookingConfirmationInteractive(
+    {
+      ...booking,
+      reminder: true,
+    },
+    professional
   );
+}
 
-  const startTime = formatTimeForMessage(
-    getBookingValue(booking, "start_time", "startTime", "time")
-  );
-
-  const text = `Hola ${clientName}. Te recordamos tu reserva en ${businessName} para el ${bookingDate} a las ${startTime}.`;
-
-  return sendWhatsApp(
-    getBookingValue(booking, "client_phone", "clientPhone", "phone", "telefono"),
-    text
-  );
+async function sendReminder(booking = {}, professional = {}) {
+  return sendBookingReminderConfirmationMessage(booking, professional);
 }
 
 module.exports = {
@@ -523,6 +517,7 @@ module.exports = {
   sendBookingConfirmationTemplate,
   sendBookingConfirmationInteractive,
   sendBusinessBookingNotification,
+  sendBookingReminderConfirmationMessage,
   sendReminder,
   getActiveProvider,
   normalizePhone,

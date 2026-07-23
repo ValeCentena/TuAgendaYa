@@ -1,15 +1,17 @@
 const db = require("../db");
-const { sendReminder } = require("./whatsapp");
-const { sendPushToProfessional } = require("./push");
+const {
+  sendBookingReminderConfirmationMessage,
+  sendReminder,
+} = require("./whatsapp");
 
-const DEFAULT_TIMEZONE = process.env.DEFAULT_TIMEZONE || "America/Montevideo";
-const REMINDER_INTERVAL_MS = Number(process.env.REMINDER_WORKER_INTERVAL_MS || 60_000);
-const REMINDER_WINDOW_MINUTES = Number(process.env.REMINDER_WINDOW_MINUTES || 120);
-const REMINDER_MIN_AHEAD_MINUTES = Number(process.env.REMINDER_MIN_AHEAD_MINUTES || 90);
-const REMINDER_BATCH_LIMIT = Number(process.env.REMINDER_BATCH_LIMIT || 25);
+let reminderWorkerStarted = false;
+let reminderWorkerTimer = null;
+let reminderWorkerRunning = false;
 
-let reminderTimer = null;
-let reminderRunning = false;
+const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
+const LOOKAHEAD_MINUTES = Number(process.env.REMINDER_LOOKAHEAD_MINUTES || 130);
+const LOOKBEHIND_MINUTES = Number(process.env.REMINDER_LOOKBEHIND_MINUTES || 15);
+const WORKER_INTERVAL_MS = Number(process.env.REMINDER_WORKER_INTERVAL_MS || 60_000);
 
 function normalizeDate(value) {
   return String(value || "").slice(0, 10);
@@ -19,241 +21,220 @@ function normalizeTime(value) {
   return String(value || "").slice(0, 5);
 }
 
-function getBookingValue(booking, ...keys) {
-  for (const key of keys) {
-    if (
-      booking &&
-      booking[key] !== undefined &&
-      booking[key] !== null &&
-      booking[key] !== ""
-    ) {
-      return booking[key];
-    }
-  }
+function getBookingDateTime(booking) {
+  const date = normalizeDate(booking.booking_date || booking.bookingDate);
+  const time = normalizeTime(booking.start_time || booking.startTime);
 
-  return "";
+  if (!date || !time) return null;
+
+  const parsed = new Date(`${date}T${time}:00`);
+
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  return parsed;
 }
 
-async function ensureReminderColumns() {
+async function ensureReminderSchema() {
   await db.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS reminder_2h_sent_at TIMESTAMP;`);
   await db.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS reminder_2h_attempted_at TIMESTAMP;`);
   await db.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS reminder_2h_error TEXT;`);
+  await db.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS confirmation_token TEXT;`);
+  await db.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS client_confirmed_at TIMESTAMP;`);
+  await db.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS client_cancelled_at TIMESTAMP;`);
+  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS notify_reminder INTEGER DEFAULT 1;`);
+  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS reminder_hours_before INTEGER DEFAULT 2;`);
 
   await db.query(`
     CREATE INDEX IF NOT EXISTS idx_bookings_reminder_2h
-    ON bookings (reminder_2h_sent_at, booking_date, start_time);
-  `);
+    ON bookings (booking_date, start_time, status, reminder_2h_sent_at);
+  `).catch(() => {});
 }
 
-function buildProfessionalFromRow(row) {
-  return {
-    id: row.professional_id,
-    name: row.professional_name,
-    business_name: row.business_name,
-    businessName: row.business_name,
-    phone: row.professional_phone,
-    timezone: row.professional_timezone,
-  };
-}
-
-function buildBookingFromRow(row) {
-  return {
-    ...row,
-    clientName: row.client_name,
-    clientPhone: row.client_phone,
-    bookingDate: normalizeDate(row.booking_date),
-    startTime: normalizeTime(row.start_time),
-    endTime: normalizeTime(row.end_time),
-    serviceName: row.service_name || "Servicio",
-    staffName: row.staff_name || "",
-    businessName: row.business_name || row.professional_name || "TuAgendaYa",
-  };
-}
-
-async function getDueReminderBookings(limit = REMINDER_BATCH_LIMIT) {
-  await ensureReminderColumns();
+async function loadBookingsNeedingReminder() {
+  await ensureReminderSchema();
 
   const result = await db.query(
     `
-    SELECT
-      b.*,
-      ps.name AS service_name,
-      ps.duration_minutes AS service_duration_minutes,
-      ps.price AS service_price,
-      sm.name AS staff_name,
-      p.name AS professional_name,
-      p.business_name AS business_name,
-      p.phone AS professional_phone,
-      COALESCE(NULLIF(p.timezone, ''), $1) AS professional_timezone
-    FROM bookings b
-    INNER JOIN professionals p ON p.id = b.professional_id
-    LEFT JOIN professional_services ps ON ps.id = b.service_id
-    LEFT JOIN staff_members sm ON sm.id = b.staff_id
-    WHERE b.reminder_2h_sent_at IS NULL
-      AND b.booking_date IS NOT NULL
-      AND b.start_time IS NOT NULL
-      AND COALESCE(b.status, 'pending') IN ('pending', 'confirmed')
-      AND (b.booking_date + b.start_time) >
-        (NOW() AT TIME ZONE COALESCE(NULLIF(p.timezone, ''), $1)) + ($2::text || ' minutes')::interval
-      AND (b.booking_date + b.start_time) <=
-        (NOW() AT TIME ZONE COALESCE(NULLIF(p.timezone, ''), $1)) + ($3::text || ' minutes')::interval
-    ORDER BY b.booking_date ASC, b.start_time ASC, b.id ASC
-    LIMIT $4
+      SELECT
+        b.*,
+        ps.name AS service_name,
+        ps.duration_minutes AS service_duration_minutes,
+        ps.price AS service_price,
+        sm.name AS staff_name,
+        p.name AS professional_name,
+        p.business_name,
+        p.phone AS professional_phone,
+        p.notify_reminder,
+        p.reminder_hours_before
+      FROM bookings b
+      INNER JOIN professionals p ON p.id = b.professional_id
+      LEFT JOIN professional_services ps ON ps.id = b.service_id
+      LEFT JOIN staff_members sm ON sm.id = b.staff_id
+      WHERE b.status IN ('pending', 'created')
+        AND b.client_phone IS NOT NULL
+        AND TRIM(b.client_phone) <> ''
+        AND b.booking_date IS NOT NULL
+        AND b.start_time IS NOT NULL
+        AND b.reminder_2h_sent_at IS NULL
+        AND (p.notify_reminder IS NULL OR p.notify_reminder::text IN ('1', 'true', 't'))
+        AND (
+          (b.booking_date::date + b.start_time::time)
+          BETWEEN
+            (NOW() + INTERVAL '2 hours' - ($1::int * INTERVAL '1 minute'))
+          AND
+            (NOW() + INTERVAL '2 hours' + ($2::int * INTERVAL '1 minute'))
+        )
+      ORDER BY b.booking_date ASC, b.start_time ASC, b.id ASC
+      LIMIT 25
     `,
-    [DEFAULT_TIMEZONE, REMINDER_MIN_AHEAD_MINUTES, REMINDER_WINDOW_MINUTES, limit]
+    [LOOKBEHIND_MINUTES, LOOKAHEAD_MINUTES]
   );
 
   return result.rows;
 }
 
-async function markReminderProcessed(bookingId, errorMessage = null) {
+async function markReminderAttempt(bookingId) {
   await db.query(
     `
-    UPDATE bookings
-    SET
-      reminder_2h_sent_at = NOW(),
-      reminder_2h_attempted_at = NOW(),
-      reminder_2h_error = $2,
-      updated_at = NOW()
-    WHERE id = $1
-      AND reminder_2h_sent_at IS NULL
+      UPDATE bookings
+      SET reminder_2h_attempted_at = NOW(),
+          reminder_2h_error = NULL,
+          updated_at = NOW()
+      WHERE id = $1
     `,
-    [bookingId, errorMessage ? String(errorMessage).slice(0, 500) : null]
+    [bookingId]
   );
 }
 
-async function processBookingReminder(row) {
-  const booking = buildBookingFromRow(row);
-  const professional = buildProfessionalFromRow(row);
-
-  const results = {
-    bookingId: row.id,
-    whatsapp: { attempted: false, sent: false },
-    push: { attempted: false, sent: 0 },
-  };
-
-  const errors = [];
-
-  try {
-    results.whatsapp = await sendReminder(booking, professional);
-    results.whatsapp.attempted = true;
-    results.whatsapp.sent = !results.whatsapp.skipped;
-  } catch (error) {
-    results.whatsapp = {
-      attempted: true,
-      sent: false,
-      error: error.message || "No se pudo enviar recordatorio por WhatsApp",
-    };
-    errors.push(`WhatsApp: ${results.whatsapp.error}`);
-  }
-
-  try {
-    results.push = await sendPushToProfessional(row.professional_id, {
-      title: "Recordatorio de turno",
-      body: `${getBookingValue(booking, "client_name", "clientName") || "Cliente"} tiene turno a las ${normalizeTime(row.start_time)}`,
-      icon: "/tuagendaya-logo.png",
-      badge: "/tuagendaya-logo.png",
-      url: "/profesional/dashboard",
-      bookingId: row.id,
-      clientName: getBookingValue(booking, "client_name", "clientName") || "Cliente",
-      serviceName: booking.serviceName || "Servicio",
-      bookingDate: normalizeDate(row.booking_date),
-      startTime: normalizeTime(row.start_time),
-      type: "booking_reminder_2h",
-    });
-  } catch (error) {
-    results.push = {
-      attempted: true,
-      sent: 0,
-      error: error.message || "No se pudo enviar push",
-    };
-    errors.push(`Push: ${results.push.error}`);
-  }
-
-  await markReminderProcessed(row.id, errors.length > 0 ? errors.join(" | ") : null);
-
-  return results;
+async function markReminderSent(bookingId) {
+  await db.query(
+    `
+      UPDATE bookings
+      SET reminder_2h_sent_at = NOW(),
+          reminder_2h_attempted_at = NOW(),
+          reminder_2h_error = NULL,
+          updated_at = NOW()
+      WHERE id = $1
+    `,
+    [bookingId]
+  );
 }
 
-async function runBookingReminderCheck() {
-  if (reminderRunning) {
-    return { skipped: true, reason: "already_running" };
+async function markReminderError(bookingId, error) {
+  await db.query(
+    `
+      UPDATE bookings
+      SET reminder_2h_attempted_at = NOW(),
+          reminder_2h_error = $2,
+          updated_at = NOW()
+      WHERE id = $1
+    `,
+    [bookingId, String(error?.message || error || "Error enviando recordatorio").slice(0, 500)]
+  );
+}
+
+async function sendReminderForBooking(booking) {
+  const bookingDateTime = getBookingDateTime(booking);
+
+  if (!bookingDateTime) {
+    throw new Error("Reserva sin fecha u hora válida");
   }
 
-  reminderRunning = true;
+  await markReminderAttempt(booking.id);
+
+  const professional = {
+    id: booking.professional_id,
+    name: booking.professional_name,
+    business_name: booking.business_name || booking.professional_name || "TuAgendaYa",
+    businessName: booking.business_name || booking.professional_name || "TuAgendaYa",
+    phone: booking.professional_phone,
+  };
+
+  const payloadBooking = {
+    ...booking,
+    client_phone: booking.client_phone,
+    clientPhone: booking.client_phone,
+    client_name: booking.client_name,
+    clientName: booking.client_name,
+    service_name: booking.service_name || "Servicio",
+    serviceName: booking.service_name || "Servicio",
+    staff_name: booking.staff_name || null,
+    staffName: booking.staff_name || null,
+    booking_date: normalizeDate(booking.booking_date),
+    bookingDate: normalizeDate(booking.booking_date),
+    start_time: normalizeTime(booking.start_time),
+    startTime: normalizeTime(booking.start_time),
+    confirmation_token: booking.confirmation_token,
+    confirmationToken: booking.confirmation_token,
+    reminder: true,
+  };
+
+  const sender = sendBookingReminderConfirmationMessage || sendReminder;
+
+  await sender(payloadBooking, professional);
+
+  await markReminderSent(booking.id);
+
+  return true;
+}
+
+async function runBookingReminderWorkerOnce() {
+  if (reminderWorkerRunning) return { skipped: true, reason: "already_running" };
+
+  reminderWorkerRunning = true;
 
   try {
-    const rows = await getDueReminderBookings();
+    const bookings = await loadBookingsNeedingReminder();
+    let sent = 0;
+    let failed = 0;
 
-    if (rows.length === 0) {
-      return { checked: true, processed: 0 };
-    }
-
-    const processed = [];
-
-    for (const row of rows) {
+    for (const booking of bookings) {
       try {
-        const result = await processBookingReminder(row);
-        processed.push(result);
+        await sendReminderForBooking(booking);
+        sent += 1;
       } catch (error) {
-        console.error("Error procesando recordatorio 2h:", error);
-        await markReminderProcessed(row.id, error.message || "Error procesando recordatorio");
-        processed.push({
-          bookingId: row.id,
-          error: error.message || "Error procesando recordatorio",
-        });
+        failed += 1;
+        console.warn(`Reminder 2h failed for booking ${booking.id}:`, error.message);
+        await markReminderError(booking.id, error);
       }
     }
 
-    console.log(`Recordatorios 2h procesados: ${processed.length}`);
-    return { checked: true, processed: processed.length, results: processed };
+    if (sent || failed) {
+      console.log(`Reminder worker: sent=${sent}, failed=${failed}`);
+    }
+
+    return { sent, failed, checked: bookings.length };
   } finally {
-    reminderRunning = false;
+    reminderWorkerRunning = false;
   }
 }
 
 function startBookingReminderWorker() {
-  if (process.env.DISABLE_REMINDER_WORKER === "true") {
-    console.log("Recordatorios 2h desactivados por DISABLE_REMINDER_WORKER=true");
-    return null;
+  if (reminderWorkerStarted) {
+    return;
   }
 
-  if (reminderTimer) {
-    return reminderTimer;
-  }
+  reminderWorkerStarted = true;
 
-  ensureReminderColumns().catch((error) => {
-    console.error("No se pudieron preparar columnas de recordatorio 2h:", error);
+  console.log("Booking reminder worker started");
+
+  runBookingReminderWorkerOnce().catch((error) => {
+    console.warn("Initial reminder worker run failed:", error.message);
   });
 
-  setTimeout(() => {
-    runBookingReminderCheck().catch((error) => {
-      console.error("Error ejecutando recordatorios 2h:", error);
+  reminderWorkerTimer = setInterval(() => {
+    runBookingReminderWorkerOnce().catch((error) => {
+      console.warn("Reminder worker run failed:", error.message);
     });
-  }, 10_000);
+  }, WORKER_INTERVAL_MS);
 
-  reminderTimer = setInterval(() => {
-    runBookingReminderCheck().catch((error) => {
-      console.error("Error ejecutando recordatorios 2h:", error);
-    });
-  }, REMINDER_INTERVAL_MS);
-
-  console.log(`Worker recordatorios 2h activo cada ${REMINDER_INTERVAL_MS} ms`);
-  return reminderTimer;
-}
-
-function stopBookingReminderWorker() {
-  if (reminderTimer) {
-    clearInterval(reminderTimer);
-    reminderTimer = null;
+  if (reminderWorkerTimer.unref) {
+    reminderWorkerTimer.unref();
   }
 }
 
 module.exports = {
-  ensureReminderColumns,
-  getDueReminderBookings,
-  processBookingReminder,
-  runBookingReminderCheck,
   startBookingReminderWorker,
-  stopBookingReminderWorker,
+  runBookingReminderWorkerOnce,
+  ensureReminderSchema,
 };
