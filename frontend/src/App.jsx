@@ -443,6 +443,16 @@ function getBookingAmountPaid(booking) {
   return value === null || value === undefined ? '' : String(value);
 }
 
+function getBookingTipAmount(booking) {
+  const value = booking?.tipAmount ?? booking?.tip_amount ?? 0;
+  return value === null || value === undefined || value === '' ? '0' : String(value);
+}
+
+function getBookingTipMethod(booking) {
+  return String(booking?.tipMethod ?? booking?.tip_method ?? getBookingPaymentMethod(booking)).trim() || getBookingPaymentMethod(booking);
+}
+
+
 function normalizePhoneForWhatsApp(phone) {
   const onlyNumbers = String(phone || '').replace(/\D/g, '');
 
@@ -532,6 +542,9 @@ function exportBookingsToCsv(bookings, filename = 'reservas.csv') {
     'Estado',
     'Duracion',
     'Precio',
+    'Cobrado',
+    'Propina',
+    'Metodo propina',
     'Comentario',
   ];
 
@@ -546,6 +559,9 @@ function exportBookingsToCsv(bookings, filename = 'reservas.csv') {
     booking.status || '',
     booking.serviceDurationMinutes ?? booking.service_duration_minutes ?? '',
     booking.servicePrice ?? booking.service_price ?? '',
+    booking.amountPaid ?? booking.amount_paid ?? '',
+    booking.tipAmount ?? booking.tip_amount ?? 0,
+    booking.tipMethod ?? booking.tip_method ?? booking.paymentMethod ?? booking.payment_method ?? '',
     booking.comment || '',
   ]);
 

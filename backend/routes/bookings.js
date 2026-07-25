@@ -165,6 +165,19 @@ async function ensurePaymentColumns() {
   );
 }
 
+async function ensureTipColumns() {
+  await db.query(
+    `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS tip_amount NUMERIC(10, 2) DEFAULT 0;`
+  );
+  await db.query(
+    `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS tip_method TEXT;`
+  );
+  await db.query(
+    `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS tip_updated_at TIMESTAMP;`
+  );
+}
+
+
 
 function normalizePaymentMethodForBooking(value) {
   const clean = String(value || "cash").trim();
@@ -178,6 +191,7 @@ function getServicePriceForAutoPayment(service) {
 
 async function markBookingAutomaticallyPaid(whereSql, values) {
   await ensurePaymentColumns();
+  await ensureTipColumns();
 
   const result = await db.query(
     `
@@ -498,6 +512,10 @@ function normalizeCashClosure(row) {
     totalGenerated: row.total_generated,
     total_collected: row.total_collected,
     totalCollected: row.total_collected,
+    total_tips: row.total_tips || 0,
+    totalTips: row.total_tips || 0,
+    total_collected_with_tips: row.total_collected_with_tips || row.total_collected || 0,
+    totalCollectedWithTips: row.total_collected_with_tips || row.total_collected || 0,
     total_pending: row.total_pending,
     totalPending: row.total_pending,
     cash_total: row.cash_total,
@@ -520,7 +538,8 @@ function normalizeCashClosure(row) {
 
 async function calculateCashClosure(professionalId, closureDate) {
   await ensurePaymentColumns();
-  await ensureCashClosuresTable();
+  await ensureCashClosuresTable();  await ensureTipColumns();
+
 
   const bookingsResult = await db.query(
     `
@@ -547,6 +566,7 @@ async function calculateCashClosure(professionalId, closureDate) {
 
   const getPrice = (booking) => Number(booking.service_price || 0) || 0;
   const getPaid = (booking) => Number(booking.amount_paid || 0) || 0;
+  const getTip = (booking) => Number(booking.tip_amount || 0) || 0;
 
   const totalBookings = bookings.length;
   const completedBookings = bookings.filter(
@@ -568,6 +588,13 @@ async function calculateCashClosure(professionalId, closureDate) {
     (sum, booking) => sum + getPaid(booking),
     0
   );
+
+  const totalTips = activeBookings.reduce(
+    (sum, booking) => sum + getTip(booking),
+    0
+  );
+
+  const totalCollectedWithTips = totalCollected + totalTips;
   const totalPending = activeBookings.reduce(
     (sum, booking) => sum + Math.max(getPrice(booking) - getPaid(booking), 0),
     0
@@ -577,6 +604,11 @@ async function calculateCashClosure(professionalId, closureDate) {
     activeBookings
       .filter((booking) => (booking.payment_method || "cash") === method)
       .reduce((sum, booking) => sum + getPaid(booking), 0);
+
+  const tipMethodTotal = (method) =>
+    activeBookings
+      .filter((booking) => (booking.tip_method || booking.payment_method || "cash") === method)
+      .reduce((sum, booking) => sum + getTip(booking), 0);
 
   const servicesMap = new Map();
 
@@ -609,11 +641,17 @@ async function calculateCashClosure(professionalId, closureDate) {
     cancelledBookings,
     totalGenerated,
     totalCollected,
+    totalTips,
+    totalCollectedWithTips,
     totalPending,
     cashTotal: methodTotal("cash"),
     transferTotal: methodTotal("transfer"),
     cardTotal: methodTotal("card"),
     otherTotal: methodTotal("other"),
+    cashTips: tipMethodTotal("cash"),
+    transferTips: tipMethodTotal("transfer"),
+    cardTips: tipMethodTotal("card"),
+    otherTips: tipMethodTotal("other"),
     servicesSummary,
   };
 }
@@ -653,6 +691,12 @@ function normalizeBooking(row) {
     paymentMethod: row.payment_method || "cash",
     amount_paid: row.amount_paid,
     amountPaid: row.amount_paid,
+    tip_amount: row.tip_amount || 0,
+    tipAmount: row.tip_amount || 0,
+    tip_method: row.tip_method || row.payment_method || 'cash',
+    tipMethod: row.tip_method || row.payment_method || 'cash',
+    tip_updated_at: row.tip_updated_at,
+    tipUpdatedAt: row.tip_updated_at,
     payment_updated_at: row.payment_updated_at,
     paymentUpdatedAt: row.payment_updated_at,
     reminder_2h_sent_at: row.reminder_2h_sent_at,
