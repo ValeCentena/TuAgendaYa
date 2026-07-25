@@ -618,7 +618,7 @@ function getDefaultAvailability() {
 function normalizeAvailabilityItem(item) {
   return {
     dayOfWeek: Number(item.dayOfWeek ?? item.day_of_week ?? 0),
-    isActive: item.isActive ?? item.is_active ?? item.active ?? true,
+    isActive: Boolean(item.isActive ?? item.is_active),
     startTime: String(item.startTime ?? item.start_time ?? '09:00').slice(0, 5),
     endTime: String(item.endTime ?? item.end_time ?? '18:00').slice(0, 5),
     slotDurationMinutes: Number(item.slotDurationMinutes ?? item.slot_duration_minutes ?? 30),
@@ -635,7 +635,7 @@ function normalizeService(item) {
     description: item.description || '',
     durationMinutes: Number(item.durationMinutes ?? item.duration_minutes ?? 30),
     price: item.price === null || item.price === undefined || item.price === '' ? '' : String(item.price),
-    isActive: item.isActive ?? item.is_active ?? item.active ?? true,
+    isActive: Boolean(item.isActive ?? item.is_active),
   };
 }
 
@@ -646,7 +646,7 @@ function normalizeStaff(item) {
     phone: item.phone || '',
     email: item.email || '',
     color: item.color || '#0071e3',
-    isActive: item.isActive ?? item.is_active ?? item.active ?? true,
+    isActive: Boolean(item.isActive ?? item.is_active),
   };
 }
 
@@ -1642,13 +1642,10 @@ function SetupChecklistSection() {
         .map(normalizeService)
         .filter((service) => String(service.name || '').trim());
 
-      const profile = profileData.professional || profileData.user || profileData || {};
       const availability = availabilityData.availability || availabilityData.days || [];
       const settings = settingsData.settings || settingsData || {};
 
       const hasServices = services.length > 0;
-      const hasLogo = Boolean(profile.logoUrl || profile.logo_url);
-
       const hasAvailability = availability.some((day) => {
         const isActive = day?.isActive ?? day?.is_active ?? day?.active;
         const start = day?.startTime || day?.start_time || day?.start;
@@ -1663,7 +1660,6 @@ function SetupChecklistSection() {
 
       const isPanelReady =
         hasServices &&
-        hasLogo &&
         hasAvailability &&
         hasPaymentMethods;
 
@@ -6238,14 +6234,6 @@ function StaffSection() {
   );
 }
 
-function getStoredProfessionalForServiceSync() {
-  try {
-    return JSON.parse(localStorage.getItem('tuagendaya_professional')) || {};
-  } catch {
-    return {};
-  }
-}
-
 function ServicesSection() {
   const [services, setServices] = useState([]);
   const [form, setForm] = useState({
@@ -6268,13 +6256,8 @@ function ServicesSection() {
     setLoading(true);
     setError('');
 
-    fetch(`${API_BASE}/professionals/me/services?_=${Date.now()}`, {
-      cache: 'no-store',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Cache-Control': 'no-cache',
-        Pragma: 'no-cache',
-      },
+    fetch(`${API_BASE}/professionals/me/services`, {
+      headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.json())
       .then((data) => setServices((data.services || []).map(normalizeService)))
@@ -6324,8 +6307,6 @@ function ServicesSection() {
           duration_minutes: Number(form.durationMinutes),
           duration: Number(form.durationMinutes),
           price: form.price === '' ? null : Number(form.price),
-          professionalEmail: getStoredProfessionalForServiceSync().email,
-          professionalSlug: getStoredProfessionalForServiceSync().slug,
         }),
       });
 
@@ -8484,8 +8465,25 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
             max-width: 100vw !important;
             overflow-x: hidden !important;
             box-sizing: border-box !important;
-            padding: calc(env(safe-area-inset-top, 0px) + 24px) 8px calc(env(safe-area-inset-bottom, 0px) + 118px) !important;
+            padding: calc(env(safe-area-inset-top, 0px) + 52px) 8px calc(env(safe-area-inset-bottom, 0px) + 178px) !important;
             background: #f2f2f7 !important;
+          }
+
+          .dashboard-panel::before {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: calc(env(safe-area-inset-top, 0px) + 22px);
+            background: linear-gradient(180deg, #f2f2f7 0%, rgba(242,242,247,0.96) 72%, rgba(242,242,247,0) 100%);
+            z-index: 999;
+            pointer-events: none;
+          }
+
+          .dashboard-content-swipe {
+            padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 150px) !important;
+            scroll-padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 160px) !important;
           }
 
           .dashboard-panel > div {
@@ -8975,6 +8973,114 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
             min-height: 50px !important;
             border-radius: 18px !important;
             font-size: 15.5px !important;
+          }
+
+
+          .agenda-start-notice {
+            margin-bottom: 12px !important;
+            padding: 14px 15px !important;
+            border-radius: 22px !important;
+          }
+
+          .agenda-start-notice h2 {
+            font-size: 18px !important;
+            line-height: 1.15 !important;
+          }
+
+          .agenda-start-notice p {
+            font-size: 12.5px !important;
+            line-height: 1.42 !important;
+          }
+
+          .agenda-start-pill {
+            min-height: 22px !important;
+            padding: 4px 9px !important;
+            font-size: 11.5px !important;
+            margin-bottom: 7px !important;
+          }
+
+          .dashboard-header-card {
+            position: relative !important;
+          }
+
+          .dashboard-header-card > div:first-child {
+            min-width: 0 !important;
+          }
+
+          .dashboard-header-card p,
+          .dashboard-header-card div {
+            word-break: break-word !important;
+          }
+
+          .dashboard-business-logo-box {
+            height: 62px !important;
+            font-size: 12px !important;
+            color: #c7c7cc !important;
+          }
+
+          .dashboard-tabs {
+            transform: translateZ(0);
+          }
+
+          .dashboard-tabs button {
+            -webkit-tap-highlight-color: transparent;
+          }
+
+          .clients-panel-card,
+          .settings-mobile-section,
+          .services-mobile-section,
+          .availability-mobile-section,
+          .profile-mobile-section {
+            margin-bottom: 12px !important;
+          }
+
+          .clients-stats-grid {
+            grid-template-columns: 1fr !important;
+          }
+
+          .clients-stats-grid > div {
+            min-height: 72px !important;
+          }
+
+          .reservation-status-group {
+            margin-left: 0 !important;
+            margin-top: 8px !important;
+            padding-right: 0 !important;
+          }
+
+          .reservation-status-group span:last-child {
+            position: static !important;
+            margin-top: 0 !important;
+          }
+
+          .reservation-card-button {
+            grid-template-columns: 86px minmax(0, 1fr) !important;
+          }
+
+          .reservation-main-info {
+            min-width: 0 !important;
+          }
+
+          .reservation-main-info * {
+            max-width: 100% !important;
+          }
+
+          .settings-mobile-section .settings-card {
+            overflow: visible !important;
+          }
+
+          .settings-mobile-section select {
+            width: 100% !important;
+            max-width: 100% !important;
+          }
+
+          .plan-payment-card {
+            margin-bottom: 12px !important;
+          }
+
+          .dashboard-panel input,
+          .dashboard-panel textarea {
+            scroll-margin-bottom: calc(env(safe-area-inset-bottom, 0px) + 150px) !important;
           }
 
           .plan-payment-card {
