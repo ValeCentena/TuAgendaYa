@@ -8,10 +8,10 @@ let reminderWorkerStarted = false;
 let reminderWorkerTimer = null;
 let reminderWorkerRunning = false;
 
-const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
-const LOOKAHEAD_MINUTES = Number(process.env.REMINDER_LOOKAHEAD_MINUTES || 130);
-const LOOKBEHIND_MINUTES = Number(process.env.REMINDER_LOOKBEHIND_MINUTES || 15);
 const WORKER_INTERVAL_MS = Number(process.env.REMINDER_WORKER_INTERVAL_MS || 60_000);
+const LOOKAHEAD_MINUTES = Number(process.env.REMINDER_LOOKAHEAD_MINUTES || 125);
+const LOOKBEHIND_MINUTES = Number(process.env.REMINDER_LOOKBEHIND_MINUTES || 20);
+const LOCAL_TIMEZONE = process.env.REMINDER_TIMEZONE || "America/Montevideo";
 
 function normalizeDate(value) {
   return String(value || "").slice(0, 10);
@@ -19,19 +19,6 @@ function normalizeDate(value) {
 
 function normalizeTime(value) {
   return String(value || "").slice(0, 5);
-}
-
-function getBookingDateTime(booking) {
-  const date = normalizeDate(booking.booking_date || booking.bookingDate);
-  const time = normalizeTime(booking.start_time || booking.startTime);
-
-  if (!date || !time) return null;
-
-  const parsed = new Date(`${date}T${time}:00`);
-
-  if (Number.isNaN(parsed.getTime())) return null;
-
-  return parsed;
 }
 
 async function ensureReminderSchema() {
@@ -43,7 +30,6 @@ async function ensureReminderSchema() {
   await db.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS client_cancelled_at TIMESTAMP;`);
   await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS notify_reminder INTEGER DEFAULT 1;`);
   await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS reminder_hours_before INTEGER DEFAULT 2;`);
-
   await db.query(`
     CREATE INDEX IF NOT EXISTS idx_bookings_reminder_2h
     ON bookings (booking_date, start_time, status, reminder_2h_sent_at);
@@ -65,12 +51,14 @@ async function loadBookingsNeedingReminder() {
         p.business_name,
         p.phone AS professional_phone,
         p.notify_reminder,
-        p.reminder_hours_before
+        p.reminder_hours_before,
+        (NOW() AT TIME ZONE $3) AS local_now,
+        (b.booking_date::date + b.start_time::time) AS booking_local_datetime
       FROM bookings b
       INNER JOIN professionals p ON p.id = b.professional_id
       LEFT JOIN professional_services ps ON ps.id = b.service_id
       LEFT JOIN staff_members sm ON sm.id = b.staff_id
-      WHERE b.status IN ('pending', 'created')
+      WHERE b.status IN ('pending', 'created', 'confirmed')
         AND b.client_phone IS NOT NULL
         AND TRIM(b.client_phone) <> ''
         AND b.booking_date IS NOT NULL
@@ -80,14 +68,14 @@ async function loadBookingsNeedingReminder() {
         AND (
           (b.booking_date::date + b.start_time::time)
           BETWEEN
-            (NOW() + INTERVAL '2 hours' - ($1::int * INTERVAL '1 minute'))
+            ((NOW() AT TIME ZONE $3) + INTERVAL '2 hours' - ($1::int * INTERVAL '1 minute'))
           AND
-            (NOW() + INTERVAL '2 hours' + ($2::int * INTERVAL '1 minute'))
+            ((NOW() AT TIME ZONE $3) + INTERVAL '2 hours' + ($2::int * INTERVAL '1 minute'))
         )
       ORDER BY b.booking_date ASC, b.start_time ASC, b.id ASC
       LIMIT 25
     `,
-    [LOOKBEHIND_MINUTES, LOOKAHEAD_MINUTES]
+    [LOOKBEHIND_MINUTES, LOOKAHEAD_MINUTES, LOCAL_TIMEZONE]
   );
 
   return result.rows;
@@ -134,12 +122,6 @@ async function markReminderError(bookingId, error) {
 }
 
 async function sendReminderForBooking(booking) {
-  const bookingDateTime = getBookingDateTime(booking);
-
-  if (!bookingDateTime) {
-    throw new Error("Reserva sin fecha u hora válida");
-  }
-
   await markReminderAttempt(booking.id);
 
   const professional = {
@@ -170,12 +152,8 @@ async function sendReminderForBooking(booking) {
   };
 
   const sender = sendBookingReminderConfirmationMessage || sendReminder;
-
   await sender(payloadBooking, professional);
-
   await markReminderSent(booking.id);
-
-  return true;
 }
 
 async function runBookingReminderWorkerOnce() {
@@ -199,24 +177,22 @@ async function runBookingReminderWorkerOnce() {
       }
     }
 
-    if (sent || failed) {
-      console.log(`Reminder worker: sent=${sent}, failed=${failed}`);
+    if (sent || failed || process.env.REMINDER_DEBUG === "1") {
+      console.log(`Reminder worker ${LOCAL_TIMEZONE}: checked=${bookings.length}, sent=${sent}, failed=${failed}`);
     }
 
-    return { sent, failed, checked: bookings.length };
+    return { checked: bookings.length, sent, failed, timezone: LOCAL_TIMEZONE };
   } finally {
     reminderWorkerRunning = false;
   }
 }
 
 function startBookingReminderWorker() {
-  if (reminderWorkerStarted) {
-    return;
-  }
+  if (reminderWorkerStarted) return;
 
   reminderWorkerStarted = true;
 
-  console.log("Booking reminder worker started");
+  console.log(`Booking reminder worker started (${LOCAL_TIMEZONE})`);
 
   runBookingReminderWorkerOnce().catch((error) => {
     console.warn("Initial reminder worker run failed:", error.message);
@@ -228,13 +204,12 @@ function startBookingReminderWorker() {
     });
   }, WORKER_INTERVAL_MS);
 
-  if (reminderWorkerTimer.unref) {
-    reminderWorkerTimer.unref();
-  }
+  if (reminderWorkerTimer.unref) reminderWorkerTimer.unref();
 }
 
 module.exports = {
   startBookingReminderWorker,
   runBookingReminderWorkerOnce,
   ensureReminderSchema,
+  loadBookingsNeedingReminder,
 };

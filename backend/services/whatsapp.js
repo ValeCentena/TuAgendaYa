@@ -334,7 +334,9 @@ async function sendBookingConfirmationInteractive(booking = {}, professional = {
     : `cancel_booking_id:${bookingId}`;
 
   const bodyText = [
-    `Hola ${clientName}, recibimos tu reserva en ${businessName}.`,
+    booking?.reminder
+      ? `Hola ${clientName}, te recordamos tu reserva en ${businessName}.`
+      : `Hola ${clientName}, recibimos tu reserva en ${businessName}.`,
     "",
     `Servicio: ${serviceName}`,
     staffName ? `Profesional: ${staffName}` : "",
@@ -490,19 +492,10 @@ async function sendBookingReminderConfirmationMessage(booking = {}, professional
     "";
 
   if (templateName) {
-    return sendBookingConfirmationTemplate(
-      booking,
-      professional
-    );
+    return sendBookingConfirmationTemplate(booking, professional);
   }
 
-  return sendBookingConfirmationInteractive(
-    {
-      ...booking,
-      reminder: true,
-    },
-    professional
-  );
+  return sendBookingConfirmationInteractive({ ...booking, reminder: true }, professional);
 }
 
 async function sendReminder(booking = {}, professional = {}) {
