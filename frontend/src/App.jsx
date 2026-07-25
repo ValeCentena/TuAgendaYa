@@ -2088,6 +2088,36 @@ function ReservationsSection() {
     }
   };
 
+
+  const handleMarkAsPaid = async (booking) => {
+    const token = localStorage.getItem('tuagendaya_token');
+    const amount = Number(booking.servicePrice ?? booking.service_price ?? booking.price ?? 0) || 0;
+    const method = getBookingPaymentMethod(booking);
+
+    setActionLoading(`${booking.id}-payment`);
+
+    try {
+      await fetch(`${API_BASE}/bookings/${booking.id}/payment`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          paymentStatus: 'paid',
+          paymentMethod: method,
+          amountPaid: amount,
+        }),
+      });
+
+      await fetchBookings(false);
+    } catch {
+      // no-op
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const statusColor = { pending: '#ff9f0a', confirmed: '#30d158', completed: '#5e5ce6', cancelled: '#ff453a' };
   const statusLabel = { pending: 'Pendiente', confirmed: 'Confirmada', completed: 'Completada', cancelled: 'Cancelada' };
   const statusBg = { pending: '#fff8ee', confirmed: '#edfff3', completed: '#f1f0ff', cancelled: '#fff2f2' };
@@ -3226,6 +3256,27 @@ function ReservationsSection() {
                             style={{ ...inputStyle, borderRadius: 13, padding: '10px 11px', fontSize: 13 }}
                           />
                         </label>
+
+                        <button
+                          type="button"
+                          onClick={() => handleMarkAsPaid(b)}
+                          disabled={actionLoading === `${b.id}-payment`}
+                          style={{
+                            border: 'none',
+                            borderRadius: 13,
+                            padding: '11px 13px',
+                            background: '#30d158',
+                            color: '#fff',
+                            fontSize: 13,
+                            fontWeight: 900,
+                            fontFamily: 'inherit',
+                            cursor: 'pointer',
+                            opacity: actionLoading === `${b.id}-payment` ? 0.65 : 1,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          Cobrado
+                        </button>
 
                         <button
                           type="button"

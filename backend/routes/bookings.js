@@ -165,6 +165,72 @@ async function ensurePaymentColumns() {
   );
 }
 
+
+function normalizePaymentMethodForBooking(value) {
+  const clean = String(value || "cash").trim();
+  return ["cash", "transfer", "card", "other"].includes(clean) ? clean : "cash";
+}
+
+function getServicePriceForAutoPayment(service) {
+  const amount = Number(service?.price ?? 0);
+  return Number.isFinite(amount) && amount > 0 ? amount : 0;
+}
+
+async function markBookingAutomaticallyPaid(whereSql, values) {
+  await ensurePaymentColumns();
+
+  const result = await db.query(
+    `
+      UPDATE bookings b
+      SET
+        status = 'confirmed',
+        client_confirmed_at = NOW(),
+        client_cancelled_at = NULL,
+        payment_status = 'paid',
+        payment_method = COALESCE(NULLIF(b.payment_method, ''), 'cash'),
+        amount_paid = CASE
+          WHEN COALESCE(b.amount_paid, 0) > 0 THEN b.amount_paid
+          ELSE COALESCE((
+            SELECT ps.price
+            FROM professional_services ps
+            WHERE ps.id = b.service_id
+            LIMIT 1
+          ), 0)
+        END,
+        payment_updated_at = NOW(),
+        updated_at = NOW()
+      WHERE ${whereSql}
+      RETURNING *
+    `,
+    values
+  );
+
+  return result;
+}
+
+async function markBookingAutomaticallyCancelled(whereSql, values) {
+  await ensurePaymentColumns();
+
+  const result = await db.query(
+    `
+      UPDATE bookings b
+      SET
+        status = 'cancelled',
+        client_cancelled_at = NOW(),
+        client_confirmed_at = NULL,
+        payment_status = 'cancelled',
+        amount_paid = 0,
+        payment_updated_at = NOW(),
+        updated_at = NOW()
+      WHERE ${whereSql}
+      RETURNING *
+    `,
+    values
+  );
+
+  return result;
+}
+
 async function ensureCancellationSettingsColumns() {
   await db.query(
     `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS allow_client_cancellations INTEGER DEFAULT 1;`
@@ -1470,6 +1536,8 @@ router.get("/public/:slug/slots", async (req, res) => {
 
 router.post("/public/:slug/book", async (req, res) => {
   try {
+    await ensurePaymentColumns();
+
     const { slug } = req.params;
 
     const {
@@ -1483,6 +1551,8 @@ router.post("/public/:slug/book", async (req, res) => {
       service_id,
       staffId,
       staff_id,
+      paymentMethod,
+      payment_method,
     } = req.body;
 
     if (!clientName || !clientPhone) {
@@ -1565,6 +1635,7 @@ router.post("/public/:slug/book", async (req, res) => {
     }
 
     const confirmationToken = createConfirmationToken();
+    const finalPaymentMethod = normalizePaymentMethodForBooking(paymentMethod ?? payment_method);
 
     const result = await db.query(
       `
@@ -1580,10 +1651,13 @@ router.post("/public/:slug/book", async (req, res) => {
         end_time,
         status,
         confirmation_token,
+        payment_status,
+        payment_method,
+        amount_paid,
         created_at,
         updated_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', $10, NOW(), NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', $10, 'pending', $11, 0, NOW(), NOW())
       RETURNING *
       `,
       [
@@ -1597,6 +1671,7 @@ router.post("/public/:slug/book", async (req, res) => {
         normalizeTime(startTime),
         normalizeTime(finalEndTime),
         confirmationToken,
+        finalPaymentMethod,
       ]
     );
 
@@ -1773,17 +1848,8 @@ router.patch("/public/confirmation/:token/confirm", async (req, res) => {
   try {
     const { token } = req.params;
 
-    const result = await db.query(
-      `
-      UPDATE bookings
-      SET
-        status = 'confirmed',
-        client_confirmed_at = NOW(),
-        client_cancelled_at = NULL,
-        updated_at = NOW()
-      WHERE confirmation_token = $1
-      RETURNING *
-      `,
+    const result = await markBookingAutomaticallyPaid(
+      "b.confirmation_token = $1",
       [token]
     );
 
@@ -1853,16 +1919,8 @@ router.patch("/public/confirmation/:token/cancel", async (req, res) => {
       });
     }
 
-    const result = await db.query(
-      `
-      UPDATE bookings
-      SET
-        status = 'cancelled',
-        client_cancelled_at = NOW(),
-        updated_at = NOW()
-      WHERE confirmation_token = $1
-      RETURNING *
-      `,
+    const result = await markBookingAutomaticallyCancelled(
+      "b.confirmation_token = $1",
       [token]
     );
 
@@ -2060,6 +2118,25 @@ router.patch("/:id/payment", async (req, res) => {
           error: "Monto cobrado inválido",
         });
       }
+    }
+
+    if (paymentStatus === "paid" && (amountPaid === null || amountPaid === undefined)) {
+      const priceResult = await db.query(
+        `
+          SELECT COALESCE(ps.price, 0) AS price
+          FROM bookings b
+          LEFT JOIN professional_services ps ON ps.id = b.service_id
+          WHERE b.id = $1 AND b.professional_id = $2
+          LIMIT 1
+        `,
+        [bookingId, professionalId]
+      );
+
+      amountPaid = getServicePriceForAutoPayment(priceResult.rows[0]);
+    }
+
+    if (paymentStatus === "cancelled") {
+      amountPaid = 0;
     }
 
     const result = await db.query(

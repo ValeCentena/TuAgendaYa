@@ -3,6 +3,39 @@ const db = require("../db");
 
 const router = express.Router();
 
+
+async function ensurePaymentColumns() {
+  await db.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_status TEXT DEFAULT 'pending';`);
+  await db.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_method TEXT DEFAULT 'cash';`);
+  await db.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS amount_paid NUMERIC(10, 2);`);
+  await db.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_updated_at TIMESTAMP;`);
+}
+
+function getAutomaticPaymentSetClause(nextStatus) {
+  if (nextStatus === "confirmed") {
+    return `
+      payment_status = 'paid',
+      payment_method = COALESCE(NULLIF(payment_method, ''), 'cash'),
+      amount_paid = CASE
+        WHEN COALESCE(amount_paid, 0) > 0 THEN amount_paid
+        ELSE COALESCE((
+          SELECT ps.price
+          FROM professional_services ps
+          WHERE ps.id = bookings.service_id
+          LIMIT 1
+        ), 0)
+      END,
+      payment_updated_at = NOW(),
+    `;
+  }
+
+  return `
+    payment_status = 'cancelled',
+    amount_paid = 0,
+    payment_updated_at = NOW(),
+  `;
+}
+
 function getButtonPayload(message) {
   if (!message) return "";
 
@@ -156,7 +189,7 @@ async function findLatestPendingBookingByPhone(phone) {
     `
       SELECT *
       FROM bookings
-      WHERE status IN ('pending', 'created')
+      WHERE status IN ('pending', 'created', 'confirmed')
         AND client_phone IS NOT NULL
         AND RIGHT(REGEXP_REPLACE(client_phone, '\\D', '', 'g'), 8) = $1
         AND booking_date >= CURRENT_DATE - INTERVAL '2 days'
@@ -172,7 +205,10 @@ async function findLatestPendingBookingByPhone(phone) {
 async function updateBookingFromWhatsApp(action, token, id, phone = null) {
   if (!action) return null;
 
+  await ensurePaymentColumns();
+
   const nextStatus = action === "confirm" ? "confirmed" : "cancelled";
+  const automaticPaymentSetClause = getAutomaticPaymentSetClause(nextStatus);
 
   if (token) {
     const result = await db.query(
@@ -188,6 +224,7 @@ async function updateBookingFromWhatsApp(action, token, id, phone = null) {
           WHEN $2 = 'cancelled' THEN NOW()
           ELSE client_cancelled_at
         END,
+        ${automaticPaymentSetClause}
         updated_at = NOW()
       WHERE confirmation_token = $1
       RETURNING *
@@ -212,6 +249,7 @@ async function updateBookingFromWhatsApp(action, token, id, phone = null) {
           WHEN $2 = 'cancelled' THEN NOW()
           ELSE client_cancelled_at
         END,
+        ${automaticPaymentSetClause}
         updated_at = NOW()
       WHERE id = $1
       RETURNING *
