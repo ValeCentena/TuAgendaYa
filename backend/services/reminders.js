@@ -9,9 +9,13 @@ let reminderWorkerTimer = null;
 let reminderWorkerRunning = false;
 
 const WORKER_INTERVAL_MS = Number(process.env.REMINDER_WORKER_INTERVAL_MS || 60_000);
-const LOOKAHEAD_MINUTES = Number(process.env.REMINDER_LOOKAHEAD_MINUTES || 125);
-const LOOKBEHIND_MINUTES = Number(process.env.REMINDER_LOOKBEHIND_MINUTES || 20);
+const LOOKAHEAD_MINUTES = Number(process.env.REMINDER_LOOKAHEAD_MINUTES || 5);
+const LOOKBEHIND_MINUTES = Number(process.env.REMINDER_LOOKBEHIND_MINUTES || 10);
 const LOCAL_TIMEZONE = process.env.REMINDER_TIMEZONE || "America/Montevideo";
+
+// Ventana exacta de recordatorio:
+// turno 16:00 => envía aprox entre 13:50 y 14:05.
+// Esto evita que llegue demasiado temprano.
 
 function normalizeDate(value) {
   return String(value || "").slice(0, 10);
