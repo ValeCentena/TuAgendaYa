@@ -396,7 +396,7 @@ const PAYMENT_STATUS_OPTIONS = [
 const PAYMENT_METHOD_OPTIONS = [
   { value: 'cash', label: 'Efectivo' },
   { value: 'transfer', label: 'Transferencia' },
-  { value: 'card', label: 'Tarjeta' },
+  { value: 'online', label: 'Pago online' },
   { value: 'other', label: 'Otro' },
 ];
 
@@ -409,7 +409,7 @@ const paymentStatusLabel = {
 const paymentMethodLabel = {
   cash: 'Efectivo',
   transfer: 'Transferencia',
-  card: 'Débito / POS',
+  online: 'Pago online',
   other: 'Otro',
 };
 
@@ -456,13 +456,14 @@ const PAYMENT_METHODS_STORAGE_KEY = 'tuagendaya_accepted_payment_methods';
 const PAYMENT_METHODS_UPDATED_EVENT = 'tuagendaya:payment-methods-updated';
 
 function normalizeAcceptedPaymentMethodsList(value) {
-  const allowed = ['cash', 'transfer', 'card', 'other'];
+  const allowed = ['cash', 'transfer', 'online', 'other'];
   const raw = Array.isArray(value)
     ? value
     : String(value || '').split(',');
 
   const clean = raw
     .map((method) => String(method || '').trim())
+    .map((method) => (method === 'card' ? 'online' : method))
     .filter((method) => allowed.includes(method));
 
   return clean.length > 0 ? clean : ['cash'];
@@ -519,7 +520,7 @@ function getConfiguredPaymentMethodsForCash() {
 
     return normalizeAcceptedPaymentMethodsList(raw);
   } catch {
-    return ['cash', 'transfer', 'card'];
+    return ['cash', 'transfer', 'online'];
   }
 }
 
@@ -957,7 +958,7 @@ function UnifiedLoginPage() {
 
   const loginAsAdmin = async () => {
     const response = await fetch(`${API_BASE}/admin/login`, {
-      method: 'POST',
+      method: 'Pago onlineT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: email.trim(), password }),
     });
@@ -978,7 +979,7 @@ function UnifiedLoginPage() {
 
   const loginAsProfessional = async () => {
     const response = await fetch(`${API_BASE}/auth/login`, {
-      method: 'POST',
+      method: 'Pago onlineT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: email.trim(), password }),
     });
@@ -1107,7 +1108,7 @@ function LoginForm({ onLogin }) {
 
     try {
       const res = await fetch(`${API_BASE}/auth/login`, {
-        method: 'POST',
+        method: 'Pago onlineT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
@@ -1304,7 +1305,7 @@ function RegisterPage() {
 
     try {
       const res = await fetch(`${API_BASE}/auth/register`, {
-        method: 'POST',
+        method: 'Pago onlineT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: form.name.trim(),
@@ -2263,7 +2264,7 @@ useEffect(() => {
       });
 
       const saveResponse = await fetch(`${API_BASE}/bookings/push/subscribe`, {
-        method: 'POST',
+        method: 'Pago onlineT',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -4006,7 +4007,7 @@ function CashSection() {
 
     try {
       const response = await fetch(`${API_BASE}/bookings/cash-closures`, {
-        method: 'POST',
+        method: 'Pago onlineT',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
@@ -4108,7 +4109,7 @@ function CashSection() {
   const expectedByMethod = {
     cash: byMethod.find((method) => method.value === 'cash')?.total || 0,
     transfer: byMethod.find((method) => method.value === 'transfer')?.total || 0,
-    card: byMethod.find((method) => method.value === 'card')?.total || 0,
+    card: byMethod.find((method) => method.value === 'online')?.total || 0,
     other: byMethod.find((method) => method.value === 'other')?.total || 0,
   };
 
@@ -4157,7 +4158,7 @@ function CashSection() {
     {
       label: 'Arqueo cargado',
       done: countedTotal > 0,
-      detail: countedTotal > 0 ? `Contado ${formatMoney(countedTotal)}` : 'Ingresá efectivo, transferencia y POS',
+      detail: countedTotal > 0 ? `Contado ${formatMoney(countedTotal)}` : 'Ingresá efectivo, transferencia y Pago online',
     },
     {
       label: 'Caja cuadrada',
@@ -4203,7 +4204,7 @@ function CashSection() {
       'Por cobrar',
       'Efectivo',
       'Transferencia',
-      'Débito / POS',
+      'Pago online',
       'Otro',
     ];
 
@@ -4288,7 +4289,7 @@ function CashSection() {
         <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Citas</div><div style={{ fontSize: 13, fontWeight: 950 }}>{summary.bookings}</div></div>
         <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Efectivo</div><div style={{ fontSize: 13, fontWeight: 950 }}>{formatMoney(summary.cash)}</div></div>
         <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Transfer.</div><div style={{ fontSize: 13, fontWeight: 950 }}>{formatMoney(summary.transfer)}</div></div>
-        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Débito / POS</div><div style={{ fontSize: 13, fontWeight: 950 }}>{formatMoney(summary.card)}</div></div>
+        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Pago online</div><div style={{ fontSize: 13, fontWeight: 950 }}>{formatMoney(summary.card)}</div></div>
       </div>
     </div>
   );
@@ -4379,8 +4380,8 @@ function CashSection() {
             const item = {
               key: method.value,
               label: method.label,
-              value: method.value === 'cash' ? cashCount : method.value === 'transfer' ? transferCount : method.value === 'card' ? cardCount : otherCount,
-              setter: method.value === 'cash' ? setCashCount : method.value === 'transfer' ? setTransferCount : method.value === 'card' ? setCardCount : setOtherCount,
+              value: method.value === 'cash' ? cashCount : method.value === 'transfer' ? transferCount : method.value === 'online' ? cardCount : otherCount,
+              setter: method.value === 'cash' ? setCashCount : method.value === 'transfer' ? setTransferCount : method.value === 'online' ? setCardCount : setOtherCount,
             };
 
             return (
@@ -4749,7 +4750,7 @@ function CashSection() {
           {[
             { key: 'cash', label: 'Efectivo', value: cashCount, setter: setCashCount },
             { key: 'transfer', label: 'Transferencia', value: transferCount, setter: setTransferCount },
-            { key: 'card', label: 'Débito / POS', value: cardCount, setter: setCardCount },
+            { key: 'online', label: 'Pago online', value: cardCount, setter: setCardCount },
             { key: 'other', label: 'Otro', value: otherCount, setter: setOtherCount },
           ].map((item) => (
             <div key={item.key} style={{ background: '#fbfbfd', border: '0.5px solid #ececf2', borderRadius: 16, padding: 12 }}>
@@ -5889,7 +5890,7 @@ function AvailabilitySection() {
 
     try {
       const response = await fetch(`${API_BASE}/bookings/blocks`, {
-        method: 'POST',
+        method: 'Pago onlineT',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -5938,7 +5939,7 @@ function AvailabilitySection() {
 
     try {
       const response = await fetch(`${API_BASE}/bookings/blocks/range`, {
-        method: 'POST',
+        method: 'Pago onlineT',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -6302,7 +6303,7 @@ function StaffSection() {
 
     try {
       const res = await fetch(`${API_BASE}/staff`, {
-        method: 'POST',
+        method: 'Pago onlineT',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -6772,7 +6773,7 @@ function ServicesSection() {
 
     try {
       const res = await fetch(`${API_BASE}/professionals/me/services`, {
-        method: 'POST',
+        method: 'Pago onlineT',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -7567,7 +7568,7 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
 
     try {
       const response = await fetch(`${API_BASE}/payments/sync-mercadopago-return`, {
-        method: 'POST',
+        method: 'Pago onlineT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ paymentId }),
       });
@@ -7820,7 +7821,7 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
 
     try {
       const response = await fetch(`${API_BASE}/payments/me/checkout`, {
-        method: 'POST',
+        method: 'Pago onlineT',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -7859,7 +7860,7 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
 
     try {
       const response = await fetch(`${API_BASE}/payments/me/transfer-notify`, {
-        method: 'POST',
+        method: 'Pago onlineT',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -8433,13 +8434,13 @@ function ProfessionalSettingsSection() {
     reminderHoursBefore: 2,
     allowClientCancellations: true,
     cancellationLimitMinutes: 0,
-    acceptedPaymentMethods: ['cash', 'transfer', 'card'],
+    acceptedPaymentMethods: ['cash', 'transfer', 'online'],
   });
 
   const paymentOptions = [
     { value: 'cash', label: 'Efectivo' },
     { value: 'transfer', label: 'Transferencia' },
-    { value: 'card', label: 'Débito / POS' },
+    { value: 'online', label: 'Pago online' },
   ];
 
   const loadSettings = useCallback(() => {
@@ -8459,7 +8460,7 @@ function ProfessionalSettingsSection() {
 
         const next = data.settings || data || {};
         const acceptedMethods = normalizeAcceptedPaymentMethodsList(
-          next.acceptedPaymentMethods ?? next.accepted_payment_methods ?? ['cash', 'transfer', 'card']
+          next.acceptedPaymentMethods ?? next.accepted_payment_methods ?? ['cash', 'transfer', 'online']
         );
 
         saveConfiguredPaymentMethodsForCash(acceptedMethods);
@@ -8649,7 +8650,7 @@ function ProfessionalSettingsSection() {
 
         <div className="settings-card" style={sectionStyle}>
           <div style={sectionHeaderStyle}>Pagos</div>
-          <div style={sectionTextStyle}>Métodos que verá el cliente al reservar y que se usan en caja.</div>
+          <div style={sectionTextStyle}>Métodos que verá el cliente al reservar y que se usan en caja. Pago online real se conecta en el próximo paso.</div>
 
           <div className="settings-payment-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10, marginTop: 12 }}>
             {paymentOptions.map((option) => {
@@ -9877,7 +9878,7 @@ function AdminLoginPage() {
 
     try {
       const response = await fetch(`${API_BASE}/admin/login`, {
-        method: 'POST',
+        method: 'Pago onlineT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
