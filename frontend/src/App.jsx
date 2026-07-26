@@ -1775,6 +1775,235 @@ const setupChecklistStyles = `
 `;
 
 
+
+function BookingTipQuickEditor({ booking, token, onUpdated }) {
+  const [tipAmount, setTipAmount] = useState(getBookingTipAmount(booking));
+  const [tipMethod, setTipMethod] = useState(getBookingTipMethod(booking));
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    setTipAmount(getBookingTipAmount(booking));
+    setTipMethod(getBookingTipMethod(booking));
+  }, [booking?.id, booking?.tipAmount, booking?.tip_amount, booking?.tipMethod, booking?.tip_method]);
+
+  const paymentStatus = getBookingPaymentStatus(booking);
+  const paymentMethod = getBookingPaymentMethod(booking);
+  const amountPaid = Number(getBookingAmountPaid(booking) || booking?.servicePrice || booking?.service_price || 0) || 0;
+
+  const quickAddTip = (value) => {
+    const current = Number(tipAmount || 0) || 0;
+    setTipAmount(String(current + value));
+  };
+
+  const saveTip = async () => {
+    if (!booking?.id || !token) return;
+
+    setSaving(true);
+    setMessage('');
+
+    try {
+      const response = await fetch(`${API_BASE}/bookings/${booking.id}/payment`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          paymentStatus,
+          paymentMethod,
+          amountPaid,
+          tipAmount: Number(tipAmount || 0) || 0,
+          tipMethod,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || 'No se pudo guardar la propina');
+      }
+
+      setMessage('Propina guardada');
+      onUpdated?.(data.booking);
+      window.dispatchEvent(new Event('tuagendaya:bookings-updated'));
+    } catch (error) {
+      setMessage(error.message || 'No se pudo guardar la propina');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="tip-editor-card">
+      <div className="tip-editor-header">
+        <div>
+          <strong>Propina</strong>
+          <span>Se suma aparte del servicio.</span>
+        </div>
+        <strong className="tip-editor-total">{formatMoney(Number(tipAmount || 0) || 0)}</strong>
+      </div>
+
+      <div className="tip-quick-row">
+        {[50, 100, 200].map((value) => (
+          <button key={value} type="button" onClick={() => quickAddTip(value)}>
+            +{value}
+          </button>
+        ))}
+        <button type="button" onClick={() => setTipAmount('0')}>
+          Sin propina
+        </button>
+      </div>
+
+      <div className="tip-form-grid">
+        <label>
+          <span>Monto</span>
+          <input
+            value={tipAmount}
+            onChange={(event) => setTipAmount(event.target.value.replace(/[^\d.]/g, ''))}
+            inputMode="decimal"
+            placeholder="0"
+          />
+        </label>
+
+        <label>
+          <span>Método</span>
+          <select value={tipMethod} onChange={(event) => setTipMethod(event.target.value)}>
+            {PAYMENT_METHOD_OPTIONS.map((method) => (
+              <option key={method.value} value={method.value}>
+                {method.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <button className="tip-save-button" type="button" onClick={saveTip} disabled={saving}>
+        {saving ? 'Guardando...' : 'Guardar propina'}
+      </button>
+
+      {message && <div className="tip-save-message">{message}</div>}
+    </div>
+  );
+}
+
+const tipEditorStyles = `
+  .tip-editor-card {
+    margin-top: 10px;
+    padding: 13px;
+    border-radius: 18px;
+    background: #f7f7fb;
+    border: 0.5px solid #e5e5ea;
+  }
+
+  .tip-editor-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .tip-editor-header strong {
+    display: block;
+    font-size: 14px;
+    color: #1a1a1a;
+    font-weight: 950;
+  }
+
+  .tip-editor-header span {
+    display: block;
+    margin-top: 2px;
+    font-size: 11.5px;
+    color: #8e8e93;
+    font-weight: 750;
+  }
+
+  .tip-editor-total {
+    color: #16a34a !important;
+    white-space: nowrap;
+  }
+
+  .tip-quick-row {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 7px;
+    margin-bottom: 9px;
+  }
+
+  .tip-quick-row button,
+  .tip-save-button {
+    border: none;
+    border-radius: 13px;
+    min-height: 38px;
+    font-family: inherit;
+    font-weight: 900;
+    cursor: pointer;
+  }
+
+  .tip-quick-row button {
+    background: #eef6ff;
+    color: #0071e3;
+  }
+
+  .tip-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .tip-form-grid label span {
+    display: block;
+    font-size: 11px;
+    color: #8e8e93;
+    margin-bottom: 4px;
+    font-weight: 850;
+  }
+
+  .tip-form-grid input,
+  .tip-form-grid select {
+    width: 100%;
+    min-height: 40px;
+    border: 0.5px solid #d8d8de;
+    border-radius: 13px;
+    padding: 8px 10px;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 800;
+    box-sizing: border-box;
+    background: #fff;
+  }
+
+  .tip-save-button {
+    width: 100%;
+    margin-top: 9px;
+    background: #0071e3;
+    color: #fff;
+  }
+
+  .tip-save-button:disabled {
+    opacity: 0.65;
+  }
+
+  .tip-save-message {
+    margin-top: 7px;
+    font-size: 12px;
+    color: #16a34a;
+    font-weight: 850;
+  }
+
+  @media (max-width: 760px) {
+    .tip-quick-row {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .tip-form-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+`;
+
+
 function ReservationsSection() {
   const [bookings, setBookings] = useState([]);
   const [loadingBookings, setLoadingBookings] = useState(true);
@@ -1855,7 +2084,16 @@ function ReservationsSection() {
     }, 6500);
   }, []);
 
-  useEffect(() => {
+  
+  const handleBookingUpdated = (updatedBooking) => {
+    if (!updatedBooking?.id) return;
+
+    setBookings((current) =>
+      current.map((item) => (String(item.id) === String(updatedBooking.id) ? { ...item, ...updatedBooking } : item))
+    );
+  };
+
+useEffect(() => {
     return () => {
       if (notificationTimeoutRef.current) {
         window.clearTimeout(notificationTimeoutRef.current);
@@ -3020,6 +3258,7 @@ function ReservationsSection() {
                 </button>
 
                 {isExpanded && (
+
                   <div style={{ padding: '0 16px 16px 16px' }}>
                     <div
                       className="reservation-detail-grid"
@@ -3047,6 +3286,9 @@ function ReservationsSection() {
                         {(serviceDuration || servicePrice) && (
                           <div style={{ fontSize: 12, color: '#0071e3', fontWeight: 700, marginTop: 4 }}>
                             {serviceDuration ? `${serviceDuration} min` : ''}{serviceDuration && servicePrice ? ' · ' : ''}{servicePrice ? `$${servicePrice}` : ''}
+                        {/* TipQuickEditor render marker */}
+                        <BookingTipQuickEditor booking={booking} token={token} onUpdated={handleBookingUpdated} />
+
                           </div>
                         )}
                       </div>
@@ -9376,6 +9618,7 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
             </button>
           </div>
         </div>
+        <style>{tipEditorStyles}</style>
         <SetupChecklistSection />
 
         <div className="dashboard-tabs" style={{ display: 'flex', gap: 10, marginBottom: 16, overflowX: 'auto' }}>
