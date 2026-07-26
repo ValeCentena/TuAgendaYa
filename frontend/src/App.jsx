@@ -452,6 +452,28 @@ function getBookingTipMethod(booking) {
   return String(booking?.tipMethod ?? booking?.tip_method ?? getBookingPaymentMethod(booking)).trim() || getBookingPaymentMethod(booking);
 }
 
+function getConfiguredPaymentMethodsForCash() {
+  try {
+    const storedProfessional = JSON.parse(localStorage.getItem('tuagendaya_professional') || '{}');
+    const raw =
+      storedProfessional.acceptedPaymentMethods ??
+      storedProfessional.accepted_payment_methods ??
+      storedProfessional.settings?.acceptedPaymentMethods ??
+      storedProfessional.settings?.accepted_payment_methods ??
+      [];
+
+    const methods = Array.isArray(raw)
+      ? raw
+      : String(raw || '').split(',');
+
+    const clean = methods.map((method) => String(method || '').trim()).filter(Boolean);
+    return clean.length > 0 ? clean : ['cash', 'transfer', 'card'];
+  } catch {
+    return ['cash', 'transfer', 'card'];
+  }
+}
+
+
 
 function normalizePhoneForWhatsApp(phone) {
   const onlyNumbers = String(phone || '').replace(/\D/g, '');
@@ -1791,15 +1813,18 @@ function BookingTipQuickEditor({ booking, token, onUpdated }) {
   const paymentMethod = getBookingPaymentMethod(booking);
   const amountPaid = Number(getBookingAmountPaid(booking) || booking?.servicePrice || booking?.service_price || 0) || 0;
 
-  const tipMethodOptions = paymentMethod === 'card'
+  const configuredPaymentMethods = getConfiguredPaymentMethodsForCash();
+  const isCardEnabledInSettings = configuredPaymentMethods.includes('card');
+
+  const tipMethodOptions = paymentMethod === 'card' || isCardEnabledInSettings
     ? PAYMENT_METHOD_OPTIONS
     : PAYMENT_METHOD_OPTIONS.filter((method) => method.value !== 'card');
 
   useEffect(() => {
-    if (paymentMethod !== 'card' && tipMethod === 'card') {
+    if (paymentMethod !== 'card' && !isCardEnabledInSettings && tipMethod === 'card') {
       setTipMethod(paymentMethod || 'cash');
     }
-  }, [paymentMethod, tipMethod]);
+  }, [paymentMethod, tipMethod, isCardEnabledInSettings]);
 
   const quickAddTip = (value) => {
     const current = Number(tipAmount || 0) || 0;
@@ -1888,9 +1913,9 @@ function BookingTipQuickEditor({ booking, token, onUpdated }) {
         </label>
       </div>
 
-      {paymentMethod !== 'card' && (
+      {paymentMethod !== 'card' && !isCardEnabledInSettings && (
         <div className="tip-card-note">
-          Débito / POS se habilita para propina solo cuando la reserva fue confirmada con ese método.
+          Débito / POS se habilita para propina cuando está activo en Configuración &gt; Pagos.
         </div>
       )}
 
@@ -3834,8 +3859,14 @@ function CashSection() {
     return { ...method, total };
   });
 
+  const configuredPaymentMethodsForCash = getConfiguredPaymentMethodsForCash();
+  const isCardEnabledForCash = configuredPaymentMethodsForCash.includes('card');
   const hasCardPaymentForTips = activeBookings.some((booking) => getBookingPaymentMethod(booking) === 'card');
-  const shouldShowTipMethod = (method) => method.value !== 'card' || hasCardPaymentForTips || Number(method.total || 0) > 0;
+  const shouldShowTipMethod = (method) =>
+    method.value !== 'card' ||
+    isCardEnabledForCash ||
+    hasCardPaymentForTips ||
+    Number(method.total || 0) > 0;
 
   const serviceMap = new Map();
   activeBookings.forEach((booking) => {

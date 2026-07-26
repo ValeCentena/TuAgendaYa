@@ -2159,10 +2159,6 @@ router.patch("/:id/payment", async (req, res) => {
       tipMethod = paymentMethod;
     }
 
-    if (paymentMethod !== "card" && tipMethod === "card") {
-      tipMethod = paymentMethod || "cash";
-    }
-
     let amountPaid = null;
     let tipAmount = 0;
 
