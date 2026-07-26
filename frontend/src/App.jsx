@@ -1791,6 +1791,16 @@ function BookingTipQuickEditor({ booking, token, onUpdated }) {
   const paymentMethod = getBookingPaymentMethod(booking);
   const amountPaid = Number(getBookingAmountPaid(booking) || booking?.servicePrice || booking?.service_price || 0) || 0;
 
+  const tipMethodOptions = paymentMethod === 'card'
+    ? PAYMENT_METHOD_OPTIONS
+    : PAYMENT_METHOD_OPTIONS.filter((method) => method.value !== 'card');
+
+  useEffect(() => {
+    if (paymentMethod !== 'card' && tipMethod === 'card') {
+      setTipMethod(paymentMethod || 'cash');
+    }
+  }, [paymentMethod, tipMethod]);
+
   const quickAddTip = (value) => {
     const current = Number(tipAmount || 0) || 0;
     setTipAmount(String(current + value));
@@ -1869,7 +1879,7 @@ function BookingTipQuickEditor({ booking, token, onUpdated }) {
         <label>
           <span>Método</span>
           <select value={tipMethod} onChange={(event) => setTipMethod(event.target.value)}>
-            {PAYMENT_METHOD_OPTIONS.map((method) => (
+            {tipMethodOptions.map((method) => (
               <option key={method.value} value={method.value}>
                 {method.label}
               </option>
@@ -1877,6 +1887,12 @@ function BookingTipQuickEditor({ booking, token, onUpdated }) {
           </select>
         </label>
       </div>
+
+      {paymentMethod !== 'card' && (
+        <div className="tip-card-note">
+          Débito / POS se habilita para propina solo cuando la reserva fue confirmada con ese método.
+        </div>
+      )}
 
       <button className="tip-save-button" type="button" onClick={saveTip} disabled={saving}>
         {saving ? 'Guardando...' : 'Guardar propina'}
@@ -1972,6 +1988,17 @@ const tipEditorStyles = `
     font-weight: 800;
     box-sizing: border-box;
     background: #fff;
+  }
+
+  .tip-card-note {
+    margin-top: 8px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    background: #fff8eb;
+    color: #9a5d00;
+    font-size: 11px;
+    line-height: 1.35;
+    font-weight: 800;
   }
 
   .tip-save-button {
@@ -3807,6 +3834,9 @@ function CashSection() {
     return { ...method, total };
   });
 
+  const hasCardPaymentForTips = activeBookings.some((booking) => getBookingPaymentMethod(booking) === 'card');
+  const shouldShowTipMethod = (method) => method.value !== 'card' || hasCardPaymentForTips || Number(method.total || 0) > 0;
+
   const serviceMap = new Map();
   activeBookings.forEach((booking) => {
     const serviceName = String(booking.serviceName ?? booking.service_name ?? 'Servicio sin nombre').trim() || 'Servicio sin nombre';
@@ -4305,7 +4335,7 @@ function CashSection() {
         <div style={{ marginTop: 4, marginBottom: 12 }}>
           <h3 style={{ margin: '0 0 8px', fontSize: 16, color: '#1a1a1a', fontWeight: 950 }}>Propinas por método</h3>
           <div style={{ display: 'grid', gap: 8 }}>
-            {tipsByMethod.map((method) => (
+            {tipsByMethod.filter(shouldShowTipMethod).map((method) => (
               <div
                 key={`tip-${method.value}`}
                 style={{

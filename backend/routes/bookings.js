@@ -2119,6 +2119,7 @@ router.patch("/:id/cancel", async (req, res) => {
 router.patch("/:id/payment", async (req, res) => {
   try {
     await ensurePaymentColumns();
+    await ensureTipColumns();
 
     const professionalId = getProfessionalIdFromRequest(req);
     const bookingId = Number(req.params.id);
@@ -2139,6 +2140,8 @@ router.patch("/:id/payment", async (req, res) => {
       req.body.paymentMethod ?? req.body.payment_method ?? "cash"
     ).trim();
     const amountValue = req.body.amountPaid ?? req.body.amount_paid;
+    const tipValue = req.body.tipAmount ?? req.body.tip_amount;
+    let tipMethod = String(req.body.tipMethod ?? req.body.tip_method ?? paymentMethod).trim() || paymentMethod;
 
     if (!allowedPaymentStatuses.includes(paymentStatus)) {
       return res.status(400).json({
@@ -2152,7 +2155,16 @@ router.patch("/:id/payment", async (req, res) => {
       });
     }
 
+    if (!allowedPaymentMethods.includes(tipMethod)) {
+      tipMethod = paymentMethod;
+    }
+
+    if (paymentMethod !== "card" && tipMethod === "card") {
+      tipMethod = paymentMethod || "cash";
+    }
+
     let amountPaid = null;
+    let tipAmount = 0;
 
     if (amountValue !== undefined && amountValue !== null && amountValue !== "") {
       amountPaid = Number(amountValue);
@@ -2160,6 +2172,16 @@ router.patch("/:id/payment", async (req, res) => {
       if (Number.isNaN(amountPaid) || amountPaid < 0) {
         return res.status(400).json({
           error: "Monto cobrado inválido",
+        });
+      }
+    }
+
+    if (tipValue !== undefined && tipValue !== null && tipValue !== "") {
+      tipAmount = Number(tipValue);
+
+      if (Number.isNaN(tipAmount) || tipAmount < 0) {
+        return res.status(400).json({
+          error: "Propina inválida",
         });
       }
     }
@@ -2181,6 +2203,8 @@ router.patch("/:id/payment", async (req, res) => {
 
     if (paymentStatus === "cancelled") {
       amountPaid = 0;
+      tipAmount = 0;
+      tipMethod = paymentMethod || "cash";
     }
 
     const result = await db.query(
@@ -2191,11 +2215,14 @@ router.patch("/:id/payment", async (req, res) => {
         payment_method = $2,
         amount_paid = $3,
         payment_updated_at = NOW(),
+        tip_amount = $4,
+        tip_method = $5,
+        tip_updated_at = NOW(),
         updated_at = NOW()
-      WHERE id = $4 AND professional_id = $5
+      WHERE id = $6 AND professional_id = $7
       RETURNING *
       `,
-      [paymentStatus, paymentMethod, amountPaid, bookingId, professionalId]
+      [paymentStatus, paymentMethod, amountPaid, tipAmount, tipMethod, bookingId, professionalId]
     );
 
     if (result.rows.length === 0) {
