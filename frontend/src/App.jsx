@@ -452,7 +452,62 @@ function getBookingTipMethod(booking) {
   return String(booking?.tipMethod ?? booking?.tip_method ?? getBookingPaymentMethod(booking)).trim() || getBookingPaymentMethod(booking);
 }
 
+const PAYMENT_METHODS_STORAGE_KEY = 'tuagendaya_accepted_payment_methods';
+const PAYMENT_METHODS_UPDATED_EVENT = 'tuagendaya:payment-methods-updated';
+
+function normalizeAcceptedPaymentMethodsList(value) {
+  const allowed = ['cash', 'transfer', 'card', 'other'];
+  const raw = Array.isArray(value)
+    ? value
+    : String(value || '').split(',');
+
+  const clean = raw
+    .map((method) => String(method || '').trim())
+    .filter((method) => allowed.includes(method));
+
+  return clean.length > 0 ? clean : ['cash'];
+}
+
+function saveConfiguredPaymentMethodsForCash(methods) {
+  const clean = normalizeAcceptedPaymentMethodsList(methods);
+
+  try {
+    localStorage.setItem(PAYMENT_METHODS_STORAGE_KEY, JSON.stringify(clean));
+
+    const storedProfessional = JSON.parse(localStorage.getItem('tuagendaya_professional') || '{}');
+    const nextProfessional = {
+      ...storedProfessional,
+      acceptedPaymentMethods: clean,
+      accepted_payment_methods: clean,
+      settings: {
+        ...(storedProfessional.settings || {}),
+        acceptedPaymentMethods: clean,
+        accepted_payment_methods: clean,
+      },
+    };
+
+    localStorage.setItem('tuagendaya_professional', JSON.stringify(nextProfessional));
+  } catch {
+    // localStorage puede fallar en modo privado. La app sigue funcionando con estado local.
+  }
+
+  window.dispatchEvent(new CustomEvent(PAYMENT_METHODS_UPDATED_EVENT, { detail: { methods: clean } }));
+  window.dispatchEvent(new Event('tuagendaya:setup-updated'));
+
+  return clean;
+}
+
 function getConfiguredPaymentMethodsForCash() {
+  try {
+    const storedDirect = JSON.parse(localStorage.getItem(PAYMENT_METHODS_STORAGE_KEY) || 'null');
+
+    if (Array.isArray(storedDirect) && storedDirect.length > 0) {
+      return normalizeAcceptedPaymentMethodsList(storedDirect);
+    }
+  } catch {
+    // ignorar y probar con professional
+  }
+
   try {
     const storedProfessional = JSON.parse(localStorage.getItem('tuagendaya_professional') || '{}');
     const raw =
@@ -462,12 +517,7 @@ function getConfiguredPaymentMethodsForCash() {
       storedProfessional.settings?.accepted_payment_methods ??
       [];
 
-    const methods = Array.isArray(raw)
-      ? raw
-      : String(raw || '').split(',');
-
-    const clean = methods.map((method) => String(method || '').trim()).filter(Boolean);
-    return clean.length > 0 ? clean : ['cash', 'transfer', 'card'];
+    return normalizeAcceptedPaymentMethodsList(raw);
   } catch {
     return ['cash', 'transfer', 'card'];
   }
@@ -1814,17 +1864,13 @@ function BookingTipQuickEditor({ booking, token, onUpdated }) {
   const amountPaid = Number(getBookingAmountPaid(booking) || booking?.servicePrice || booking?.service_price || 0) || 0;
 
   const configuredPaymentMethods = getConfiguredPaymentMethodsForCash();
-  const isCardEnabledInSettings = configuredPaymentMethods.includes('card');
-
-  const tipMethodOptions = paymentMethod === 'card' || isCardEnabledInSettings
-    ? PAYMENT_METHOD_OPTIONS
-    : PAYMENT_METHOD_OPTIONS.filter((method) => method.value !== 'card');
+  const tipMethodOptions = PAYMENT_METHOD_OPTIONS.filter((method) => configuredPaymentMethods.includes(method.value));
 
   useEffect(() => {
-    if (paymentMethod !== 'card' && !isCardEnabledInSettings && tipMethod === 'card') {
-      setTipMethod(paymentMethod || 'cash');
+    if (!configuredPaymentMethods.includes(tipMethod)) {
+      setTipMethod(configuredPaymentMethods[0] || 'cash');
     }
-  }, [paymentMethod, tipMethod, isCardEnabledInSettings]);
+  }, [configuredPaymentMethods, tipMethod]);
 
   const quickAddTip = (value) => {
     const current = Number(tipAmount || 0) || 0;
@@ -1912,12 +1958,6 @@ function BookingTipQuickEditor({ booking, token, onUpdated }) {
           </select>
         </label>
       </div>
-
-      {paymentMethod !== 'card' && !isCardEnabledInSettings && (
-        <div className="tip-card-note">
-          Débito / POS se habilita para propina cuando está activo en Configuración &gt; Pagos.
-        </div>
-      )}
 
       <button className="tip-save-button" type="button" onClick={saveTip} disabled={saving}>
         {saving ? 'Guardando...' : 'Guardar propina'}
@@ -3750,6 +3790,7 @@ function CashSection() {
   const [transferCount, setTransferCount] = useState('');
   const [cardCount, setCardCount] = useState('');
   const [otherCount, setOtherCount] = useState('');
+  const [configuredPaymentMethods, setConfiguredPaymentMethods] = useState(getConfiguredPaymentMethodsForCash());
 
   const statusLabel = { pending: 'Pendiente', confirmed: 'Confirmada', completed: 'Completada', cancelled: 'Cancelada' };
 
@@ -3802,11 +3843,27 @@ function CashSection() {
   useEffect(() => {
     fetchBookings(true);
     fetchClosures(true);
+    setConfiguredPaymentMethods(getConfiguredPaymentMethodsForCash());
+
+    const handlePaymentMethodsUpdated = (event) => {
+      const methods = event?.detail?.methods || getConfiguredPaymentMethodsForCash();
+      setConfiguredPaymentMethods(normalizeAcceptedPaymentMethodsList(methods));
+    };
+
+    window.addEventListener(PAYMENT_METHODS_UPDATED_EVENT, handlePaymentMethodsUpdated);
+    window.addEventListener('storage', handlePaymentMethodsUpdated);
+
     const intervalId = window.setInterval(() => {
       fetchBookings(false);
       fetchClosures(false);
+      setConfiguredPaymentMethods(getConfiguredPaymentMethodsForCash());
     }, 5000);
-    return () => window.clearInterval(intervalId);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener(PAYMENT_METHODS_UPDATED_EVENT, handlePaymentMethodsUpdated);
+      window.removeEventListener('storage', handlePaymentMethodsUpdated);
+    };
   }, [fetchBookings, fetchClosures]);
 
   const dayBookings = bookings
@@ -3843,7 +3900,10 @@ function CashSection() {
   const totalCollectedWithTips = totalCollected + totalTips;
   const totalPending = activeBookings.reduce((sum, booking) => sum + Math.max(getServicePrice(booking) - getPaidAmount(booking), 0), 0);
 
-  const byMethod = PAYMENT_METHOD_OPTIONS.map((method) => {
+  const activePaymentMethodValues = normalizeAcceptedPaymentMethodsList(configuredPaymentMethods);
+  const visiblePaymentMethodOptions = PAYMENT_METHOD_OPTIONS.filter((method) => activePaymentMethodValues.includes(method.value));
+
+  const byMethod = visiblePaymentMethodOptions.map((method) => {
     const total = activeBookings
       .filter((booking) => getBookingPaymentMethod(booking) === method.value)
       .reduce((sum, booking) => sum + getPaidAmount(booking), 0);
@@ -3851,7 +3911,7 @@ function CashSection() {
     return { ...method, total };
   });
 
-  const tipsByMethod = PAYMENT_METHOD_OPTIONS.map((method) => {
+  const tipsByMethod = visiblePaymentMethodOptions.map((method) => {
     const total = activeBookings
       .filter((booking) => getTipMethod(booking) === method.value)
       .reduce((sum, booking) => sum + getTipAmount(booking), 0);
@@ -3859,14 +3919,7 @@ function CashSection() {
     return { ...method, total };
   });
 
-  const configuredPaymentMethodsForCash = getConfiguredPaymentMethodsForCash();
-  const isCardEnabledForCash = configuredPaymentMethodsForCash.includes('card');
-  const hasCardPaymentForTips = activeBookings.some((booking) => getBookingPaymentMethod(booking) === 'card');
-  const shouldShowTipMethod = (method) =>
-    method.value !== 'card' ||
-    isCardEnabledForCash ||
-    hasCardPaymentForTips ||
-    Number(method.total || 0) > 0;
+  const shouldShowTipMethod = (method) => activePaymentMethodValues.includes(method.value);
 
   const serviceMap = new Map();
   activeBookings.forEach((booking) => {
@@ -4116,12 +4169,12 @@ function CashSection() {
   const closeReadyCount = dailyCloseChecklist.filter((item) => item.done).length;
   const closeReadyPercent = Math.round((closeReadyCount / dailyCloseChecklist.length) * 100);
 
-  const dailyMethodRows = [
-    { key: 'cash', label: 'Efectivo', expected: expectedByMethod.cash, counted: countedByMethod.cash },
-    { key: 'transfer', label: 'Transferencia', expected: expectedByMethod.transfer, counted: countedByMethod.transfer },
-    { key: 'card', label: 'Débito / POS', expected: expectedByMethod.card, counted: countedByMethod.card },
-    { key: 'other', label: 'Otro', expected: expectedByMethod.other, counted: countedByMethod.other },
-  ];
+  const dailyMethodRows = visiblePaymentMethodOptions.map((method) => ({
+    key: method.value,
+    label: method.label,
+    expected: expectedByMethod[method.value] || 0,
+    counted: countedByMethod[method.value] || 0,
+  }));
 
   const dailyFocusCardStyle = {
     background: '#fff',
@@ -4322,12 +4375,15 @@ function CashSection() {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 9, marginBottom: 12 }}>
-          {[
-            { key: 'cash', label: 'Efectivo', value: cashCount, setter: setCashCount },
-            { key: 'transfer', label: 'Transferencia', value: transferCount, setter: setTransferCount },
-            { key: 'card', label: 'Débito / POS', value: cardCount, setter: setCardCount },
-            { key: 'other', label: 'Otro', value: otherCount, setter: setOtherCount },
-          ].map((item) => (
+          {visiblePaymentMethodOptions.map((method) => {
+            const item = {
+              key: method.value,
+              label: method.label,
+              value: method.value === 'cash' ? cashCount : method.value === 'transfer' ? transferCount : method.value === 'card' ? cardCount : otherCount,
+              setter: method.value === 'cash' ? setCashCount : method.value === 'transfer' ? setTransferCount : method.value === 'card' ? setCardCount : setOtherCount,
+            };
+
+            return (
             <div key={item.key} style={{ background: '#fbfbfd', border: '0.5px solid #ececf2', borderRadius: 17, padding: 11 }}>
               <div style={{ fontSize: 11, color: '#8e8e93', fontWeight: 950, marginBottom: 4 }}>{item.label}</div>
               <input
@@ -4340,7 +4396,8 @@ function CashSection() {
                 style={{ ...inputStyle, borderRadius: 13, padding: '10px 10px', fontSize: 14, marginBottom: 0 }}
               />
             </div>
-          ))}
+            );
+          })}
         </div>
 
         <div style={{ display: 'grid', gap: 7, marginBottom: 12 }}>
@@ -8401,15 +8458,19 @@ function ProfessionalSettingsSection() {
         }
 
         const next = data.settings || data || {};
+        const acceptedMethods = normalizeAcceptedPaymentMethodsList(
+          next.acceptedPaymentMethods ?? next.accepted_payment_methods ?? ['cash', 'transfer', 'card']
+        );
+
+        saveConfiguredPaymentMethodsForCash(acceptedMethods);
+
         setSettings({
           notifyNewBooking: Boolean(next.notifyNewBooking ?? next.notify_new_booking ?? true),
           notifyReminder: Boolean(next.notifyReminder ?? next.notify_reminder ?? true),
           reminderHoursBefore: 2,
           allowClientCancellations: Boolean(next.allowClientCancellations ?? next.allow_client_cancellations ?? true),
           cancellationLimitMinutes: Number(next.cancellationLimitMinutes ?? next.cancellation_limit_minutes ?? 0) || 0,
-          acceptedPaymentMethods: Array.isArray(next.acceptedPaymentMethods)
-            ? next.acceptedPaymentMethods
-            : String(next.accepted_payment_methods || 'cash,transfer,card').split(',').map((item) => item.trim()).filter(Boolean),
+          acceptedPaymentMethods: acceptedMethods,
         });
       })
       .catch((err) => setError(err.message || 'No se pudo cargar la configuración.'))
@@ -8425,7 +8486,9 @@ function ProfessionalSettingsSection() {
       const currentMethods = Array.isArray(current.acceptedPaymentMethods) ? current.acceptedPaymentMethods : [];
       const exists = currentMethods.includes(value);
       const nextMethods = exists ? currentMethods.filter((item) => item !== value) : [...currentMethods, value];
-      return { ...current, acceptedPaymentMethods: nextMethods.length > 0 ? nextMethods : currentMethods };
+      const safeMethods = nextMethods.length > 0 ? nextMethods : currentMethods;
+      saveConfiguredPaymentMethodsForCash(safeMethods);
+      return { ...current, acceptedPaymentMethods: safeMethods };
     });
   };
 
@@ -8454,8 +8517,22 @@ function ProfessionalSettingsSection() {
 
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'No se pudo guardar la configuración.');
-      if (data.settings) setSettings((current) => ({ ...current, ...data.settings, reminderHoursBefore: 2 }));
-      window.dispatchEvent(new Event('tuagendaya:setup-updated'));
+      const savedSettings = data.settings || {};
+      const savedMethods = normalizeAcceptedPaymentMethodsList(
+        savedSettings.acceptedPaymentMethods ??
+        savedSettings.accepted_payment_methods ??
+        settings.acceptedPaymentMethods
+      );
+
+      saveConfiguredPaymentMethodsForCash(savedMethods);
+
+      setSettings((current) => ({
+        ...current,
+        ...savedSettings,
+        acceptedPaymentMethods: savedMethods,
+        reminderHoursBefore: 2,
+      }));
+
       setMessage('Configuración guardada correctamente.');
     } catch (err) {
       setError(err.message || 'No se pudo guardar la configuración.');
