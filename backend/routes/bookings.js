@@ -181,8 +181,7 @@ async function ensureTipColumns() {
 
 function normalizePaymentMethodForBooking(value) {
   const clean = String(value || "cash").trim();
-  const normalized = clean === "card" ? "online" : clean;
-  return ["cash", "transfer", "online", "other"].includes(normalized) ? normalized : "cash";
+  return ["cash", "transfer", "card", "other"].includes(clean) ? clean : "cash";
 }
 
 function getServicePriceForAutoPayment(service) {
@@ -425,7 +424,7 @@ async function ensureCashClosuresTable() {
       total_pending NUMERIC(10, 2) DEFAULT 0,
       cash_total NUMERIC(10, 2) DEFAULT 0,
       transfer_total NUMERIC(10, 2) DEFAULT 0,
-      online_total NUMERIC(10, 2) DEFAULT 0,
+      card_total NUMERIC(10, 2) DEFAULT 0,
       other_total NUMERIC(10, 2) DEFAULT 0,
       services_summary JSONB DEFAULT '[]'::jsonb,
       notes TEXT,
@@ -468,7 +467,7 @@ async function ensureCashClosuresTable() {
     `ALTER TABLE cash_closures ADD COLUMN IF NOT EXISTS transfer_total NUMERIC(10, 2) DEFAULT 0;`
   );
   await db.query(
-    `ALTER TABLE cash_closures ADD COLUMN IF NOT EXISTS online_total NUMERIC(10, 2) DEFAULT 0;`
+    `ALTER TABLE cash_closures ADD COLUMN IF NOT EXISTS card_total NUMERIC(10, 2) DEFAULT 0;`
   );
   await db.query(
     `ALTER TABLE cash_closures ADD COLUMN IF NOT EXISTS other_total NUMERIC(10, 2) DEFAULT 0;`
@@ -523,8 +522,8 @@ function normalizeCashClosure(row) {
     cashTotal: row.cash_total,
     transfer_total: row.transfer_total,
     transferTotal: row.transfer_total,
-    online_total: row.online_total,
-    onlineTotal: row.online_total,
+    card_total: row.card_total,
+    cardTotal: row.card_total,
     other_total: row.other_total,
     otherTotal: row.other_total,
     services_summary: servicesSummary,
@@ -647,11 +646,11 @@ async function calculateCashClosure(professionalId, closureDate) {
     totalPending,
     cashTotal: methodTotal("cash"),
     transferTotal: methodTotal("transfer"),
-    onlineTotal: methodTotal("online"),
+    cardTotal: methodTotal("card"),
     otherTotal: methodTotal("other"),
     cashTips: tipMethodTotal("cash"),
     transferTips: tipMethodTotal("transfer"),
-    onlineTips: tipMethodTotal("online"),
+    cardTips: tipMethodTotal("card"),
     otherTips: tipMethodTotal("other"),
     servicesSummary,
   };
@@ -747,10 +746,10 @@ function normalizePublicService(row) {
 }
 
 function normalizeAcceptedPaymentMethods(value) {
-  const allowed = ['cash', 'transfer', 'online'];
-  const list = Array.isArray(value) ? value : String(value || 'cash,transfer,online').split(',');
+  const allowed = ['cash', 'transfer', 'card'];
+  const list = Array.isArray(value) ? value : String(value || 'cash,transfer,card').split(',');
   const clean = list.map((item) => String(item || '').trim()).filter((item) => allowed.includes(item));
-  return clean.length > 0 ? clean : ['cash', 'transfer', 'online'];
+  return clean.length > 0 ? clean : ['cash', 'transfer', 'card'];
 }
 
 function normalizePublicSettings(row = {}) {
@@ -2132,19 +2131,17 @@ router.patch("/:id/payment", async (req, res) => {
     }
 
     const allowedPaymentStatuses = ["pending", "paid", "deposit", "cancelled"];
-    const allowedPaymentMethods = ["cash", "transfer", "online", "other"];
+    const allowedPaymentMethods = ["cash", "transfer", "card", "other"];
 
     const paymentStatus = String(
       req.body.paymentStatus ?? req.body.payment_status ?? "pending"
     ).trim();
-    const rawPaymentMethod = String(
+    const paymentMethod = String(
       req.body.paymentMethod ?? req.body.payment_method ?? "cash"
     ).trim();
-    const paymentMethod = rawPaymentMethod === "card" ? "online" : rawPaymentMethod;
     const amountValue = req.body.amountPaid ?? req.body.amount_paid;
     const tipValue = req.body.tipAmount ?? req.body.tip_amount;
     let tipMethod = String(req.body.tipMethod ?? req.body.tip_method ?? paymentMethod).trim() || paymentMethod;
-    if (tipMethod === "card") tipMethod = "online";
 
     if (!allowedPaymentStatuses.includes(paymentStatus)) {
       return res.status(400).json({
@@ -2315,7 +2312,7 @@ router.post("/cash-closures", async (req, res) => {
         total_pending,
         cash_total,
         transfer_total,
-        online_total,
+        card_total,
         other_total,
         services_summary,
         notes,
@@ -2334,7 +2331,7 @@ router.post("/cash-closures", async (req, res) => {
         total_pending = EXCLUDED.total_pending,
         cash_total = EXCLUDED.cash_total,
         transfer_total = EXCLUDED.transfer_total,
-        online_total = EXCLUDED.online_total,
+        card_total = EXCLUDED.card_total,
         other_total = EXCLUDED.other_total,
         services_summary = EXCLUDED.services_summary,
         notes = COALESCE(EXCLUDED.notes, cash_closures.notes),
@@ -2353,7 +2350,7 @@ router.post("/cash-closures", async (req, res) => {
         summary.totalPending,
         summary.cashTotal,
         summary.transferTotal,
-        summary.onlineTotal,
+        summary.cardTotal,
         summary.otherTotal,
         JSON.stringify(summary.servicesSummary),
         notes,
