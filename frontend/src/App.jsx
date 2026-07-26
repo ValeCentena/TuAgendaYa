@@ -3776,14 +3776,33 @@ function CashSection() {
     return Number.isNaN(value) ? 0 : value;
   };
 
+  const getTipAmount = (booking) => {
+    const value = Number(booking.tipAmount ?? booking.tip_amount ?? 0);
+    return Number.isNaN(value) ? 0 : value;
+  };
+
+  const getTipMethod = (booking) => (
+    String(booking.tipMethod ?? booking.tip_method ?? getBookingPaymentMethod(booking)).trim() || getBookingPaymentMethod(booking)
+  );
+
   const totalGenerated = activeBookings.reduce((sum, booking) => sum + getServicePrice(booking), 0);
   const totalCollected = activeBookings.reduce((sum, booking) => sum + getPaidAmount(booking), 0);
+  const totalTips = activeBookings.reduce((sum, booking) => sum + getTipAmount(booking), 0);
+  const totalCollectedWithTips = totalCollected + totalTips;
   const totalPending = activeBookings.reduce((sum, booking) => sum + Math.max(getServicePrice(booking) - getPaidAmount(booking), 0), 0);
 
   const byMethod = PAYMENT_METHOD_OPTIONS.map((method) => {
     const total = activeBookings
       .filter((booking) => getBookingPaymentMethod(booking) === method.value)
       .reduce((sum, booking) => sum + getPaidAmount(booking), 0);
+
+    return { ...method, total };
+  });
+
+  const tipsByMethod = PAYMENT_METHOD_OPTIONS.map((method) => {
+    const total = activeBookings
+      .filter((booking) => getTipMethod(booking) === method.value)
+      .reduce((sum, booking) => sum + getTipAmount(booking), 0);
 
     return { ...method, total };
   });
@@ -4176,18 +4195,22 @@ function CashSection() {
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 9, marginBottom: 10 }}>
+        <div className="cash-mobile-main-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 9, marginBottom: 10 }}>
           <div style={dailyMiniMetricStyle('#ecfff3')}>
-            <div style={{ fontSize: 10.5, color: '#188038', fontWeight: 950, marginBottom: 4 }}>COBRADO</div>
+            <div style={{ fontSize: 10.5, color: '#188038', fontWeight: 950, marginBottom: 4 }}>SERVICIOS</div>
             <div style={{ fontSize: 20, color: '#188038', fontWeight: 950 }}>{formatMoney(totalCollected)}</div>
+          </div>
+          <div style={dailyMiniMetricStyle('#eef6ff')}>
+            <div style={{ fontSize: 10.5, color: '#0071e3', fontWeight: 950, marginBottom: 4 }}>PROPINAS</div>
+            <div style={{ fontSize: 20, color: '#0071e3', fontWeight: 950 }}>{formatMoney(totalTips)}</div>
+          </div>
+          <div style={dailyMiniMetricStyle('#edfff3')}>
+            <div style={{ fontSize: 10.5, color: '#188038', fontWeight: 950, marginBottom: 4 }}>TOTAL INGRESADO</div>
+            <div style={{ fontSize: 20, color: '#188038', fontWeight: 950 }}>{formatMoney(totalCollectedWithTips)}</div>
           </div>
           <div style={dailyMiniMetricStyle('#fff8eb')}>
             <div style={{ fontSize: 10.5, color: '#ff9f0a', fontWeight: 950, marginBottom: 4 }}>POR COBRAR</div>
             <div style={{ fontSize: 20, color: '#ff9f0a', fontWeight: 950 }}>{formatMoney(totalPending)}</div>
-          </div>
-          <div style={dailyMiniMetricStyle(needsCashReview ? '#fff7e8' : '#edfff3')}>
-            <div style={{ fontSize: 10.5, color: needsCashReview ? '#ff9500' : '#188038', fontWeight: 950, marginBottom: 4 }}>DIFERENCIA</div>
-            <div style={{ fontSize: 20, color: needsCashReview ? '#ff9500' : '#188038', fontWeight: 950 }}>{formatMoney(cashDifference)}</div>
           </div>
         </div>
 
@@ -4276,6 +4299,33 @@ function CashSection() {
               </div>
             );
           })}
+        </div>
+
+
+        <div style={{ marginTop: 4, marginBottom: 12 }}>
+          <h3 style={{ margin: '0 0 8px', fontSize: 16, color: '#1a1a1a', fontWeight: 950 }}>Propinas por método</h3>
+          <div style={{ display: 'grid', gap: 8 }}>
+            {tipsByMethod.map((method) => (
+              <div
+                key={`tip-${method.value}`}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  background: '#eef6ff',
+                  border: '0.5px solid #d9ebff',
+                  borderRadius: 14,
+                  padding: '10px 12px',
+                }}
+              >
+                <div>
+                  <strong style={{ display: 'block', fontSize: 13, color: '#1a1a1a' }}>{method.label}</strong>
+                  <span style={{ fontSize: 11, color: '#8e8e93', fontWeight: 750 }}>Propinas registradas</span>
+                </div>
+                <strong style={{ color: '#0071e3', fontSize: 15 }}>{formatMoney(method.total)}</strong>
+              </div>
+            ))}
+          </div>
         </div>
 
         {attentionItems.length > 0 && (
@@ -8762,6 +8812,8 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
         }
 
         @media (max-width: 720px) {
+          .cash-mobile-main-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+
           html, body, #root {
             width: 100%;
             max-width: 100%;
