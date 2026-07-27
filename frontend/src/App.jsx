@@ -143,7 +143,19 @@ function PasswordInputField({
           fontFamily: 'inherit',
         }}
       >
-        {showPassword ? '🙈' : '👁️'}
+        {showPassword ? (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M3 3l18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            <path d="M10.58 10.58A2 2 0 0 0 13.42 13.42" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            <path d="M9.88 5.09A9.77 9.77 0 0 1 12 4.85c5.25 0 8.78 4.42 9.76 5.85a2.1 2.1 0 0 1 0 2.6 18.2 18.2 0 0 1-2.22 2.65" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M6.1 6.84A18.9 18.9 0 0 0 2.24 10.7a2.1 2.1 0 0 0 0 2.6C3.22 14.73 6.75 19.15 12 19.15c1.39 0 2.68-.31 3.86-.81" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        ) : (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M2.24 10.7C3.22 9.27 6.75 4.85 12 4.85s8.78 4.42 9.76 5.85a2.1 2.1 0 0 1 0 2.6C20.78 14.73 17.25 19.15 12 19.15S3.22 14.73 2.24 13.3a2.1 2.1 0 0 1 0-2.6Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+            <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2" />
+          </svg>
+        )}
       </button>
     </div>
   );
