@@ -68,6 +68,143 @@ function getFrontendUrl() {
   return process.env.FRONTEND_URL || "https://tuagendaya-web.onrender.com";
 }
 
+function getApiPublicUrl() {
+  return process.env.API_PUBLIC_URL || "https://tuagendaya-api.onrender.com";
+}
+
+function normalizeMercadoPagoAmount(value) {
+  const amount = Number(value || 0);
+  return Number.isFinite(amount) && amount > 0 ? Number(amount.toFixed(2)) : 0;
+}
+
+function getMercadoPagoCheckoutUrl(data = {}) {
+  const token = process.env.MERCADOPAGO_ACCESS_TOKEN || "";
+  const useSandbox = token.startsWith("TEST-") || process.env.MERCADOPAGO_USE_SANDBOX === "1";
+
+  return useSandbox
+    ? (data.sandbox_init_point || data.init_point || "")
+    : (data.init_point || data.sandbox_init_point || "");
+}
+
+async function createBookingMercadoPagoPreference({ booking, professional, service, staff }) {
+  const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
+
+  if (!accessToken) {
+    const error = new Error("Mercado Pago no está configurado");
+    error.status = 503;
+    throw error;
+  }
+
+  const amount = normalizeMercadoPagoAmount(service?.price);
+
+  if (amount <= 0) {
+    const error = new Error("El servicio no tiene precio para pago online");
+    error.status = 400;
+    throw error;
+  }
+
+  const frontendUrl = getFrontendUrl();
+  const apiUrl = getApiPublicUrl();
+  const bookingId = booking.id;
+  const token = booking.confirmation_token || booking.confirmationToken;
+
+  const preferencePayload = {
+    items: [
+      {
+        id: `booking-${bookingId}`,
+        title: service?.name || "Reserva TuAgendaYa",
+        description: `${professional.business_name || professional.name || "TuAgendaYa"}${staff?.name ? ` · ${staff.name}` : ""}`,
+        quantity: 1,
+        currency_id: process.env.PLAN_CURRENCY || "UYU",
+        unit_price: amount,
+      },
+    ],
+    payer: {
+      name: booking.client_name || booking.clientName || "",
+    },
+    external_reference: `booking:${bookingId}:${token}`,
+    metadata: {
+      type: "booking",
+      booking_id: String(bookingId),
+      confirmation_token: token,
+      professional_id: String(professional.id),
+    },
+    notification_url: `${apiUrl}/api/bookings/public/payment/mercadopago/webhook`,
+    back_urls: {
+      success: `${frontendUrl}/reservar/${professional.slug}?payment=success&booking_id=${bookingId}`,
+      pending: `${frontendUrl}/reservar/${professional.slug}?payment=pending&booking_id=${bookingId}`,
+      failure: `${frontendUrl}/reservar/${professional.slug}?payment=failure&booking_id=${bookingId}`,
+    },
+    auto_return: "approved",
+  };
+
+  const response = await fetch("https://api.mercadopago.com/checkout/preferences", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(preferencePayload),
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    console.error("Mercado Pago booking preference error:", data);
+    const error = new Error(data.message || data.error || "No se pudo crear el pago online");
+    error.status = 502;
+    throw error;
+  }
+
+  return {
+    preferenceId: data.id,
+    initPoint: data.init_point,
+    sandboxInitPoint: data.sandbox_init_point,
+    url: getMercadoPagoCheckoutUrl(data),
+    amount,
+  };
+}
+
+async function markBookingPaidFromMercadoPago({ bookingId, paymentId, paymentStatus, paymentMethodId, paymentTypeId, amountPaid }) {
+  await ensurePaymentColumns();
+
+  if (paymentStatus !== "approved") {
+    return null;
+  }
+
+  const result = await db.query(
+    `
+      UPDATE bookings
+      SET
+        status = 'confirmed',
+        client_confirmed_at = COALESCE(client_confirmed_at, NOW()),
+        payment_status = 'paid',
+        payment_method = 'online',
+        amount_paid = CASE
+          WHEN $2::numeric > 0 THEN $2::numeric
+          WHEN COALESCE(amount_paid, 0) > 0 THEN amount_paid
+          ELSE amount_paid
+        END,
+        payment_updated_at = NOW(),
+        updated_at = NOW()
+      WHERE id = $1
+      RETURNING *
+    `,
+    [bookingId, normalizeMercadoPagoAmount(amountPaid)]
+  );
+
+  if (result.rows[0]) {
+    console.log("Booking Mercado Pago approved:", {
+      bookingId,
+      paymentId,
+      paymentMethodId,
+      paymentTypeId,
+    });
+  }
+
+  return result.rows[0] || null;
+}
+
 function normalizeDate(date) {
   return String(date || "").slice(0, 10);
 }
@@ -1832,6 +1969,24 @@ router.post("/public/:slug/book", async (req, res) => {
       };
     }
 
+    let onlinePayment = null;
+
+    if (finalPaymentMethod === "online") {
+      try {
+        onlinePayment = await createBookingMercadoPagoPreference({
+          booking: normalizedBooking,
+          professional,
+          service,
+          staff,
+        });
+      } catch (paymentError) {
+        return res.status(paymentError.status || 502).json({
+          error: paymentError.message || "No se pudo iniciar el pago online",
+          booking: normalizedBooking,
+        });
+      }
+    }
+
     res.status(201).json({
       success: true,
       bookingId: result.rows[0].id,
@@ -1841,6 +1996,7 @@ router.post("/public/:slug/book", async (req, res) => {
       businessWhatsapp,
       pushNotification,
       booking: normalizedBooking,
+      onlinePayment,
     });
   } catch (error) {
     res.status(500).json({
@@ -1848,6 +2004,117 @@ router.post("/public/:slug/book", async (req, res) => {
     });
   }
 });
+
+
+router.post("/public/payment/mercadopago/webhook", async (req, res) => {
+  try {
+    const topic = req.query.topic || req.query.type || req.body?.type;
+    const paymentId =
+      req.query.id ||
+      req.query["data.id"] ||
+      req.body?.data?.id ||
+      req.body?.id;
+
+    if (!paymentId || !String(topic || "").includes("payment")) {
+      return res.status(200).json({ received: true, ignored: true });
+    }
+
+    const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
+
+    if (!accessToken) {
+      return res.status(200).json({ received: true, ignored: true, reason: "missing_access_token" });
+    }
+
+    const response = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    const payment = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      console.error("Mercado Pago booking payment lookup error:", payment);
+      return res.status(200).json({ received: true, lookupError: true });
+    }
+
+    const externalReference = String(payment.external_reference || "");
+    const match = externalReference.match(/^booking:(\d+):(.+)$/);
+
+    if (!match) {
+      return res.status(200).json({ received: true, ignored: true, externalReference });
+    }
+
+    await markBookingPaidFromMercadoPago({
+      bookingId: Number(match[1]),
+      paymentId: payment.id,
+      paymentStatus: payment.status,
+      paymentMethodId: payment.payment_method_id,
+      paymentTypeId: payment.payment_type_id,
+      amountPaid: payment.transaction_amount,
+    });
+
+    res.status(200).json({ received: true });
+  } catch (error) {
+    console.error("Booking Mercado Pago webhook error:", error);
+    res.status(200).json({ received: true, error: true });
+  }
+});
+
+router.post("/public/:slug/book/:bookingId/sync-mercadopago", async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const paymentId =
+      req.body?.paymentId ||
+      req.body?.payment_id ||
+      req.query.payment_id ||
+      req.query.collection_id;
+
+    if (!paymentId) {
+      return res.status(400).json({ error: "payment_id requerido" });
+    }
+
+    const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
+
+    if (!accessToken) {
+      return res.status(503).json({ error: "Mercado Pago no está configurado" });
+    }
+
+    const response = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    const payment = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      return res.status(502).json({ error: "No se pudo verificar el pago" });
+    }
+
+    const externalReference = String(payment.external_reference || "");
+
+    if (!externalReference.startsWith(`booking:${Number(bookingId)}:`)) {
+      return res.status(403).json({ error: "El pago no corresponde a esta reserva" });
+    }
+
+    const updatedBooking = await markBookingPaidFromMercadoPago({
+      bookingId: Number(bookingId),
+      paymentId: payment.id,
+      paymentStatus: payment.status,
+      paymentMethodId: payment.payment_method_id,
+      paymentTypeId: payment.payment_type_id,
+      amountPaid: payment.transaction_amount,
+    });
+
+    res.json({
+      success: payment.status === "approved",
+      status: payment.status,
+      booking: updatedBooking ? normalizeBooking(updatedBooking) : null,
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({
+      error: error.message || "Error sincronizando pago online",
+    });
+  }
+});
+
 
 router.get("/public/confirmation/:token", async (req, res) => {
   try {

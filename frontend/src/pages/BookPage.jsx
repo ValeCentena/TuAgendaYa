@@ -211,6 +211,8 @@ export default function BookPage() {
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [onlinePaymentUrl, setOnlinePaymentUrl] = useState('');
+  const [onlinePaymentMessage, setOnlinePaymentMessage] = useState('');
   const [error, setError] = useState('');
 
   const selectedService = services.find((service) => String(service.id) === String(selectedServiceId));
@@ -223,6 +225,35 @@ export default function BookPage() {
   const selectedPhoneCountry = getPhoneCountry(clientPhoneCountry);
   const fullClientPhone = buildInternationalPhone(clientPhoneCountry, clientPhone);
   const visiblePaymentMethods = PUBLIC_PAYMENT_METHODS.filter((method) => acceptedPaymentMethods.includes(method.value));
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const paymentStatus = params.get('payment');
+    const bookingId = params.get('booking_id');
+    const paymentId = params.get('payment_id') || params.get('collection_id');
+
+    if (!paymentStatus) return;
+
+    if (paymentStatus === 'success') {
+      setSuccess(true);
+      setOnlinePaymentMessage('Pago recibido. Tu reserva quedó confirmada.');
+    } else if (paymentStatus === 'pending') {
+      setSuccess(true);
+      setOnlinePaymentMessage('El pago quedó pendiente. El negocio recibirá la actualización cuando Mercado Pago lo confirme.');
+    } else if (paymentStatus === 'failure') {
+      setError('El pago no se completó. Podés intentar reservar nuevamente.');
+    }
+
+    if (paymentStatus === 'success' && bookingId && paymentId) {
+      fetch(`${API_BASE}/bookings/public/${slug}/book/${bookingId}/sync-mercadopago`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentId }),
+      }).catch(() => {});
+    }
+
+    window.history.replaceState({}, '', window.location.pathname);
+  }, [slug]);
 
   useEffect(() => {
     setLoadingServices(true);
@@ -683,7 +714,18 @@ export default function BookPage() {
           refreshSlots();
         }
       } else {
+        const paymentUrl = data.onlinePayment?.url || data.onlinePayment?.initPoint || data.onlinePayment?.sandboxInitPoint || '';
+
+        if (paymentMethod === 'online' && paymentUrl) {
+          setOnlinePaymentUrl(paymentUrl);
+          setOnlinePaymentMessage('Te estamos llevando a Mercado Pago para completar el pago.');
+          window.location.href = paymentUrl;
+          return;
+        }
+
         setSuccess(true);
+        setOnlinePaymentUrl('');
+        setOnlinePaymentMessage('');
         setCalendarOpen(false);
         window.setTimeout(() => {
           pageTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -698,6 +740,8 @@ export default function BookPage() {
 
   const handleReset = () => {
     setSuccess(false);
+    setOnlinePaymentUrl('');
+    setOnlinePaymentMessage('');
     setClientName('');
     setClientPhoneCountry('UY');
     setClientPhone('');
@@ -865,7 +909,7 @@ export default function BookPage() {
             </div>
 
             <div style={{ fontSize: 13.5, color: '#6e6e73', lineHeight: 1.45, margin: '0 auto 18px', maxWidth: 390 }}>
-              Tu reserva fue recibida correctamente. Recibirás la confirmación por WhatsApp cuando el negocio la procese.
+              {onlinePaymentMessage || 'Tu reserva fue recibida correctamente. Recibirás la confirmación por WhatsApp cuando el negocio la procese.'}
             </div>
 
             <div
