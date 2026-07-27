@@ -3,6 +3,19 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const db = require('../db');
 
+function getProfessionalIdFromPayload(payload = {}) {
+  const id =
+    payload.id ??
+    payload.professionalId ??
+    payload.professional_id ??
+    payload.userId ??
+    payload.user_id;
+
+  const numberId = Number(id);
+
+  return Number.isFinite(numberId) && numberId > 0 ? numberId : null;
+}
+
 function authMiddleware(req, res, next) {
   const header = req.headers.authorization;
   if (!header || !header.startsWith('Bearer ')) {
@@ -13,37 +26,24 @@ function authMiddleware(req, res, next) {
       header.slice(7),
       process.env.JWT_SECRET || 'tuagendaya-secret-dev-change-in-prod'
     );
-    req.professional = decoded;
+
+    const professionalId = getProfessionalIdFromPayload(decoded);
+
+    if (!professionalId) {
+      return res.status(401).json({ error: 'Token profesional inválido' });
+    }
+
+    req.professional = {
+      ...decoded,
+      id: professionalId,
+      professionalId,
+      professional_id: professionalId,
+    };
+
     next();
   } catch (e) {
     return res.status(401).json({ error: 'Token inválido o expirado' });
   }
-}
-
-
-async function getProfessionalIdFromRequest(req) {
-  const decoded = req.professional || {};
-  const directId = decoded.id ?? decoded.professionalId ?? decoded.professional_id ?? decoded.userId ?? decoded.user_id;
-  if (directId !== undefined && directId !== null && directId !== '') {
-    const numericId = Number(directId);
-    if (Number.isFinite(numericId) && numericId > 0) {
-      const found = (await db.query(`SELECT id FROM professionals WHERE id = $1 LIMIT 1`, [numericId])).rows[0];
-      if (found?.id) return Number(found.id);
-    }
-  }
-  const email = String(decoded.email || decoded.mail || req.body?.professionalEmail || req.body?.email || req.query?.email || '').trim().toLowerCase();
-  if (email) {
-    const result = await db.query(`SELECT id FROM professionals WHERE LOWER(email) = $1 ORDER BY id DESC LIMIT 1`, [email]);
-    if (result.rows[0]?.id) return Number(result.rows[0].id);
-  }
-  const slug = String(decoded.slug || req.body?.professionalSlug || req.body?.slug || req.query?.slug || '').trim().toLowerCase();
-  if (slug) {
-    const result = await db.query(`SELECT id FROM professionals WHERE LOWER(slug) = $1 ORDER BY id DESC LIMIT 1`, [slug]);
-    if (result.rows[0]?.id) return Number(result.rows[0].id);
-  }
-  const error = new Error('No se pudo identificar el profesional de la sesión');
-  error.status = 401;
-  throw error;
 }
 
 // ── Helpers de tipo ───────────────────────────────────────────
@@ -114,32 +114,6 @@ function mergeAvailWithDefaults(rows, professionalId) {
   });
 }
 
-
-async function ensureProfessionalServicesTable() {
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS professional_services (
-      id SERIAL PRIMARY KEY,
-      professional_id INTEGER NOT NULL REFERENCES professionals(id) ON DELETE CASCADE,
-      name TEXT NOT NULL,
-      description TEXT,
-      duration_minutes INTEGER DEFAULT 30,
-      price NUMERIC(10,2) DEFAULT 0,
-      is_active BOOLEAN DEFAULT TRUE,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-  `);
-  await db.query(`ALTER TABLE professional_services ADD COLUMN IF NOT EXISTS professional_id INTEGER`).catch(() => {});
-  await db.query(`ALTER TABLE professional_services ADD COLUMN IF NOT EXISTS name TEXT`).catch(() => {});
-  await db.query(`ALTER TABLE professional_services ADD COLUMN IF NOT EXISTS description TEXT`).catch(() => {});
-  await db.query(`ALTER TABLE professional_services ADD COLUMN IF NOT EXISTS duration_minutes INTEGER DEFAULT 30`).catch(() => {});
-  await db.query(`ALTER TABLE professional_services ADD COLUMN IF NOT EXISTS price NUMERIC(10,2) DEFAULT 0`).catch(() => {});
-  await db.query(`ALTER TABLE professional_services ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE`).catch(() => {});
-  await db.query(`ALTER TABLE professional_services ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`).catch(() => {});
-  await db.query(`ALTER TABLE professional_services ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`).catch(() => {});
-  await db.query(`CREATE INDEX IF NOT EXISTS idx_professional_services_professional_id ON professional_services(professional_id)`).catch(() => {});
-}
-
 // ── Helpers servicios ─────────────────────────────────────────
 
 function getDefaultServices(profession) {
@@ -158,14 +132,18 @@ async function ensureProfessionalSettingsColumns() {
   await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS min_advance_hours INTEGER DEFAULT 0`);
   await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS allow_client_cancellations INTEGER DEFAULT 1`);
   await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS cancellation_limit_minutes INTEGER DEFAULT 0`);
-  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS accepted_payment_methods TEXT DEFAULT 'cash,transfer,card'`);
+  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS accepted_payment_methods TEXT DEFAULT 'cash,transfer,online'`);
   await db.query(`ALTER TABLE professionals ALTER COLUMN min_advance_hours SET DEFAULT 0`).catch(() => {});
 }
 
 function normalizePaymentMethods(value) {
-  const allowed = ['cash', 'transfer', 'card'];
-  const list = Array.isArray(value) ? value : String(value || 'cash,transfer,card').split(',');
-  const clean = list.map((item) => String(item || '').trim()).filter((item) => allowed.includes(item));
+  const allowed = ['cash', 'transfer', 'online'];
+  const list = Array.isArray(value) ? value : String(value || 'cash,transfer,online').split(',');
+  const clean = list
+    .map((item) => String(item || '').trim())
+    .map((item) => (item === 'card' ? 'online' : item))
+    .filter((item) => allowed.includes(item));
+
   return clean.length > 0 ? Array.from(new Set(clean)) : ['cash'];
 }
 
@@ -235,17 +213,174 @@ function normalizeServiceRow(row) {
   };
 }
 
+
+async function ensureProfessionalServicesTable() {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS professional_services (
+      id SERIAL PRIMARY KEY,
+      professional_id INTEGER NOT NULL REFERENCES professionals(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      description TEXT,
+      duration_minutes INTEGER DEFAULT 30,
+      price NUMERIC(10, 2) DEFAULT 0,
+      is_active BOOLEAN DEFAULT TRUE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  await db.query(`ALTER TABLE professional_services ADD COLUMN IF NOT EXISTS description TEXT;`).catch(() => {});
+  await db.query(`ALTER TABLE professional_services ADD COLUMN IF NOT EXISTS duration_minutes INTEGER DEFAULT 30;`).catch(() => {});
+  await db.query(`ALTER TABLE professional_services ADD COLUMN IF NOT EXISTS price NUMERIC(10, 2) DEFAULT 0;`).catch(() => {});
+  await db.query(`ALTER TABLE professional_services ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;`).catch(() => {});
+  await db.query(`ALTER TABLE professional_services ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;`).catch(() => {});
+  await db.query(`ALTER TABLE professional_services ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;`).catch(() => {});
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_professional_services_professional_id ON professional_services(professional_id);`).catch(() => {});
+}
+
+async function syncLegacyServicesToProfessionalTable(professionalId) {
+  await ensureProfessionalServicesTable();
+
+  const legacyServices = (await db.query(
+    `SELECT id, name, description, duration, price, active
+     FROM services
+     WHERE professional_id = $1
+       AND (active IS NULL OR active::text IN ('1','true','t'))
+       AND TRIM(COALESCE(name, '')) <> ''
+     ORDER BY id ASC`,
+    [professionalId]
+  ).catch(() => ({ rows: [] }))).rows;
+
+  for (const service of legacyServices) {
+    const exists = (await db.query(
+      `SELECT id
+       FROM professional_services
+       WHERE professional_id = $1
+         AND LOWER(TRIM(name)) = LOWER(TRIM($2))
+       LIMIT 1`,
+      [professionalId, service.name]
+    )).rows[0];
+
+    if (exists) {
+      await db.query(
+        `UPDATE professional_services
+         SET description = COALESCE($1, description),
+             duration_minutes = $2,
+             price = $3,
+             is_active = TRUE,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $4`,
+        [
+          service.description || null,
+          parsePositiveInt(service.duration, 30),
+          Number(service.price) || 0,
+          exists.id,
+        ]
+      );
+    } else {
+      await db.query(
+        `INSERT INTO professional_services
+           (professional_id, name, description, duration_minutes, price, is_active)
+         VALUES ($1, $2, $3, $4, $5, TRUE)`,
+        [
+          professionalId,
+          service.name,
+          service.description || null,
+          parsePositiveInt(service.duration, 30),
+          Number(service.price) || 0,
+        ]
+      );
+    }
+  }
+}
+
+async function getActiveServicesForProfessional(professionalId) {
+  await ensureProfessionalServicesTable();
+  await cleanupDefaultServicesForProfessional(professionalId);
+  await syncLegacyServicesToProfessionalTable(professionalId).catch((error) => {
+    console.warn('syncLegacyServicesToProfessionalTable skipped:', error.message);
+  });
+  await syncActiveServicesToLegacyTable(professionalId).catch((error) => {
+    console.warn('syncActiveServicesToLegacyTable skipped:', error.message);
+  });
+
+  const rows = (await db.query(
+    `SELECT id, professional_id, name, description, duration_minutes, price, is_active, created_at, updated_at
+     FROM professional_services
+     WHERE professional_id = $1
+       AND (is_active IS NULL OR is_active::text IN ('1','true','t'))
+       AND TRIM(COALESCE(name, '')) <> ''
+     ORDER BY id ASC`,
+    [professionalId]
+  )).rows;
+
+  return rows.map(normalizeServiceRow);
+}
+
 async function cleanupDefaultServicesForProfessional(professionalId) {
-  // Antes este limpiador borraba servicios reales llamados "corte" con duración 30/45/60.
-  // Eso eliminaba servicios legítimos recién creados por el profesional.
-  // Se deja como no-op para no borrar nunca servicios reales.
-  return { skipped: true, professionalId };
+  await db.query(
+    `
+      DELETE FROM professional_services
+      WHERE professional_id = $1
+        AND LOWER(TRIM(name)) IN (
+          'corte de pelo',
+          'coloración',
+          'coloracion',
+          'tratamiento',
+          'corte',
+          'consulta'
+        )
+        AND (
+          price IS NULL
+          OR price = 0
+          OR duration_minutes IN (20, 30, 45, 60, 90)
+        )
+    `,
+    [professionalId]
+  ).catch((error) => {
+    console.warn('cleanupDefaultServicesForProfessional skipped:', error.message);
+  });
+
+  await db.query(
+    `
+      DELETE FROM services
+      WHERE professional_id = $1
+        AND LOWER(TRIM(name)) IN (
+          'corte de pelo',
+          'coloración',
+          'coloracion',
+          'tratamiento',
+          'corte',
+          'consulta'
+        )
+        AND (
+          price IS NULL
+          OR price = 0
+          OR duration IN (20, 30, 45, 60, 90)
+        )
+    `,
+    [professionalId]
+  ).catch((error) => {
+    console.warn('cleanupDefaultServicesForProfessional legacy skipped:', error.message);
+  });
 }
 
 
 // Mantiene compatibilidad con pantallas/rutas viejas que todavía leen la tabla `services`.
 // La tabla principal nueva es `professional_services`, pero el link público puede consultar `services`.
 async function syncActiveServicesToLegacyTable(professionalId) {
+  await ensureProfessionalServicesTable();
+
+  const activeServices = (await db.query(
+    `SELECT id, name, description, duration_minutes, price, is_active
+     FROM professional_services
+     WHERE professional_id = $1
+       AND (is_active IS NULL OR is_active::text IN ('1','true','t'))
+       AND TRIM(COALESCE(name, '')) <> ''
+     ORDER BY id ASC`,
+    [professionalId]
+  )).rows;
+
   await db.query(
     `UPDATE services
      SET active = 0
@@ -255,21 +390,13 @@ async function syncActiveServicesToLegacyTable(professionalId) {
     console.warn('Legacy services deactivate skipped:', err.message);
   });
 
-  const activeServices = (await db.query(
-    `SELECT id, name, description, duration_minutes, price, is_active
-     FROM professional_services
-     WHERE professional_id = $1 AND (is_active IS NULL OR is_active::text IN ('1','true','t'))
-     ORDER BY id ASC`,
-    [professionalId]
-  )).rows;
-
   for (const service of activeServices) {
     const exists = (await db.query(
       `SELECT id FROM services
-       WHERE professional_id = $1 AND LOWER(name) = LOWER($2)
+       WHERE professional_id = $1 AND LOWER(TRIM(name)) = LOWER(TRIM($2))
        LIMIT 1`,
       [professionalId, service.name]
-    )).rows[0];
+    ).catch(() => ({ rows: [] }))).rows[0];
 
     if (exists) {
       await db.query(
@@ -280,7 +407,9 @@ async function syncActiveServicesToLegacyTable(professionalId) {
              active = 1
          WHERE id = $4`,
         [parsePositiveInt(service.duration_minutes, 30), Number(service.price) || 0, service.description || null, exists.id]
-      );
+      ).catch(err => {
+        console.warn('Legacy service update skipped:', err.message);
+      });
     } else {
       await db.query(
         `INSERT INTO services
@@ -293,7 +422,9 @@ async function syncActiveServicesToLegacyTable(professionalId) {
           Number(service.price) || 0,
           service.description || null,
         ]
-      );
+      ).catch(err => {
+        console.warn('Legacy service insert skipped:', err.message);
+      });
     }
   }
 }
@@ -306,7 +437,7 @@ async function syncActiveServicesToLegacyTable(professionalId) {
 router.get('/me/settings', authMiddleware, async (req, res) => {
   try {
     await ensureProfessionalSettingsColumns();
-    const profId = await getProfessionalIdFromRequest(req);
+    const profId = req.professional.id;
     const row = (await db.query(
       `SELECT notify_new_booking, notify_cancellation, notify_reminder, reminder_hours_before,
               allow_client_cancellations, cancellation_limit_minutes, accepted_payment_methods
@@ -323,7 +454,7 @@ router.get('/me/settings', authMiddleware, async (req, res) => {
 router.patch('/me/settings', authMiddleware, async (req, res) => {
   try {
     await ensureProfessionalSettingsColumns();
-    const profId = await getProfessionalIdFromRequest(req);
+    const profId = req.professional.id;
     const methods = normalizePaymentMethods(req.body.acceptedPaymentMethods !== undefined ? req.body.acceptedPaymentMethods : req.body.accepted_payment_methods);
     const notifyNewBooking = toBoolInt(req.body.notifyNewBooking !== undefined ? req.body.notifyNewBooking : req.body.notify_new_booking);
     const notifyCancellation = toBoolInt(req.body.notifyCancellation !== undefined ? req.body.notifyCancellation : req.body.notify_cancellation);
@@ -357,7 +488,7 @@ router.patch('/me/settings', authMiddleware, async (req, res) => {
 // GET /api/professionals/me/availability
 router.get('/me/availability', authMiddleware, async (req, res) => {
   try {
-    const profId = await getProfessionalIdFromRequest(req);
+    const profId = req.professional.id;
     const rows = (await db.query(
       `SELECT id, professional_id, day_of_week,
               is_active,
@@ -384,7 +515,7 @@ router.get('/me/availability', authMiddleware, async (req, res) => {
 // Acepta camelCase o snake_case. Nunca falla por tipos incorrectos.
 // NO acepta slot_duration_minutes desde el frontend — se guarda siempre como 30.
 router.patch('/me/availability', authMiddleware, async (req, res) => {
-  const profId = await getProfessionalIdFromRequest(req);
+  const profId = req.professional.id;
   const list   = req.body.availability;
 
   if (!Array.isArray(list) || list.length === 0) {
@@ -461,28 +592,10 @@ router.patch('/me/availability', authMiddleware, async (req, res) => {
 // GET /api/professionals/me/services
 router.get('/me/services', authMiddleware, async (req, res) => {
   try {
-    setNoStoreHeaders(res);
-    await ensureProfessionalServicesTable();
-    const profId = await getProfessionalIdFromRequest(req);
+    const profId = req.professional.id;
+    const services = await getActiveServicesForProfessional(profId);
 
-    // Limpia los servicios de ejemplo que se habían generado antes.
-    await cleanupDefaultServicesForProfessional(profId);
-
-    const rows = (await db.query(
-      `SELECT id, professional_id, name, description, duration_minutes, price, is_active, created_at, updated_at
-       FROM professional_services
-       WHERE professional_id = $1 AND (is_active IS NULL OR is_active::text IN ('1','true','t'))
-       ORDER BY id ASC`,
-      [profId]
-    )).rows;
-
-    // No se devuelven servicios sugeridos ni creados por defecto.
-    // Si no hay servicios, la lista queda vacía y el profesional debe crear el primero.
-    await syncActiveServicesToLegacyTable(profId).catch(err => {
-      console.warn('syncActiveServicesToLegacyTable skipped:', err.message);
-    });
-
-    res.json({ services: rows.map(normalizeServiceRow) });
+    res.json({ services });
   } catch (err) {
     console.error('GET /me/services error:', err);
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -491,43 +604,53 @@ router.get('/me/services', authMiddleware, async (req, res) => {
 
 // POST /api/professionals/me/services
 router.post('/me/services', authMiddleware, async (req, res) => {
+  const profId = req.professional.id;
+  const { name, description, price, is_active } = req.body;
+  const duration = getServiceDurationFromBody(req.body);
+
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: 'El nombre del servicio es requerido' });
+  }
+  if (!duration) {
+    return res.status(400).json({ error: 'La duración debe ser mayor a 0 minutos' });
+  }
+
   try {
-    setNoStoreHeaders(res);
     await ensureProfessionalServicesTable();
-    const profId = await getProfessionalIdFromRequest(req);
-    const { name, description, price } = req.body;
-    const duration = getServiceDurationFromBody(req.body);
-    if (!name || !name.trim()) return res.status(400).json({ error: 'El nombre del servicio es requerido' });
-    if (!duration) return res.status(400).json({ error: 'La duración debe ser mayor a 0 minutos' });
-    const professionalExists = (await db.query(`SELECT id FROM professionals WHERE id = $1 LIMIT 1`, [profId])).rows[0];
-    if (!professionalExists) return res.status(401).json({ error: 'La sesión no coincide con un profesional existente. Cerrá sesión y volvé a entrar.' });
-    const inserted = (await db.query(
+    const result = await db.query(
       `INSERT INTO professional_services
-         (professional_id, name, description, duration_minutes, price, is_active, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-       RETURNING id, professional_id, name, description, duration_minutes, price, is_active, created_at, updated_at`,
-      [profId, name.trim(), description ? description.trim() : null, duration, price === null || price === undefined || price === '' ? 0 : Number(price) || 0]
-    )).rows[0];
-    await syncActiveServicesToLegacyTable(profId).catch(err => console.warn('syncActiveServicesToLegacyTable skipped:', err.message));
-    const rows = (await db.query(
-      `SELECT id, professional_id, name, description, duration_minutes, price, is_active, created_at, updated_at
-       FROM professional_services
-       WHERE professional_id = $1 AND (is_active IS NULL OR is_active::text IN ('1','true','t'))
-       ORDER BY id ASC`,
-      [profId]
-    )).rows;
-    const savedAgain = rows.some(row => Number(row.id) === Number(inserted.id));
-    if (!savedAgain) return res.status(500).json({ error: 'El servicio se insertó pero no quedó visible en la lista activa.', inserted: normalizeServiceRow(inserted), services: rows.map(normalizeServiceRow) });
-    return res.status(201).json({ success: true, service: normalizeServiceRow(inserted), services: rows.map(normalizeServiceRow) });
+         (professional_id, name, description, duration_minutes, price, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [
+        profId,
+        name.trim(),
+        description ? description.trim() : null,
+        duration,
+        parseFloat(price) || 0,
+        toServiceBool(is_active, true),
+      ]
+    );
+
+    await syncActiveServicesToLegacyTable(profId).catch(err => {
+      console.warn('syncActiveServicesToLegacyTable skipped:', err.message);
+    });
+
+    const services = await getActiveServicesForProfessional(profId);
+
+    res.status(201).json({
+      service: normalizeServiceRow(result.rows[0]),
+      services,
+    });
   } catch (err) {
     console.error('POST /me/services error:', err);
-    return res.status(err.status || 500).json({ error: err.message || 'Error al crear el servicio' });
+    res.status(500).json({ error: 'Error al crear el servicio' });
   }
 });
 
 // PATCH /api/professionals/me/services/:id
 router.patch('/me/services/:id', authMiddleware, async (req, res) => {
-  const profId = await getProfessionalIdFromRequest(req);
+  const profId    = req.professional.id;
   const serviceId = parseInt(req.params.id);
 
   if (isNaN(serviceId)) {
@@ -535,6 +658,7 @@ router.patch('/me/services/:id', authMiddleware, async (req, res) => {
   }
 
   try {
+    await ensureProfessionalServicesTable();
     const existing = (await db.query(
       'SELECT * FROM professional_services WHERE id = $1 AND professional_id = $2',
       [serviceId, profId]
@@ -572,17 +696,11 @@ router.patch('/me/services/:id', authMiddleware, async (req, res) => {
       console.warn('syncActiveServicesToLegacyTable skipped:', err.message);
     });
 
-    const rows = (await db.query(
-      `SELECT id, professional_id, name, description, duration_minutes, price, is_active, created_at, updated_at
-       FROM professional_services
-       WHERE professional_id = $1 AND (is_active IS NULL OR is_active::text IN ('1','true','t'))
-       ORDER BY id ASC`,
-      [profId]
-    )).rows;
+    const services = await getActiveServicesForProfessional(profId);
 
     res.json({
       service: normalizeServiceRow(updated),
-      services: rows.map(normalizeServiceRow),
+      services,
     });
   } catch (err) {
     console.error('PATCH /me/services/:id error:', err);
@@ -593,7 +711,7 @@ router.patch('/me/services/:id', authMiddleware, async (req, res) => {
 // DELETE /api/professionals/me/services/:id
 // Soft delete — preserva integridad referencial con reservas existentes
 router.delete('/me/services/:id', authMiddleware, async (req, res) => {
-  const profId = await getProfessionalIdFromRequest(req);
+  const profId    = req.professional.id;
   const serviceId = parseInt(req.params.id);
 
   if (isNaN(serviceId)) {
@@ -601,6 +719,7 @@ router.delete('/me/services/:id', authMiddleware, async (req, res) => {
   }
 
   try {
+    await ensureProfessionalServicesTable();
     const existing = (await db.query(
       'SELECT id FROM professional_services WHERE id = $1 AND professional_id = $2',
       [serviceId, profId]
@@ -629,18 +748,12 @@ router.delete('/me/services/:id', authMiddleware, async (req, res) => {
       });
     }
 
-    const rows = (await db.query(
-      `SELECT id, professional_id, name, description, duration_minutes, price, is_active, created_at, updated_at
-       FROM professional_services
-       WHERE professional_id = $1 AND (is_active IS NULL OR is_active::text IN ('1','true','t'))
-       ORDER BY id ASC`,
-      [profId]
-    )).rows;
+    const services = await getActiveServicesForProfessional(profId);
 
     res.json({
       success: true,
       message: 'Servicio eliminado',
-      services: rows.map(normalizeServiceRow),
+      services,
     });
   } catch (err) {
     console.error('DELETE /me/services/:id error:', err);
@@ -649,6 +762,22 @@ router.delete('/me/services/:id', authMiddleware, async (req, res) => {
 });
 
 
+
+
+router.post('/me/services/sync-public', authMiddleware, async (req, res) => {
+  try {
+    const profId = req.professional.id;
+    const services = await getActiveServicesForProfessional(profId);
+
+    res.json({
+      success: true,
+      services,
+    });
+  } catch (err) {
+    console.error('POST /me/services/sync-public error:', err);
+    res.status(500).json({ error: 'Error sincronizando servicios públicos' });
+  }
+});
 
 router.get('/public/:slug/settings', async (req, res) => {
   try {
@@ -696,19 +825,32 @@ router.get('/public/:slug/services', async (req, res) => {
       return res.status(404).json({ error: 'Profesional no encontrado' });
     }
 
-    await syncActiveServicesToLegacyTable(prof.id).catch(err => {
-      console.warn('syncActiveServicesToLegacyTable skipped:', err.message);
+    const services = await getActiveServicesForProfessional(prof.id);
+
+    return res.json({
+      professional: {
+        ...prof,
+        businessName: prof.business_name || prof.name,
+        business_name: prof.business_name || prof.name,
+        logoUrl: prof.logo_url || null,
+        logo_url: prof.logo_url || null,
+        acceptedPaymentMethods: normalizePaymentMethods(prof.accepted_payment_methods),
+        accepted_payment_methods: normalizePaymentMethods(prof.accepted_payment_methods),
+      },
+      business: {
+        id: prof.id,
+        name: prof.name,
+        businessName: prof.business_name || prof.name,
+        business_name: prof.business_name || prof.name,
+        slug: prof.slug,
+        logoUrl: prof.logo_url || null,
+        logo_url: prof.logo_url || null,
+        acceptedPaymentMethods: normalizePaymentMethods(prof.accepted_payment_methods),
+        accepted_payment_methods: normalizePaymentMethods(prof.accepted_payment_methods),
+      },
+      settings: normalizeSettingsRow(prof),
+      services,
     });
-
-    const services = (await db.query(
-      `SELECT id, professional_id, name, description, duration_minutes, price, is_active, created_at, updated_at
-       FROM professional_services
-       WHERE professional_id = $1 AND (is_active IS NULL OR is_active::text IN ('1','true','t'))
-       ORDER BY id ASC`,
-      [prof.id]
-    )).rows.map(normalizeServiceRow);
-
-    return res.json({ professional: prof, settings: normalizeSettingsRow(prof), services });
   } catch (err) {
     console.error('GET /public/:slug/services error:', err);
     res.status(500).json({ error: 'Error interno del servidor' });
