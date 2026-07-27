@@ -181,7 +181,8 @@ async function ensureTipColumns() {
 
 function normalizePaymentMethodForBooking(value) {
   const clean = String(value || "cash").trim();
-  return ["cash", "transfer", "card", "other"].includes(clean) ? clean : "cash";
+  const normalized = clean === "card" ? "online" : clean;
+  return ["cash", "transfer", "online", "other"].includes(normalized) ? normalized : "cash";
 }
 
 function getServicePriceForAutoPayment(service) {
@@ -2131,17 +2132,19 @@ router.patch("/:id/payment", async (req, res) => {
     }
 
     const allowedPaymentStatuses = ["pending", "paid", "deposit", "cancelled"];
-    const allowedPaymentMethods = ["cash", "transfer", "card", "other"];
+    const allowedPaymentMethods = ["cash", "transfer", "online", "other"];
 
     const paymentStatus = String(
       req.body.paymentStatus ?? req.body.payment_status ?? "pending"
     ).trim();
-    const paymentMethod = String(
+    const rawPaymentMethod = String(
       req.body.paymentMethod ?? req.body.payment_method ?? "cash"
     ).trim();
+    const paymentMethod = rawPaymentMethod === "card" ? "online" : rawPaymentMethod;
     const amountValue = req.body.amountPaid ?? req.body.amount_paid;
     const tipValue = req.body.tipAmount ?? req.body.tip_amount;
     let tipMethod = String(req.body.tipMethod ?? req.body.tip_method ?? paymentMethod).trim() || paymentMethod;
+    if (tipMethod === "card") tipMethod = "online";
 
     if (!allowedPaymentStatuses.includes(paymentStatus)) {
       return res.status(400).json({

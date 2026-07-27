@@ -597,7 +597,7 @@ const PAYMENT_STATUS_OPTIONS = [
 const PAYMENT_METHOD_OPTIONS = [
   { value: 'cash', label: 'Efectivo' },
   { value: 'transfer', label: 'Transferencia' },
-  { value: 'card', label: 'Tarjeta' },
+  { value: 'online', label: 'Pago online' },
   { value: 'other', label: 'Otro' },
 ];
 
@@ -610,7 +610,7 @@ const paymentStatusLabel = {
 const paymentMethodLabel = {
   cash: 'Efectivo',
   transfer: 'Transferencia',
-  card: 'Débito / POS',
+  online: 'Pago online',
   other: 'Otro',
 };
 
@@ -657,13 +657,14 @@ const PAYMENT_METHODS_STORAGE_KEY = 'tuagendaya_accepted_payment_methods';
 const PAYMENT_METHODS_UPDATED_EVENT = 'tuagendaya:payment-methods-updated';
 
 function normalizeAcceptedPaymentMethodsList(value) {
-  const allowed = ['cash', 'transfer', 'card', 'other'];
+  const allowed = ['cash', 'transfer', 'online', 'other'];
   const raw = Array.isArray(value)
     ? value
     : String(value || '').split(',');
 
   const clean = raw
     .map((method) => String(method || '').trim())
+    .map((method) => (method === 'card' ? 'online' : method))
     .filter((method) => allowed.includes(method));
 
   return clean.length > 0 ? clean : ['cash'];
@@ -720,7 +721,7 @@ function getConfiguredPaymentMethodsForCash() {
 
     return normalizeAcceptedPaymentMethodsList(raw);
   } catch {
-    return ['cash', 'transfer', 'card'];
+    return ['cash', 'transfer', 'online'];
   }
 }
 
@@ -4401,7 +4402,7 @@ function CashSection() {
       'Por cobrar',
       'Efectivo',
       'Transferencia',
-      'Débito / POS',
+      'Pago online',
       'Otro',
     ];
 
@@ -4486,7 +4487,7 @@ function CashSection() {
         <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Citas</div><div style={{ fontSize: 13, fontWeight: 950 }}>{summary.bookings}</div></div>
         <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Efectivo</div><div style={{ fontSize: 13, fontWeight: 950 }}>{formatMoney(summary.cash)}</div></div>
         <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Transfer.</div><div style={{ fontSize: 13, fontWeight: 950 }}>{formatMoney(summary.transfer)}</div></div>
-        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Débito / POS</div><div style={{ fontSize: 13, fontWeight: 950 }}>{formatMoney(summary.card)}</div></div>
+        <div style={{ background: '#fafafa', borderRadius: 14, padding: 10 }}><div style={{ fontSize: 10, color: '#8e8e93', fontWeight: 900 }}>Pago online</div><div style={{ fontSize: 13, fontWeight: 950 }}>{formatMoney(summary.card)}</div></div>
       </div>
     </div>
   );
@@ -4947,7 +4948,7 @@ function CashSection() {
           {[
             { key: 'cash', label: 'Efectivo', value: cashCount, setter: setCashCount },
             { key: 'transfer', label: 'Transferencia', value: transferCount, setter: setTransferCount },
-            { key: 'card', label: 'Débito / POS', value: cardCount, setter: setCardCount },
+            { key: 'online', label: 'Pago online', value: cardCount, setter: setCardCount },
             { key: 'other', label: 'Otro', value: otherCount, setter: setOtherCount },
           ].map((item) => (
             <div key={item.key} style={{ background: '#fbfbfd', border: '0.5px solid #ececf2', borderRadius: 16, padding: 12 }}>
@@ -8631,13 +8632,13 @@ function ProfessionalSettingsSection() {
     reminderHoursBefore: 2,
     allowClientCancellations: true,
     cancellationLimitMinutes: 0,
-    acceptedPaymentMethods: ['cash', 'transfer', 'card'],
+    acceptedPaymentMethods: ['cash', 'transfer', 'online'],
   });
 
   const paymentOptions = [
     { value: 'cash', label: 'Efectivo' },
     { value: 'transfer', label: 'Transferencia' },
-    { value: 'card', label: 'Débito / POS' },
+    { value: 'online', label: 'Pago online' },
   ];
 
   const loadSettings = useCallback(() => {
@@ -8657,7 +8658,7 @@ function ProfessionalSettingsSection() {
 
         const next = data.settings || data || {};
         const acceptedMethods = normalizeAcceptedPaymentMethodsList(
-          next.acceptedPaymentMethods ?? next.accepted_payment_methods ?? ['cash', 'transfer', 'card']
+          next.acceptedPaymentMethods ?? next.accepted_payment_methods ?? ['cash', 'transfer', 'online']
         );
 
         saveConfiguredPaymentMethodsForCash(acceptedMethods);

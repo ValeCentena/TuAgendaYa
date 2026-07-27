@@ -46,14 +46,14 @@ const PHONE_COUNTRIES = [
 const PUBLIC_PAYMENT_METHODS = [
   { value: 'cash', label: 'Efectivo' },
   { value: 'transfer', label: 'Transferencia' },
-  { value: 'card', label: 'Débito / POS' },
+  { value: 'online', label: 'Pago online' },
 ];
 
 function normalizeAcceptedPaymentMethods(value) {
   const allowed = PUBLIC_PAYMENT_METHODS.map((method) => method.value);
   const rawList = Array.isArray(value)
     ? value
-    : String(value || 'cash,transfer,card').split(',');
+    : String(value || 'cash,transfer,online').split(',');
 
   const clean = rawList
     .map((item) => String(item || '').trim())
@@ -200,7 +200,7 @@ export default function BookPage() {
   const [clientPhone, setClientPhone] = useState('');
   const [clientComment, setClientComment] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
-  const [acceptedPaymentMethods, setAcceptedPaymentMethods] = useState(['cash', 'transfer', 'card']);
+  const [acceptedPaymentMethods, setAcceptedPaymentMethods] = useState(['cash', 'transfer', 'online']);
   const [bookingDate, setBookingDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
   const [slots, setSlots] = useState([]);
@@ -1353,7 +1353,7 @@ export default function BookPage() {
               )}
 
               <div style={{ fontSize: 11.5, color: '#8e8e93', margin: '-4px 0 12px', lineHeight: 1.35 }}>
-                El negocio verá este método en su panel. El pago queda por cobrar hasta que el profesional lo marque como pagado.
+                El negocio verá este método en su panel. El pago online real se conectará en el próximo paso; por ahora queda por cobrar hasta que el profesional lo marque como pagado.
               </div>
 
               <label style={labelStyle}>Comentario opcional</label>
