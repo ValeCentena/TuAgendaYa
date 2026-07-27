@@ -1,55 +1,12 @@
 const express = require("express");
 const jwt = require("jsonwebtoken");
+const bcrypt = require("bcryptjs");
 const db = require("../db");
 
 const router = express.Router();
 
 function normalizeText(value) {
   return String(value || "").trim();
-}
-
-function isFutureDate(value) {
-  if (!value) return false;
-
-  const parsed = new Date(value);
-
-  if (Number.isNaN(parsed.getTime())) return false;
-
-  return parsed.getTime() > Date.now();
-}
-
-async function ensureAdminBillingSchema() {
-  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS plan TEXT DEFAULT 'gratis';`).catch(() => {});
-  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS monthly_limit INTEGER DEFAULT 1000;`).catch(() => {});
-  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS plan_payment_status TEXT DEFAULT 'pending';`).catch(() => {});
-  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS plan_expires_at TIMESTAMP;`).catch(() => {});
-  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS last_payment_at TIMESTAMP;`).catch(() => {});
-  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS billing_method TEXT;`).catch(() => {});
-  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS plan_price NUMERIC(10, 2);`).catch(() => {});
-  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS plan_currency TEXT DEFAULT 'UYU';`).catch(() => {});
-
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS plan_payments (
-      id                  SERIAL PRIMARY KEY,
-      professional_id     INTEGER NOT NULL REFERENCES professionals(id) ON DELETE CASCADE,
-      method              TEXT NOT NULL DEFAULT 'transfer',
-      status              TEXT NOT NULL DEFAULT 'pending',
-      amount              NUMERIC(10, 2) DEFAULT 0,
-      currency            TEXT DEFAULT 'UYU',
-      plan                TEXT DEFAULT 'base',
-      period_days         INTEGER DEFAULT 30,
-      mp_preference_id    TEXT,
-      mp_payment_id       TEXT,
-      checkout_url        TEXT,
-      transfer_reference  TEXT,
-      transfer_note       TEXT,
-      raw_payload         JSONB,
-      approved_at         TIMESTAMP,
-      expires_at          TIMESTAMP,
-      created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-  `).catch(() => {});
 }
 
 function getAdminToken(req) {
@@ -79,16 +36,43 @@ function requireAdmin(req, res, next) {
   }
 }
 
-function normalizeProfessional(row) {
-  const planExpiresAt = row.plan_expires_at || row.latest_payment_expires_at || null;
-  const lastPaymentAt = row.last_payment_at || row.latest_payment_approved_at || null;
-  const billingMethod = row.billing_method || row.latest_payment_method || null;
-  const isPaid = isFutureDate(planExpiresAt);
-  const rawPaymentStatus = row.plan_payment_status || row.latest_payment_status || "pending";
-  const paymentStatus = isPaid ? "paid" : rawPaymentStatus;
-  const rawPlan = row.plan || row.plan_name || "gratis";
-  const normalizedPlan = isPaid && String(rawPlan).toLowerCase() === "gratis" ? "Profesional" : rawPlan;
 
+async function ensureAdminPasswordTable() {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS admin_auth_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+}
+
+async function getAdminPasswordHashOverride() {
+  try {
+    await ensureAdminPasswordTable();
+
+    const result = await db.query(
+      `SELECT value FROM admin_auth_settings WHERE key = 'password_hash' LIMIT 1`
+    );
+
+    return result.rows[0]?.value || null;
+  } catch (error) {
+    console.warn("No se pudo leer contraseña admin personalizada:", error.message);
+    return null;
+  }
+}
+
+async function isAdminPasswordValid(password, envPassword) {
+  const overrideHash = await getAdminPasswordHashOverride();
+
+  if (overrideHash) {
+    return bcrypt.compare(password, overrideHash);
+  }
+
+  return password === envPassword;
+}
+
+function normalizeProfessional(row) {
   return {
     id: row.id,
     name: row.name,
@@ -102,29 +86,9 @@ function normalizeProfessional(row) {
     logoUrl: row.logo_url,
     logo_url: row.logo_url,
     status: row.status,
-    plan: normalizedPlan || "gratis",
-    planName: normalizedPlan || "gratis",
-    plan_name: normalizedPlan || "gratis",
-    monthlyLimit: Number(row.monthly_limit || 1000),
-    monthly_limit: Number(row.monthly_limit || 1000),
-    planPaymentStatus: paymentStatus,
-    plan_payment_status: paymentStatus,
-    planExpiresAt,
-    plan_expires_at: planExpiresAt,
-    lastPaymentAt,
-    last_payment_at: lastPaymentAt,
-    billingMethod,
-    billing_method: billingMethod,
-    planPrice: Number(row.plan_price || row.latest_payment_amount || process.env.PLAN_BASE_PRICE || 0),
-    plan_price: Number(row.plan_price || row.latest_payment_amount || process.env.PLAN_BASE_PRICE || 0),
-    planCurrency: row.plan_currency || row.latest_payment_currency || process.env.PLAN_CURRENCY || "UYU",
-    plan_currency: row.plan_currency || row.latest_payment_currency || process.env.PLAN_CURRENCY || "UYU",
+    plan: row.plan || "gratis",
     bookingsCount: Number(row.bookings_count || 0),
-    bookings_count: Number(row.bookings_count || 0),
-    monthlyBookingsCount: Number(row.monthly_bookings_count || 0),
-    monthly_bookings_count: Number(row.monthly_bookings_count || 0),
     clientsCount: Number(row.clients_count || 0),
-    clients_count: Number(row.clients_count || 0),
     createdAt: row.created_at,
     created_at: row.created_at,
     updatedAt: row.updated_at,
@@ -152,7 +116,9 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ error: "Email y contraseña son obligatorios" });
     }
 
-    if (email !== adminEmail || password !== adminPassword) {
+    const validAdminPassword = await isAdminPasswordValid(password, adminPassword);
+
+    if (email !== adminEmail || !validAdminPassword) {
       return res.status(401).json({ error: "Credenciales admin incorrectas" });
     }
 
@@ -189,7 +155,6 @@ router.get("/me", requireAdmin, async (req, res) => {
 
 router.get("/stats", requireAdmin, async (req, res) => {
   try {
-    await ensureAdminBillingSchema();
     const professionalsResult = await db.query(
       `
       SELECT
@@ -239,42 +204,11 @@ router.get("/stats", requireAdmin, async (req, res) => {
         p.status,
         p.created_at,
         p.updated_at,
-        p.plan,
-        p.monthly_limit,
-        p.plan_payment_status,
-        p.plan_expires_at,
-        p.last_payment_at,
-        p.billing_method,
-        p.plan_price,
-        p.plan_currency,
-        lp.status AS latest_payment_status,
-        lp.method AS latest_payment_method,
-        lp.amount AS latest_payment_amount,
-        lp.currency AS latest_payment_currency,
-        lp.approved_at AS latest_payment_approved_at,
-        lp.expires_at AS latest_payment_expires_at,
-        COUNT(b.id) FILTER (
-          WHERE DATE_TRUNC('month', b.booking_date::timestamp) = DATE_TRUNC('month', CURRENT_DATE::timestamp)
-        )::int AS monthly_bookings_count,
         COUNT(b.id)::int AS bookings_count,
         COUNT(DISTINCT LOWER(TRIM(b.client_phone))) FILTER (WHERE b.client_phone IS NOT NULL AND TRIM(b.client_phone) <> '')::int AS clients_count
       FROM professionals p
       LEFT JOIN bookings b ON b.professional_id = p.id
-      LEFT JOIN LATERAL (
-        SELECT *
-        FROM plan_payments pp
-        WHERE pp.professional_id = p.id
-        ORDER BY pp.created_at DESC
-        LIMIT 1
-      ) lp ON TRUE
-      GROUP BY
-        p.id,
-        lp.status,
-        lp.method,
-        lp.amount,
-        lp.currency,
-        lp.approved_at,
-        lp.expires_at
+      GROUP BY p.id
       ORDER BY p.created_at DESC
       LIMIT 5
       `
@@ -294,7 +228,6 @@ router.get("/stats", requireAdmin, async (req, res) => {
 
 router.get("/professionals", requireAdmin, async (req, res) => {
   try {
-    await ensureAdminBillingSchema();
     const search = normalizeText(req.query.search).toLowerCase();
     const status = normalizeText(req.query.status).toLowerCase();
 
@@ -334,43 +267,12 @@ router.get("/professionals", requireAdmin, async (req, res) => {
         p.status,
         p.created_at,
         p.updated_at,
-        p.plan,
-        p.monthly_limit,
-        p.plan_payment_status,
-        p.plan_expires_at,
-        p.last_payment_at,
-        p.billing_method,
-        p.plan_price,
-        p.plan_currency,
-        lp.status AS latest_payment_status,
-        lp.method AS latest_payment_method,
-        lp.amount AS latest_payment_amount,
-        lp.currency AS latest_payment_currency,
-        lp.approved_at AS latest_payment_approved_at,
-        lp.expires_at AS latest_payment_expires_at,
-        COUNT(b.id) FILTER (
-          WHERE DATE_TRUNC('month', b.booking_date::timestamp) = DATE_TRUNC('month', CURRENT_DATE::timestamp)
-        )::int AS monthly_bookings_count,
         COUNT(b.id)::int AS bookings_count,
         COUNT(DISTINCT LOWER(TRIM(b.client_phone))) FILTER (WHERE b.client_phone IS NOT NULL AND TRIM(b.client_phone) <> '')::int AS clients_count
       FROM professionals p
       LEFT JOIN bookings b ON b.professional_id = p.id
-      LEFT JOIN LATERAL (
-        SELECT *
-        FROM plan_payments pp
-        WHERE pp.professional_id = p.id
-        ORDER BY pp.created_at DESC
-        LIMIT 1
-      ) lp ON TRUE
       ${whereSql}
-      GROUP BY
-        p.id,
-        lp.status,
-        lp.method,
-        lp.amount,
-        lp.currency,
-        lp.approved_at,
-        lp.expires_at
+      GROUP BY p.id
       ORDER BY p.created_at DESC
       LIMIT 200
       `,
@@ -386,7 +288,6 @@ router.get("/professionals", requireAdmin, async (req, res) => {
 
 router.get("/professionals/:id", requireAdmin, async (req, res) => {
   try {
-    await ensureAdminBillingSchema();
     const professionalId = Number(req.params.id);
 
     if (!professionalId || Number.isNaN(professionalId)) {
@@ -408,34 +309,10 @@ router.get("/professionals/:id", requireAdmin, async (req, res) => {
         p.status,
         p.created_at,
         p.updated_at,
-        p.plan,
-        p.monthly_limit,
-        p.plan_payment_status,
-        p.plan_expires_at,
-        p.last_payment_at,
-        p.billing_method,
-        p.plan_price,
-        p.plan_currency,
-        lp.status AS latest_payment_status,
-        lp.method AS latest_payment_method,
-        lp.amount AS latest_payment_amount,
-        lp.currency AS latest_payment_currency,
-        lp.approved_at AS latest_payment_approved_at,
-        lp.expires_at AS latest_payment_expires_at,
-        COUNT(b.id) FILTER (
-          WHERE DATE_TRUNC('month', b.booking_date::timestamp) = DATE_TRUNC('month', CURRENT_DATE::timestamp)
-        )::int AS monthly_bookings_count,
         COUNT(b.id)::int AS bookings_count,
         COUNT(DISTINCT LOWER(TRIM(b.client_phone))) FILTER (WHERE b.client_phone IS NOT NULL AND TRIM(b.client_phone) <> '')::int AS clients_count
       FROM professionals p
       LEFT JOIN bookings b ON b.professional_id = p.id
-      LEFT JOIN LATERAL (
-        SELECT *
-        FROM plan_payments pp
-        WHERE pp.professional_id = p.id
-        ORDER BY pp.created_at DESC
-        LIMIT 1
-      ) lp ON TRUE
       WHERE p.id = $1
       GROUP BY p.id
       LIMIT 1
@@ -485,7 +362,6 @@ router.get("/professionals/:id", requireAdmin, async (req, res) => {
 
 router.patch("/professionals/:id/status", requireAdmin, async (req, res) => {
   try {
-    await ensureAdminBillingSchema();
     const professionalId = Number(req.params.id);
     const status = normalizeText(req.body.status).toLowerCase();
 
@@ -513,24 +389,9 @@ router.patch("/professionals/:id/status", requireAdmin, async (req, res) => {
         slug,
         logo_url,
         status,
-        plan,
-        monthly_limit,
-        plan_payment_status,
-        plan_expires_at,
-        last_payment_at,
-        billing_method,
-        plan_price,
-        plan_currency,
-        NULL::text AS latest_payment_status,
-        NULL::text AS latest_payment_method,
-        NULL::numeric AS latest_payment_amount,
-        NULL::text AS latest_payment_currency,
-        NULL::timestamp AS latest_payment_approved_at,
-        NULL::timestamp AS latest_payment_expires_at,
         created_at,
         updated_at,
         0::int AS bookings_count,
-        0::int AS monthly_bookings_count,
         0::int AS clients_count
       `,
       [status, professionalId]
@@ -611,6 +472,49 @@ router.get("/reset-test-data", async (req, res) => {
       error: "Error limpiando datos de prueba",
       details: error.message,
     });
+  }
+});
+
+
+router.post("/change-password", requireAdmin, async (req, res) => {
+  try {
+    const currentPassword = normalizeText(req.body.currentPassword || req.body.current_password);
+    const newPassword = normalizeText(req.body.newPassword || req.body.new_password);
+
+    const adminPassword = normalizeText(process.env.ADMIN_PASSWORD);
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: "Faltan campos" });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({ error: "La nueva contraseña debe tener mínimo 8 caracteres" });
+    }
+
+    const validCurrentPassword = await isAdminPasswordValid(currentPassword, adminPassword);
+
+    if (!validCurrentPassword) {
+      return res.status(401).json({ error: "Contraseña actual incorrecta" });
+    }
+
+    await ensureAdminPasswordTable();
+
+    const hash = await bcrypt.hash(newPassword, 12);
+
+    await db.query(
+      `
+      INSERT INTO admin_auth_settings (key, value, updated_at)
+      VALUES ('password_hash', $1, NOW())
+      ON CONFLICT (key)
+      DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+      `,
+      [hash]
+    );
+
+    res.json({ success: true, message: "Contraseña admin actualizada" });
+  } catch (error) {
+    console.error("Error admin change-password:", error);
+    res.status(500).json({ error: "Error interno cambiando contraseña admin" });
   }
 });
 

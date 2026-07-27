@@ -91,6 +91,195 @@ const inputStyle = {
   color: '#1a1a1a',
 };
 
+
+function PasswordInputField({
+  value,
+  onChange,
+  placeholder = 'Contraseña',
+  autoComplete = 'current-password',
+  required = false,
+  style = {},
+}) {
+  const [showPassword, setShowPassword] = useState(false);
+
+  return (
+    <div style={{ position: 'relative', marginBottom: style?.marginBottom ?? 12 }}>
+      <input
+        style={{
+          ...style,
+          marginBottom: 0,
+          paddingRight: 52,
+        }}
+        type={showPassword ? 'text' : 'password'}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        required={required}
+        autoComplete={autoComplete}
+      />
+
+      <button
+        type="button"
+        onClick={() => setShowPassword((current) => !current)}
+        aria-label={showPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
+        title={showPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
+        style={{
+          position: 'absolute',
+          right: 10,
+          top: '50%',
+          transform: 'translateY(-50%)',
+          width: 34,
+          height: 34,
+          borderRadius: 999,
+          border: 'none',
+          background: '#f2f2f7',
+          color: '#0071e3',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          fontWeight: 950,
+          fontSize: 15,
+          fontFamily: 'inherit',
+        }}
+      >
+        {showPassword ? '🙈' : '👁️'}
+      </button>
+    </div>
+  );
+}
+
+function ChangePasswordCard({ title = 'Cambiar contraseña', description = 'Actualizá tu contraseña de acceso.', endpoint, token }) {
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [repeatPassword, setRepeatPassword] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+
+  const canSubmit = currentPassword && newPassword && repeatPassword && !saving;
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setMessage('');
+    setError('');
+
+    if (newPassword.length < 8) {
+      setError('La nueva contraseña debe tener mínimo 8 caracteres.');
+      return;
+    }
+
+    if (newPassword !== repeatPassword) {
+      setError('La repetición no coincide con la nueva contraseña.');
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const response = await fetch(`${API_BASE}${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          currentPassword,
+          newPassword,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || 'No se pudo cambiar la contraseña.');
+      }
+
+      setCurrentPassword('');
+      setNewPassword('');
+      setRepeatPassword('');
+      setMessage('Contraseña actualizada correctamente.');
+    } catch (err) {
+      setError(err.message || 'No se pudo cambiar la contraseña.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      style={{
+        background: '#fff',
+        border: '0.5px solid #ececf2',
+        borderRadius: 20,
+        padding: 16,
+        boxShadow: '0 4px 14px rgba(0,0,0,0.035)',
+      }}
+    >
+      <div style={{ fontSize: 15, fontWeight: 950, color: '#1a1a1a', letterSpacing: '-0.01em', marginBottom: 4 }}>
+        {title}
+      </div>
+      <div style={{ fontSize: 12.5, color: '#6e6e73', fontWeight: 700, lineHeight: 1.4, marginBottom: 12 }}>
+        {description}
+      </div>
+
+      <label style={smallLabelStyle}>Contraseña actual</label>
+      <PasswordInputField
+        value={currentPassword}
+        onChange={(event) => setCurrentPassword(event.target.value)}
+        placeholder="Contraseña actual"
+        autoComplete="current-password"
+        required
+        style={{ ...inputStyle, marginBottom: 10 }}
+      />
+
+      <label style={smallLabelStyle}>Nueva contraseña</label>
+      <PasswordInputField
+        value={newPassword}
+        onChange={(event) => setNewPassword(event.target.value)}
+        placeholder="Mínimo 8 caracteres"
+        autoComplete="new-password"
+        required
+        style={{ ...inputStyle, marginBottom: 10 }}
+      />
+
+      <label style={smallLabelStyle}>Repetir nueva contraseña</label>
+      <PasswordInputField
+        value={repeatPassword}
+        onChange={(event) => setRepeatPassword(event.target.value)}
+        placeholder="Repetir nueva contraseña"
+        autoComplete="new-password"
+        required
+        style={{ ...inputStyle, marginBottom: 10 }}
+      />
+
+      {error && <div style={{ color: '#ff453a', fontSize: 12.5, fontWeight: 850, marginBottom: 10 }}>{error}</div>}
+      {message && <div style={{ color: '#188038', fontSize: 12.5, fontWeight: 850, marginBottom: 10 }}>{message}</div>}
+
+      <button
+        type="submit"
+        disabled={!canSubmit}
+        style={{
+          width: '100%',
+          border: 'none',
+          borderRadius: 14,
+          padding: '12px 14px',
+          background: canSubmit ? '#0071e3' : '#aeaeb2',
+          color: '#fff',
+          fontSize: 14,
+          fontWeight: 950,
+          fontFamily: 'inherit',
+          cursor: canSubmit ? 'pointer' : 'not-allowed',
+        }}
+      >
+        {saving ? 'Guardando...' : 'Cambiar contraseña'}
+      </button>
+    </form>
+  );
+}
+
+
 const smallLabelStyle = {
   fontSize: 11,
   color: '#6e6e73',
@@ -1052,14 +1241,13 @@ function UnifiedLoginPage() {
         />
 
         <label style={smallLabelStyle}>Contraseña</label>
-        <input
-          style={{ ...inputStyle, marginBottom: 12 }}
-          type="password"
+        <PasswordInputField
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           placeholder="Contraseña"
           required
           autoComplete="current-password"
+          style={{ ...inputStyle, marginBottom: 12 }}
         />
 
         {error && (
@@ -1150,14 +1338,13 @@ function LoginForm({ onLogin }) {
         />
 
         <label style={smallLabelStyle}>Contraseña</label>
-        <input
-          style={{ ...inputStyle, marginBottom: 12 }}
-          type="password"
+        <PasswordInputField
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Contraseña"
           required
           autoComplete="current-password"
+          style={{ ...inputStyle, marginBottom: 12 }}
         />
 
         {error && (
@@ -1426,14 +1613,13 @@ function RegisterPage() {
 
           <div className="register-full">
             <label style={smallLabelStyle}>Contraseña *</label>
-            <input
-              style={{ ...inputStyle, marginBottom: 0, borderRadius: 15, padding: '13px 14px' }}
-              type="password"
+            <PasswordInputField
               value={form.password}
               onChange={(e) => updateForm('password', e.target.value)}
               placeholder="Contraseña"
               required
               autoComplete="new-password"
+              style={{ ...inputStyle, marginBottom: 0, borderRadius: 15, padding: '13px 14px' }}
             />
             <div style={{ marginTop: 7, color: '#8e8e93', fontSize: 12, fontWeight: 650 }}>
               Usá mínimo 8 caracteres para proteger el acceso al panel.
@@ -8679,6 +8865,13 @@ function ProfessionalSettingsSection() {
             })}
           </div>
         </div>
+
+        <ChangePasswordCard
+          title="Contraseña del profesional"
+          description="Cambiá la contraseña de acceso a este panel."
+          endpoint="/auth/change-password"
+          token={token}
+        />
       </div>
 
       {error && <div style={{ marginTop: 12, color: '#ff453a', fontSize: 13, fontWeight: 800 }}>{error}</div>}
@@ -9935,10 +10128,9 @@ function AdminLoginPage() {
         />
 
         <label style={{ display: 'block', fontSize: 13, fontWeight: 800, color: '#6e6e73', marginBottom: 6 }}>Contraseña</label>
-        <input
+        <PasswordInputField
           value={password}
           onChange={(event) => setPassword(event.target.value)}
-          type="password"
           placeholder="Contraseña"
           autoComplete="current-password"
           style={{ width: '100%', border: '1px solid #dcdce3', borderRadius: 14, padding: '13px 14px', fontSize: 15, outline: 'none', marginBottom: 16 }}
@@ -10160,6 +10352,15 @@ function AdminDashboardPage() {
             {error}
           </div>
         )}
+
+        <div style={{ marginBottom: 18 }}>
+          <ChangePasswordCard
+            title="Contraseña del dueño"
+            description="Cambiá la contraseña de acceso al panel admin. Si la cambiás acá, desde ahora usás la nueva."
+            endpoint="/admin/change-password"
+            token={token}
+          />
+        </div>
 
         <div className="admin-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginBottom: 18 }}>
           {statCards.map((card) => (
