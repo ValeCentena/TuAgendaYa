@@ -1447,7 +1447,7 @@ export default function BookPage() {
               )}
 
               <div style={{ fontSize: 11.5, color: '#8e8e93', margin: '-4px 0 12px', lineHeight: 1.35 }}>
-                El negocio verá este método en su panel. El pago online se coordina por fuera con el QR, link o medio de pago del negocio y queda pendiente hasta que lo marquen como pagado.
+                El pago se procesa con tarjeta dentro de TuAgendaYa. No guardamos número de tarjeta ni código de seguridad.
               </div>
 
               <label style={labelStyle}>Comentario opcional</label>
@@ -1496,11 +1496,11 @@ export default function BookPage() {
                 fontSize: 16,
                 fontWeight: 850,
                 fontFamily: 'inherit',
-                cursor: loading || !selectedServiceId || (hasStaffChoice && !selectedStaffId) || !selectedTime || visiblePaymentMethods.length === 0 ? 'not-allowed' : 'pointer',
-                boxShadow: loading || !selectedServiceId || (hasStaffChoice && !selectedStaffId) || !selectedTime || visiblePaymentMethods.length === 0 ? 'none' : '0 12px 24px rgba(0,113,227,0.18)',
+                cursor: loading || paymentMethod === 'online' || !selectedServiceId || (hasStaffChoice && !selectedStaffId) || !selectedTime || visiblePaymentMethods.length === 0 ? 'not-allowed' : 'pointer',
+                boxShadow: loading || paymentMethod === 'online' || !selectedServiceId || (hasStaffChoice && !selectedStaffId) || !selectedTime || visiblePaymentMethods.length === 0 ? 'none' : '0 12px 24px rgba(0,113,227,0.18)',
               }}
             >
-              {loading ? 'Procesando...' : (paymentMethod === 'online' ? 'Completá la tarjeta arriba' : 'Confirmar reserva')}
+              {loading ? 'Procesando...' : (paymentMethod === 'online' ? 'Confirmá el pago en el formulario de tarjeta' : 'Confirmar reserva')}
             </button>
           </form>
         )}

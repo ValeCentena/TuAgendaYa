@@ -40,13 +40,19 @@ async function getPublicKey() {
 
 export default function CardPaymentBrick({ amount, disabled, onSubmitPayment }) {
   const controllerRef = useRef(null);
+  const onSubmitPaymentRef = useRef(onSubmitPayment);
   const containerIdRef = useRef(`tuagendaya-card-payment-${Math.random().toString(36).slice(2)}`);
   const [loading, setLoading] = useState(false);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
+    onSubmitPaymentRef.current = onSubmitPayment;
+  }, [onSubmitPayment]);
+
+  useEffect(() => {
     let cancelled = false;
+    let mountedController = null;
 
     const destroy = async () => {
       if (controllerRef.current) {
@@ -61,6 +67,7 @@ export default function CardPaymentBrick({ amount, disabled, onSubmitPayment }) 
       if (!amount || Number(amount) <= 0 || disabled) {
         await destroy();
         setReady(false);
+        setLoading(false);
         return;
       }
 
@@ -78,7 +85,7 @@ export default function CardPaymentBrick({ amount, disabled, onSubmitPayment }) 
         const mp = new MercadoPago(publicKey, { locale: 'es-UY' });
         const bricksBuilder = mp.bricks();
 
-        controllerRef.current = await bricksBuilder.create('cardPayment', containerIdRef.current, {
+        mountedController = await bricksBuilder.create('cardPayment', containerIdRef.current, {
           initialization: {
             amount: Number(amount),
           },
@@ -94,20 +101,35 @@ export default function CardPaymentBrick({ amount, disabled, onSubmitPayment }) 
           },
           callbacks: {
             onReady: () => {
+              if (cancelled) return;
               setReady(true);
               setLoading(false);
             },
             onSubmit: async (cardFormData) => {
               setError('');
-              await onSubmitPayment(cardFormData);
+              if (!onSubmitPaymentRef.current) {
+                throw new Error('No se pudo procesar el pago.');
+              }
+
+              await onSubmitPaymentRef.current(cardFormData);
             },
             onError: (brickError) => {
               console.error('Mercado Pago Brick error:', brickError);
+              if (cancelled) return;
               setError('No se pudo cargar el formulario de tarjeta.');
               setLoading(false);
             },
           },
         });
+
+        if (cancelled) {
+          try {
+            await mountedController.unmount();
+          } catch (_) {}
+          return;
+        }
+
+        controllerRef.current = mountedController;
       } catch (err) {
         if (!cancelled) {
           setError(err.message || 'No se pudo cargar el formulario de tarjeta.');
@@ -120,9 +142,14 @@ export default function CardPaymentBrick({ amount, disabled, onSubmitPayment }) 
 
     return () => {
       cancelled = true;
+
+      if (mountedController && mountedController !== controllerRef.current) {
+        mountedController.unmount?.().catch?.(() => {});
+      }
+
       destroy();
     };
-  }, [amount, disabled, onSubmitPayment]);
+  }, [amount, disabled]);
 
   return (
     <div
