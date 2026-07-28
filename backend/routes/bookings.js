@@ -68,6 +68,98 @@ function getFrontendUrl() {
   return process.env.FRONTEND_URL || "https://tuagendaya-web.onrender.com";
 }
 
+function getMercadoPagoPublicKeyForBookings() {
+  return process.env.MERCADOPAGO_PUBLIC_KEY || "";
+}
+
+function getMercadoPagoAccessTokenForBookings() {
+  return process.env.MERCADOPAGO_ACCESS_TOKEN || "";
+}
+
+function createBookingPaymentIdempotencyKey(parts = []) {
+  return `${parts.filter(Boolean).join("-")}-${Date.now().toString(36)}`
+    .replace(/[^a-zA-Z0-9_-]/g, "")
+    .slice(0, 64);
+}
+
+async function createCardPaymentForBooking({ amount, description, paymentData, professional, service, bookingDate, startTime }) {
+  const accessToken = getMercadoPagoAccessTokenForBookings();
+
+  if (!accessToken) {
+    const error = new Error("Mercado Pago no está configurado");
+    error.status = 503;
+    throw error;
+  }
+
+  const numericAmount = Number(amount || 0);
+
+  if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+    const error = new Error("El servicio no tiene precio válido para pago online");
+    error.status = 400;
+    throw error;
+  }
+
+  const payer = paymentData?.payer || {};
+  const payerEmail = String(payer.email || "").trim().toLowerCase();
+
+  if (!payerEmail || !payerEmail.includes("@")) {
+    const error = new Error("Ingresá un email válido para pagar con tarjeta");
+    error.status = 400;
+    throw error;
+  }
+
+  const payload = {
+    transaction_amount: Number(numericAmount.toFixed(2)),
+    token: paymentData.token,
+    description,
+    installments: Number(paymentData.installments || 1),
+    payment_method_id: paymentData.payment_method_id || paymentData.paymentMethodId,
+    issuer_id: paymentData.issuer_id || paymentData.issuerId,
+    payer: {
+      email: payerEmail,
+      identification: payer.identification,
+    },
+    metadata: {
+      type: "booking_card_payment",
+      professional_id: String(professional.id),
+      service_id: String(service.id),
+    },
+  };
+
+  if (!payload.token) {
+    const error = new Error("No se pudo validar la tarjeta");
+    error.status = 400;
+    throw error;
+  }
+
+  const response = await fetch("https://api.mercadopago.com/v1/payments", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      "X-Idempotency-Key": createBookingPaymentIdempotencyKey([
+        "booking",
+        professional.id,
+        service.id,
+        bookingDate,
+        startTime,
+      ]),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    console.error("Mercado Pago card payment error:", data);
+    const error = new Error(data.message || data.error || "No se pudo procesar el pago");
+    error.status = 502;
+    throw error;
+  }
+
+  return data;
+}
+
 function getApiPublicUrl() {
   return process.env.API_PUBLIC_URL || "https://tuagendaya-api.onrender.com";
 }
@@ -1855,6 +1947,20 @@ router.get("/public/:slug/slots", async (req, res) => {
   }
 });
 
+router.get("/public/payment/mercadopago/public-key", async (req, res) => {
+  try {
+    const publicKey = getMercadoPagoPublicKeyForBookings();
+
+    if (!publicKey) {
+      return res.status(503).json({ error: "MERCADOPAGO_PUBLIC_KEY no configurada" });
+    }
+
+    res.json({ publicKey });
+  } catch (error) {
+    res.status(500).json({ error: "Error obteniendo Public Key" });
+  }
+});
+
 router.post("/public/:slug/book", async (req, res) => {
   try {
     await ensurePaymentColumns();
@@ -1874,6 +1980,8 @@ router.post("/public/:slug/book", async (req, res) => {
       staff_id,
       paymentMethod,
       payment_method,
+      paymentData,
+      payment_data,
     } = req.body;
 
     if (!clientName || !clientPhone) {
@@ -1957,6 +2065,30 @@ router.post("/public/:slug/book", async (req, res) => {
 
     const confirmationToken = createConfirmationToken();
     const finalPaymentMethod = normalizePaymentMethodForBooking(paymentMethod ?? payment_method);
+    const onlinePaymentData = paymentData || payment_data || null;
+    let approvedOnlinePayment = null;
+
+    if (finalPaymentMethod === "online" && onlinePaymentData) {
+      const amount = Number(service ? service.price || 0 : 0);
+
+      approvedOnlinePayment = await createCardPaymentForBooking({
+        amount,
+        description: `${service ? service.name : "Reserva"} - ${professional.business_name || professional.name || "TuAgendaYa"}`,
+        paymentData: onlinePaymentData,
+        professional,
+        service,
+        bookingDate: normalizeDate(bookingDate),
+        startTime: normalizeTime(startTime),
+      });
+
+      if (approvedOnlinePayment.status !== "approved") {
+        return res.status(402).json({
+          error: approvedOnlinePayment.status_detail || "El pago no fue aprobado",
+          paymentStatus: approvedOnlinePayment.status,
+          paymentStatusDetail: approvedOnlinePayment.status_detail,
+        });
+      }
+    }
 
     const result = await db.query(
       `
@@ -1978,7 +2110,7 @@ router.post("/public/:slug/book", async (req, res) => {
         created_at,
         updated_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending', $10, 'pending', $11, 0, NOW(), NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $12, $10, $13, $11, $14, NOW(), NOW())
       RETURNING *
       `,
       [
@@ -1993,6 +2125,9 @@ router.post("/public/:slug/book", async (req, res) => {
         normalizeTime(finalEndTime),
         confirmationToken,
         finalPaymentMethod,
+        approvedOnlinePayment ? "confirmed" : "pending",
+        approvedOnlinePayment ? "paid" : "pending",
+        approvedOnlinePayment ? Number(service ? service.price || 0 : 0) : 0,
       ]
     );
 
@@ -2120,6 +2255,11 @@ router.post("/public/:slug/book", async (req, res) => {
       pushNotification,
       booking: normalizedBooking,
       onlinePayment,
+      payment: approvedOnlinePayment ? {
+        id: approvedOnlinePayment.id,
+        status: approvedOnlinePayment.status,
+        statusDetail: approvedOnlinePayment.status_detail,
+      } : null,
     });
   } catch (error) {
     res.status(500).json({

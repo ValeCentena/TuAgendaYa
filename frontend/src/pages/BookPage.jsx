@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
+import CardPaymentBrick from '../components/CardPaymentBrick.jsx';
 
 const API_BASE = 'https://tuagendaya-api.onrender.com/api';
 
@@ -640,6 +641,55 @@ export default function BookPage() {
     );
   };
 
+  const submitOnlineCardPayment = async (cardFormData) => {
+    setLoading(true);
+    setError('');
+
+    try {
+      const res = await fetch(`${API_BASE}/bookings/public/${slug}/book`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientName: clientName.trim(),
+          clientPhone: fullClientPhone,
+          comment: clientComment.trim(),
+          paymentMethod: 'online',
+          paymentStatus: 'paid',
+          amountPaid: Number(selectedService?.price || 0),
+          bookingDate,
+          startTime: selectedTime,
+          serviceId: Number(selectedServiceId),
+          ...(hasStaffChoice && selectedStaffId ? { staffId: Number(selectedStaffId) } : {}),
+          paymentData: cardFormData,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        if (res.status === 409) {
+          refreshSlots();
+        }
+
+        throw new Error(data.error || 'No se pudo aprobar el pago.');
+      }
+
+      setSuccess(true);
+      setOnlinePaymentUrl('');
+      setOnlinePaymentMessage('Pago aprobado. Tu reserva quedó confirmada y pagada.');
+      setCalendarOpen(false);
+
+      window.setTimeout(() => {
+        pageTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 80);
+    } catch (err) {
+      setError(err.message || 'No se pudo procesar el pago.');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -685,6 +735,11 @@ export default function BookPage() {
       return;
     }
 
+    if (paymentMethod === 'online') {
+      setError('Para pagar online, completá los datos de la tarjeta y confirmá el pago desde el formulario.');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -718,7 +773,7 @@ export default function BookPage() {
         setOnlinePaymentUrl('');
         setOnlinePaymentMessage(
           paymentMethod === 'online'
-            ? 'Reserva recibida. El pago online queda pendiente: el negocio te indicará su QR, link o medio de pago y luego lo registrará como pagado.'
+            ? 'Pago aprobado. Tu reserva quedó confirmada y pagada.'
             : ''
         );
         setCalendarOpen(false);
@@ -1411,6 +1466,22 @@ export default function BookPage() {
               </div>
             )}
 
+            {paymentMethod === 'online' && (
+              <CardPaymentBrick
+                amount={Number(selectedService?.price || 0)}
+                disabled={
+                  loading ||
+                  !selectedServiceId ||
+                  (hasStaffChoice && !selectedStaffId) ||
+                  !bookingDate ||
+                  !selectedTime ||
+                  !clientName.trim() ||
+                  !fullClientPhone
+                }
+                onSubmitPayment={submitOnlineCardPayment}
+              />
+            )}
+
             <button
               type="submit"
               className="public-booking-submit"
@@ -1429,7 +1500,7 @@ export default function BookPage() {
                 boxShadow: loading || !selectedServiceId || (hasStaffChoice && !selectedStaffId) || !selectedTime || visiblePaymentMethods.length === 0 ? 'none' : '0 12px 24px rgba(0,113,227,0.18)',
               }}
             >
-              {loading ? 'Reservando...' : (paymentMethod === 'online' ? 'Reservar con pago online' : 'Confirmar reserva')}
+              {loading ? 'Procesando...' : (paymentMethod === 'online' ? 'Completá la tarjeta arriba' : 'Confirmar reserva')}
             </button>
           </form>
         )}
