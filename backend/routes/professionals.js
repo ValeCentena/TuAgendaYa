@@ -661,9 +661,7 @@ router.get('/public/:slug/services', async (req, res) => {
 
     const slug = String(req.params.slug || '').trim();
     const professional = (await db.query(
-      `SELECT id, name, business_name, profession, address, slug, logo_url, accepted_payment_methods,
-              notify_new_booking, notify_cancellation, notify_reminder, reminder_hours_before,
-              allow_client_cancellations, cancellation_limit_minutes
+      `SELECT *
        FROM professionals
        WHERE slug = $1 AND (status IS NULL OR status = 'active')
        LIMIT 1`,
@@ -682,7 +680,10 @@ router.get('/public/:slug/services', async (req, res) => {
          AND TRIM(COALESCE(name, '')) <> ''
        ORDER BY id ASC`,
       [professional.id]
-    ).catch(() => ({ rows: [] }))).rows;
+    ).catch((error) => {
+      console.warn('public professional_services read skipped:', error.message);
+      return { rows: [] };
+    })).rows;
 
     const legacyServices = (await db.query(
       `SELECT id, professional_id, name, description, duration AS duration_minutes, price, active AS is_active, created_at, updated_at
@@ -692,7 +693,10 @@ router.get('/public/:slug/services', async (req, res) => {
          AND TRIM(COALESCE(name, '')) <> ''
        ORDER BY id ASC`,
       [professional.id]
-    ).catch(() => ({ rows: [] }))).rows;
+    ).catch((error) => {
+      console.warn('public legacy services read skipped:', error.message);
+      return { rows: [] };
+    })).rows;
 
     const byName = new Set();
     const services = [...professionalServices, ...legacyServices]
@@ -704,34 +708,27 @@ router.get('/public/:slug/services', async (req, res) => {
       })
       .map(normalizeServiceRow);
 
+    const settings = normalizeSettingsRow(professional || {});
+    const acceptedPaymentMethods = normalizePaymentMethods(professional.accepted_payment_methods);
+
+    const publicProfessional = {
+      id: professional.id,
+      name: professional.name,
+      businessName: professional.business_name || professional.businessName || professional.name,
+      business_name: professional.business_name || professional.businessName || professional.name,
+      profession: professional.profession || '',
+      address: professional.address || '',
+      slug: professional.slug,
+      logoUrl: professional.logo_url || professional.logoUrl || null,
+      logo_url: professional.logo_url || professional.logoUrl || null,
+      acceptedPaymentMethods,
+      accepted_payment_methods: acceptedPaymentMethods,
+    };
+
     return res.json({
-      professional: {
-        id: professional.id,
-        name: professional.name,
-        businessName: professional.business_name || professional.name,
-        business_name: professional.business_name || professional.name,
-        profession: professional.profession || '',
-        address: professional.address || '',
-        slug: professional.slug,
-        logoUrl: professional.logo_url || null,
-        logo_url: professional.logo_url || null,
-        acceptedPaymentMethods: normalizePaymentMethods(professional.accepted_payment_methods),
-        accepted_payment_methods: normalizePaymentMethods(professional.accepted_payment_methods),
-      },
-      business: {
-        id: professional.id,
-        name: professional.name,
-        businessName: professional.business_name || professional.name,
-        business_name: professional.business_name || professional.name,
-        profession: professional.profession || '',
-        address: professional.address || '',
-        slug: professional.slug,
-        logoUrl: professional.logo_url || null,
-        logo_url: professional.logo_url || null,
-        acceptedPaymentMethods: normalizePaymentMethods(professional.accepted_payment_methods),
-        accepted_payment_methods: normalizePaymentMethods(professional.accepted_payment_methods),
-      },
-      settings: normalizeSettingsRow(professional),
+      professional: publicProfessional,
+      business: publicProfessional,
+      settings,
       services,
     });
   } catch (err) {
