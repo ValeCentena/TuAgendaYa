@@ -678,7 +678,7 @@ router.get('/public/:slug/services', async (req, res) => {
       `SELECT id, professional_id, name, description, duration_minutes, price, is_active, created_at, updated_at
        FROM professional_services
        WHERE professional_id = $1
-         AND (is_active IS NULL OR is_active = TRUE OR is_active::text IN ('1','true','t'))
+         AND (is_active IS NULL OR is_active::text IN ('1','true','t'))
          AND TRIM(COALESCE(name, '')) <> ''
        ORDER BY id ASC`,
       [professional.id]
