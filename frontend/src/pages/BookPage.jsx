@@ -714,18 +714,13 @@ export default function BookPage() {
           refreshSlots();
         }
       } else {
-        const paymentUrl = data.onlinePayment?.url || data.onlinePayment?.initPoint || data.onlinePayment?.sandboxInitPoint || '';
-
-        if (paymentMethod === 'online' && paymentUrl) {
-          setOnlinePaymentUrl(paymentUrl);
-          setOnlinePaymentMessage('Te estamos llevando a Mercado Pago para completar el pago.');
-          window.location.href = paymentUrl;
-          return;
-        }
-
         setSuccess(true);
         setOnlinePaymentUrl('');
-        setOnlinePaymentMessage('');
+        setOnlinePaymentMessage(
+          paymentMethod === 'online'
+            ? 'Reserva recibida. El pago online queda pendiente: el negocio te indicará su QR, link o medio de pago y luego lo registrará como pagado.'
+            : ''
+        );
         setCalendarOpen(false);
         window.setTimeout(() => {
           pageTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1397,7 +1392,7 @@ export default function BookPage() {
               )}
 
               <div style={{ fontSize: 11.5, color: '#8e8e93', margin: '-4px 0 12px', lineHeight: 1.35 }}>
-                El negocio verá este método en su panel. El pago online real se conectará en el próximo paso; por ahora queda por cobrar hasta que el profesional lo marque como pagado.
+                El negocio verá este método en su panel. El pago online se coordina por fuera con el QR, link o medio de pago del negocio y queda pendiente hasta que lo marquen como pagado.
               </div>
 
               <label style={labelStyle}>Comentario opcional</label>
@@ -1434,7 +1429,7 @@ export default function BookPage() {
                 boxShadow: loading || !selectedServiceId || (hasStaffChoice && !selectedStaffId) || !selectedTime || visiblePaymentMethods.length === 0 ? 'none' : '0 12px 24px rgba(0,113,227,0.18)',
               }}
             >
-              {loading ? 'Reservando...' : 'Confirmar reserva'}
+              {loading ? 'Reservando...' : (paymentMethod === 'online' ? 'Reservar con pago online' : 'Confirmar reserva')}
             </button>
           </form>
         )}

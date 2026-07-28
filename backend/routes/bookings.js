@@ -2108,23 +2108,7 @@ router.post("/public/:slug/book", async (req, res) => {
       };
     }
 
-    let onlinePayment = null;
-
-    if (finalPaymentMethod === "online") {
-      try {
-        onlinePayment = await createBookingMercadoPagoPreference({
-          booking: normalizedBooking,
-          professional,
-          service,
-          staff,
-        });
-      } catch (paymentError) {
-        return res.status(paymentError.status || 502).json({
-          error: paymentError.message || "No se pudo iniciar el pago online",
-          booking: normalizedBooking,
-        });
-      }
-    }
+    const onlinePayment = null;
 
     res.status(201).json({
       success: true,
