@@ -72,6 +72,105 @@ function getApiPublicUrl() {
   return process.env.API_PUBLIC_URL || "https://tuagendaya-api.onrender.com";
 }
 
+
+function getMercadoPagoPublicKey() {
+  return process.env.MERCADOPAGO_PUBLIC_KEY || "";
+}
+
+function getMercadoPagoAccessToken() {
+  return process.env.MERCADOPAGO_ACCESS_TOKEN || "";
+}
+
+function buildMercadoPagoIdempotencyKey(parts = []) {
+  const raw = parts.filter(Boolean).join("-") || "tuagendaya";
+  return `${raw}-${Date.now().toString(36)}`.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64);
+}
+
+async function createMercadoPagoCardPayment({ amount, description, paymentData, professional, service, reservationData }) {
+  const accessToken = getMercadoPagoAccessToken();
+
+  if (!accessToken) {
+    const error = new Error("Mercado Pago no está configurado");
+    error.status = 503;
+    throw error;
+  }
+
+  const numericAmount = Number(amount || 0);
+
+  if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+    const error = new Error("El servicio no tiene precio válido para pago online");
+    error.status = 400;
+    throw error;
+  }
+
+  const payer = paymentData?.payer || {};
+  const payerEmail = String(payer.email || reservationData?.email || reservationData?.clientEmail || "").trim().toLowerCase();
+
+  if (!payerEmail || !payerEmail.includes("@")) {
+    const error = new Error("Ingresá un email válido para pagar con tarjeta");
+    error.status = 400;
+    throw error;
+  }
+
+  const paymentMethodId = paymentData.payment_method_id || paymentData.paymentMethodId;
+  const issuerId = paymentData.issuer_id || paymentData.issuerId;
+
+  const payload = {
+    transaction_amount: Number(numericAmount.toFixed(2)),
+    token: paymentData.token,
+    description: description || service?.name || "Reserva TuAgendaYa",
+    installments: Number(paymentData.installments || 1),
+    payment_method_id: paymentMethodId,
+    payer: {
+      email: payerEmail,
+      identification: payer.identification,
+    },
+    metadata: {
+      type: "booking_card_payment",
+      professional_id: String(professional.id),
+      professional_slug: String(professional.slug || ""),
+      service_id: String(service.id || ""),
+    },
+  };
+
+  if (issuerId) {
+    payload.issuer_id = issuerId;
+  }
+
+  if (!payload.token || !payload.payment_method_id) {
+    const error = new Error("No se pudo validar la tarjeta");
+    error.status = 400;
+    throw error;
+  }
+
+  const response = await fetch("https://api.mercadopago.com/v1/payments", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      "X-Idempotency-Key": buildMercadoPagoIdempotencyKey([
+        "booking",
+        professional.id,
+        service.id,
+        reservationData?.bookingDate,
+        reservationData?.startTime,
+      ]),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    console.error("Mercado Pago card payment error:", data);
+    const error = new Error(data.message || data.error || "No se pudo procesar el pago");
+    error.status = 502;
+    throw error;
+  }
+
+  return data;
+}
+
 function normalizeMercadoPagoAmount(value) {
   const amount = Number(value || 0);
   return Number.isFinite(amount) && amount > 0 ? Number(amount.toFixed(2)) : 0;
@@ -1852,6 +1951,188 @@ router.get("/public/:slug/slots", async (req, res) => {
     res.status(500).json({
       error: error.message || "Error obteniendo horarios",
     });
+  }
+});
+
+router.get("/public/payment/mercadopago/public-key", async (req, res) => {
+  try {
+    const publicKey = getMercadoPagoPublicKey();
+
+    if (!publicKey) {
+      return res.status(503).json({ error: "MERCADOPAGO_PUBLIC_KEY no configurada" });
+    }
+
+    res.json({ publicKey });
+  } catch (error) {
+    res.status(500).json({ error: "Error obteniendo Public Key" });
+  }
+});
+
+router.post("/public/:slug/book/pay-online", async (req, res) => {
+  try {
+    await ensurePaymentColumns();
+
+    const { slug } = req.params;
+    const professional = await getProfessionalBySlug(slug);
+
+    if (!professional) {
+      return res.status(404).json({ error: "Profesional no encontrado" });
+    }
+
+    const reservation = req.body?.reservation || {};
+    const paymentData = req.body?.paymentData || req.body?.payment_data || {};
+
+    const clientName = String(reservation.clientName || reservation.client_name || "").trim();
+    const clientPhone = String(reservation.clientPhone || reservation.client_phone || "").replace(/[^0-9+]/g, "").trim();
+    const comment = String(reservation.comment || reservation.notes || "").trim();
+    const bookingDate = normalizeDate(reservation.bookingDate || reservation.booking_date);
+    const startTime = normalizeTime(reservation.startTime || reservation.start_time);
+    const finalServiceId = reservation.serviceId || reservation.service_id || null;
+    const finalStaffId = reservation.staffId || reservation.staff_id || null;
+
+    if (!clientName || !clientPhone) {
+      return res.status(400).json({ error: "Nombre y teléfono son obligatorios" });
+    }
+
+    if (!bookingDate || !startTime) {
+      return res.status(400).json({ error: "Fecha y horario son obligatorios" });
+    }
+
+    if (!finalServiceId) {
+      return res.status(400).json({ error: "Seleccioná un servicio" });
+    }
+
+    const service = await getServiceForProfessional(professional.id, finalServiceId);
+
+    if (!service) {
+      return res.status(404).json({ error: "Servicio no encontrado" });
+    }
+
+    let staff = null;
+
+    if (finalStaffId) {
+      staff = await getStaffForProfessional(professional.id, Number(finalStaffId));
+
+      if (!staff) {
+        return res.status(404).json({ error: "Profesional interno no encontrado" });
+      }
+    }
+
+    const durationMinutes = Number(service.duration_minutes || 30) || 30;
+    const finalEndTime = addMinutesToTime(startTime, durationMinutes);
+
+    const availability = await getAvailabilityForDate(
+      professional.id,
+      staff ? staff.id : null,
+      bookingDate
+    );
+
+    if (!availability || !isAvailabilityActive(availability)) {
+      return res.status(409).json({ error: "Este profesional no trabaja en esa fecha" });
+    }
+
+    const available = await isTimeRangeAvailable(
+      professional.id,
+      staff ? staff.id : null,
+      bookingDate,
+      startTime,
+      finalEndTime,
+      availability
+    );
+
+    if (!available) {
+      return res.status(409).json({ error: "Horario no disponible" });
+    }
+
+    const amount = Number(service.price || 0);
+
+    const payment = await createMercadoPagoCardPayment({
+      amount,
+      description: `${service.name || "Reserva"} - ${professional.business_name || professional.name || "TuAgendaYa"}`,
+      paymentData,
+      professional,
+      service,
+      reservationData: {
+        ...reservation,
+        bookingDate,
+        startTime,
+      },
+    });
+
+    if (payment.status !== "approved") {
+      return res.status(402).json({
+        error: payment.status_detail || "El pago no fue aprobado",
+        paymentStatus: payment.status,
+        paymentStatusDetail: payment.status_detail,
+      });
+    }
+
+    const confirmationToken = createConfirmationToken();
+
+    const result = await db.query(
+      `
+      INSERT INTO bookings (
+        professional_id,
+        staff_id,
+        service_id,
+        client_name,
+        client_phone,
+        comment,
+        booking_date,
+        start_time,
+        end_time,
+        status,
+        confirmation_token,
+        payment_status,
+        payment_method,
+        amount_paid,
+        payment_updated_at,
+        created_at,
+        updated_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'confirmed', $10, 'paid', 'online', $11, NOW(), NOW(), NOW())
+      RETURNING *
+      `,
+      [
+        professional.id,
+        staff ? staff.id : null,
+        Number(finalServiceId),
+        clientName,
+        clientPhone,
+        comment || null,
+        bookingDate,
+        startTime,
+        finalEndTime,
+        confirmationToken,
+        amount,
+      ]
+    );
+
+    const confirmationUrl = `${getFrontendUrl()}/confirmar-reserva/${confirmationToken}`;
+    const normalizedBooking = normalizeBooking({
+      ...result.rows[0],
+      staff_name: staff ? staff.name : null,
+      service_name: service ? service.name : null,
+      service_duration_minutes: service ? service.duration_minutes : null,
+      service_price: service ? service.price : null,
+    });
+
+    res.status(201).json({
+      success: true,
+      bookingId: result.rows[0].id,
+      confirmationToken,
+      confirmationUrl,
+      booking: normalizedBooking,
+      payment: {
+        id: payment.id,
+        status: payment.status,
+        statusDetail: payment.status_detail,
+        amount,
+      },
+    });
+  } catch (error) {
+    console.error("POST /public/:slug/book/pay-online error:", error);
+    res.status(error.status || 500).json({ error: error.message || "Error procesando pago online" });
   }
 });
 

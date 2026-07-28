@@ -49,6 +49,42 @@ const PUBLIC_PAYMENT_METHODS = [
   { value: 'online', label: 'Pago online' },
 ];
 
+function loadMercadoPagoSdk() {
+  return new Promise((resolve, reject) => {
+    if (window.MercadoPago) {
+      resolve(window.MercadoPago);
+      return;
+    }
+
+    const existing = document.querySelector('script[data-mercadopago-sdk="true"]');
+
+    if (existing) {
+      existing.addEventListener('load', () => resolve(window.MercadoPago));
+      existing.addEventListener('error', reject);
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = 'https://sdk.mercadopago.com/js/v2';
+    script.async = true;
+    script.dataset.mercadopagoSdk = 'true';
+    script.onload = () => resolve(window.MercadoPago);
+    script.onerror = reject;
+    document.body.appendChild(script);
+  });
+}
+
+async function getMercadoPagoPublicKey() {
+  const response = await fetch(`${API_BASE}/bookings/public/payment/mercadopago/public-key`);
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok || !data.publicKey) {
+    throw new Error(data.error || 'No se pudo iniciar el formulario de pago.');
+  }
+
+  return data.publicKey;
+}
+
 function normalizeAcceptedPaymentMethods(value) {
   const allowed = PUBLIC_PAYMENT_METHODS.map((method) => method.value);
   const rawList = Array.isArray(value)
@@ -213,6 +249,11 @@ export default function BookPage() {
   const [success, setSuccess] = useState(false);
   const [onlinePaymentUrl, setOnlinePaymentUrl] = useState('');
   const [onlinePaymentMessage, setOnlinePaymentMessage] = useState('');
+  const [mpBrickLoading, setMpBrickLoading] = useState(false);
+  const [mpBrickError, setMpBrickError] = useState('');
+  const [mpBrickReady, setMpBrickReady] = useState(false);
+  const mpBrickControllerRef = useRef(null);
+  const mpBrickContainerId = 'tuagendaya-card-payment-brick';
   const [error, setError] = useState('');
 
   const selectedService = services.find((service) => String(service.id) === String(selectedServiceId));
@@ -640,6 +681,19 @@ export default function BookPage() {
     );
   };
 
+  const buildReservationPayload = () => ({
+    clientName: clientName.trim(),
+    clientPhone: fullClientPhone,
+    comment: clientComment.trim(),
+    paymentMethod,
+    paymentStatus: paymentMethod === 'online' ? 'paid' : 'pending',
+    amountPaid: 0,
+    bookingDate,
+    startTime: selectedTime,
+    serviceId: Number(selectedServiceId),
+    ...(hasStaffChoice && selectedStaffId ? { staffId: Number(selectedStaffId) } : {}),
+  });
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -685,6 +739,11 @@ export default function BookPage() {
       return;
     }
 
+    if (paymentMethod === 'online') {
+      setError('Completá el pago con tarjeta en el formulario de Pago online.');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -718,7 +777,7 @@ export default function BookPage() {
         setOnlinePaymentUrl('');
         setOnlinePaymentMessage(
           paymentMethod === 'online'
-            ? 'Reserva recibida. El pago online queda pendiente: el negocio te indicará su QR, link o medio de pago y luego lo registrará como pagado.'
+            ? 'Pago aprobado. Tu reserva quedó confirmada y pagada.'
             : ''
         );
         setCalendarOpen(false);
@@ -1411,6 +1470,40 @@ export default function BookPage() {
               </div>
             )}
 
+            {paymentMethod === 'online' && (
+              <div
+                style={{
+                  marginTop: 14,
+                  marginBottom: 14,
+                  background: '#fff',
+                  border: '1px solid #e5e5ea',
+                  borderRadius: 18,
+                  padding: 14,
+                }}
+              >
+                <div style={{ fontSize: 14, fontWeight: 900, color: '#1d1d1f', marginBottom: 6 }}>
+                  Pagar con tarjeta
+                </div>
+                <div style={{ fontSize: 12.5, fontWeight: 650, color: '#6e6e73', lineHeight: 1.4, marginBottom: 12 }}>
+                  Ingresá los datos de tu tarjeta. TuAgendaYa no guarda número de tarjeta ni código de seguridad.
+                </div>
+
+                {mpBrickLoading && (
+                  <div style={{ fontSize: 13, color: '#6e6e73', marginBottom: 10 }}>
+                    Cargando formulario de pago...
+                  </div>
+                )}
+
+                {mpBrickError && (
+                  <div style={{ fontSize: 13, color: '#ff3b30', fontWeight: 800, marginBottom: 10 }}>
+                    {mpBrickError}
+                  </div>
+                )}
+
+                <div id={mpBrickContainerId} />
+              </div>
+            )}
+
             <button
               type="submit"
               className="public-booking-submit"
@@ -1429,11 +1522,133 @@ export default function BookPage() {
                 boxShadow: loading || !selectedServiceId || (hasStaffChoice && !selectedStaffId) || !selectedTime || visiblePaymentMethods.length === 0 ? 'none' : '0 12px 24px rgba(0,113,227,0.18)',
               }}
             >
-              {loading ? 'Reservando...' : (paymentMethod === 'online' ? 'Reservar con pago online' : 'Confirmar reserva')}
+              {loading ? 'Procesando...' : (paymentMethod === 'online' ? (mpBrickReady ? 'Usá el formulario de tarjeta' : 'Cargando pago...') : 'Confirmar reserva')}
             </button>
           </form>
         )}
       </div>
     </div>
   );
-}
+}  useEffect(() => {
+    let cancelled = false;
+
+    const destroyBrick = async () => {
+      if (mpBrickControllerRef.current) {
+        try {
+          await mpBrickControllerRef.current.unmount();
+        } catch (_) {}
+        mpBrickControllerRef.current = null;
+      }
+    };
+
+    const shouldMountBrick =
+      paymentMethod === 'online' &&
+      selectedService &&
+      bookingDate &&
+      selectedTime &&
+      clientName.trim() &&
+      fullClientPhone &&
+      !success;
+
+    if (!shouldMountBrick) {
+      destroyBrick();
+      setMpBrickReady(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const mountBrick = async () => {
+      try {
+        setMpBrickLoading(true);
+        setMpBrickError('');
+        setMpBrickReady(false);
+        await destroyBrick();
+
+        const publicKey = await getMercadoPagoPublicKey();
+        const MercadoPago = await loadMercadoPagoSdk();
+
+        if (cancelled) return;
+
+        const mp = new MercadoPago(publicKey, { locale: 'es-UY' });
+        const bricksBuilder = mp.bricks();
+
+        mpBrickControllerRef.current = await bricksBuilder.create('cardPayment', mpBrickContainerId, {
+          initialization: {
+            amount: Number(selectedService.price || 0),
+          },
+          customization: {
+            visual: {
+              style: {
+                theme: 'default',
+              },
+            },
+            paymentMethods: {
+              maxInstallments: 1,
+            },
+          },
+          callbacks: {
+            onReady: () => {
+              setMpBrickReady(true);
+              setMpBrickLoading(false);
+            },
+            onSubmit: async (cardFormData) => {
+              setLoading(true);
+              setError('');
+              setMpBrickError('');
+
+              try {
+                const response = await fetch(`${API_BASE}/bookings/public/${slug}/book/pay-online`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    reservation: buildReservationPayload(),
+                    paymentData: cardFormData,
+                  }),
+                });
+
+                const data = await response.json().catch(() => ({}));
+
+                if (!response.ok) {
+                  throw new Error(data.error || 'No se pudo aprobar el pago.');
+                }
+
+                setSuccess(true);
+                setOnlinePaymentUrl('');
+                setOnlinePaymentMessage('Pago aprobado. Tu reserva quedó confirmada y pagada.');
+                setCalendarOpen(false);
+
+                window.setTimeout(() => {
+                  pageTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 80);
+              } catch (err) {
+                setMpBrickError(err.message || 'No se pudo procesar el pago.');
+                throw err;
+              } finally {
+                setLoading(false);
+              }
+            },
+            onError: (brickError) => {
+              console.error('Mercado Pago Brick error:', brickError);
+              setMpBrickError('No se pudo cargar el formulario de tarjeta.');
+              setMpBrickLoading(false);
+            },
+          },
+        });
+      } catch (err) {
+        if (!cancelled) {
+          setMpBrickError(err.message || 'No se pudo iniciar el formulario de tarjeta.');
+          setMpBrickLoading(false);
+        }
+      }
+    };
+
+    mountBrick();
+
+    return () => {
+      cancelled = true;
+      destroyBrick();
+    };
+  }, [paymentMethod, selectedServiceId, bookingDate, selectedTime, clientName, fullClientPhone, success]);
+
+
