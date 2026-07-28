@@ -660,7 +660,7 @@ router.get('/public/:slug/services', async (req, res) => {
     setNoStoreHeaders(res);
 
     const slug = String(req.params.slug || '').trim();
-    const prof = (await db.query(
+    const professional = (await db.query(
       `SELECT id, name, business_name, profession, address, slug, logo_url, accepted_payment_methods,
               notify_new_booking, notify_cancellation, notify_reminder, reminder_hours_before,
               allow_client_cancellations, cancellation_limit_minutes
@@ -670,72 +670,68 @@ router.get('/public/:slug/services', async (req, res) => {
       [slug]
     )).rows[0];
 
-    if (!prof) {
+    if (!professional) {
       return res.status(404).json({ error: 'Profesional no encontrado' });
     }
-
-    await ensureProfessionalServicesTable().catch((err) => {
-      console.warn('ensureProfessionalServicesTable skipped:', err.message);
-    });
-
-    await syncLegacyServicesToProfessionalTable(prof.id).catch((err) => {
-      console.warn('syncLegacyServicesToProfessionalTable skipped:', err.message);
-    });
 
     const professionalServices = (await db.query(
       `SELECT id, professional_id, name, description, duration_minutes, price, is_active, created_at, updated_at
        FROM professional_services
        WHERE professional_id = $1
-         AND (is_active IS NULL OR is_active::text IN ('1','true','t'))
+         AND (is_active IS NULL OR is_active = TRUE OR is_active::text IN ('1','true','t'))
          AND TRIM(COALESCE(name, '')) <> ''
        ORDER BY id ASC`,
-      [prof.id]
+      [professional.id]
     ).catch(() => ({ rows: [] }))).rows;
 
-    let services = professionalServices.map(normalizeServiceRow);
+    const legacyServices = (await db.query(
+      `SELECT id, professional_id, name, description, duration AS duration_minutes, price, active AS is_active, created_at, updated_at
+       FROM services
+       WHERE professional_id = $1
+         AND (active IS NULL OR active::text IN ('1','true','t'))
+         AND TRIM(COALESCE(name, '')) <> ''
+       ORDER BY id ASC`,
+      [professional.id]
+    ).catch(() => ({ rows: [] }))).rows;
 
-    if (services.length === 0) {
-      const legacyServices = (await db.query(
-        `SELECT id, professional_id, name, description, duration AS duration_minutes, price, active AS is_active, created_at, updated_at
-         FROM services
-         WHERE professional_id = $1
-           AND (active IS NULL OR active::text IN ('1','true','t'))
-           AND TRIM(COALESCE(name, '')) <> ''
-         ORDER BY id ASC`,
-        [prof.id]
-      ).catch(() => ({ rows: [] }))).rows;
-
-      services = legacyServices.map(normalizeServiceRow);
-    }
+    const byName = new Set();
+    const services = [...professionalServices, ...legacyServices]
+      .filter((service) => {
+        const key = String(service.name || '').trim().toLowerCase();
+        if (!key || byName.has(key)) return false;
+        byName.add(key);
+        return true;
+      })
+      .map(normalizeServiceRow);
 
     return res.json({
       professional: {
-        id: prof.id,
-        name: prof.name,
-        businessName: prof.business_name || prof.name,
-        business_name: prof.business_name || prof.name,
-        profession: prof.profession || '',
-        address: prof.address || '',
-        slug: prof.slug,
-        logoUrl: prof.logo_url || null,
-        logo_url: prof.logo_url || null,
-        acceptedPaymentMethods: normalizePaymentMethods(prof.accepted_payment_methods),
-        accepted_payment_methods: normalizePaymentMethods(prof.accepted_payment_methods),
+        id: professional.id,
+        name: professional.name,
+        businessName: professional.business_name || professional.name,
+        business_name: professional.business_name || professional.name,
+        profession: professional.profession || '',
+        address: professional.address || '',
+        slug: professional.slug,
+        logoUrl: professional.logo_url || null,
+        logo_url: professional.logo_url || null,
+        acceptedPaymentMethods: normalizePaymentMethods(professional.accepted_payment_methods),
+        accepted_payment_methods: normalizePaymentMethods(professional.accepted_payment_methods),
       },
       business: {
-        id: prof.id,
-        name: prof.name,
-        businessName: prof.business_name || prof.name,
-        business_name: prof.business_name || prof.name,
-        profession: prof.profession || '',
-        address: prof.address || '',
-        slug: prof.slug,
-        logoUrl: prof.logo_url || null,
-        logo_url: prof.logo_url || null,
-        acceptedPaymentMethods: normalizePaymentMethods(prof.accepted_payment_methods),
-        accepted_payment_methods: normalizePaymentMethods(prof.accepted_payment_methods),
+        id: professional.id,
+        name: professional.name,
+        businessName: professional.business_name || professional.name,
+        business_name: professional.business_name || professional.name,
+        profession: professional.profession || '',
+        address: professional.address || '',
+        slug: professional.slug,
+        logoUrl: professional.logo_url || null,
+        logo_url: professional.logo_url || null,
+        acceptedPaymentMethods: normalizePaymentMethods(professional.accepted_payment_methods),
+        accepted_payment_methods: normalizePaymentMethods(professional.accepted_payment_methods),
       },
-      settings: normalizeSettingsRow(prof),
+      settings: normalizeSettingsRow(professional),
       services,
     });
   } catch (err) {

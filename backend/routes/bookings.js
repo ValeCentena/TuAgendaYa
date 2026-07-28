@@ -1604,7 +1604,39 @@ router.get("/public/:slug/services", async (req, res) => {
       });
     }
 
-    const services = await getPublicServicesForProfessional(professional.id);
+    const professionalServices = (await db.query(
+      `
+      SELECT id, professional_id, name, description, duration_minutes, price, is_active, created_at, updated_at
+      FROM professional_services
+      WHERE professional_id = $1
+        AND (is_active IS NULL OR is_active = TRUE OR is_active::text IN ('1','true','t'))
+        AND TRIM(COALESCE(name, '')) <> ''
+      ORDER BY id ASC
+      `,
+      [professional.id]
+    ).catch(() => ({ rows: [] }))).rows;
+
+    const legacyServices = (await db.query(
+      `
+      SELECT id, professional_id, name, description, duration AS duration_minutes, price, active AS is_active, created_at, updated_at
+      FROM services
+      WHERE professional_id = $1
+        AND (active IS NULL OR active::text IN ('1','true','t'))
+        AND TRIM(COALESCE(name, '')) <> ''
+      ORDER BY id ASC
+      `,
+      [professional.id]
+    ).catch(() => ({ rows: [] }))).rows;
+
+    const byName = new Set();
+    const services = [...professionalServices, ...legacyServices]
+      .filter((service) => {
+        const key = String(service.name || "").trim().toLowerCase();
+        if (!key || byName.has(key)) return false;
+        byName.add(key);
+        return true;
+      })
+      .map(normalizePublicService);
 
     res.json({
       professional: {
