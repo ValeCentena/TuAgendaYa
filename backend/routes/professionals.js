@@ -121,6 +121,12 @@ function normalizePaymentMethods(value) {
   return clean.length > 0 ? Array.from(new Set(clean)) : ['cash'];
 }
 
+function setNoStoreHeaders(res) {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+}
+
 function normalizeSettingsRow(row) {
   const methods = normalizePaymentMethods(row.accepted_payment_methods);
   return {
