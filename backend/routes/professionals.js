@@ -181,25 +181,25 @@ function normalizeServiceRow(row) {
 }
 
 async function cleanupDefaultServicesForProfessional(professionalId) {
+  // Limpieza segura: NO borrar servicios creados manualmente.
+  // Antes esta función borraba nombres como "corte" o "consulta" si duraban 30/45/60 min,
+  // y eso hacía que al refrescar desaparecieran servicios reales del profesional.
+  // Ahora solo elimina los antiguos servicios de ejemplo exactos y únicamente si no tienen precio.
+  const defaultNames = [
+    'corte de pelo',
+    'coloración',
+    'coloracion',
+    'tratamiento',
+  ];
+
   await db.query(
     `
       DELETE FROM professional_services
       WHERE professional_id = $1
-        AND LOWER(TRIM(name)) IN (
-          'corte de pelo',
-          'coloración',
-          'coloracion',
-          'tratamiento',
-          'corte',
-          'consulta'
-        )
-        AND (
-          price IS NULL
-          OR price = 0
-          OR duration_minutes IN (20, 30, 45, 60, 90)
-        )
+        AND LOWER(TRIM(name)) = ANY($2::text[])
+        AND COALESCE(price, 0) = 0
     `,
-    [professionalId]
+    [professionalId, defaultNames]
   ).catch((error) => {
     console.warn('cleanupDefaultServicesForProfessional skipped:', error.message);
   });
@@ -208,26 +208,14 @@ async function cleanupDefaultServicesForProfessional(professionalId) {
     `
       DELETE FROM services
       WHERE professional_id = $1
-        AND LOWER(TRIM(name)) IN (
-          'corte de pelo',
-          'coloración',
-          'coloracion',
-          'tratamiento',
-          'corte',
-          'consulta'
-        )
-        AND (
-          price IS NULL
-          OR price = 0
-          OR duration IN (20, 30, 45, 60, 90)
-        )
+        AND LOWER(TRIM(name)) = ANY($2::text[])
+        AND COALESCE(price, 0) = 0
     `,
-    [professionalId]
+    [professionalId, defaultNames]
   ).catch((error) => {
     console.warn('cleanupDefaultServicesForProfessional legacy skipped:', error.message);
   });
 }
-
 
 // Mantiene compatibilidad con pantallas/rutas viejas que todavía leen la tabla `services`.
 // La tabla principal nueva es `professional_services`, pero el link público puede consultar `services`.
@@ -669,9 +657,11 @@ router.get('/public/:slug/settings', async (req, res) => {
 // Sirve para la página pública de reservas si consulta /api/professionals/public/:slug/services.
 router.get('/public/:slug/services', async (req, res) => {
   try {
+    setNoStoreHeaders(res);
+
     const slug = String(req.params.slug || '').trim();
     const prof = (await db.query(
-      `SELECT id, name, business_name, profession, slug, logo_url, accepted_payment_methods,
+      `SELECT id, name, business_name, profession, address, slug, logo_url, accepted_payment_methods,
               notify_new_booking, notify_cancellation, notify_reminder, reminder_hours_before,
               allow_client_cancellations, cancellation_limit_minutes
        FROM professionals
@@ -684,19 +674,70 @@ router.get('/public/:slug/services', async (req, res) => {
       return res.status(404).json({ error: 'Profesional no encontrado' });
     }
 
-    await syncActiveServicesToLegacyTable(prof.id).catch(err => {
-      console.warn('syncActiveServicesToLegacyTable skipped:', err.message);
+    await ensureProfessionalServicesTable().catch((err) => {
+      console.warn('ensureProfessionalServicesTable skipped:', err.message);
     });
 
-    const services = (await db.query(
+    await syncLegacyServicesToProfessionalTable(prof.id).catch((err) => {
+      console.warn('syncLegacyServicesToProfessionalTable skipped:', err.message);
+    });
+
+    const professionalServices = (await db.query(
       `SELECT id, professional_id, name, description, duration_minutes, price, is_active, created_at, updated_at
        FROM professional_services
-       WHERE professional_id = $1 AND (is_active IS NULL OR is_active::text IN ('1','true','t'))
+       WHERE professional_id = $1
+         AND (is_active IS NULL OR is_active::text IN ('1','true','t'))
+         AND TRIM(COALESCE(name, '')) <> ''
        ORDER BY id ASC`,
       [prof.id]
-    )).rows.map(normalizeServiceRow);
+    ).catch(() => ({ rows: [] }))).rows;
 
-    return res.json({ professional: prof, settings: normalizeSettingsRow(prof), services });
+    let services = professionalServices.map(normalizeServiceRow);
+
+    if (services.length === 0) {
+      const legacyServices = (await db.query(
+        `SELECT id, professional_id, name, description, duration AS duration_minutes, price, active AS is_active, created_at, updated_at
+         FROM services
+         WHERE professional_id = $1
+           AND (active IS NULL OR active::text IN ('1','true','t'))
+           AND TRIM(COALESCE(name, '')) <> ''
+         ORDER BY id ASC`,
+        [prof.id]
+      ).catch(() => ({ rows: [] }))).rows;
+
+      services = legacyServices.map(normalizeServiceRow);
+    }
+
+    return res.json({
+      professional: {
+        id: prof.id,
+        name: prof.name,
+        businessName: prof.business_name || prof.name,
+        business_name: prof.business_name || prof.name,
+        profession: prof.profession || '',
+        address: prof.address || '',
+        slug: prof.slug,
+        logoUrl: prof.logo_url || null,
+        logo_url: prof.logo_url || null,
+        acceptedPaymentMethods: normalizePaymentMethods(prof.accepted_payment_methods),
+        accepted_payment_methods: normalizePaymentMethods(prof.accepted_payment_methods),
+      },
+      business: {
+        id: prof.id,
+        name: prof.name,
+        businessName: prof.business_name || prof.name,
+        business_name: prof.business_name || prof.name,
+        profession: prof.profession || '',
+        address: prof.address || '',
+        slug: prof.slug,
+        logoUrl: prof.logo_url || null,
+        logo_url: prof.logo_url || null,
+        acceptedPaymentMethods: normalizePaymentMethods(prof.accepted_payment_methods),
+        accepted_payment_methods: normalizePaymentMethods(prof.accepted_payment_methods),
+      },
+      settings: normalizeSettingsRow(prof),
+      services,
+    });
   } catch (err) {
     console.error('GET /public/:slug/services error:', err);
     res.status(500).json({ error: 'Error interno del servidor' });
