@@ -12,6 +12,93 @@ function getTokenFromHeader(req) {
 }
 
 
+
+async function ensureMercadoPagoConnectionTables() {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS professional_payment_connections (
+      id SERIAL PRIMARY KEY,
+      professional_id INTEGER NOT NULL,
+      provider TEXT NOT NULL DEFAULT 'mercadopago',
+      provider_user_id TEXT,
+      access_token TEXT,
+      refresh_token TEXT,
+      public_key TEXT,
+      token_type TEXT,
+      scope TEXT,
+      expires_at TIMESTAMP,
+      connected_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE (professional_id, provider)
+    )
+  `);
+}
+
+async function requireProfessionalId(req) {
+  const token = getTokenFromHeader(req);
+
+  if (!token) {
+    const error = new Error("Token requerido");
+    error.status = 401;
+    throw error;
+  }
+
+  const decoded = jwt.verify(token, process.env.JWT_SECRET);
+  const id = decoded.id || decoded.professionalId || decoded.professional_id || decoded.userId || decoded.user_id;
+
+  if (!id) {
+    const error = new Error("Token inválido");
+    error.status = 401;
+    throw error;
+  }
+
+  return Number(id);
+}
+
+function getMercadoPagoOAuthRedirectUri() {
+  return process.env.MERCADOPAGO_REDIRECT_URI || `${process.env.API_PUBLIC_URL || "https://tuagendaya-api.onrender.com"}/api/payments/mercadopago/connect/callback`;
+}
+
+function getMercadoPagoOAuthConfig() {
+  return {
+    clientId: process.env.MERCADOPAGO_CLIENT_ID || "",
+    clientSecret: process.env.MERCADOPAGO_CLIENT_SECRET || "",
+    redirectUri: getMercadoPagoOAuthRedirectUri(),
+  };
+}
+
+function encodeMercadoPagoState(professionalId) {
+  return Buffer.from(JSON.stringify({
+    professionalId,
+    nonce: crypto.randomBytes(12).toString("hex"),
+    createdAt: Date.now(),
+  })).toString("base64url");
+}
+
+function decodeMercadoPagoState(state) {
+  try {
+    return JSON.parse(Buffer.from(String(state || ""), "base64url").toString("utf8"));
+  } catch {
+    return null;
+  }
+}
+
+async function getMercadoPagoConnection(professionalId) {
+  await ensureMercadoPagoConnectionTables();
+
+  const result = await db.query(
+    `
+    SELECT professional_id, provider_user_id, public_key, scope, expires_at, connected_at, updated_at
+    FROM professional_payment_connections
+    WHERE professional_id = $1 AND provider = 'mercadopago'
+    LIMIT 1
+    `,
+    [professionalId]
+  );
+
+  return result.rows[0] || null;
+}
+
+
 function getLaunchPromotionConfig(professional = {}) {
   const freeMonths = Number(professional.promo_free_months ?? process.env.PROMO_FREE_MONTHS ?? 2) || 2;
   const discountMonths = Number(professional.promo_discount_months ?? process.env.PROMO_DISCOUNT_MONTHS ?? 2) || 2;
@@ -540,6 +627,140 @@ async function approvePayment(paymentId, rawPayload = null) {
 
   return updatedPayment.rows[0];
 }
+
+
+router.get("/mercadopago/connect/status", async (req, res) => {
+  try {
+    const professionalId = await requireProfessionalId(req);
+    const connection = await getMercadoPagoConnection(professionalId);
+
+    res.json({
+      connected: Boolean(connection),
+      connection: connection ? {
+        provider: "mercadopago",
+        providerUserId: connection.provider_user_id || null,
+        publicKey: connection.public_key ? `${String(connection.public_key).slice(0, 10)}...` : null,
+        scope: connection.scope || null,
+        expiresAt: connection.expires_at || null,
+        connectedAt: connection.connected_at || null,
+        updatedAt: connection.updated_at || null,
+      } : null,
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({ error: error.message || "Error obteniendo conexión Mercado Pago" });
+  }
+});
+
+router.get("/mercadopago/connect/start", async (req, res) => {
+  try {
+    const professionalId = await requireProfessionalId(req);
+    const config = getMercadoPagoOAuthConfig();
+
+    if (!config.clientId || !config.clientSecret) {
+      return res.status(503).json({ error: "Mercado Pago OAuth no está configurado" });
+    }
+
+    const state = encodeMercadoPagoState(professionalId);
+    const url = new URL("https://auth.mercadopago.com.uy/authorization");
+    url.searchParams.set("client_id", config.clientId);
+    url.searchParams.set("response_type", "code");
+    url.searchParams.set("platform_id", "mp");
+    url.searchParams.set("state", state);
+    url.searchParams.set("redirect_uri", config.redirectUri);
+
+    res.json({ url: url.toString() });
+  } catch (error) {
+    res.status(error.status || 500).json({ error: error.message || "Error iniciando conexión Mercado Pago" });
+  }
+});
+
+router.get("/mercadopago/connect/callback", async (req, res) => {
+  try {
+    const { code, state } = req.query;
+    const decodedState = decodeMercadoPagoState(state);
+    const config = getMercadoPagoOAuthConfig();
+    const frontendUrl = process.env.FRONTEND_URL || "https://tuagendaya.com";
+
+    if (!code || !decodedState?.professionalId) {
+      return res.redirect(`${frontendUrl}/profesional/dashboard?mp_connection=error`);
+    }
+
+    const response = await fetch("https://api.mercadopago.com/oauth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        client_secret: config.clientSecret,
+        client_id: config.clientId,
+        grant_type: "authorization_code",
+        code,
+        redirect_uri: config.redirectUri,
+      }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      console.error("Mercado Pago OAuth token error:", data);
+      return res.redirect(`${frontendUrl}/profesional/dashboard?mp_connection=error`);
+    }
+
+    await ensureMercadoPagoConnectionTables();
+
+    const expiresAt = data.expires_in ? new Date(Date.now() + Number(data.expires_in) * 1000) : null;
+
+    await db.query(
+      `
+      INSERT INTO professional_payment_connections (
+        professional_id, provider, provider_user_id, access_token, refresh_token,
+        public_key, token_type, scope, expires_at, connected_at, updated_at
+      )
+      VALUES ($1, 'mercadopago', $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
+      ON CONFLICT (professional_id, provider)
+      DO UPDATE SET
+        provider_user_id = EXCLUDED.provider_user_id,
+        access_token = EXCLUDED.access_token,
+        refresh_token = EXCLUDED.refresh_token,
+        public_key = EXCLUDED.public_key,
+        token_type = EXCLUDED.token_type,
+        scope = EXCLUDED.scope,
+        expires_at = EXCLUDED.expires_at,
+        updated_at = NOW()
+      `,
+      [
+        decodedState.professionalId,
+        data.user_id ? String(data.user_id) : null,
+        data.access_token || null,
+        data.refresh_token || null,
+        data.public_key || null,
+        data.token_type || null,
+        data.scope || null,
+        expiresAt,
+      ]
+    );
+
+    res.redirect(`${frontendUrl}/profesional/dashboard?mp_connection=success`);
+  } catch (error) {
+    console.error("Mercado Pago OAuth callback error:", error);
+    res.redirect(`${process.env.FRONTEND_URL || "https://tuagendaya.com"}/profesional/dashboard?mp_connection=error`);
+  }
+});
+
+router.delete("/mercadopago/connect", async (req, res) => {
+  try {
+    const professionalId = await requireProfessionalId(req);
+    await ensureMercadoPagoConnectionTables();
+
+    await db.query(
+      `DELETE FROM professional_payment_connections WHERE professional_id = $1 AND provider = 'mercadopago'`,
+      [professionalId]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(error.status || 500).json({ error: error.message || "Error desconectando Mercado Pago" });
+  }
+});
+
 
 router.get("/me/plan", async (req, res, next) => {
   try {

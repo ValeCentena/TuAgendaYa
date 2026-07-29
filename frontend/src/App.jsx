@@ -8635,6 +8635,9 @@ function ProfessionalSettingsSection() {
     acceptedPaymentMethods: ['cash', 'transfer', 'online'],
   });
 
+  const [mpConnection, setMpConnection] = useState({ connected: false, loading: true, connection: null });
+  const [mpConnecting, setMpConnecting] = useState(false);
+
   const paymentOptions = [
     { value: 'cash', label: 'Efectivo' },
     { value: 'transfer', label: 'Transferencia' },
@@ -8676,9 +8679,52 @@ function ProfessionalSettingsSection() {
       .finally(() => setLoading(false));
   }, [token]);
 
+  const loadMercadoPagoConnection = useCallback(() => {
+    if (!token) return;
+
+    setMpConnection((current) => ({ ...current, loading: true }));
+
+    fetch(`${API_BASE}/payments/mercadopago/connect/status`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((response) => response.json().then((data) => ({ response, data })))
+      .then(({ response, data }) => {
+        if (!response.ok) {
+          throw new Error(data.error || 'No se pudo cargar Mercado Pago.');
+        }
+
+        setMpConnection({
+          connected: Boolean(data.connected),
+          loading: false,
+          connection: data.connection || null,
+        });
+      })
+      .catch(() => {
+        setMpConnection({ connected: false, loading: false, connection: null });
+      });
+  }, [token]);
+
   useEffect(() => {
     loadSettings();
-  }, [loadSettings]);
+    loadMercadoPagoConnection();
+  }, [loadSettings, loadMercadoPagoConnection]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const mpConnectionResult = params.get('mp_connection');
+
+    if (mpConnectionResult === 'success') {
+      setMessage('Mercado Pago conectado correctamente.');
+      window.history.replaceState({}, '', window.location.pathname);
+      loadMercadoPagoConnection();
+    }
+
+    if (mpConnectionResult === 'error') {
+      setError('No se pudo conectar Mercado Pago. Intentá nuevamente.');
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [loadMercadoPagoConnection]);
+
 
   const togglePaymentMethod = (value) => {
     setSettings((current) => {
@@ -8689,6 +8735,62 @@ function ProfessionalSettingsSection() {
       saveConfiguredPaymentMethodsForCash(safeMethods);
       return { ...current, acceptedPaymentMethods: safeMethods };
     });
+  };
+
+  const connectMercadoPago = async () => {
+    if (!token || mpConnecting) return;
+
+    setMpConnecting(true);
+    setError('');
+    setMessage('');
+
+    try {
+      const response = await fetch(`${API_BASE}/payments/mercadopago/connect/start`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || !data.url) {
+        throw new Error(data.error || 'No se pudo iniciar la conexión con Mercado Pago.');
+      }
+
+      window.location.href = data.url;
+    } catch (err) {
+      setError(err.message || 'No se pudo iniciar la conexión con Mercado Pago.');
+      setMpConnecting(false);
+    }
+  };
+
+  const disconnectMercadoPago = async () => {
+    if (!token || mpConnecting) return;
+
+    const confirmed = window.confirm('¿Desconectar Mercado Pago de este profesional?');
+    if (!confirmed) return;
+
+    setMpConnecting(true);
+    setError('');
+    setMessage('');
+
+    try {
+      const response = await fetch(`${API_BASE}/payments/mercadopago/connect`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || 'No se pudo desconectar Mercado Pago.');
+      }
+
+      setMpConnection({ connected: false, loading: false, connection: null });
+      setMessage('Mercado Pago desconectado correctamente.');
+    } catch (err) {
+      setError(err.message || 'No se pudo desconectar Mercado Pago.');
+    } finally {
+      setMpConnecting(false);
+    }
   };
 
   const saveSettings = async () => {
@@ -8877,6 +8979,78 @@ function ProfessionalSettingsSection() {
               );
             })}
           </div>
+
+          {(settings.acceptedPaymentMethods || []).includes('online') && (
+            <div
+              style={{
+                marginTop: 14,
+                padding: 14,
+                borderRadius: 16,
+                background: mpConnection.connected ? '#f0fff5' : '#fff8ee',
+                border: mpConnection.connected ? '1px solid rgba(24,128,56,0.18)' : '1px solid rgba(255,159,10,0.18)',
+              }}
+            >
+              <div style={{ fontSize: 14, fontWeight: 950, color: '#1a1a1a', marginBottom: 4 }}>
+                Mercado Pago del profesional
+              </div>
+              <div style={{ fontSize: 12.5, color: '#6e6e73', fontWeight: 700, lineHeight: 1.4, marginBottom: 12 }}>
+                Para cobrar Pago online, este profesional debe conectar su propia cuenta. El dinero entra directo a su Mercado Pago.
+              </div>
+
+              {mpConnection.loading ? (
+                <div style={{ fontSize: 12.5, color: '#8e8e93', fontWeight: 800 }}>Verificando conexión...</div>
+              ) : mpConnection.connected ? (
+                <div style={{ display: 'grid', gap: 10 }}>
+                  <div style={{ fontSize: 13, color: '#188038', fontWeight: 900 }}>
+                    Conectado correctamente
+                  </div>
+                  {mpConnection.connection?.connectedAt && (
+                    <div style={{ fontSize: 12, color: '#6e6e73', fontWeight: 700 }}>
+                      Conectado: {formatDate(mpConnection.connection.connectedAt)}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={disconnectMercadoPago}
+                    disabled={mpConnecting}
+                    style={{
+                      border: 'none',
+                      borderRadius: 14,
+                      padding: '11px 13px',
+                      background: '#fff',
+                      color: '#ff3b30',
+                      fontSize: 13,
+                      fontWeight: 950,
+                      fontFamily: 'inherit',
+                      cursor: mpConnecting ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    {mpConnecting ? 'Procesando...' : 'Desconectar Mercado Pago'}
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={connectMercadoPago}
+                  disabled={mpConnecting}
+                  style={{
+                    width: '100%',
+                    border: 'none',
+                    borderRadius: 14,
+                    padding: '12px 14px',
+                    background: mpConnecting ? '#aeaeb2' : '#0071e3',
+                    color: '#fff',
+                    fontSize: 13,
+                    fontWeight: 950,
+                    fontFamily: 'inherit',
+                    cursor: mpConnecting ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {mpConnecting ? 'Conectando...' : 'Conectar Mercado Pago'}
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         <ChangePasswordCard
