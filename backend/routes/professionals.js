@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const db = require('../db');
-const JWT_SECRET = require('../utils/jwtSecret');
 
 function authMiddleware(req, res, next) {
   const header = req.headers.authorization;
@@ -10,7 +9,10 @@ function authMiddleware(req, res, next) {
     return res.status(401).json({ error: 'Token requerido' });
   }
   try {
-    const decoded = jwt.verify(header.slice(7), JWT_SECRET);
+    const decoded = jwt.verify(
+      header.slice(7),
+      process.env.JWT_SECRET || 'tuagendaya-secret-dev-change-in-prod'
+    );
     req.professional = decoded;
     next();
   } catch (e) {
@@ -22,9 +24,19 @@ function authMiddleware(req, res, next) {
 // Convierte CUALQUIER valor truthy a 1 y cualquier falsy a 0.
 // Maneja: true, false, 1, 0, "true", "false", "1", "0", null, undefined.
 function toBoolInt(v) {
-  if (v === true  || v === 1 || v === '1' || v === 'true')  return 1;
-  if (v === false || v === 0 || v === '0' || v === 'false') return 0;
+  if (v === true  || v === 1 || v === '1' || v === 'true' || v === 't')  return 1;
+  if (v === false || v === 0 || v === '0' || v === 'false' || v === 'f') return 0;
   return v ? 1 : 0;
+}
+
+// Para professional_services.is_active.
+// En la base real esta columna puede estar como BOOLEAN por migraciones anteriores.
+// Usamos boolean real para no volver a mezclar boolean con integer.
+function toServiceBool(v, fallback = true) {
+  if (v === undefined || v === null || v === '') return fallback;
+  if (v === true || v === 1 || v === '1' || v === 'true' || v === 't') return true;
+  if (v === false || v === 0 || v === '0' || v === 'false' || v === 'f') return false;
+  return Boolean(v);
 }
 
 // Devuelve "HH:MM" si el valor parece una hora válida, o null en otro caso.
@@ -79,52 +91,235 @@ function mergeAvailWithDefaults(rows, professionalId) {
 // ── Helpers servicios ─────────────────────────────────────────
 
 function getDefaultServices(profession) {
-  const p = (profession || '').toLowerCase();
-  if (p.includes('peluq') || p.includes('barber') || p.includes('cabello') || p.includes('pelo')) {
-    return [
-      { name: 'Corte de pelo', description: null, duration_minutes: 30, price: 0 },
-      { name: 'Coloración',    description: null, duration_minutes: 60, price: 0 },
-      { name: 'Tratamiento',   description: null, duration_minutes: 45, price: 0 },
-    ];
-  }
-  if (p.includes('estet') || p.includes('belleza') || p.includes('manicur') || p.includes('uñas')) {
-    return [
-      { name: 'Manicura',        description: null, duration_minutes: 30, price: 0 },
-      { name: 'Pedicura',        description: null, duration_minutes: 45, price: 0 },
-      { name: 'Diseño de uñas',  description: null, duration_minutes: 60, price: 0 },
-    ];
-  }
-  if (p.includes('medic') || p.includes('doctor') || p.includes('psicolog') ||
-      p.includes('psiquiatr') || p.includes('nutricion') || p.includes('nutrición')) {
-    return [
-      { name: 'Consulta', description: null, duration_minutes: 30, price: 0 },
-      { name: 'Control',  description: null, duration_minutes: 20, price: 0 },
-    ];
-  }
-  if (p.includes('abogad') || p.includes('contador') || p.includes('contad') || p.includes('asesor')) {
-    return [
-      { name: 'Consulta', description: null, duration_minutes: 60, price: 0 },
-      { name: 'Reunión',  description: null, duration_minutes: 90, price: 0 },
-    ];
-  }
-  if (p.includes('kinesiol') || p.includes('fisio') || p.includes('masaj') || p.includes('osteopat')) {
-    return [
-      { name: 'Sesión',  description: null, duration_minutes: 60, price: 0 },
-      { name: 'Masaje',  description: null, duration_minutes: 45, price: 0 },
-    ];
-  }
-  if (p.includes('entrenad') || p.includes('personal trainer') ||
-      p.includes('fitness')  || p.includes('gimnasio')) {
-    return [
-      { name: 'Clase personal', description: null, duration_minutes: 60, price: 0 },
-      { name: 'Evaluación',     description: null, duration_minutes: 30, price: 0 },
-    ];
-  }
-  return [
-    { name: 'Corte',    description: null, duration_minutes: 30, price: 0 },
-    { name: 'Consulta', description: null, duration_minutes: 30, price: 0 },
-  ];
+  // No se generan servicios por defecto.
+  // El profesional debe crear manualmente sus propios servicios.
+  return [];
 }
+
+
+
+async function ensureProfessionalSettingsColumns() {
+  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS notify_new_booking INTEGER DEFAULT 1`);
+  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS notify_cancellation INTEGER DEFAULT 1`);
+  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS notify_reminder INTEGER DEFAULT 1`);
+  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS reminder_hours_before INTEGER DEFAULT 2`);
+  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS min_advance_hours INTEGER DEFAULT 0`);
+  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS allow_client_cancellations INTEGER DEFAULT 1`);
+  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS cancellation_limit_minutes INTEGER DEFAULT 0`);
+  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS accepted_payment_methods TEXT DEFAULT 'cash,transfer,online'`);
+  await db.query(`ALTER TABLE professionals ALTER COLUMN min_advance_hours SET DEFAULT 0`).catch(() => {});
+}
+
+function normalizePaymentMethods(value) {
+  const allowed = ['cash', 'transfer', 'online'];
+  const list = Array.isArray(value) ? value : String(value || 'cash,transfer,online').split(',');
+  const clean = list
+    .map((item) => String(item || '').trim())
+    .map((item) => (item === 'card' ? 'online' : item))
+    .filter((item) => allowed.includes(item));
+
+  return clean.length > 0 ? Array.from(new Set(clean)) : ['cash'];
+}
+
+function setNoStoreHeaders(res) {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+}
+
+function normalizeSettingsRow(row) {
+  const methods = normalizePaymentMethods(row.accepted_payment_methods);
+  return {
+    notify_new_booking: toBoolInt(row.notify_new_booking) === 1,
+    notifyNewBooking: toBoolInt(row.notify_new_booking) === 1,
+    notify_cancellation: toBoolInt(row.notify_cancellation) === 1,
+    notifyCancellation: toBoolInt(row.notify_cancellation) === 1,
+    notify_reminder: toBoolInt(row.notify_reminder) === 1,
+    notifyReminder: toBoolInt(row.notify_reminder) === 1,
+    reminder_hours_before: Number(row.reminder_hours_before || 2),
+    reminderHoursBefore: Number(row.reminder_hours_before || 2),
+    allow_client_cancellations: toBoolInt(row.allow_client_cancellations) === 1,
+    allowClientCancellations: toBoolInt(row.allow_client_cancellations) === 1,
+    cancellation_limit_minutes: Number(row.cancellation_limit_minutes || 0),
+    cancellationLimitMinutes: Number(row.cancellation_limit_minutes || 0),
+    accepted_payment_methods: methods.join(','),
+    acceptedPaymentMethods: methods,
+  };
+}
+
+function parsePositiveInt(v, fallback = null) {
+  if (v === null || v === undefined || v === false || v === '' ||
+      v === 'false' || v === 'null' || v === 'undefined') {
+    return fallback;
+  }
+  const n = parseInt(v, 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+function getServiceDurationFromBody(body, fallback = null) {
+  return parsePositiveInt(
+    body.duration_minutes !== undefined ? body.duration_minutes :
+    body.durationMinutes !== undefined ? body.durationMinutes :
+    body.duration !== undefined ? body.duration :
+    body.service_duration !== undefined ? body.service_duration :
+    body.serviceDuration,
+    fallback
+  );
+}
+
+function normalizeServiceRow(row) {
+  if (!row) return row;
+  const duration = parsePositiveInt(row.duration_minutes, 30);
+  const priceNumber = row.price === null || row.price === undefined ? 0 : Number(row.price);
+  return {
+    ...row,
+    id: row.id,
+    serviceId: row.id,
+    service_id: row.id,
+    professional_service_id: row.id,
+    duration_minutes: duration,
+    durationMinutes: duration,
+    duration,
+    price: Number.isFinite(priceNumber) ? priceNumber : 0,
+    is_active: toServiceBool(row.is_active, true),
+    isActive: toServiceBool(row.is_active, true),
+  };
+}
+
+async function cleanupDefaultServicesForProfessional(professionalId) {
+  // Limpieza segura: NO borrar servicios creados manualmente.
+  // Antes esta función borraba nombres como "corte" o "consulta" si duraban 30/45/60 min,
+  // y eso hacía que al refrescar desaparecieran servicios reales del profesional.
+  // Ahora solo elimina los antiguos servicios de ejemplo exactos y únicamente si no tienen precio.
+  const defaultNames = [
+    'corte de pelo',
+    'coloración',
+    'coloracion',
+    'tratamiento',
+  ];
+
+  await db.query(
+    `
+      DELETE FROM professional_services
+      WHERE professional_id = $1
+        AND LOWER(TRIM(name)) = ANY($2::text[])
+        AND COALESCE(price, 0) = 0
+    `,
+    [professionalId, defaultNames]
+  ).catch((error) => {
+    console.warn('cleanupDefaultServicesForProfessional skipped:', error.message);
+  });
+
+  await db.query(
+    `
+      DELETE FROM services
+      WHERE professional_id = $1
+        AND LOWER(TRIM(name)) = ANY($2::text[])
+        AND COALESCE(price, 0) = 0
+    `,
+    [professionalId, defaultNames]
+  ).catch((error) => {
+    console.warn('cleanupDefaultServicesForProfessional legacy skipped:', error.message);
+  });
+}
+
+// Mantiene compatibilidad con pantallas/rutas viejas que todavía leen la tabla `services`.
+// La tabla principal nueva es `professional_services`, pero el link público puede consultar `services`.
+async function syncActiveServicesToLegacyTable(professionalId) {
+  const activeServices = (await db.query(
+    `SELECT id, name, description, duration_minutes, price, is_active
+     FROM professional_services
+     WHERE professional_id = $1 AND (is_active IS NULL OR is_active::text IN ('1','true','t'))
+     ORDER BY id ASC`,
+    [professionalId]
+  )).rows;
+
+  for (const service of activeServices) {
+    const exists = (await db.query(
+      `SELECT id FROM services
+       WHERE professional_id = $1 AND LOWER(name) = LOWER($2)
+       LIMIT 1`,
+      [professionalId, service.name]
+    )).rows[0];
+
+    if (exists) {
+      await db.query(
+        `UPDATE services
+         SET duration = $1,
+             price = $2,
+             description = $3,
+             active = 1
+         WHERE id = $4`,
+        [parsePositiveInt(service.duration_minutes, 30), Number(service.price) || 0, service.description || null, exists.id]
+      );
+    } else {
+      await db.query(
+        `INSERT INTO services
+           (professional_id, name, duration, price, description, active)
+         VALUES ($1, $2, $3, $4, $5, 1)`,
+        [
+          professionalId,
+          service.name,
+          parsePositiveInt(service.duration_minutes, 30),
+          Number(service.price) || 0,
+          service.description || null,
+        ]
+      );
+    }
+  }
+}
+
+
+// ══════════════════════════════════════════════════════════════
+// AJUSTES DEL NEGOCIO
+// ══════════════════════════════════════════════════════════════
+
+router.get('/me/settings', authMiddleware, async (req, res) => {
+  try {
+    await ensureProfessionalSettingsColumns();
+    const profId = req.professional.id;
+    const row = (await db.query(
+      `SELECT notify_new_booking, notify_cancellation, notify_reminder, reminder_hours_before,
+              allow_client_cancellations, cancellation_limit_minutes, accepted_payment_methods
+       FROM professionals WHERE id = $1 LIMIT 1`,
+      [profId]
+    )).rows[0];
+    res.json({ settings: normalizeSettingsRow(row || {}) });
+  } catch (err) {
+    console.error('GET /me/settings error:', err);
+    res.status(500).json({ error: 'Error obteniendo ajustes' });
+  }
+});
+
+router.patch('/me/settings', authMiddleware, async (req, res) => {
+  try {
+    await ensureProfessionalSettingsColumns();
+    const profId = req.professional.id;
+    const methods = normalizePaymentMethods(req.body.acceptedPaymentMethods !== undefined ? req.body.acceptedPaymentMethods : req.body.accepted_payment_methods);
+    const notifyNewBooking = toBoolInt(req.body.notifyNewBooking !== undefined ? req.body.notifyNewBooking : req.body.notify_new_booking);
+    const notifyCancellation = toBoolInt(req.body.notifyCancellation !== undefined ? req.body.notifyCancellation : req.body.notify_cancellation);
+    const notifyReminder = toBoolInt(req.body.notifyReminder !== undefined ? req.body.notifyReminder : req.body.notify_reminder);
+    const allowClientCancellations = toBoolInt(req.body.allowClientCancellations !== undefined ? req.body.allowClientCancellations : req.body.allow_client_cancellations);
+    const cancellationLimitMinutes = Math.max(0, parseInt(req.body.cancellationLimitMinutes !== undefined ? req.body.cancellationLimitMinutes : req.body.cancellation_limit_minutes, 10) || 0);
+
+    const row = (await db.query(
+      `UPDATE professionals
+       SET notify_new_booking = $1, notify_cancellation = $2, notify_reminder = $3,
+           reminder_hours_before = 2, min_advance_hours = 0,
+           allow_client_cancellations = $4, cancellation_limit_minutes = $5,
+           accepted_payment_methods = $6, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $7
+       RETURNING notify_new_booking, notify_cancellation, notify_reminder, reminder_hours_before,
+                 allow_client_cancellations, cancellation_limit_minutes, accepted_payment_methods`,
+      [notifyNewBooking, notifyCancellation, notifyReminder, allowClientCancellations, cancellationLimitMinutes, methods.join(','), profId]
+    )).rows[0];
+
+    res.json({ success: true, settings: normalizeSettingsRow(row || {}) });
+  } catch (err) {
+    console.error('PATCH /me/settings error:', err);
+    res.status(500).json({ error: 'Error guardando ajustes' });
+  }
+});
 
 // ══════════════════════════════════════════════════════════════
 // DISPONIBILIDAD
@@ -185,22 +380,26 @@ router.patch('/me/availability', authMiddleware, async (req, res) => {
       const breakStart = toTimeOrNull(item.break_start || item.breakStart);
       const breakEnd   = toTimeOrNull(item.break_end   || item.breakEnd);
 
-      // slot_duration_minutes se mantiene en 30 (la duración real viene de professional_services)
+      // No guardamos slot_duration_minutes desde disponibilidad.
+      // La duración real del turno se toma desde el servicio.
+      const safeBreakStart = breakEnabled ? breakStart : null;
+      const safeBreakEnd = breakEnabled ? breakEnd : null;
+
       await db.query(
         `INSERT INTO professional_availability
            (professional_id, day_of_week, is_active, start_time, end_time,
-            slot_duration_minutes, break_enabled, break_start, break_end)
-         VALUES ($1, $2, $3, $4::time, $5::time, 30, $6, $7, $8)
+            break_enabled, break_start, break_end)
+         VALUES ($1, $2, $3, $4::time, $5::time, $6, $7::time, $8::time)
          ON CONFLICT (professional_id, day_of_week)
          DO UPDATE SET
-           is_active             = EXCLUDED.is_active,
-           start_time            = EXCLUDED.start_time,
-           end_time              = EXCLUDED.end_time,
-           break_enabled         = EXCLUDED.break_enabled,
-           break_start           = EXCLUDED.break_start,
-           break_end             = EXCLUDED.break_end,
-           updated_at            = CURRENT_TIMESTAMP`,
-        [profId, dow, isActive, startTime, endTime, breakEnabled, breakStart, breakEnd]
+           is_active     = EXCLUDED.is_active,
+           start_time    = EXCLUDED.start_time,
+           end_time      = EXCLUDED.end_time,
+           break_enabled = EXCLUDED.break_enabled,
+           break_start   = EXCLUDED.break_start,
+           break_end     = EXCLUDED.break_end,
+           updated_at    = CURRENT_TIMESTAMP`,
+        [profId, dow, isActive, startTime, endTime, breakEnabled, safeBreakStart, safeBreakEnd]
       );
     }
 
@@ -235,37 +434,24 @@ router.get('/me/services', authMiddleware, async (req, res) => {
   try {
     const profId = req.professional.id;
 
+    // Limpia los servicios de ejemplo que se habían generado antes.
+    await cleanupDefaultServicesForProfessional(profId);
+
     const rows = (await db.query(
       `SELECT id, professional_id, name, description, duration_minutes, price, is_active, created_at, updated_at
        FROM professional_services
-       WHERE professional_id = $1
+       WHERE professional_id = $1 AND (is_active IS NULL OR is_active::text IN ('1','true','t'))
        ORDER BY id ASC`,
       [profId]
     )).rows;
 
-    if (rows.length === 0) {
-      const prof = (await db.query(
-        'SELECT profession FROM professionals WHERE id = $1',
-        [profId]
-      )).rows[0];
+    // No se devuelven servicios sugeridos ni creados por defecto.
+    // Si no hay servicios, la lista queda vacía y el profesional debe crear el primero.
+    await syncActiveServicesToLegacyTable(profId).catch(err => {
+      console.warn('syncActiveServicesToLegacyTable skipped:', err.message);
+    });
 
-      const defaults = getDefaultServices(prof ? prof.profession : '').map(s => ({
-        id:               null,
-        professional_id:  profId,
-        name:             s.name,
-        description:      s.description,
-        duration_minutes: s.duration_minutes,
-        price:            s.price,
-        is_active:        1,
-        created_at:       null,
-        updated_at:       null,
-        _is_default:      true,
-      }));
-
-      return res.json({ services: defaults });
-    }
-
-    res.json({ services: rows });
+    res.json({ services: rows.map(normalizeServiceRow) });
   } catch (err) {
     console.error('GET /me/services error:', err);
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -275,12 +461,13 @@ router.get('/me/services', authMiddleware, async (req, res) => {
 // POST /api/professionals/me/services
 router.post('/me/services', authMiddleware, async (req, res) => {
   const profId = req.professional.id;
-  const { name, description, duration_minutes, price, is_active } = req.body;
+  const { name, description, price, is_active } = req.body;
+  const duration = getServiceDurationFromBody(req.body);
 
   if (!name || !name.trim()) {
     return res.status(400).json({ error: 'El nombre del servicio es requerido' });
   }
-  if (!duration_minutes || parseInt(duration_minutes) < 1) {
+  if (!duration) {
     return res.status(400).json({ error: 'La duración debe ser mayor a 0 minutos' });
   }
 
@@ -294,12 +481,28 @@ router.post('/me/services', authMiddleware, async (req, res) => {
         profId,
         name.trim(),
         description ? description.trim() : null,
-        parseInt(duration_minutes),
+        duration,
         parseFloat(price) || 0,
-        toBoolInt(is_active !== undefined ? is_active : 1),
+        toServiceBool(is_active, true),
       ]
     );
-    res.status(201).json({ service: result.rows[0] });
+
+    await syncActiveServicesToLegacyTable(profId).catch(err => {
+      console.warn('syncActiveServicesToLegacyTable skipped:', err.message);
+    });
+
+    const rows = (await db.query(
+      `SELECT id, professional_id, name, description, duration_minutes, price, is_active, created_at, updated_at
+       FROM professional_services
+       WHERE professional_id = $1 AND (is_active IS NULL OR is_active::text IN ('1','true','t'))
+       ORDER BY id ASC`,
+      [profId]
+    )).rows;
+
+    res.status(201).json({
+      service: normalizeServiceRow(result.rows[0]),
+      services: rows.map(normalizeServiceRow),
+    });
   } catch (err) {
     console.error('POST /me/services error:', err);
     res.status(500).json({ error: 'Error al crear el servicio' });
@@ -325,13 +528,13 @@ router.patch('/me/services/:id', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Servicio no encontrado' });
     }
 
-    const { name, description, duration_minutes, price, is_active } = req.body;
+    const { name, description, price, is_active } = req.body;
 
-    const newName     = name             !== undefined ? name.trim()                   : existing.name;
-    const newDesc     = description      !== undefined ? (description ? description.trim() : null) : existing.description;
-    const newDuration = duration_minutes !== undefined ? parseInt(duration_minutes)    : existing.duration_minutes;
-    const newPrice    = price            !== undefined ? parseFloat(price) || 0        : existing.price;
-    const newActive   = is_active        !== undefined ? toBoolInt(is_active)          : existing.is_active;
+    const newName     = name        !== undefined ? name.trim() : existing.name;
+    const newDesc     = description !== undefined ? (description ? description.trim() : null) : existing.description;
+    const newDuration = getServiceDurationFromBody(req.body, existing.duration_minutes);
+    const newPrice    = price       !== undefined ? parseFloat(price) || 0 : existing.price;
+    const newActive   = is_active   !== undefined ? toServiceBool(is_active, true) : toServiceBool(existing.is_active, true);
 
     if (!newName) {
       return res.status(400).json({ error: 'El nombre no puede estar vacío' });
@@ -349,7 +552,22 @@ router.patch('/me/services/:id', authMiddleware, async (req, res) => {
       [newName, newDesc, newDuration, newPrice, newActive, serviceId, profId]
     )).rows[0];
 
-    res.json({ service: updated });
+    await syncActiveServicesToLegacyTable(profId).catch(err => {
+      console.warn('syncActiveServicesToLegacyTable skipped:', err.message);
+    });
+
+    const rows = (await db.query(
+      `SELECT id, professional_id, name, description, duration_minutes, price, is_active, created_at, updated_at
+       FROM professional_services
+       WHERE professional_id = $1 AND (is_active IS NULL OR is_active::text IN ('1','true','t'))
+       ORDER BY id ASC`,
+      [profId]
+    )).rows;
+
+    res.json({
+      service: normalizeServiceRow(updated),
+      services: rows.map(normalizeServiceRow),
+    });
   } catch (err) {
     console.error('PATCH /me/services/:id error:', err);
     res.status(500).json({ error: 'Error al actualizar el servicio' });
@@ -376,17 +594,152 @@ router.delete('/me/services/:id', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Servicio no encontrado' });
     }
 
-    await db.query(
+    const service = (await db.query(
       `UPDATE professional_services
-       SET is_active = 0, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $1 AND professional_id = $2`,
+       SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1 AND professional_id = $2
+       RETURNING name`,
       [serviceId, profId]
-    );
+    )).rows[0];
 
-    res.json({ success: true, message: 'Servicio desactivado' });
+    if (service && service.name) {
+      await db.query(
+        `UPDATE services
+         SET active = 0
+         WHERE professional_id = $1 AND LOWER(name) = LOWER($2)`,
+        [profId, service.name]
+      ).catch(err => {
+        console.warn('Legacy service deactivate skipped:', err.message);
+      });
+    }
+
+    const rows = (await db.query(
+      `SELECT id, professional_id, name, description, duration_minutes, price, is_active, created_at, updated_at
+       FROM professional_services
+       WHERE professional_id = $1 AND (is_active IS NULL OR is_active::text IN ('1','true','t'))
+       ORDER BY id ASC`,
+      [profId]
+    )).rows;
+
+    res.json({
+      success: true,
+      message: 'Servicio eliminado',
+      services: rows.map(normalizeServiceRow),
+    });
   } catch (err) {
     console.error('DELETE /me/services/:id error:', err);
     res.status(500).json({ error: 'Error al eliminar el servicio' });
+  }
+});
+
+
+
+router.get('/public/:slug/settings', async (req, res) => {
+  try {
+    await ensureProfessionalSettingsColumns();
+
+    const slug = String(req.params.slug || '').trim();
+    const row = (await db.query(
+      `SELECT notify_new_booking, notify_cancellation, notify_reminder, reminder_hours_before,
+              allow_client_cancellations, cancellation_limit_minutes, accepted_payment_methods
+       FROM professionals
+       WHERE slug = $1 AND (status IS NULL OR status = 'active')
+       LIMIT 1`,
+      [slug]
+    )).rows[0];
+
+    if (!row) {
+      return res.status(404).json({ error: 'Profesional no encontrado' });
+    }
+
+    res.json({ settings: normalizeSettingsRow(row) });
+  } catch (err) {
+    console.error('GET /public/:slug/settings error:', err);
+    res.status(500).json({ error: 'Error obteniendo ajustes públicos' });
+  }
+});
+
+// GET público de servicios por slug.
+// Sirve para la página pública de reservas si consulta /api/professionals/public/:slug/services.
+router.get('/public/:slug/services', async (req, res) => {
+  try {
+    setNoStoreHeaders(res);
+
+    const slug = String(req.params.slug || '').trim();
+    const professional = (await db.query(
+      `SELECT *
+       FROM professionals
+       WHERE slug = $1 AND (status IS NULL OR status = 'active')
+       LIMIT 1`,
+      [slug]
+    )).rows[0];
+
+    if (!professional) {
+      return res.status(404).json({ error: 'Profesional no encontrado' });
+    }
+
+    const professionalServices = (await db.query(
+      `SELECT id, professional_id, name, description, duration_minutes, price, is_active, created_at, updated_at
+       FROM professional_services
+       WHERE professional_id = $1
+         AND (is_active IS NULL OR is_active::text IN ('1','true','t'))
+         AND TRIM(COALESCE(name, '')) <> ''
+       ORDER BY id ASC`,
+      [professional.id]
+    ).catch((error) => {
+      console.warn('public professional_services read skipped:', error.message);
+      return { rows: [] };
+    })).rows;
+
+    const legacyServices = (await db.query(
+      `SELECT id, professional_id, name, description, duration AS duration_minutes, price, active AS is_active, created_at, updated_at
+       FROM services
+       WHERE professional_id = $1
+         AND (active IS NULL OR active::text IN ('1','true','t'))
+         AND TRIM(COALESCE(name, '')) <> ''
+       ORDER BY id ASC`,
+      [professional.id]
+    ).catch((error) => {
+      console.warn('public legacy services read skipped:', error.message);
+      return { rows: [] };
+    })).rows;
+
+    const byName = new Set();
+    const services = [...professionalServices, ...legacyServices]
+      .filter((service) => {
+        const key = String(service.name || '').trim().toLowerCase();
+        if (!key || byName.has(key)) return false;
+        byName.add(key);
+        return true;
+      })
+      .map(normalizeServiceRow);
+
+    const settings = normalizeSettingsRow(professional || {});
+    const acceptedPaymentMethods = normalizePaymentMethods(professional.accepted_payment_methods);
+
+    const publicProfessional = {
+      id: professional.id,
+      name: professional.name,
+      businessName: professional.business_name || professional.businessName || professional.name,
+      business_name: professional.business_name || professional.businessName || professional.name,
+      profession: professional.profession || '',
+      address: professional.address || '',
+      slug: professional.slug,
+      logoUrl: professional.logo_url || professional.logoUrl || null,
+      logo_url: professional.logo_url || professional.logoUrl || null,
+      acceptedPaymentMethods,
+      accepted_payment_methods: acceptedPaymentMethods,
+    };
+
+    return res.json({
+      professional: publicProfessional,
+      business: publicProfessional,
+      settings,
+      services,
+    });
+  } catch (err) {
+    console.error('GET /public/:slug/services error:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 
