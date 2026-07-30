@@ -1,45 +1,24 @@
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
+const JWT_SECRET = require('../utils/jwtSecret');
+
+function authMiddleware(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Token requerido' });
+  }
+  const token = authHeader.slice(7);
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.professional = decoded;
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Token inválido o expirado' });
+  }
+}
 
 function signToken(payload) {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: '30d' });
 }
 
-function authProfessional(req, res, next) {
-  const header = req.headers.authorization;
-  if (!header?.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'No autorizado' });
-  }
-
-  try {
-    const decoded = jwt.verify(header.slice(7), JWT_SECRET);
-    if (decoded.role !== 'professional') {
-      return res.status(403).json({ error: 'Acceso denegado' });
-    }
-    req.user = decoded;
-    next();
-  } catch {
-    return res.status(401).json({ error: 'Sesión inválida' });
-  }
-}
-
-function authAdmin(req, res, next) {
-  const header = req.headers.authorization;
-  if (!header?.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'No autorizado' });
-  }
-
-  try {
-    const decoded = jwt.verify(header.slice(7), JWT_SECRET);
-    if (decoded.role !== 'admin') {
-      return res.status(403).json({ error: 'Acceso denegado' });
-    }
-    req.user = decoded;
-    next();
-  } catch {
-    return res.status(401).json({ error: 'Sesión inválida' });
-  }
-}
-
-module.exports = { signToken, authProfessional, authAdmin, JWT_SECRET };
+module.exports = { authMiddleware, signToken };

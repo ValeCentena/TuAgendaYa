@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'tuagendaya-secret-dev-change-in-prod';
+const JWT_SECRET = require('../utils/jwtSecret');
 
 function adminAuthMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
