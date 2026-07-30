@@ -1407,6 +1407,7 @@ function RegisterPage() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [legalAccepted, setLegalAccepted] = useState(false);
 
   const steps = [
     {
@@ -1497,6 +1498,12 @@ function RegisterPage() {
       if (!form.businessName.trim() || !form.profession.trim() || !form.address.trim()) setStep(1);
       else if (!form.name.trim() || !form.email.trim() || form.password.length < 8) setStep(2);
       else setStep(3);
+      return;
+    }
+
+    if (!legalAccepted) {
+      setError('Debés aceptar los Términos y Condiciones y la Política de Privacidad.');
+      setStep(4);
       return;
     }
 
@@ -1833,6 +1840,28 @@ function RegisterPage() {
 
           <form onSubmit={handleSubmit}>
             {renderStepContent()}
+
+            {step === 4 && (
+              <label style={{ marginTop: 16, display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', color: '#475569', fontSize: 12.5, lineHeight: 1.5, fontWeight: 700 }}>
+                <input
+                  type="checkbox"
+                  checked={legalAccepted}
+                  onChange={(event) => setLegalAccepted(event.target.checked)}
+                  style={{ marginTop: 2, width: 17, height: 17, accentColor: '#0071e3', flex: '0 0 auto' }}
+                />
+                <span>
+                  He leído y acepto los{' '}
+                  <a href="/terminos" target="_blank" rel="noreferrer" style={{ color: '#0071e3', fontWeight: 900 }}>
+                    Términos y Condiciones
+                  </a>{' '}
+                  y la{' '}
+                  <a href="/privacidad" target="_blank" rel="noreferrer" style={{ color: '#0071e3', fontWeight: 900 }}>
+                    Política de Privacidad
+                  </a>
+                  .
+                </span>
+              </label>
+            )}
 
             {error && (
               <div style={{ background: '#fff2f2', border: '0.5px solid #ffcdd2', borderRadius: 14, padding: '11px 13px', fontSize: 13, color: '#c62828', marginTop: 14, fontWeight: 700 }}>
@@ -11977,6 +12006,184 @@ function LandingPage() {
 }
 
 
+
+function LegalDocumentPage({ title, lastUpdated, children }) {
+  const navigate = useNavigate();
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#f5f5f7', padding: 'max(18px, env(safe-area-inset-top)) 14px 40px', fontFamily: APP_FONT, boxSizing: 'border-box' }}>
+      <div style={{ width: 'min(860px, 100%)', margin: '0 auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
+          <button type="button" onClick={() => navigate('/')} style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}>
+            <TuAgendaLogo height={36} />
+          </button>
+          <button type="button" onClick={() => navigate(-1)} style={{ border: '0.5px solid #d0d0d5', background: '#fff', color: '#1a1a1a', borderRadius: 999, padding: '9px 14px', fontSize: 13, fontWeight: 850, fontFamily: 'inherit', cursor: 'pointer' }}>
+            Volver
+          </button>
+        </div>
+
+        <article style={{ background: '#fff', border: '0.5px solid #e0e0e5', borderRadius: 28, padding: 'clamp(22px, 5vw, 46px)', boxShadow: '0 12px 40px rgba(0,0,0,0.05)' }}>
+          <h1 style={{ margin: 0, color: '#111827', fontSize: 'clamp(28px, 5vw, 42px)', lineHeight: 1.05, letterSpacing: '-1.2px', fontWeight: 950 }}>{title}</h1>
+          <div style={{ marginTop: 10, color: '#8e8e93', fontSize: 13, fontWeight: 750 }}>Última actualización: {lastUpdated}</div>
+          <div className="legal-document-content" style={{ marginTop: 30, color: '#334155', fontSize: 15, lineHeight: 1.75 }}>
+            {children}
+          </div>
+        </article>
+
+        <div style={{ marginTop: 16, display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: 14, fontSize: 12.5, fontWeight: 800 }}>
+          <a href="/terminos" style={{ color: '#0071e3' }}>Términos y Condiciones</a>
+          <a href="/privacidad" style={{ color: '#0071e3' }}>Privacidad</a>
+          <a href="/cookies" style={{ color: '#0071e3' }}>Cookies</a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const legalHeadingStyle = { margin: '28px 0 8px', color: '#111827', fontSize: 19, lineHeight: 1.25, fontWeight: 950 };
+const legalParagraphStyle = { margin: '0 0 12px' };
+const legalListStyle = { margin: '0 0 14px', paddingLeft: 22 };
+
+function TermsPage() {
+  return (
+    <LegalDocumentPage title="Términos y Condiciones" lastUpdated="29 de julio de 2026">
+      <p style={legalParagraphStyle}>TuAgendaYa es una plataforma digital operada por <strong>Valentino Oestrich Centena</strong>, persona física domiciliada en Maldonado, República Oriental del Uruguay. El correo de contacto es <strong>contacto@tuagendaya.com</strong>.</p>
+
+      <h2 style={legalHeadingStyle}>1. Aceptación</h2>
+      <p style={legalParagraphStyle}>Estos términos regulan el registro, contratación y uso de TuAgendaYa. Al crear una cuenta o utilizar la plataforma, el usuario declara haberlos leído, comprendido y aceptado. Quien actúe en nombre de un negocio declara contar con autorización suficiente para hacerlo.</p>
+
+      <h2 style={legalHeadingStyle}>2. Usuarios y alcance</h2>
+      <p style={legalParagraphStyle}>TuAgendaYa está dirigida a profesionales, comercios, empresas y organizaciones que administran servicios y reservas. Las personas que reservan mediante la página pública de un negocio son clientes finales de ese negocio y no clientes comerciales directos de TuAgendaYa.</p>
+
+      <h2 style={legalHeadingStyle}>3. Servicio</h2>
+      <p style={legalParagraphStyle}>La plataforma puede incluir gestión de agenda, servicios, disponibilidad, clientes, reservas, comunicaciones, recordatorios, estadísticas y otras herramientas relacionadas. TuAgendaYa brinda infraestructura tecnológica y no presta los servicios ofrecidos por los negocios.</p>
+
+      <h2 style={legalHeadingStyle}>4. Cuenta y seguridad</h2>
+      <p style={legalParagraphStyle}>El usuario debe proporcionar información verdadera y actualizada, proteger sus credenciales e informar cualquier acceso no autorizado. Es responsable de las actividades realizadas desde su cuenta, salvo que deriven directamente de una falla atribuible a TuAgendaYa.</p>
+
+      <h2 style={legalHeadingStyle}>5. Uso permitido</h2>
+      <p style={legalParagraphStyle}>La plataforma solo puede utilizarse con fines lícitos. Queda prohibido usarla para fraude, suplantación, spam, acceso no autorizado, vulneración de sistemas, tratamiento ilegítimo de datos o actividades que infrinjan derechos de terceros.</p>
+
+      <h2 style={legalHeadingStyle}>6. Responsabilidad del negocio</h2>
+      <p style={legalParagraphStyle}>Cada negocio es responsable de sus servicios, precios, horarios, disponibilidad, políticas de cancelación, cumplimiento profesional, obligaciones fiscales y del tratamiento legítimo de los datos de sus clientes. Las reservas se celebran directamente entre el cliente final y el negocio.</p>
+
+      <h2 style={legalHeadingStyle}>7. Comunicaciones</h2>
+      <p style={legalParagraphStyle}>TuAgendaYa puede enviar confirmaciones, cancelaciones, reprogramaciones, alertas y recordatorios mediante correo electrónico, notificaciones web, WhatsApp u otros canales habilitados. La entrega puede depender de proveedores externos, conexión, permisos y configuración del dispositivo. Un recordatorio es auxiliar y su falta de recepción no anula una reserva.</p>
+
+      <h2 style={legalHeadingStyle}>8. Planes, pagos y cancelación</h2>
+      <p style={legalParagraphStyle}>Los precios, límites y funciones se informarán antes de contratar. El Plan Base podrá incluir hasta 1.000 reservas conforme a las condiciones comerciales vigentes. El usuario puede cancelar su suscripción; la cuenta permanecerá activa hasta finalizar el período ya pagado y no se renovará.</p>
+      <p style={legalParagraphStyle}>No se realizan devoluciones automáticas por períodos iniciados, salvo cobro incorrecto, falla grave atribuible a TuAgendaYa, obligación legal o condición particular más favorable.</p>
+
+      <h2 style={legalHeadingStyle}>9. Suspensión</h2>
+      <p style={legalParagraphStyle}>TuAgendaYa puede suspender o cancelar cuentas por incumplimiento, fraude, riesgo de seguridad, falta de pago o requerimiento de autoridad competente. Cuando sea razonablemente posible, se permitirá corregir el incumplimiento.</p>
+
+      <h2 style={legalHeadingStyle}>10. Disponibilidad y terceros</h2>
+      <p style={legalParagraphStyle}>Se procurará mantener el servicio disponible, pero no se garantiza funcionamiento ininterrumpido. Puede haber mantenimiento, actualizaciones, fallas técnicas, incidentes de seguridad o interrupciones de proveedores externos como alojamiento, correo, mensajería, autenticación o pagos.</p>
+
+      <h2 style={legalHeadingStyle}>11. Propiedad intelectual</h2>
+      <p style={legalParagraphStyle}>La marca, código, diseño, textos, interfaces y funcionalidades propias de TuAgendaYa pertenecen a su titular o se utilizan con autorización. El usuario recibe un derecho limitado, no exclusivo e intransferible de uso mientras mantenga su cuenta habilitada.</p>
+
+      <h2 style={legalHeadingStyle}>12. Datos personales</h2>
+      <p style={legalParagraphStyle}>El tratamiento de datos se rige por la Política de Privacidad. El negocio determina el uso profesional de los datos de sus clientes y TuAgendaYa proporciona la infraestructura para procesarlos. No deben cargarse datos sensibles que no sean estrictamente necesarios.</p>
+
+      <h2 style={legalHeadingStyle}>13. Limitación de responsabilidad</h2>
+      <p style={legalParagraphStyle}>Dentro de los límites legales, TuAgendaYa no responde por la calidad o resultado de los servicios de los negocios, información incorrecta ingresada por usuarios, ausencias, cancelaciones, conflictos entre negocios y clientes finales, fallas de terceros o uso indebido de credenciales. Esta cláusula no limita responsabilidades que legalmente no puedan excluirse.</p>
+
+      <h2 style={legalHeadingStyle}>14. Cambios</h2>
+      <p style={legalParagraphStyle}>Estos términos pueden actualizarse por cambios legales, técnicos o comerciales. Los cambios sustanciales serán informados por un medio adecuado antes de su vigencia.</p>
+
+      <h2 style={legalHeadingStyle}>15. Legislación y contacto</h2>
+      <p style={legalParagraphStyle}>Se aplican las leyes de la República Oriental del Uruguay y la jurisdicción uruguaya competente, sin perjuicio de normas obligatorias aplicables. Consultas: <strong>contacto@tuagendaya.com</strong>.</p>
+    </LegalDocumentPage>
+  );
+}
+
+function PrivacyPage() {
+  return (
+    <LegalDocumentPage title="Política de Privacidad" lastUpdated="29 de julio de 2026">
+      <p style={legalParagraphStyle}>El responsable de TuAgendaYa es <strong>Valentino Oestrich Centena</strong>, domiciliado en Maldonado, República Oriental del Uruguay. Para consultas o ejercicio de derechos: <strong>contacto@tuagendaya.com</strong>.</p>
+
+      <h2 style={legalHeadingStyle}>1. Alcance</h2>
+      <p style={legalParagraphStyle}>Esta política se aplica a visitantes, negocios registrados, usuarios autorizados, clientes finales que realizan reservas y personas que contactan al soporte.</p>
+
+      <h2 style={legalHeadingStyle}>2. Roles en el tratamiento</h2>
+      <p style={legalParagraphStyle}>TuAgendaYa es responsable de los datos usados para crear cuentas, gestionar planes, brindar soporte, proteger la plataforma y cumplir obligaciones legales. Cada negocio determina cómo utiliza los datos de sus clientes finales para administrar reservas y prestar sus servicios; TuAgendaYa procesa esa información para proporcionar la plataforma.</p>
+
+      <h2 style={legalHeadingStyle}>3. Datos recopilados</h2>
+      <ul style={legalListStyle}>
+        <li>Datos del negocio y de cuenta: nombre, nombre comercial, correo, teléfono, profesión, dirección, perfil, servicios, precios, horarios y preferencias.</li>
+        <li>Datos de clientes finales: nombre, teléfono, correo, servicio, profesional, fecha, hora, estado, cancelación, observaciones e historial de reservas.</li>
+        <li>Datos técnicos: dirección IP, dispositivo, navegador, sistema operativo, sesiones, registros, errores, rendimiento y permisos de notificaciones.</li>
+        <li>Comunicaciones con soporte y datos administrativos de planes, pagos o facturación.</li>
+      </ul>
+
+      <h2 style={legalHeadingStyle}>4. Finalidades</h2>
+      <ul style={legalListStyle}>
+        <li>Crear y administrar cuentas, agendas, servicios y reservas.</li>
+        <li>Confirmar, cancelar, reprogramar y recordar reservas.</li>
+        <li>Enviar comunicaciones administrativas y de seguridad.</li>
+        <li>Gestionar planes, pagos, soporte y facturación.</li>
+        <li>Prevenir fraude, abuso y accesos no autorizados.</li>
+        <li>Corregir errores, medir rendimiento y mejorar el servicio.</li>
+        <li>Cumplir obligaciones legales y defender derechos.</li>
+      </ul>
+
+      <h2 style={legalHeadingStyle}>5. Fundamentos</h2>
+      <p style={legalParagraphStyle}>Los datos se tratan cuando es necesario para ejecutar el servicio, responder solicitudes, cumplir obligaciones legales, proteger intereses legítimos de seguridad o cuando existe consentimiento válido. El consentimiento puede retirarse sin afectar tratamientos anteriores.</p>
+
+      <h2 style={legalHeadingStyle}>6. Proveedores y transferencias</h2>
+      <p style={legalParagraphStyle}>La información puede ser procesada por proveedores de alojamiento, base de datos, almacenamiento, correo, WhatsApp, notificaciones, autenticación, mapas, pagos, seguridad y soporte. Algunos proveedores pueden procesar datos fuera de Uruguay; se procurarán garantías adecuadas conforme a la normativa aplicable. TuAgendaYa no vende datos personales.</p>
+
+      <h2 style={legalHeadingStyle}>7. Conservación</h2>
+      <p style={legalParagraphStyle}>Los datos se conservan mientras la cuenta permanezca activa y sean necesarios. Tras el cierre, podrán mantenerse hasta 90 días para recuperación, exportación o resolución de incidencias, y luego eliminarse o anonimizarse. Las copias de respaldo pueden conservarse hasta 180 días por su ciclo de rotación. La información fiscal, contable, de seguridad o reclamos podrá conservarse durante los plazos legales correspondientes.</p>
+
+      <h2 style={legalHeadingStyle}>8. Seguridad e incidentes</h2>
+      <p style={legalParagraphStyle}>TuAgendaYa aplica medidas técnicas y organizativas razonables, como comunicaciones cifradas, protección de contraseñas, controles de acceso, respaldos y limitación de accesos administrativos. Ningún sistema conectado a Internet ofrece seguridad absoluta. Los incidentes serán evaluados, contenidos y comunicados cuando corresponda legalmente.</p>
+
+      <h2 style={legalHeadingStyle}>9. Derechos</h2>
+      <p style={legalParagraphStyle}>Los titulares pueden solicitar información, acceso, rectificación, actualización, inclusión o supresión de sus datos y ejercer los demás derechos reconocidos por la normativa uruguaya. La solicitud debe enviarse a <strong>contacto@tuagendaya.com</strong> con información suficiente para verificar la identidad.</p>
+
+      <h2 style={legalHeadingStyle}>10. Menores y datos sensibles</h2>
+      <p style={legalParagraphStyle}>TuAgendaYa no está dirigida a menores como usuarios contratantes ni está diseñada para historias clínicas o datos sensibles. Los negocios no deben ingresar datos de salud, biométricos, ideológicos, religiosos, sindicales o relativos a la vida sexual salvo que cuenten con una solución específicamente adecuada y con base legal suficiente.</p>
+
+      <h2 style={legalHeadingStyle}>11. Cookies y notificaciones</h2>
+      <p style={legalParagraphStyle}>Se pueden utilizar cookies, almacenamiento local y tecnologías similares para sesiones, preferencias, seguridad, funcionamiento de la aplicación web y notificaciones. Los detalles se encuentran en la Política de Cookies.</p>
+
+      <h2 style={legalHeadingStyle}>12. Cambios y contacto</h2>
+      <p style={legalParagraphStyle}>Esta política puede actualizarse por cambios legales, técnicos o comerciales. Los cambios sustanciales se comunicarán mediante la plataforma, correo u otro medio adecuado. Contacto: <strong>contacto@tuagendaya.com</strong>.</p>
+    </LegalDocumentPage>
+  );
+}
+
+function CookiesPage() {
+  return (
+    <LegalDocumentPage title="Política de Cookies" lastUpdated="29 de julio de 2026">
+      <p style={legalParagraphStyle}>TuAgendaYa utiliza cookies, almacenamiento local y tecnologías similares para permitir el funcionamiento seguro de su sitio y aplicación web.</p>
+
+      <h2 style={legalHeadingStyle}>1. Tecnologías necesarias</h2>
+      <p style={legalParagraphStyle}>Se utilizan para iniciar y mantener sesiones, autenticar usuarios, proteger cuentas, recordar configuraciones esenciales, habilitar la agenda y las reservas, gestionar la aplicación web progresiva y prestar funciones solicitadas. Bloquearlas puede impedir el funcionamiento correcto.</p>
+
+      <h2 style={legalHeadingStyle}>2. Tecnologías funcionales</h2>
+      <p style={legalParagraphStyle}>Pueden recordar preferencias de interfaz, vistas seleccionadas, configuraciones del negocio, métodos de pago aceptados y estado de funciones o notificaciones.</p>
+
+      <h2 style={legalHeadingStyle}>3. Rendimiento y analítica</h2>
+      <p style={legalParagraphStyle}>TuAgendaYa puede utilizar información técnica para detectar errores y mejorar rendimiento. Las herramientas analíticas no esenciales que requieran consentimiento no deberán activarse antes de obtenerlo.</p>
+
+      <h2 style={legalHeadingStyle}>4. Terceros</h2>
+      <p style={legalParagraphStyle}>Algunas funciones pueden depender de proveedores de autenticación, mapas, pagos, mensajería, soporte o seguridad. Estos proveedores pueden usar sus propios identificadores conforme a sus políticas.</p>
+
+      <h2 style={legalHeadingStyle}>5. Notificaciones web</h2>
+      <p style={legalParagraphStyle}>Al activar notificaciones, el navegador o dispositivo genera identificadores técnicos para enviar avisos autorizados. El permiso puede revocarse desde la configuración del navegador, dispositivo o perfil de TuAgendaYa.</p>
+
+      <h2 style={legalHeadingStyle}>6. Administración</h2>
+      <p style={legalParagraphStyle}>El usuario puede bloquear o eliminar cookies y datos del sitio desde su navegador. Esto puede cerrar la sesión, borrar preferencias o afectar algunas funciones.</p>
+
+      <h2 style={legalHeadingStyle}>7. Cambios y contacto</h2>
+      <p style={legalParagraphStyle}>Esta política puede actualizarse cuando cambien las tecnologías, proveedores u obligaciones legales. Consultas: <strong>contacto@tuagendaya.com</strong>.</p>
+    </LegalDocumentPage>
+  );
+}
+
 export default function App() {
   return (
     <>
@@ -12001,6 +12208,10 @@ export default function App() {
         <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
         <Route path="/admin-app" element={<Navigate to="/login" replace />} />
         <Route path="/admin-app/dashboard" element={<AdminDashboardPage />} />
+
+        <Route path="/terminos" element={<TermsPage />} />
+        <Route path="/privacidad" element={<PrivacyPage />} />
+        <Route path="/cookies" element={<CookiesPage />} />
 
         <Route path="/reservar/:slug" element={<BookPage />} />
         <Route path="/:slug" element={<BookPage />} />
