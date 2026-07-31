@@ -1,6 +1,5 @@
 const express = require("express");
 const jwt = require("jsonwebtoken");
-const bcrypt = require("bcryptjs");
 const db = require("../db");
 
 const router = express.Router();
@@ -36,41 +35,6 @@ function requireAdmin(req, res, next) {
   }
 }
 
-
-async function ensureAdminPasswordTable() {
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS admin_auth_settings (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL,
-      updated_at TIMESTAMP DEFAULT NOW()
-    )
-  `);
-}
-
-async function getAdminPasswordHashOverride() {
-  try {
-    await ensureAdminPasswordTable();
-
-    const result = await db.query(
-      `SELECT value FROM admin_auth_settings WHERE key = 'password_hash' LIMIT 1`
-    );
-
-    return result.rows[0]?.value || null;
-  } catch (error) {
-    console.warn("No se pudo leer contraseña admin personalizada:", error.message);
-    return null;
-  }
-}
-
-async function isAdminPasswordValid(password, envPassword) {
-  const overrideHash = await getAdminPasswordHashOverride();
-
-  if (overrideHash) {
-    return bcrypt.compare(password, overrideHash);
-  }
-
-  return password === envPassword;
-}
 
 function normalizeProfessional(row) {
   return {
@@ -116,9 +80,7 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ error: "Email y contraseña son obligatorios" });
     }
 
-    const validAdminPassword = await isAdminPasswordValid(password, adminPassword);
-
-    if (email !== adminEmail || !validAdminPassword) {
+    if (email !== adminEmail || password !== adminPassword) {
       return res.status(401).json({ error: "Credenciales admin incorrectas" });
     }
 
@@ -408,49 +370,6 @@ router.patch("/professionals/:id/status", requireAdmin, async (req, res) => {
   } catch (error) {
     console.error("Error admin status:", error);
     res.status(500).json({ error: "Error actualizando estado" });
-  }
-});
-
-
-router.post("/change-password", requireAdmin, async (req, res) => {
-  try {
-    const currentPassword = normalizeText(req.body.currentPassword || req.body.current_password);
-    const newPassword = normalizeText(req.body.newPassword || req.body.new_password);
-
-    const adminPassword = normalizeText(process.env.ADMIN_PASSWORD);
-
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({ error: "Faltan campos" });
-    }
-
-    if (newPassword.length < 8) {
-      return res.status(400).json({ error: "La nueva contraseña debe tener mínimo 8 caracteres" });
-    }
-
-    const validCurrentPassword = await isAdminPasswordValid(currentPassword, adminPassword);
-
-    if (!validCurrentPassword) {
-      return res.status(401).json({ error: "Contraseña actual incorrecta" });
-    }
-
-    await ensureAdminPasswordTable();
-
-    const hash = await bcrypt.hash(newPassword, 12);
-
-    await db.query(
-      `
-      INSERT INTO admin_auth_settings (key, value, updated_at)
-      VALUES ('password_hash', $1, NOW())
-      ON CONFLICT (key)
-      DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
-      `,
-      [hash]
-    );
-
-    res.json({ success: true, message: "Contraseña admin actualizada" });
-  } catch (error) {
-    console.error("Error admin change-password:", error);
-    res.status(500).json({ error: "Error interno cambiando contraseña admin" });
   }
 });
 
