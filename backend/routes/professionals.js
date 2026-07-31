@@ -10,9 +10,9 @@ function authMiddleware(req, res, next) {
   }
   try {
     const decoded = jwt.verify(
-      header.slice(7),
-      process.env.JWT_SECRET || 'tuagendaya-secret-dev-change-in-prod'
-    );
+  header.slice(7),
+  process.env.JWT_SECRET
+);
     req.professional = decoded;
     next();
   } catch (e) {
