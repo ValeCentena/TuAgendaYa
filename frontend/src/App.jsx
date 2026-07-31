@@ -10569,15 +10569,6 @@ function AdminDashboardPage() {
           </div>
         )}
 
-        <div style={{ marginBottom: 18 }}>
-          <ChangePasswordCard
-            title="Contraseña del dueño"
-            description="Cambiá la contraseña de acceso al panel admin. Si la cambiás acá, desde ahora usás la nueva."
-            endpoint="/admin/change-password"
-            token={token}
-          />
-        </div>
-
         <div className="admin-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginBottom: 18 }}>
           {statCards.map((card) => (
             <div key={card.label} style={{ background: card.bg, borderRadius: 18, padding: 16, border: '1px solid rgba(0,0,0,0.04)' }}>
