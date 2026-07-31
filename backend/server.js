@@ -33,7 +33,7 @@ app.use(
         return callback(null, true);
       }
 
-      return callback(null, true);
+      return callback(new Error("Origen no permitido por CORS"));
     },
     credentials: true,
   })
