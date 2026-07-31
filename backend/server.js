@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+const rateLimit = require("express-rate-limit");
 require("dotenv").config();
 
 require("./db");
@@ -15,6 +16,24 @@ const { startBookingReminderWorker } = require("./services/reminders");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+app.set("trust proxy", 1);
+
+function createLoginLimiter() {
+  return rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 10,
+    standardHeaders: "draft-7",
+    legacyHeaders: false,
+    skipSuccessfulRequests: true,
+    message: {
+      error: "Demasiados intentos de inicio de sesión. Intentá nuevamente en 15 minutos.",
+    },
+  });
+}
+
+const professionalLoginLimiter = createLoginLimiter();
+const adminLoginLimiter = createLoginLimiter();
 
 const allowedOrigins = [
   process.env.CORS_ORIGIN,
@@ -49,6 +68,9 @@ app.get("/api/health", (req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
+
+app.use("/api/auth/login", professionalLoginLimiter);
+app.use("/api/admin/login", adminLoginLimiter);
 
 app.use("/api/auth", authRoutes);
 app.use("/api/professionals", professionalsRoutes);
