@@ -24,7 +24,8 @@ function createLoginLimiter() {
   const maxFailedAttempts = 10;
 
   return (req, res, next) => {
-    const key = req.ip || req.socket.remoteAddress || "unknown";
+    const loginIdentifier = String(req.body?.email || "").trim().toLowerCase();
+    const key = loginIdentifier || req.ip || req.socket.remoteAddress || "unknown";
     const now = Date.now();
     let record = attemptsByIp.get(key);
 
