@@ -1,6 +1,5 @@
 const express = require("express");
 const cors = require("cors");
-const rateLimit = require("express-rate-limit");
 require("dotenv").config();
 
 require("./db");
@@ -20,16 +19,49 @@ const PORT = process.env.PORT || 3001;
 app.set("trust proxy", 1);
 
 function createLoginLimiter() {
-  return rateLimit({
-    windowMs: 15 * 60 * 1000,
-    limit: 10,
-    standardHeaders: "draft-7",
-    legacyHeaders: false,
-    skipSuccessfulRequests: true,
-    message: {
-      error: "Demasiados intentos de inicio de sesión. Intentá nuevamente en 15 minutos.",
-    },
-  });
+  const attemptsByIp = new Map();
+  const windowMs = 15 * 60 * 1000;
+  const maxFailedAttempts = 10;
+
+  return (req, res, next) => {
+    const key = req.ip || req.socket.remoteAddress || "unknown";
+    const now = Date.now();
+    let record = attemptsByIp.get(key);
+
+    if (!record || record.resetAt <= now) {
+      record = { count: 0, resetAt: now + windowMs };
+      attemptsByIp.set(key, record);
+    }
+
+    if (record.count >= maxFailedAttempts) {
+      const retryAfterSeconds = Math.max(1, Math.ceil((record.resetAt - now) / 1000));
+      res.set("Retry-After", String(retryAfterSeconds));
+
+      return res.status(429).json({
+        error: "Demasiados intentos de inicio de sesión. Intentá nuevamente en 15 minutos.",
+      });
+    }
+
+    res.on("finish", () => {
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        attemptsByIp.delete(key);
+        return;
+      }
+
+      if (res.statusCode === 401) {
+        const current = attemptsByIp.get(key);
+        const finishedAt = Date.now();
+
+        if (!current || current.resetAt <= finishedAt) {
+          attemptsByIp.set(key, { count: 1, resetAt: finishedAt + windowMs });
+        } else {
+          current.count += 1;
+        }
+      }
+    });
+
+    next();
+  };
 }
 
 const professionalLoginLimiter = createLoginLimiter();
