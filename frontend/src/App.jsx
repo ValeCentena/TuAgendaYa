@@ -1167,7 +1167,9 @@ function UnifiedLoginPage() {
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      throw new Error(data.error || 'Credenciales admin inválidas');
+      const loginError = new Error(data.error || 'Credenciales admin inválidas');
+      loginError.status = response.status;
+      throw loginError;
     }
 
     localStorage.removeItem('tuagendaya_token');
@@ -1188,7 +1190,9 @@ function UnifiedLoginPage() {
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      throw new Error(data.error || 'Credenciales profesionales inválidas');
+      const loginError = new Error(data.error || 'Credenciales profesionales inválidas');
+      loginError.status = response.status;
+      throw loginError;
     }
 
     localStorage.removeItem('tuagendaya_admin_token');
@@ -1222,11 +1226,19 @@ function UnifiedLoginPage() {
       try {
         await loginAsAdmin();
         return;
-      } catch {
+      } catch (adminError) {
+        if (adminError?.status === 429) {
+          throw adminError;
+        }
+
         await loginAsProfessional();
       }
-    } catch {
-      setError('Credenciales inválidas. Revisá el email y la contraseña.');
+    } catch (loginError) {
+      if (loginError?.status === 429) {
+        setError(loginError.message || 'Demasiados intentos. Intentá nuevamente más tarde.');
+      } else {
+        setError('Credenciales inválidas. Revisá el email y la contraseña.');
+      }
     } finally {
       setLoading(false);
     }
