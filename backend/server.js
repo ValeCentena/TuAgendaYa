@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+const helmet = require("helmet");
 require("dotenv").config();
 
 require("./db");
@@ -17,6 +18,8 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.set("trust proxy", 1);
+
+app.use(helmet());
 
 function createLoginLimiter() {
   const attemptsByIp = new Map();
