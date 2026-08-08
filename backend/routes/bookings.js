@@ -257,6 +257,82 @@ async function createBookingMercadoPagoPreference({ booking, professional, servi
   };
 }
 
+async function verifyMercadoPagoBookingPayment(payment, bookingId) {
+  const numericBookingId = Number(bookingId);
+
+  if (!Number.isInteger(numericBookingId) || numericBookingId <= 0) {
+    return { valid: false, reason: "invalid_booking_id", booking: null };
+  }
+
+  const bookingResult = await db.query(
+    `
+      SELECT
+        b.id,
+        b.professional_id,
+        b.service_id,
+        b.confirmation_token,
+        COALESCE(ps.price, legacy.price, 0) AS expected_amount
+      FROM bookings b
+      LEFT JOIN professional_services ps
+        ON ps.id = b.service_id
+       AND ps.professional_id = b.professional_id
+      LEFT JOIN services legacy
+        ON legacy.id = b.service_id
+       AND legacy.professional_id = b.professional_id
+      WHERE b.id = $1
+      LIMIT 1
+    `,
+    [numericBookingId]
+  );
+
+  const booking = bookingResult.rows[0] || null;
+
+  if (!booking) {
+    return { valid: false, reason: "booking_not_found", booking: null };
+  }
+
+  const expectedReference = `booking:${booking.id}:${booking.confirmation_token}`;
+  const externalReference = String(payment?.external_reference || "");
+
+  if (!booking.confirmation_token || externalReference !== expectedReference) {
+    return { valid: false, reason: "external_reference_mismatch", booking };
+  }
+
+  const metadataBookingId = payment?.metadata?.booking_id;
+  if (
+    metadataBookingId !== undefined &&
+    metadataBookingId !== null &&
+    String(metadataBookingId) !== String(booking.id)
+  ) {
+    return { valid: false, reason: "metadata_booking_mismatch", booking };
+  }
+
+  const metadataToken = payment?.metadata?.confirmation_token;
+  if (
+    metadataToken !== undefined &&
+    metadataToken !== null &&
+    String(metadataToken) !== String(booking.confirmation_token)
+  ) {
+    return { valid: false, reason: "metadata_token_mismatch", booking };
+  }
+
+  const expectedAmount = normalizeMercadoPagoAmount(booking.expected_amount);
+  const paidAmount = normalizeMercadoPagoAmount(payment?.transaction_amount);
+
+  if (expectedAmount <= 0 || Math.abs(expectedAmount - paidAmount) > 0.01) {
+    return { valid: false, reason: "amount_mismatch", booking };
+  }
+
+  const expectedCurrency = String(process.env.PLAN_CURRENCY || "UYU").trim().toUpperCase();
+  const paymentCurrency = String(payment?.currency_id || "").trim().toUpperCase();
+
+  if (paymentCurrency && paymentCurrency !== expectedCurrency) {
+    return { valid: false, reason: "currency_mismatch", booking };
+  }
+
+  return { valid: true, reason: null, booking };
+}
+
 async function markBookingPaidFromMercadoPago({ bookingId, paymentId, paymentStatus, paymentMethodId, paymentTypeId, amountPaid }) {
   await ensurePaymentColumns();
 
@@ -2306,8 +2382,25 @@ router.post("/public/payment/mercadopago/webhook", async (req, res) => {
       return res.status(200).json({ received: true, ignored: true, externalReference });
     }
 
+    const bookingId = Number(match[1]);
+    const verification = await verifyMercadoPagoBookingPayment(payment, bookingId);
+
+    if (!verification.valid) {
+      console.warn("Mercado Pago booking payment ignored:", {
+        bookingId,
+        paymentId: payment.id,
+        reason: verification.reason,
+      });
+
+      return res.status(200).json({
+        received: true,
+        ignored: true,
+        reason: verification.reason,
+      });
+    }
+
     await markBookingPaidFromMercadoPago({
-      bookingId: Number(match[1]),
+      bookingId,
       paymentId: payment.id,
       paymentStatus: payment.status,
       paymentMethodId: payment.payment_method_id,
@@ -2351,10 +2444,15 @@ router.post("/public/:slug/book/:bookingId/sync-mercadopago", async (req, res) =
       return res.status(502).json({ error: "No se pudo verificar el pago" });
     }
 
-    const externalReference = String(payment.external_reference || "");
+    const verification = await verifyMercadoPagoBookingPayment(
+      payment,
+      Number(bookingId)
+    );
 
-    if (!externalReference.startsWith(`booking:${Number(bookingId)}:`)) {
-      return res.status(403).json({ error: "El pago no corresponde a esta reserva" });
+    if (!verification.valid) {
+      return res.status(403).json({
+        error: "El pago no corresponde exactamente a esta reserva",
+      });
     }
 
     const updatedBooking = await markBookingPaidFromMercadoPago({
@@ -2423,17 +2521,8 @@ router.patch("/public/confirmation/:token/confirm", async (req, res) => {
   try {
     const { token } = req.params;
 
-    const result = await db.query(
-      `
-        UPDATE bookings
-        SET
-          status = 'confirmed',
-          client_confirmed_at = NOW(),
-          client_cancelled_at = NULL,
-          updated_at = NOW()
-        WHERE confirmation_token = $1
-        RETURNING *
-      `,
+    const result = await markBookingAutomaticallyPaid(
+      "b.confirmation_token = $1",
       [token]
     );
 
