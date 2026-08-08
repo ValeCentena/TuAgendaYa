@@ -71,6 +71,53 @@ function createLoginLimiter() {
 const professionalLoginLimiter = createLoginLimiter();
 const adminLoginLimiter = createLoginLimiter();
 
+function createPublicBookingLimiter() {
+  const bookingsByClient = new Map();
+  const windowMs = 15 * 60 * 1000;
+  const maxSuccessfulBookings = 5;
+
+  return (req, res, next) => {
+    const slug = String(req.params?.slug || "").trim().toLowerCase();
+    const clientPhone = String(req.body?.clientPhone || req.body?.client_phone || "")
+      .replace(/\D/g, "");
+
+    const key = `${slug}:${clientPhone || "unknown"}`;
+    const now = Date.now();
+    let record = bookingsByClient.get(key);
+
+    if (!record || record.resetAt <= now) {
+      record = { count: 0, resetAt: now + windowMs };
+      bookingsByClient.set(key, record);
+    }
+
+    if (record.count >= maxSuccessfulBookings) {
+      const retryAfterSeconds = Math.max(1, Math.ceil((record.resetAt - now) / 1000));
+      res.set("Retry-After", String(retryAfterSeconds));
+
+      return res.status(429).json({
+        error: "Se alcanzó el límite de reservas para este número. Intentá nuevamente en 15 minutos.",
+      });
+    }
+
+    res.on("finish", () => {
+      if (res.statusCode === 201) {
+        const current = bookingsByClient.get(key);
+        const finishedAt = Date.now();
+
+        if (!current || current.resetAt <= finishedAt) {
+          bookingsByClient.set(key, { count: 1, resetAt: finishedAt + windowMs });
+        } else {
+          current.count += 1;
+        }
+      }
+    });
+
+    next();
+  };
+}
+
+const publicBookingLimiter = createPublicBookingLimiter();
+
 const allowedOrigins = [
   process.env.CORS_ORIGIN,
   process.env.FRONTEND_URL,
@@ -107,6 +154,7 @@ app.get("/api/health", (req, res) => {
 
 app.use("/api/auth/login", professionalLoginLimiter);
 app.use("/api/admin/login", adminLoginLimiter);
+app.post("/api/bookings/public/:slug/book", publicBookingLimiter);
 
 app.use("/api/auth", authRoutes);
 app.use("/api/professionals", professionalsRoutes);
