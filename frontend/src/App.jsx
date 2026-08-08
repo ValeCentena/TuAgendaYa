@@ -3619,7 +3619,7 @@ useEffect(() => {
                           <div style={{ fontSize: 12, color: '#0071e3', fontWeight: 700, marginTop: 4 }}>
                             {serviceDuration ? `${serviceDuration} min` : ''}{serviceDuration && servicePrice ? ' · ' : ''}{servicePrice ? `$${servicePrice}` : ''}
                         {/* TipQuickEditor render marker */}
-                        <BookingTipQuickEditor booking={booking} token={token} onUpdated={handleBookingUpdated} />
+                        <BookingTipQuickEditor booking={b} token={token} onUpdated={handleBookingUpdated} />
 
                           </div>
                         )}
