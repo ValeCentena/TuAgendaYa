@@ -2423,8 +2423,17 @@ router.patch("/public/confirmation/:token/confirm", async (req, res) => {
   try {
     const { token } = req.params;
 
-    const result = await markBookingAutomaticallyPaid(
-      "b.confirmation_token = $1",
+    const result = await db.query(
+      `
+        UPDATE bookings
+        SET
+          status = 'confirmed',
+          client_confirmed_at = NOW(),
+          client_cancelled_at = NULL,
+          updated_at = NOW()
+        WHERE confirmation_token = $1
+        RETURNING *
+      `,
       [token]
     );
 
