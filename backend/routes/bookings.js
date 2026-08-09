@@ -2532,7 +2532,7 @@ router.patch("/public/confirmation/:token/confirm", async (req, res) => {
     const { token } = req.params;
 
     const result = await markBookingAutomaticallyPaid(
-      "b.confirmation_token = $1",
+      "b.confirmation_token = $1 AND b.status NOT IN ('cancelled', 'completed')",
       [token]
     );
 
