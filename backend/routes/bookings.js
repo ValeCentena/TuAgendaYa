@@ -2164,6 +2164,12 @@ router.post("/public/:slug/book", async (req, res) => {
     const onlinePaymentData = paymentData || payment_data || null;
     let approvedOnlinePayment = null;
 
+    if (finalPaymentMethod === "online" && !onlinePaymentData) {
+      return res.status(400).json({
+        error: "Para pagar online es obligatorio completar y validar los datos de pago.",
+      });
+    }
+
     if (finalPaymentMethod === "online" && onlinePaymentData) {
       const amount = Number(service ? service.price || 0 : 0);
 
