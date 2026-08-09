@@ -1634,6 +1634,16 @@ router.post("/blocks", async (req, res) => {
       }
     }
 
+    if (staffId) {
+      const staff = await getStaffForProfessional(professionalId, Number(staffId));
+
+      if (!staff) {
+        return res.status(404).json({
+          error: "Profesional interno no encontrado",
+        });
+      }
+    }
+
     await db.query(
       `
       INSERT INTO blocked_times (
