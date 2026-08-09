@@ -77,8 +77,10 @@ function getMercadoPagoAccessTokenForBookings() {
 }
 
 function createBookingPaymentIdempotencyKey(parts = []) {
-  return `${parts.filter(Boolean).join("-")}-${Date.now().toString(36)}`
-    .replace(/[^a-zA-Z0-9_-]/g, "")
+  return crypto
+    .createHash("sha256")
+    .update(parts.filter(Boolean).map(String).join("|"))
+    .digest("hex")
     .slice(0, 64);
 }
 
@@ -143,6 +145,7 @@ async function createCardPaymentForBooking({ amount, description, paymentData, p
         service.id,
         bookingDate,
         startTime,
+        payload.token,
       ]),
     },
     body: JSON.stringify(payload),
