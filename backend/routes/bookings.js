@@ -538,8 +538,16 @@ async function markBookingAutomaticallyCancelled(whereSql, values) {
         status = 'cancelled',
         client_cancelled_at = NOW(),
         client_confirmed_at = NULL,
-        payment_status = 'cancelled',
-        amount_paid = 0,
+        payment_status = CASE
+          WHEN b.payment_method = 'online' AND b.payment_status = 'paid'
+            THEN 'paid'
+          ELSE 'cancelled'
+        END,
+        amount_paid = CASE
+          WHEN b.payment_method = 'online' AND b.payment_status = 'paid'
+            THEN b.amount_paid
+          ELSE 0
+        END,
         payment_updated_at = NOW(),
         updated_at = NOW()
       WHERE ${whereSql}
@@ -867,7 +875,9 @@ async function calculateCashClosure(professionalId, closureDate) {
 
   const bookings = bookingsResult.rows;
   const activeBookings = bookings.filter(
-    (booking) => booking.status !== "cancelled"
+    (booking) =>
+      booking.status !== "cancelled" ||
+      (booking.payment_method === "online" && booking.payment_status === "paid")
   );
 
   const getPrice = (booking) => Number(booking.service_price || 0) || 0;
@@ -2202,8 +2212,8 @@ router.post("/public/:slug/book", async (req, res) => {
         confirmationToken,
         finalPaymentMethod,
         approvedOnlinePayment ? "confirmed" : "pending",
-        approvedOnlinePayment ? "paid" : "pending",
-        approvedOnlinePayment ? Number(service ? service.price || 0 : 0) : 0,
+        "paid",
+        Number(service ? service.price || 0 : 0),
       ]
     );
 
@@ -2521,17 +2531,8 @@ router.patch("/public/confirmation/:token/confirm", async (req, res) => {
   try {
     const { token } = req.params;
 
-    const result = await db.query(
-      `
-        UPDATE bookings
-        SET
-          status = 'confirmed',
-          client_confirmed_at = NOW(),
-          client_cancelled_at = NULL,
-          updated_at = NOW()
-        WHERE confirmation_token = $1
-        RETURNING *
-      `,
+    const result = await markBookingAutomaticallyPaid(
+      "b.confirmation_token = $1",
       [token]
     );
 
