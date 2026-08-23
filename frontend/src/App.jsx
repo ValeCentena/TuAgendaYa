@@ -10683,6 +10683,9 @@ function AdminDashboardPage() {
                         <div style={{ color: '#6e6e73', fontSize: 13, marginTop: 4 }}>
                           {professional.email || 'Sin email'} · {professional.profession || 'Sin rubro'}
                         </div>
+                        <div style={{ color: '#6e6e73', fontSize: 13, marginTop: 4 }}>
+                          Teléfono: {professional.phone || 'Sin teléfono'}
+                        </div>
                         {publicUrl && (
                           <a href={publicUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: 6, color: '#0071e3', fontSize: 13, fontWeight: 800, textDecoration: 'none' }}>
                             Abrir link público
