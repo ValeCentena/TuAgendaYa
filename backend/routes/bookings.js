@@ -72,8 +72,16 @@ function getMercadoPagoPublicKeyForBookings() {
   return process.env.MERCADOPAGO_PUBLIC_KEY || "";
 }
 
-function getMercadoPagoAccessTokenForBookings() {
-  return process.env.MERCADOPAGO_ACCESS_TOKEN || "";
+async function getMercadoPagoAccessTokenForBookings(professionalId) {
+  const result = await db.query(
+    `SELECT access_token
+     FROM professional_payment_connections
+     WHERE professional_id = $1 AND provider = 'mercadopago'
+     LIMIT 1`,
+    [professionalId]
+  );
+
+  return result.rows[0]?.access_token || "";
 }
 
 function createBookingPaymentIdempotencyKey(parts = []) {
@@ -85,7 +93,7 @@ function createBookingPaymentIdempotencyKey(parts = []) {
 }
 
 async function createCardPaymentForBooking({ amount, description, paymentData, professional, service, bookingDate, startTime }) {
-  const accessToken = getMercadoPagoAccessTokenForBookings();
+  const accessToken = await getMercadoPagoAccessTokenForBookings(professional.id);
 
   if (!accessToken) {
     const error = new Error("Mercado Pago no está configurado");
