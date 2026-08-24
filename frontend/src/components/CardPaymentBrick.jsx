@@ -95,6 +95,7 @@ export default function CardPaymentBrick({ amount, disabled, onSubmitPayment }) 
         const controller = await bricksBuilder.create('cardPayment', containerIdRef.current, {
           initialization: {
             amount: Number(amount),
+            marketplace: true,
           },
           callbacks: {
             onReady: () => {
