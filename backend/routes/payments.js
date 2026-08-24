@@ -661,7 +661,7 @@ router.get("/mercadopago/connect/start", async (req, res) => {
     }
 
     const state = encodeMercadoPagoState(professionalId);
-    const url = new URL("https://auth.mercadopago.com.uy/authorization");
+    const url = new URL("https://auth.mercadopago.com/authorization");
     url.searchParams.set("client_id", config.clientId);
     url.searchParams.set("response_type", "code");
     url.searchParams.set("platform_id", "mp");
