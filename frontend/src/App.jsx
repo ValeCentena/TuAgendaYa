@@ -1272,8 +1272,18 @@ function UnifiedLoginPage() {
           placeholder="Contraseña"
           required
           autoComplete="current-password"
-          style={{ ...inputStyle, marginBottom: 12 }}
+          style={{ ...inputStyle, marginBottom: 8 }}
         />
+
+        <div style={{ textAlign: 'right', marginBottom: 12 }}>
+          <button
+            type="button"
+            onClick={() => navigate('/forgot-password')}
+            style={{ border: 'none', background: 'transparent', color: '#0071e3', padding: 0, fontSize: 13, fontWeight: 750, fontFamily: 'inherit', cursor: 'pointer' }}
+          >
+            ¿Olvidaste tu contraseña?
+          </button>
+        </div>
 
         {error && (
           <div style={{ background: '#fff2f2', border: '0.5px solid #ffcdd2', borderRadius: 12, padding: '10px 12px', fontSize: 13, color: '#c62828', marginBottom: 12, fontWeight: 700 }}>
@@ -1301,6 +1311,242 @@ function UnifiedLoginPage() {
       <div style={{ textAlign: 'center', fontSize: 11.5, color: '#8e8e93', marginTop: 14, lineHeight: 1.35, fontWeight: 650 }}>
         Tus datos están cifrados y protegidos.
       </div>
+    </AuthLayout>
+  );
+}
+
+
+function ForgotPasswordPage() {
+  const navigate = useNavigate();
+  const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [sent, setSent] = useState(false);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      const response = await fetch(`${API_BASE}/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || 'No se pudo procesar la solicitud');
+      }
+
+      setSent(true);
+    } catch (requestError) {
+      setError(requestError.message || 'No se pudo procesar la solicitud. Intentá nuevamente.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <AuthLayout>
+      <div style={{ textAlign: 'center', marginBottom: 24 }}>
+        <TuAgendaLogo height={52} centered />
+        <div style={{ fontSize: 18, color: '#1d1d1f', fontWeight: 850, marginTop: 12 }}>
+          Recuperar contraseña
+        </div>
+        <div style={{ fontSize: 13, color: '#6e6e73', fontWeight: 650, marginTop: 6, lineHeight: 1.45 }}>
+          Ingresá el email de tu cuenta profesional y te enviaremos un enlace seguro.
+        </div>
+      </div>
+
+      {sent ? (
+        <>
+          <div style={{ background: '#f2fbf4', border: '0.5px solid #b7e4c1', borderRadius: 14, padding: '14px 16px', fontSize: 13, color: '#1f6f36', lineHeight: 1.5, fontWeight: 700 }}>
+            Si el email existe, te enviamos instrucciones para recuperar la contraseña. Revisá también Spam o Correo no deseado.
+          </div>
+
+          <button
+            type="button"
+            onClick={() => navigate('/login?tipo=profesional')}
+            style={{ width: '100%', marginTop: 14, padding: '12px', borderRadius: 14, border: '0.5px solid #d0d0d5', background: '#fff', color: '#0071e3', fontSize: 14, fontWeight: 800, fontFamily: 'inherit', cursor: 'pointer' }}
+          >
+            Volver a ingresar
+          </button>
+        </>
+      ) : (
+        <form onSubmit={handleSubmit}>
+          <label style={smallLabelStyle}>Email</label>
+          <input
+            style={{ ...inputStyle, marginBottom: 12 }}
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="Email"
+            required
+            autoComplete="email"
+          />
+
+          {error && (
+            <div style={{ background: '#fff2f2', border: '0.5px solid #ffcdd2', borderRadius: 12, padding: '10px 12px', fontSize: 13, color: '#c62828', marginBottom: 12, fontWeight: 700 }}>
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            style={{ width: '100%', padding: '13px', borderRadius: 14, border: 'none', background: loading ? '#aeaeb2' : '#0071e3', color: '#fff', fontSize: 15, fontWeight: 850, fontFamily: 'inherit', cursor: loading ? 'not-allowed' : 'pointer', marginTop: 4 }}
+          >
+            {loading ? 'Enviando...' : 'Enviar enlace de recuperación'}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => navigate('/login?tipo=profesional')}
+            style={{ width: '100%', marginTop: 12, padding: '12px', borderRadius: 14, border: '0.5px solid #d0d0d5', background: '#fff', color: '#0071e3', fontSize: 14, fontWeight: 800, fontFamily: 'inherit', cursor: 'pointer' }}
+          >
+            Volver
+          </button>
+        </form>
+      )}
+    </AuthLayout>
+  );
+}
+
+
+function ResetPasswordPage() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const token = new URLSearchParams(location.search).get('token') || '';
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setError('');
+
+    if (!token) {
+      setError('El enlace de recuperación es inválido.');
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      setError('La nueva contraseña debe tener mínimo 8 caracteres.');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setError('Las contraseñas no coinciden.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await fetch(`${API_BASE}/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, newPassword }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || 'No se pudo cambiar la contraseña');
+      }
+
+      setSuccess(true);
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (requestError) {
+      setError(requestError.message || 'No se pudo cambiar la contraseña.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <AuthLayout>
+      <div style={{ textAlign: 'center', marginBottom: 24 }}>
+        <TuAgendaLogo height={52} centered />
+        <div style={{ fontSize: 18, color: '#1d1d1f', fontWeight: 850, marginTop: 12 }}>
+          Crear nueva contraseña
+        </div>
+        <div style={{ fontSize: 13, color: '#6e6e73', fontWeight: 650, marginTop: 6, lineHeight: 1.45 }}>
+          Elegí una contraseña nueva de al menos 8 caracteres.
+        </div>
+      </div>
+
+      {success ? (
+        <>
+          <div style={{ background: '#f2fbf4', border: '0.5px solid #b7e4c1', borderRadius: 14, padding: '14px 16px', fontSize: 13, color: '#1f6f36', lineHeight: 1.5, fontWeight: 700 }}>
+            Contraseña actualizada correctamente. Ya podés ingresar con tu nueva contraseña.
+          </div>
+
+          <button
+            type="button"
+            onClick={() => navigate('/login?tipo=profesional')}
+            style={{ width: '100%', marginTop: 14, padding: '13px', borderRadius: 14, border: 'none', background: '#0071e3', color: '#fff', fontSize: 15, fontWeight: 850, fontFamily: 'inherit', cursor: 'pointer' }}
+          >
+            Ir al inicio de sesión
+          </button>
+        </>
+      ) : (
+        <form onSubmit={handleSubmit}>
+          <label style={smallLabelStyle}>Nueva contraseña</label>
+          <PasswordInputField
+            value={newPassword}
+            onChange={(event) => setNewPassword(event.target.value)}
+            placeholder="Nueva contraseña"
+            required
+            autoComplete="new-password"
+            style={{ ...inputStyle, marginBottom: 12 }}
+          />
+
+          <label style={smallLabelStyle}>Repetir contraseña</label>
+          <PasswordInputField
+            value={confirmPassword}
+            onChange={(event) => setConfirmPassword(event.target.value)}
+            placeholder="Repetir contraseña"
+            required
+            autoComplete="new-password"
+            style={{ ...inputStyle, marginBottom: 12 }}
+          />
+
+          {!token && !error && (
+            <div style={{ background: '#fff2f2', border: '0.5px solid #ffcdd2', borderRadius: 12, padding: '10px 12px', fontSize: 13, color: '#c62828', marginBottom: 12, fontWeight: 700 }}>
+              El enlace de recuperación es inválido.
+            </div>
+          )}
+
+          {error && (
+            <div style={{ background: '#fff2f2', border: '0.5px solid #ffcdd2', borderRadius: 12, padding: '10px 12px', fontSize: 13, color: '#c62828', marginBottom: 12, fontWeight: 700 }}>
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading || !token}
+            style={{ width: '100%', padding: '13px', borderRadius: 14, border: 'none', background: loading || !token ? '#aeaeb2' : '#0071e3', color: '#fff', fontSize: 15, fontWeight: 850, fontFamily: 'inherit', cursor: loading || !token ? 'not-allowed' : 'pointer', marginTop: 4 }}
+          >
+            {loading ? 'Guardando...' : 'Cambiar contraseña'}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => navigate('/login?tipo=profesional')}
+            style={{ width: '100%', marginTop: 12, padding: '12px', borderRadius: 14, border: '0.5px solid #d0d0d5', background: '#fff', color: '#0071e3', fontSize: 14, fontWeight: 800, fontFamily: 'inherit', cursor: 'pointer' }}
+          >
+            Volver
+          </button>
+        </form>
+      )}
     </AuthLayout>
   );
 }
@@ -12197,6 +12443,8 @@ export default function App() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<UnifiedLoginPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
 
         <Route
           path="/profesional/login"

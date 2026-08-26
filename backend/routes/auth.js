@@ -1,9 +1,62 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
+const nodemailer = require("nodemailer");
 const db = require("../db");
 
 const router = express.Router();
+
+const PASSWORD_RESET_EXPIRES_IN = "30m";
+
+function getPasswordResetSecret() {
+  const jwtSecret = String(process.env.JWT_SECRET || "").trim();
+
+  if (!jwtSecret) {
+    throw new Error("JWT_SECRET no configurado");
+  }
+
+  return crypto
+    .createHash("sha256")
+    .update(`tuagendaya-password-reset:${jwtSecret}`)
+    .digest("hex");
+}
+
+function getPasswordFingerprint(passwordHash) {
+  return crypto
+    .createHash("sha256")
+    .update(String(passwordHash || ""))
+    .digest("hex");
+}
+
+function getFrontendBaseUrl() {
+  return String(
+    process.env.CORS_ORIGIN ||
+      process.env.FRONTEND_URL ||
+      "https://tuagendaya.com"
+  )
+    .trim()
+    .replace(/\/+$/, "");
+}
+
+function createMailTransport() {
+  const host = String(process.env.SMTP_HOST || "").trim();
+  const user = String(process.env.SMTP_USER || "").trim();
+  const pass = String(process.env.SMTP_PASS || "");
+  const port = Number(process.env.SMTP_PORT || 465);
+  const secure = String(process.env.SMTP_SECURE || "false").toLowerCase() === "true";
+
+  if (!host || !user || !pass || !Number.isFinite(port)) {
+    throw new Error("Configuración SMTP incompleta");
+  }
+
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure,
+    auth: { user, pass },
+  });
+}
 
 function createToken(professional) {
   return jwt.sign(
@@ -352,10 +405,165 @@ router.get("/check-slug/:slug", async (req, res) => {
 });
 
 router.post("/forgot-password", async (req, res) => {
-  res.json({
-    success: true,
-    message: "Si el email existe, se enviarán instrucciones para recuperar la contraseña.",
-  });
+  const genericMessage =
+    "Si el email existe, se enviarán instrucciones para recuperar la contraseña.";
+
+  try {
+    const email = String(req.body.email || "").trim().toLowerCase();
+
+    if (!email) {
+      return res.status(400).json({ error: "El email es obligatorio" });
+    }
+
+    const result = await db.query(
+      `
+      SELECT id, email, password_hash, status
+      FROM professionals
+      WHERE email = $1
+      LIMIT 1
+      `,
+      [email]
+    );
+
+    if (result.rows.length === 0 || result.rows[0].status !== "active") {
+      return res.json({
+        success: true,
+        message: genericMessage,
+      });
+    }
+
+    const professional = result.rows[0];
+    const resetToken = jwt.sign(
+      {
+        purpose: "password-reset",
+        professionalId: professional.id,
+        passwordFingerprint: getPasswordFingerprint(professional.password_hash),
+      },
+      getPasswordResetSecret(),
+      { expiresIn: PASSWORD_RESET_EXPIRES_IN }
+    );
+
+    const resetUrl = `${getFrontendBaseUrl()}/reset-password?token=${encodeURIComponent(
+      resetToken
+    )}`;
+
+    const transporter = createMailTransport();
+
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM || "TuAgendaYa <no-reply@tuagendaya.com>",
+      to: professional.email,
+      subject: "Recuperá tu contraseña de TuAgendaYa",
+      text: [
+        "Recibimos una solicitud para cambiar la contraseña de tu cuenta de TuAgendaYa.",
+        "",
+        `Abrí este enlace para elegir una contraseña nueva: ${resetUrl}`,
+        "",
+        "El enlace vence en 30 minutos y deja de funcionar después de cambiar la contraseña.",
+        "Si no pediste este cambio, podés ignorar este correo.",
+      ].join("\n"),
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#1d1d1f;line-height:1.5;">
+          <h2 style="margin:0 0 16px;color:#0071e3;">TuAgendaYa</h2>
+          <p>Recibimos una solicitud para cambiar la contraseña de tu cuenta.</p>
+          <p style="margin:24px 0;">
+            <a href="${resetUrl}" style="display:inline-block;background:#0071e3;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:700;">
+              Crear nueva contraseña
+            </a>
+          </p>
+          <p style="font-size:14px;color:#6e6e73;">El enlace vence en 30 minutos y deja de funcionar después de cambiar la contraseña.</p>
+          <p style="font-size:14px;color:#6e6e73;">Si no pediste este cambio, podés ignorar este correo.</p>
+        </div>
+      `,
+    });
+
+    return res.json({
+      success: true,
+      message: genericMessage,
+    });
+  } catch (error) {
+    console.error("Error forgot-password:", error);
+
+    return res.json({
+      success: true,
+      message: genericMessage,
+    });
+  }
+});
+
+router.post("/reset-password", async (req, res) => {
+  try {
+    const token = String(req.body.token || "").trim();
+    const newPassword = String(
+      req.body.newPassword || req.body.new_password || ""
+    );
+
+    if (!token || !newPassword) {
+      return res.status(400).json({ error: "Faltan datos para cambiar la contraseña" });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({
+        error: "La nueva contraseña debe tener mínimo 8 caracteres",
+      });
+    }
+
+    let decoded;
+
+    try {
+      decoded = jwt.verify(token, getPasswordResetSecret());
+    } catch {
+      return res.status(400).json({ error: "El enlace es inválido o venció" });
+    }
+
+    if (decoded?.purpose !== "password-reset" || !decoded?.professionalId) {
+      return res.status(400).json({ error: "El enlace es inválido o venció" });
+    }
+
+    const result = await db.query(
+      `
+      SELECT id, password_hash, status
+      FROM professionals
+      WHERE id = $1
+      LIMIT 1
+      `,
+      [decoded.professionalId]
+    );
+
+    if (result.rows.length === 0 || result.rows[0].status !== "active") {
+      return res.status(400).json({ error: "El enlace es inválido o venció" });
+    }
+
+    const professional = result.rows[0];
+    const currentFingerprint = getPasswordFingerprint(professional.password_hash);
+
+    if (currentFingerprint !== decoded.passwordFingerprint) {
+      return res.status(400).json({ error: "El enlace ya fue utilizado o dejó de ser válido" });
+    }
+
+    const newHash = await bcrypt.hash(newPassword, 12);
+
+    const updateResult = await db.query(
+      `
+      UPDATE professionals
+      SET password_hash = $1, updated_at = NOW()
+      WHERE id = $2 AND password_hash = $3
+      RETURNING id
+      `,
+      [newHash, professional.id, professional.password_hash]
+    );
+
+    if (updateResult.rows.length === 0) {
+      return res.status(400).json({ error: "El enlace ya fue utilizado o dejó de ser válido" });
+    }
+
+    return res.json({
+      success: true,
+      message: "Contraseña actualizada correctamente",
+    });
+  } catch (error) {
+    console.error("Error reset-password:", error);
+    return res.status(500).json({ error: "No se pudo cambiar la contraseña" });
+  }
 });
 
 module.exports = router;
