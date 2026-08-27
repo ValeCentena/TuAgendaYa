@@ -11732,21 +11732,22 @@ function LandingPage() {
         .tay-laptop-base {
           position: relative;
           width: 116%;
-          height: 26px;
+          height: 30px;
           margin-left: -8%;
           margin-top: -3px;
           background:
             linear-gradient(180deg,
               #2a2f36 0px,
               #15191f 5px,
-              #dfe3e7 6px,
-              #c8cdd3 10px,
-              #a8afb7 17px,
-              #7d848d 26px);
-          border-radius: 2px 2px 46% 46% / 2px 2px 100% 100%;
+              #e4e7ea 6px,
+              #cfd4d9 12px,
+              #aeb4bb 21px,
+              #838a92 30px);
+          border-radius: 2px 2px 8px 8px;
           box-shadow:
-            inset 0 1px 0 rgba(255,255,255,.78),
-            0 10px 16px rgba(15,23,42,.055);
+            inset 0 1px 0 rgba(255,255,255,.82),
+            inset 0 -1px 0 rgba(65,71,80,.10),
+            0 8px 12px rgba(15,23,42,.05);
         }
 
         /* Rebaje central típico en el borde frontal. */
