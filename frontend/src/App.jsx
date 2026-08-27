@@ -11374,618 +11374,912 @@ function LandingPage() {
   const goRegister = () => navigate('/profesional/register');
   const goLogin = () => navigate('/login');
 
-  const benefits = [
-    {
-      title: 'Reservas 24/7',
-      text: 'Tus clientes reservan cuando quieren, sin mensajes de ida y vuelta.',
-      icon: '⌁',
-    },
-    {
-      title: 'WhatsApp automático',
-      text: 'Confirmaciones y recordatorios que ayudan a reducir ausencias.',
-      icon: '✓',
-    },
-    {
-      title: 'Clientes y cobros',
-      text: 'Historial, pagos y agenda organizados desde un mismo lugar.',
-      icon: '$',
-    },
+  const sidebarItems = [
+    ['⌂', 'Inicio', true],
+    ['▦', 'Agenda'],
+    ['☑', 'Reservas'],
+    ['◎', 'Clientes'],
+    ['▣', 'Cobros'],
+    ['✉', 'Mensajes'],
+    ['◇', 'Promociones'],
+    ['▥', 'Reportes'],
+    ['⚙', 'Configuración'],
   ];
 
-  const previewBookings = [
-    { time: '09:30', name: 'Juan Pérez', service: 'Consulta inicial', status: 'Confirmada' },
+  const appointments = [
+    { time: '09:30', name: 'María González', service: 'Consulta inicial', status: 'Confirmada' },
     { time: '10:20', name: 'Ana Silva', service: 'Limpieza dental', status: 'Pendiente' },
     { time: '11:10', name: 'Carlos Díaz', service: 'Control', status: 'Confirmada' },
   ];
 
-  return (
-    <div className="landing-refined">
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap');
+  const highlights = [
+    {
+      icon: '▦',
+      title: 'Agenda inteligente',
+      text: 'Reservas y horarios siempre ordenados.',
+    },
+    {
+      icon: '◔',
+      title: 'Menos ausencias',
+      text: 'Recordatorios y confirmaciones por WhatsApp.',
+    },
+    {
+      icon: '▣',
+      title: 'Cobros en un solo lugar',
+      text: 'Transferencias, pagos y control simple.',
+    },
+    {
+      icon: '◎',
+      title: 'Clientes e historial',
+      text: 'Toda la información organizada y disponible.',
+    },
+  ];
 
-        .landing-refined {
+  return (
+    <div className="tay-landing">
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900;1000&display=swap');
+
+        .tay-landing {
           min-height: 100vh;
           font-family: ${APP_FONT};
-          color: #111827;
-          background: #fbfcfe;
+          color: #080f25;
+          background:
+            radial-gradient(circle at 78% 18%, rgba(0,113,227,0.075), transparent 31%),
+            linear-gradient(180deg, #ffffff 0%, #fbfdff 58%, #f7faff 100%);
           overflow-x: hidden;
         }
 
-        .landing-refined * {
+        .tay-landing * {
           box-sizing: border-box;
         }
 
-        .landing-refined-shell {
-          width: min(1180px, calc(100% - 40px));
+        .tay-landing-shell {
+          width: min(1380px, calc(100% - 56px));
           margin: 0 auto;
         }
 
-        .landing-refined-nav {
-          min-height: 78px;
-          display: flex;
+        .tay-landing-header {
+          min-height: 90px;
+          display: grid;
+          grid-template-columns: auto 1fr auto;
           align-items: center;
-          justify-content: space-between;
-          gap: 20px;
-          border-bottom: 1px solid rgba(15, 23, 42, 0.055);
+          gap: 34px;
+          border-bottom: 0.5px solid rgba(15,23,42,0.055);
         }
 
-        .landing-refined-logo {
+        .tay-logo-button {
           border: 0;
           background: transparent;
           padding: 0;
           cursor: pointer;
-        }
-
-        .landing-refined-nav-actions {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-        }
-
-        .landing-refined-btn {
-          min-height: 42px;
-          padding: 0 18px;
-          border-radius: 13px;
-          font-family: inherit;
-          font-size: 13.5px;
-          font-weight: 850;
-          cursor: pointer;
-          transition: transform .16s ease, box-shadow .16s ease, background .16s ease;
-        }
-
-        .landing-refined-btn:hover {
-          transform: translateY(-1px);
-        }
-
-        .landing-refined-btn.secondary {
-          border: 1px solid #e3e7ee;
-          color: #344054;
-          background: #fff;
-        }
-
-        .landing-refined-btn.primary {
-          border: 0;
-          color: #fff;
-          background: #0877e6;
-          box-shadow: 0 10px 24px rgba(8, 119, 230, .18);
-        }
-
-        .landing-refined-hero {
-          display: grid;
-          grid-template-columns: minmax(0, .92fr) minmax(500px, 1.08fr);
-          gap: 70px;
-          align-items: center;
-          padding: 92px 0 86px;
-        }
-
-        .landing-refined-copy {
-          max-width: 560px;
-        }
-
-        .landing-refined-kicker {
           display: inline-flex;
           align-items: center;
-          gap: 8px;
-          margin-bottom: 20px;
-          color: #0877e6;
-          font-size: 13px;
-          font-weight: 850;
-          letter-spacing: .01em;
         }
 
-        .landing-refined-kicker-dot {
-          width: 7px;
-          height: 7px;
-          border-radius: 50%;
-          background: #0877e6;
-          box-shadow: 0 0 0 5px rgba(8, 119, 230, .08);
-        }
-
-        .landing-refined-title {
-          margin: 0;
-          color: #0f172a;
-          font-size: clamp(46px, 5.2vw, 72px);
-          line-height: .99;
-          letter-spacing: -.052em;
-          font-weight: 850;
-          text-wrap: balance;
-        }
-
-        .landing-refined-title span {
-          color: #0877e6;
-        }
-
-        .landing-refined-subtitle {
-          margin: 24px 0 0;
-          max-width: 530px;
-          color: #667085;
-          font-size: 18px;
-          line-height: 1.55;
-          font-weight: 600;
-        }
-
-        .landing-refined-actions {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          margin-top: 30px;
-          flex-wrap: wrap;
-        }
-
-        .landing-refined-actions .landing-refined-btn {
-          min-height: 50px;
-          padding: 0 23px;
-          border-radius: 15px;
-          font-size: 15px;
-        }
-
-        .landing-refined-note {
-          margin-top: 18px;
-          color: #98a2b3;
-          font-size: 12.5px;
-          font-weight: 700;
-        }
-
-        .landing-refined-preview-wrap {
-          position: relative;
-        }
-
-        .landing-refined-preview-wrap::before {
-          content: '';
-          position: absolute;
-          width: 360px;
-          height: 360px;
-          right: -90px;
-          top: -90px;
-          border-radius: 50%;
-          background: rgba(8, 119, 230, .07);
-          filter: blur(2px);
-          pointer-events: none;
-        }
-
-        .landing-refined-preview {
-          position: relative;
-          background: rgba(255, 255, 255, .96);
-          border: 1px solid #e8edf3;
-          border-radius: 28px;
-          box-shadow: 0 28px 70px rgba(15, 23, 42, .09);
-          overflow: hidden;
-        }
-
-        .landing-refined-preview-top {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 20px 22px;
-          border-bottom: 1px solid #edf0f4;
-          background: rgba(250, 252, 255, .88);
-        }
-
-        .landing-refined-preview-brand {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-        }
-
-        .landing-refined-preview-avatar {
-          width: 34px;
-          height: 34px;
-          border-radius: 11px;
-          display: grid;
-          place-items: center;
-          background: #eef6ff;
-          color: #0877e6;
-          font-size: 13px;
-          font-weight: 900;
-        }
-
-        .landing-refined-preview-main {
-          padding: 24px;
-        }
-
-        .landing-refined-preview-head {
-          display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          gap: 20px;
-          margin-bottom: 20px;
-        }
-
-        .landing-refined-preview-head h3 {
-          margin: 0;
-          color: #101828;
-          font-size: 20px;
-          line-height: 1.15;
-          font-weight: 900;
-          letter-spacing: -.025em;
-        }
-
-        .landing-refined-preview-head p {
-          margin: 5px 0 0;
-          color: #98a2b3;
-          font-size: 12px;
-          font-weight: 700;
-        }
-
-        .landing-refined-today {
-          padding: 8px 11px;
-          border-radius: 10px;
-          background: #f7f9fc;
-          color: #667085;
-          font-size: 11px;
-          font-weight: 800;
-        }
-
-        .landing-refined-bookings {
-          display: grid;
-          gap: 8px;
-        }
-
-        .landing-refined-booking {
-          display: grid;
-          grid-template-columns: 62px minmax(0, 1fr) auto;
-          align-items: center;
-          gap: 12px;
-          min-height: 66px;
-          padding: 11px 13px;
-          border: 1px solid #f0f2f5;
-          border-radius: 15px;
-          background: #fff;
-        }
-
-        .landing-refined-booking-time {
-          color: #0877e6;
-          font-size: 12.5px;
-          font-weight: 900;
-        }
-
-        .landing-refined-booking-name {
-          color: #1d2939;
-          font-size: 13px;
-          font-weight: 900;
-        }
-
-        .landing-refined-booking-service {
-          margin-top: 2px;
-          color: #98a2b3;
-          font-size: 11px;
-          font-weight: 700;
-        }
-
-        .landing-refined-status {
-          padding: 5px 8px;
-          border-radius: 999px;
-          font-size: 10px;
-          font-weight: 850;
-          white-space: nowrap;
-        }
-
-        .landing-refined-status.confirmed {
-          background: #edf9f1;
-          color: #22864a;
-        }
-
-        .landing-refined-status.pending {
-          background: #fff7e8;
-          color: #b86a06;
-        }
-
-        .landing-refined-preview-bottom {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 10px;
-          margin-top: 16px;
-        }
-
-        .landing-refined-mini-card {
-          padding: 15px;
-          border-radius: 16px;
-          background: #f8fafc;
-          border: 1px solid #f0f2f5;
-        }
-
-        .landing-refined-mini-label {
-          color: #98a2b3;
-          font-size: 10.5px;
-          font-weight: 800;
-        }
-
-        .landing-refined-mini-value {
-          margin-top: 5px;
-          color: #101828;
-          font-size: 20px;
-          line-height: 1;
-          font-weight: 900;
-          letter-spacing: -.02em;
-        }
-
-        .landing-refined-mini-value.blue {
-          color: #0877e6;
-        }
-
-        .landing-refined-benefits {
-          padding: 8px 0 78px;
-        }
-
-        .landing-refined-benefits-grid {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 14px;
-        }
-
-        .landing-refined-benefit {
-          min-height: 158px;
-          padding: 22px;
-          border: 1px solid #edf0f4;
-          border-radius: 20px;
-          background: #fff;
-        }
-
-        .landing-refined-benefit-icon {
-          width: 34px;
-          height: 34px;
-          border-radius: 11px;
-          display: grid;
-          place-items: center;
-          color: #0877e6;
-          background: #eef6ff;
-          font-size: 13px;
-          font-weight: 900;
-        }
-
-        .landing-refined-benefit h3 {
-          margin: 16px 0 0;
-          color: #1d2939;
-          font-size: 15px;
-          font-weight: 900;
-        }
-
-        .landing-refined-benefit p {
-          margin: 7px 0 0;
-          color: #7c8799;
-          font-size: 13px;
-          line-height: 1.5;
-          font-weight: 650;
-        }
-
-        .landing-refined-offer {
+        .tay-nav {
           display: flex;
           align-items: center;
           justify-content: center;
-          gap: 8px;
-          width: fit-content;
-          max-width: 100%;
-          margin: 26px auto 0;
-          padding: 9px 13px;
-          border-radius: 999px;
-          border: 1px solid #e4ebf3;
-          background: #fff;
-          color: #667085;
-          font-size: 12px;
+          gap: 38px;
+          color: #20263a;
+          font-size: 14px;
           font-weight: 750;
-          text-align: center;
         }
 
-        .landing-refined-offer strong {
-          color: #0877e6;
+        .tay-nav span {
+          white-space: nowrap;
+        }
+
+        .tay-nav-actions {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+        }
+
+        .tay-nav-login,
+        .tay-nav-register,
+        .tay-main-cta,
+        .tay-login-cta {
+          font: inherit;
+          cursor: pointer;
+          transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
+        }
+
+        .tay-nav-login {
+          border: 0;
+          background: transparent;
+          color: #111827;
+          padding: 12px 8px;
+          font-size: 14px;
+          font-weight: 850;
+        }
+
+        .tay-nav-register {
+          min-height: 48px;
+          border: 0;
+          border-radius: 15px;
+          padding: 0 23px;
+          background: linear-gradient(135deg, #0878ff 0%, #0068ed 100%);
+          color: #fff;
+          font-size: 14px;
+          font-weight: 950;
+          box-shadow: 0 12px 30px rgba(0,113,227,.18);
+        }
+
+        .tay-nav-register:hover,
+        .tay-main-cta:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 18px 36px rgba(0,113,227,.24);
+        }
+
+        .tay-hero {
+          display: grid;
+          grid-template-columns: minmax(430px, .88fr) minmax(610px, 1.12fr);
+          align-items: center;
+          gap: 54px;
+          min-height: 690px;
+          padding: 72px 0 54px;
+        }
+
+        .tay-hero-copy {
+          align-self: center;
+          padding-bottom: 10px;
+        }
+
+        .tay-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 8px 14px;
+          border-radius: 999px;
+          background: #eef6ff;
+          border: 0.5px solid rgba(0,113,227,.12);
+          color: #006ee8;
+          font-size: 13px;
+          font-weight: 850;
+          margin-bottom: 31px;
+        }
+
+        .tay-title {
+          margin: 0;
+          max-width: 630px;
+          font-size: clamp(50px, 4.45vw, 75px);
+          line-height: 1.04;
+          letter-spacing: -.052em;
+          font-weight: 900;
+          color: #070e24;
+          text-wrap: balance;
+        }
+
+        .tay-title span {
+          color: #0878ff;
+        }
+
+        .tay-subtitle {
+          max-width: 560px;
+          margin: 26px 0 0;
+          color: #4e5b73;
+          font-size: 17.5px;
+          line-height: 1.72;
+          font-weight: 650;
+          letter-spacing: -.01em;
+        }
+
+        .tay-actions {
+          display: flex;
+          align-items: center;
+          gap: 18px;
+          margin-top: 32px;
+        }
+
+        .tay-main-cta,
+        .tay-login-cta {
+          min-height: 58px;
+          border-radius: 17px;
+          padding: 0 28px;
+          font-size: 16px;
+          font-weight: 950;
+        }
+
+        .tay-main-cta {
+          border: 0;
+          min-width: 235px;
+          background: linear-gradient(135deg, #0878ff 0%, #0068ed 100%);
+          color: #fff;
+          box-shadow: 0 18px 40px rgba(0,113,227,.22);
+        }
+
+        .tay-login-cta {
+          min-width: 184px;
+          border: 1px solid rgba(15,23,42,.15);
+          background: rgba(255,255,255,.86);
+          color: #111827;
+          box-shadow: 0 8px 22px rgba(15,23,42,.035);
+        }
+
+        .tay-login-cta:hover {
+          background: #fff;
+          transform: translateY(-1px);
+        }
+
+        .tay-showcase {
+          position: relative;
+          min-height: 555px;
+          display: flex;
+          align-items: flex-end;
+          justify-content: flex-end;
+        }
+
+        .tay-laptop {
+          position: relative;
+          width: min(850px, 100%);
+          margin-right: -110px;
+          filter: drop-shadow(0 30px 55px rgba(15,23,42,.12));
+        }
+
+        .tay-laptop-screen-shell {
+          position: relative;
+          border-radius: 27px 27px 11px 11px;
+          background: #111318;
+          padding: 12px 12px 15px;
+          overflow: hidden;
+        }
+
+        .tay-laptop-screen {
+          min-height: 500px;
+          border-radius: 18px 18px 6px 6px;
+          overflow: hidden;
+          background: #fff;
+          display: grid;
+          grid-template-columns: 150px 1fr;
+          border: 0.5px solid rgba(255,255,255,.08);
+        }
+
+        .tay-laptop-base {
+          position: relative;
+          width: 104%;
+          height: 21px;
+          margin-left: -2%;
+          background: linear-gradient(180deg, #d5d8dc 0%, #979da5 48%, #656b72 100%);
+          border-radius: 0 0 48% 48% / 0 0 100% 100%;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,.8);
+        }
+
+        .tay-laptop-base::before {
+          content: "";
+          position: absolute;
+          top: 0;
+          left: 42%;
+          width: 16%;
+          height: 6px;
+          background: #adb2b8;
+          border-radius: 0 0 8px 8px;
+        }
+
+        .tay-dash-sidebar {
+          background: #fbfcfe;
+          border-right: 0.5px solid #edf0f4;
+          padding: 23px 14px 15px;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+        }
+
+        .tay-mini-brand {
+          font-size: 13px;
+          color: #111827;
+          font-weight: 1000;
+          letter-spacing: -.02em;
+          margin-bottom: 22px;
+        }
+
+        .tay-mini-brand span {
+          color: #0071e3;
+        }
+
+        .tay-dash-menu {
+          display: grid;
+          gap: 5px;
+        }
+
+        .tay-dash-menu-item {
+          display: flex;
+          align-items: center;
+          gap: 9px;
+          min-height: 36px;
+          padding: 0 10px;
+          border-radius: 11px;
+          color: #344054;
+          font-size: 10.5px;
           font-weight: 900;
         }
 
-        @media (max-width: 980px) {
-          .landing-refined-hero {
+        .tay-dash-menu-item.active {
+          color: #0071e3;
+          background: #eaf4ff;
+        }
+
+        .tay-account {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 9px;
+          background: #fff;
+          border: .5px solid #edf0f4;
+          border-radius: 13px;
+        }
+
+        .tay-avatar {
+          width: 30px;
+          height: 30px;
+          border-radius: 999px;
+          background: #eaf4ff;
+          color: #0071e3;
+          display: grid;
+          place-items: center;
+          font-size: 10.5px;
+          font-weight: 1000;
+        }
+
+        .tay-dash-main {
+          padding: 28px 27px 24px;
+          background: linear-gradient(180deg, #ffffff 0%, #fcfdff 100%);
+        }
+
+        .tay-dash-title {
+          margin: 0;
+          color: #111827;
+          font-size: 23px;
+          line-height: 1;
+          font-weight: 1000;
+          letter-spacing: -.04em;
+        }
+
+        .tay-dash-caption {
+          margin-top: 6px;
+          color: #667085;
+          font-size: 10.8px;
+          font-weight: 800;
+        }
+
+        .tay-dash-grid {
+          display: grid;
+          grid-template-columns: 1.45fr .75fr;
+          gap: 14px;
+          margin-top: 22px;
+        }
+
+        .tay-card {
+          background: #fff;
+          border: .5px solid #edf0f4;
+          border-radius: 18px;
+          box-shadow: 0 8px 22px rgba(15,23,42,.025);
+        }
+
+        .tay-reservations-card {
+          padding: 16px;
+        }
+
+        .tay-card-head {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+        }
+
+        .tay-card-title {
+          color: #111827;
+          font-size: 13px;
+          font-weight: 1000;
+        }
+
+        .tay-link {
+          color: #0071e3;
+          font-size: 10px;
+          font-weight: 950;
+        }
+
+        .tay-appointment {
+          display: grid;
+          grid-template-columns: 45px minmax(0,1fr) auto;
+          align-items: center;
+          gap: 10px;
+          margin-top: 9px;
+          padding: 11px 12px;
+          border-radius: 13px;
+          background: #f8fafc;
+        }
+
+        .tay-appointment-time {
+          color: #0071e3;
+          font-size: 11px;
+          font-weight: 1000;
+        }
+
+        .tay-appointment-name {
+          color: #111827;
+          font-size: 11px;
+          font-weight: 1000;
+        }
+
+        .tay-appointment-service {
+          margin-top: 1px;
+          color: #667085;
+          font-size: 9.3px;
+          font-weight: 750;
+        }
+
+        .tay-status {
+          border-radius: 999px;
+          padding: 5px 7px;
+          font-size: 8.5px;
+          font-weight: 1000;
+          white-space: nowrap;
+        }
+
+        .tay-status.confirmed {
+          color: #16803a;
+          background: #edfff4;
+        }
+
+        .tay-status.pending {
+          color: #c06300;
+          background: #fff7e8;
+        }
+
+        .tay-income-card {
+          padding: 16px;
+          min-height: 100%;
+        }
+
+        .tay-income-label {
+          color: #667085;
+          font-size: 10px;
+          font-weight: 900;
+        }
+
+        .tay-income-value {
+          margin-top: 8px;
+          color: #111827;
+          font-size: 26px;
+          line-height: 1;
+          font-weight: 1000;
+          letter-spacing: -.04em;
+        }
+
+        .tay-income-change {
+          margin-top: 7px;
+          color: #16a34a;
+          font-size: 9.8px;
+          font-weight: 950;
+        }
+
+        .tay-chart {
+          height: 88px;
+          margin-top: 20px;
+          display: flex;
+          align-items: flex-end;
+          gap: 4px;
+          padding-bottom: 6px;
+          border-bottom: 1px solid #eef2f6;
+        }
+
+        .tay-chart span {
+          flex: 1;
+          border-radius: 5px 5px 1px 1px;
+          background: linear-gradient(180deg, #0878ff 0%, #cfe4ff 100%);
+          opacity: .92;
+        }
+
+        .tay-dash-bottom {
+          display: grid;
+          grid-template-columns: 1.25fr .75fr;
+          gap: 14px;
+          margin-top: 14px;
+        }
+
+        .tay-reminder-card,
+        .tay-link-card {
+          padding: 15px;
+        }
+
+        .tay-reminder-line {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .tay-reminder-icon {
+          width: 35px;
+          height: 35px;
+          border-radius: 12px;
+          display: grid;
+          place-items: center;
+          background: #ecfff2;
+          color: #16803a;
+          font-weight: 1000;
+        }
+
+        .tay-link-box {
+          margin-top: 10px;
+          border-radius: 10px;
+          background: #eef6ff;
+          color: #0071e3;
+          padding: 9px 10px;
+          font-size: 9.5px;
+          font-weight: 950;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .tay-highlights-wrap {
+          border-top: .5px solid rgba(15,23,42,.065);
+          background: rgba(255,255,255,.62);
+        }
+
+        .tay-highlights {
+          min-height: 162px;
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          align-items: center;
+          gap: 0;
+        }
+
+        .tay-highlight {
+          min-height: 78px;
+          display: grid;
+          grid-template-columns: 52px 1fr;
+          align-items: center;
+          gap: 14px;
+          padding: 0 28px;
+          border-right: 1px solid rgba(15,23,42,.08);
+        }
+
+        .tay-highlight:first-child {
+          padding-left: 0;
+        }
+
+        .tay-highlight:last-child {
+          border-right: 0;
+          padding-right: 0;
+        }
+
+        .tay-highlight-icon {
+          width: 50px;
+          height: 50px;
+          border-radius: 16px;
+          display: grid;
+          place-items: center;
+          background: #eef6ff;
+          border: .5px solid rgba(0,113,227,.08);
+          color: #0071e3;
+          font-size: 22px;
+          font-weight: 950;
+        }
+
+        .tay-highlight-title {
+          color: #111827;
+          font-size: 13.5px;
+          font-weight: 1000;
+          line-height: 1.25;
+        }
+
+        .tay-highlight-text {
+          margin-top: 5px;
+          color: #667085;
+          font-size: 11.5px;
+          line-height: 1.45;
+          font-weight: 700;
+        }
+
+        @media (max-width: 1180px) {
+          .tay-nav {
+            gap: 22px;
+          }
+
+          .tay-hero {
             grid-template-columns: 1fr;
-            gap: 48px;
-            padding: 66px 0 62px;
+            padding-top: 54px;
+            gap: 32px;
           }
 
-          .landing-refined-copy {
-            max-width: 680px;
+          .tay-hero-copy {
+            max-width: 760px;
           }
 
-          .landing-refined-preview-wrap {
-            max-width: 680px;
+          .tay-showcase {
+            justify-content: center;
+            min-height: auto;
+          }
+
+          .tay-laptop {
+            margin-right: 0;
+            width: min(900px, 100%);
+          }
+
+          .tay-highlights {
+            grid-template-columns: repeat(2, 1fr);
+            padding: 24px 0;
+          }
+
+          .tay-highlight:nth-child(2) {
+            border-right: 0;
+          }
+
+          .tay-highlight:nth-child(n+3) {
+            margin-top: 20px;
           }
         }
 
-        @media (max-width: 680px) {
-          .landing-refined-shell {
-            width: min(100% - 28px, 1180px);
+        @media (max-width: 820px) {
+          .tay-landing-shell {
+            width: min(100% - 30px, 1380px);
           }
 
-          .landing-refined-nav {
-            min-height: 68px;
+          .tay-landing-header {
+            min-height: 76px;
+            grid-template-columns: 1fr auto;
           }
 
-          .landing-refined-nav-actions .secondary {
+          .tay-nav {
             display: none;
           }
 
-          .landing-refined-btn {
-            min-height: 40px;
-            padding: 0 14px;
-            border-radius: 12px;
+          .tay-nav-login {
+            display: none;
           }
 
-          .landing-refined-hero {
-            padding: 52px 0 48px;
+          .tay-nav-register {
+            min-height: 42px;
+            padding: 0 16px;
+            border-radius: 13px;
+            font-size: 13px;
           }
 
-          .landing-refined-title {
-            font-size: clamp(40px, 12vw, 55px);
+          .tay-hero {
+            display: block;
+            min-height: auto;
+            padding: 46px 0 36px;
           }
 
-          .landing-refined-subtitle {
+          .tay-title {
+            font-size: clamp(42px, 12vw, 60px);
+          }
+
+          .tay-subtitle {
             font-size: 16px;
           }
 
-          .landing-refined-actions {
+          .tay-actions {
             display: grid;
             grid-template-columns: 1fr;
           }
 
-          .landing-refined-actions .landing-refined-btn {
+          .tay-main-cta,
+          .tay-login-cta {
             width: 100%;
           }
 
-          .landing-refined-preview-main {
-            padding: 17px;
+          .tay-showcase {
+            margin-top: 46px;
           }
 
-          .landing-refined-booking {
-            grid-template-columns: 52px minmax(0, 1fr);
+          .tay-laptop {
+            width: 100%;
           }
 
-          .landing-refined-booking .landing-refined-status {
+          .tay-laptop-screen {
+            grid-template-columns: 1fr;
+            min-height: 470px;
+          }
+
+          .tay-dash-sidebar {
             display: none;
           }
 
-          .landing-refined-preview-bottom {
+          .tay-dash-main {
+            padding: 18px;
+          }
+
+          .tay-dash-grid,
+          .tay-dash-bottom {
             grid-template-columns: 1fr;
           }
 
-          .landing-refined-benefits-grid {
-            grid-template-columns: 1fr;
+          .tay-income-card,
+          .tay-link-card {
+            display: none;
           }
 
-          .landing-refined-benefit {
-            min-height: auto;
+          .tay-laptop-screen-shell {
+            padding: 8px 8px 11px;
+            border-radius: 20px 20px 9px 9px;
+          }
+
+          .tay-highlights {
+            grid-template-columns: 1fr;
+            padding: 22px 0 30px;
+          }
+
+          .tay-highlight,
+          .tay-highlight:first-child,
+          .tay-highlight:last-child {
+            padding: 16px 0;
+            border-right: 0;
+            border-bottom: 1px solid rgba(15,23,42,.07);
+          }
+
+          .tay-highlight:last-child {
+            border-bottom: 0;
+          }
+
+          .tay-highlight:nth-child(n+3) {
+            margin-top: 0;
           }
         }
       `}</style>
 
-      <div className="landing-refined-shell">
-        <header className="landing-refined-nav">
-          <button className="landing-refined-logo" type="button" onClick={() => navigate('/')}>
-            <TuAgendaLogo height={38} />
+      <header className="tay-landing-shell tay-landing-header">
+        <button className="tay-logo-button" type="button" onClick={() => navigate('/')}>
+          <TuAgendaLogo height={42} />
+        </button>
+
+        <nav className="tay-nav" aria-label="Navegación principal">
+          <span>Funciones⌄</span>
+          <span>Precios</span>
+          <span>Para quién es</span>
+          <span>Recursos⌄</span>
+          <span>Empresa</span>
+        </nav>
+
+        <div className="tay-nav-actions">
+          <button className="tay-nav-login" type="button" onClick={goLogin}>
+            Iniciar sesión
           </button>
+          <button className="tay-nav-register" type="button" onClick={goRegister}>
+            Crear cuenta →
+          </button>
+        </div>
+      </header>
 
-          <div className="landing-refined-nav-actions">
-            <button className="landing-refined-btn secondary" type="button" onClick={goLogin}>
-              Iniciar sesión
-            </button>
-            <button className="landing-refined-btn primary" type="button" onClick={goRegister}>
-              Crear cuenta
-            </button>
-          </div>
-        </header>
-
-        <main className="landing-refined-hero">
-          <section className="landing-refined-copy">
-            <div className="landing-refined-kicker">
-              <span className="landing-refined-kicker-dot" />
-              Gestión simple para profesionales
-            </div>
-
-            <h1 className="landing-refined-title">
-              Todo tu negocio, <span>mejor organizado.</span>
-            </h1>
-
-            <p className="landing-refined-subtitle">
-              Reservas, clientes, recordatorios y cobros en una sola plataforma. Menos tareas manuales, más tiempo para atender.
-            </p>
-
-            <div className="landing-refined-actions">
-              <button className="landing-refined-btn primary" type="button" onClick={goRegister}>
-                Crear cuenta
-              </button>
-              <button className="landing-refined-btn secondary" type="button" onClick={goLogin}>
-                Ya tengo una cuenta
-              </button>
-            </div>
-
-            <div className="landing-refined-note">
-              Configuración rápida · Funciona desde celular y computadora
-            </div>
-          </section>
-
-          <section className="landing-refined-preview-wrap" aria-label="Vista previa de TuAgendaYa">
-            <div className="landing-refined-preview">
-              <div className="landing-refined-preview-top">
-                <div className="landing-refined-preview-brand">
-                  <div className="landing-refined-preview-avatar">JP</div>
-                  <div>
-                    <div style={{ color: '#1d2939', fontSize: 12.5, fontWeight: 900 }}>Consultorio Juan Pérez</div>
-                    <div style={{ color: '#98a2b3', fontSize: 10.5, fontWeight: 700, marginTop: 1 }}>Panel del profesional</div>
-                  </div>
-                </div>
-                <div style={{ color: '#0877e6', fontSize: 11.5, fontWeight: 850 }}>Tu Agenda Ya</div>
-              </div>
-
-              <div className="landing-refined-preview-main">
-                <div className="landing-refined-preview-head">
-                  <div>
-                    <h3>Reservas de hoy</h3>
-                    <p>Todo lo importante, sin ruido.</p>
-                  </div>
-                  <div className="landing-refined-today">Hoy</div>
-                </div>
-
-                <div className="landing-refined-bookings">
-                  {previewBookings.map((booking) => (
-                    <div className="landing-refined-booking" key={`${booking.time}-${booking.name}`}>
-                      <div className="landing-refined-booking-time">{booking.time}</div>
-                      <div>
-                        <div className="landing-refined-booking-name">{booking.name}</div>
-                        <div className="landing-refined-booking-service">{booking.service}</div>
-                      </div>
-                      <div className={`landing-refined-status ${booking.status === 'Confirmada' ? 'confirmed' : 'pending'}`}>
-                        {booking.status}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="landing-refined-preview-bottom">
-                  <div className="landing-refined-mini-card">
-                    <div className="landing-refined-mini-label">Reservas confirmadas</div>
-                    <div className="landing-refined-mini-value blue">8 de 10</div>
-                  </div>
-                  <div className="landing-refined-mini-card">
-                    <div className="landing-refined-mini-label">Cobrado hoy</div>
-                    <div className="landing-refined-mini-value">$ 12.450</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-        </main>
-
-        <section className="landing-refined-benefits" aria-label="Beneficios principales">
-          <div className="landing-refined-benefits-grid">
-            {benefits.map((benefit) => (
-              <article className="landing-refined-benefit" key={benefit.title}>
-                <div className="landing-refined-benefit-icon">{benefit.icon}</div>
-                <h3>{benefit.title}</h3>
-                <p>{benefit.text}</p>
-              </article>
-            ))}
+      <main className="tay-landing-shell tay-hero">
+        <section className="tay-hero-copy">
+          <div className="tay-badge">
+            ☆ Agenda online para negocios y profesionales
           </div>
 
-          <div className="landing-refined-offer">
-            Oferta de lanzamiento: <strong>2 meses gratis + 2 meses al 50%</strong>
+          <h1 className="tay-title">
+            Organización,<br />
+            menos ausencias,<br />
+            <span>más control.</span>
+          </h1>
+
+          <p className="tay-subtitle">
+            Gestioná reservas, clientes, recordatorios y pagos en un solo sistema.
+            Ahorrá tiempo, cobrá automáticamente y hacé crecer tu negocio.
+          </p>
+
+          <div className="tay-actions">
+            <button className="tay-main-cta" type="button" onClick={goRegister}>
+              Crear cuenta gratis →
+            </button>
+            <button className="tay-login-cta" type="button" onClick={goLogin}>
+              Ingresar cuenta
+            </button>
           </div>
         </section>
-      </div>
+
+        <section className="tay-showcase" aria-label="Vista previa de TuAgendaYa">
+          <div className="tay-laptop">
+            <div className="tay-laptop-screen-shell">
+              <div className="tay-laptop-screen">
+                <aside className="tay-dash-sidebar">
+                  <div>
+                    <div className="tay-mini-brand">Tu Agenda <span>Ya</span></div>
+                    <div className="tay-dash-menu">
+                      {sidebarItems.map(([icon, label, active]) => (
+                        <div className={`tay-dash-menu-item${active ? ' active' : ''}`} key={label}>
+                          <span>{icon}</span>
+                          <span>{label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="tay-account">
+                    <div className="tay-avatar">JP</div>
+                    <div>
+                      <div style={{ color: '#111827', fontSize: 10.5, fontWeight: 1000 }}>Juan Pérez</div>
+                      <div style={{ marginTop: 1, color: '#8a94a6', fontSize: 8.8, fontWeight: 800 }}>Mi cuenta</div>
+                    </div>
+                  </div>
+                </aside>
+
+                <div className="tay-dash-main">
+                  <h2 className="tay-dash-title">Hola, Juan</h2>
+                  <div className="tay-dash-caption">Este es el resumen de tu negocio hoy.</div>
+
+                  <div className="tay-dash-grid">
+                    <div className="tay-card tay-reservations-card">
+                      <div className="tay-card-head">
+                        <div className="tay-card-title">Reservas de hoy</div>
+                        <div className="tay-link">Ver agenda →</div>
+                      </div>
+
+                      {appointments.map((item) => (
+                        <div className="tay-appointment" key={`${item.time}-${item.name}`}>
+                          <div className="tay-appointment-time">{item.time}</div>
+                          <div>
+                            <div className="tay-appointment-name">{item.name}</div>
+                            <div className="tay-appointment-service">{item.service}</div>
+                          </div>
+                          <div className={`tay-status ${item.status === 'Confirmada' ? 'confirmed' : 'pending'}`}>
+                            {item.status}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="tay-card tay-income-card">
+                      <div className="tay-income-label">Ingresos del día</div>
+                      <div className="tay-income-value">$ 248.500</div>
+                      <div className="tay-income-change">▲ 32% vs ayer</div>
+                      <div className="tay-chart" aria-hidden="true">
+                        {[22, 34, 29, 45, 39, 58, 51, 66].map((height, index) => (
+                          <span key={index} style={{ height: `${height}%` }} />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="tay-dash-bottom">
+                    <div className="tay-card tay-reminder-card">
+                      <div className="tay-reminder-line">
+                        <div className="tay-reminder-icon">✉</div>
+                        <div>
+                          <div className="tay-card-title">Recordatorio enviado</div>
+                          <div style={{ marginTop: 3, color: '#667085', fontSize: 9.5, fontWeight: 800 }}>Hoy 08:45</div>
+                        </div>
+                      </div>
+                      <div style={{ marginTop: 12, color: '#475467', fontSize: 10.5, fontWeight: 800 }}>
+                        Recordatorio enviado a María Pérez
+                      </div>
+                      <div style={{ display: 'inline-flex', marginTop: 9, borderRadius: 999, padding: '5px 8px', background: '#edfff4', color: '#16803a', fontSize: 8.8, fontWeight: 1000 }}>
+                        Entregado
+                      </div>
+                    </div>
+
+                    <div className="tay-card tay-link-card">
+                      <div className="tay-card-title">Tu link de reservas</div>
+                      <div className="tay-link-box">tuagendaya.com/mi-negocio ⧉</div>
+                      <div style={{ marginTop: 11, color: '#667085', fontSize: 9.2, fontWeight: 850 }}>
+                        Compartilo con tus clientes
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="tay-laptop-base" />
+          </div>
+        </section>
+      </main>
+
+      <section className="tay-highlights-wrap">
+        <div className="tay-landing-shell tay-highlights">
+          {highlights.map((item) => (
+            <div className="tay-highlight" key={item.title}>
+              <div className="tay-highlight-icon">{item.icon}</div>
+              <div>
+                <div className="tay-highlight-title">{item.title}</div>
+                <div className="tay-highlight-text">{item.text}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
