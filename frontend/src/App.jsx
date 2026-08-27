@@ -11546,7 +11546,7 @@ function LandingPage() {
           max-width: 630px;
           font-size: clamp(50px, 4.45vw, 75px);
           line-height: 1.04;
-          letter-spacing: -.052em;
+          letter-spacing: -.035em;
           font-weight: 900;
           color: #070e24;
           text-wrap: balance;
@@ -11563,7 +11563,7 @@ function LandingPage() {
           font-size: 17.5px;
           line-height: 1.72;
           font-weight: 650;
-          letter-spacing: -.01em;
+          letter-spacing: 0;
         }
 
         .tay-actions {
@@ -11580,6 +11580,7 @@ function LandingPage() {
           padding: 0 28px;
           font-size: 16px;
           font-weight: 950;
+          letter-spacing: .006em;
         }
 
         .tay-main-cta {
@@ -11613,22 +11614,41 @@ function LandingPage() {
 
         .tay-laptop {
           position: relative;
-          width: min(850px, 100%);
-          margin-right: -110px;
-          filter: drop-shadow(0 30px 55px rgba(15,23,42,.12));
+          width: min(900px, 100%);
+          margin-right: -92px;
+          filter: drop-shadow(0 28px 46px rgba(15,23,42,.13));
         }
 
         .tay-laptop-screen-shell {
           position: relative;
-          border-radius: 27px 27px 11px 11px;
-          background: #111318;
-          padding: 12px 12px 15px;
+          border-radius: 20px 20px 8px 8px;
+          background:
+            linear-gradient(145deg, #17191d 0%, #07090c 45%, #1a1c20 100%);
+          padding: 8px 8px 10px;
           overflow: hidden;
+          border: 1px solid rgba(0,0,0,.82);
+          box-shadow:
+            inset 0 1px 0 rgba(255,255,255,.12),
+            inset 0 -1px 0 rgba(255,255,255,.035);
+        }
+
+        .tay-laptop-screen-shell::before {
+          content: "";
+          position: absolute;
+          top: 3px;
+          left: 50%;
+          width: 4px;
+          height: 4px;
+          margin-left: -2px;
+          border-radius: 999px;
+          background: #24272d;
+          box-shadow: 0 0 0 1px rgba(255,255,255,.025);
+          z-index: 3;
         }
 
         .tay-laptop-screen {
-          min-height: 500px;
-          border-radius: 18px 18px 6px 6px;
+          min-height: 490px;
+          border-radius: 13px 13px 3px 3px;
           overflow: hidden;
           background: #fff;
           display: grid;
@@ -11638,23 +11658,38 @@ function LandingPage() {
 
         .tay-laptop-base {
           position: relative;
-          width: 104%;
-          height: 21px;
-          margin-left: -2%;
-          background: linear-gradient(180deg, #d5d8dc 0%, #979da5 48%, #656b72 100%);
-          border-radius: 0 0 48% 48% / 0 0 100% 100%;
-          box-shadow: inset 0 1px 0 rgba(255,255,255,.8);
+          width: 106%;
+          height: 16px;
+          margin-left: -3%;
+          background:
+            linear-gradient(180deg, #eef0f2 0%, #c7cbd0 34%, #91979e 72%, #737981 100%);
+          border-radius: 1px 1px 48% 48% / 1px 1px 100% 100%;
+          box-shadow:
+            inset 0 1px 0 rgba(255,255,255,.95),
+            0 5px 10px rgba(15,23,42,.12);
         }
 
         .tay-laptop-base::before {
           content: "";
           position: absolute;
           top: 0;
-          left: 42%;
-          width: 16%;
-          height: 6px;
-          background: #adb2b8;
-          border-radius: 0 0 8px 8px;
+          left: 43%;
+          width: 14%;
+          height: 5px;
+          background: linear-gradient(180deg, #b8bdc3, #9ca2a9);
+          border-radius: 0 0 7px 7px;
+        }
+
+        .tay-laptop-base::after {
+          content: "";
+          position: absolute;
+          left: 8%;
+          right: 8%;
+          bottom: -4px;
+          height: 4px;
+          border-radius: 50%;
+          background: rgba(15,23,42,.08);
+          filter: blur(2px);
         }
 
         .tay-dash-sidebar {
