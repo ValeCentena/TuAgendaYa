@@ -50,15 +50,33 @@ function getBookingValue(booking, ...keys) {
 }
 
 function formatDateForMessage(value) {
-  const raw = String(value || "").slice(0, 10);
+  if (!value) return "fecha a confirmar";
 
-  if (!raw) return "fecha a confirmar";
+  const raw = String(value).trim();
 
-  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  // Si viene como YYYY-MM-DD
+  const isoMatch = raw.slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
 
-  if (!match) return raw;
+  if (isoMatch) {
+    const year = isoMatch[1].slice(-2);
+    const month = isoMatch[2];
+    const day = isoMatch[3];
 
-  return `${match[3]}/${match[2]}/${match[1]}`;
+    return `${day}/${month}/${year}`;
+  }
+
+  // Si viene como fecha tipo "Thu Aug 27 2026..."
+  const parsedDate = new Date(raw);
+
+  if (!Number.isNaN(parsedDate.getTime())) {
+    const day = String(parsedDate.getDate()).padStart(2, "0");
+    const month = String(parsedDate.getMonth() + 1).padStart(2, "0");
+    const year = String(parsedDate.getFullYear()).slice(-2);
+
+    return `${day}/${month}/${year}`;
+  }
+
+  return raw;
 }
 
 function formatTimeForMessage(value) {
