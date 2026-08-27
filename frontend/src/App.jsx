@@ -11422,7 +11422,7 @@ function LandingPage() {
       viewBox: '0 0 24 24',
       fill: 'none',
       stroke: 'currentColor',
-      strokeWidth: '1.9',
+      strokeWidth: '1.8',
       strokeLinecap: 'round',
       strokeLinejoin: 'round',
       'aria-hidden': 'true',
@@ -11433,7 +11433,7 @@ function LandingPage() {
         <svg {...commonProps}>
           <rect x="3.5" y="5" width="17" height="15.5" rx="3.2" />
           <path d="M8 3.8v3.1M16 3.8v3.1M3.5 9.2h17" />
-          <path d="M8.2 12.5h3.4M8.2 16h6.8" />
+          <path d="M8 12.7h3.5M8 16.1h7.3" />
         </svg>
       );
     }
@@ -11442,8 +11442,8 @@ function LandingPage() {
       return (
         <svg {...commonProps}>
           <path d="M12 20.2a8.2 8.2 0 1 0 0-16.4 8.2 8.2 0 0 0 0 16.4Z" />
-          <path d="M12 7.6v4.5l3.2 1.9" />
-          <path d="M17.2 7.4 19 5.6" />
+          <path d="M12 7.6v4.4l3.2 1.9" />
+          <path d="M17.1 7.2 18.9 5.4" />
         </svg>
       );
     }
@@ -11451,18 +11451,19 @@ function LandingPage() {
     if (type === 'cobros') {
       return (
         <svg {...commonProps}>
-          <rect x="3.2" y="5.5" width="17.6" height="13" rx="3.2" />
+          <rect x="3.2" y="5.5" width="17.6" height="13" rx="3.1" />
           <path d="M3.8 10h16.4" />
-          <path d="M7.2 14.2h3.4M14.4 14.2h2.4" />
+          <path d="M7.2 14.2h3.5M14.4 14.2h2.5" />
         </svg>
       );
     }
 
     return (
       <svg {...commonProps}>
-        <path d="M12 12.2a3.6 3.6 0 1 0 0-7.2 3.6 3.6 0 0 0 0 7.2Z" />
-        <path d="M5 19.1a7.8 7.8 0 0 1 14 0" />
-        <rect x="3.5" y="3.5" width="17" height="17" rx="8.5" />
+        <rect x="3.8" y="4.6" width="16.4" height="14.8" rx="3.2" />
+        <circle cx="9.4" cy="10.1" r="2.1" />
+        <path d="M6.8 15.4c.7-1.5 2-2.3 3.4-2.3 1.3 0 2.6.8 3.3 2.3" />
+        <path d="M14.7 9.5h2.8M14.7 12.3h2.8M14.7 15.1h2" />
       </svg>
     );
   };
@@ -11601,8 +11602,8 @@ function LandingPage() {
           margin: 0;
           max-width: 630px;
           font-size: clamp(50px, 4.45vw, 75px);
-          line-height: 1.09;
-          letter-spacing: -0.008em;
+          line-height: 1.12;
+          letter-spacing: 0.004em;
           font-weight: 900;
           color: #070e24;
           text-wrap: balance;
@@ -11614,19 +11615,19 @@ function LandingPage() {
 
         .tay-subtitle {
           max-width: 580px;
-          margin: 28px 0 0;
+          margin: 30px 0 0;
           color: #4e5b73;
           font-size: 17.5px;
-          line-height: 1.78;
+          line-height: 1.82;
           font-weight: 650;
-          letter-spacing: 0.012em;
+          letter-spacing: 0.018em;
         }
 
         .tay-actions {
           display: flex;
           align-items: center;
           gap: 18px;
-          margin-top: 34px;
+          margin-top: 36px;
         }
 
         .tay-main-cta,
@@ -11636,7 +11637,7 @@ function LandingPage() {
           padding: 0 28px;
           font-size: 16px;
           font-weight: 950;
-          letter-spacing: 0.012em;
+          letter-spacing: 0.016em;
         }
 
         .tay-main-cta {
@@ -11670,65 +11671,81 @@ function LandingPage() {
 
         .tay-laptop {
           position: relative;
-          width: min(888px, 100%);
-          margin-right: -104px;
-          filter: drop-shadow(0 28px 48px rgba(15,23,42,.11));
+          width: min(908px, 100%);
+          margin-right: -88px;
+          filter: drop-shadow(0 30px 44px rgba(15,23,42,.09));
         }
 
         .tay-laptop-bezel {
           position: relative;
-          border-radius: 32px 32px 10px 10px;
-          background: linear-gradient(180deg, #101318 0%, #05070a 100%);
-          padding: 9px 9px 11px;
+          border-radius: 29px 29px 9px 9px;
+          background:
+            linear-gradient(180deg, #0d1015 0%, #05070a 60%, #11141a 100%);
+          padding: 12px 12px 10px;
           box-shadow:
-            inset 0 1px 0 rgba(255,255,255,.08),
-            inset 0 -1px 0 rgba(255,255,255,.025);
+            inset 0 1px 0 rgba(255,255,255,.10),
+            inset 0 -1px 0 rgba(255,255,255,.02);
         }
 
         .tay-laptop-bezel::before {
           content: "";
           position: absolute;
-          top: 4px;
+          top: 5px;
           left: 50%;
-          width: 5px;
-          height: 5px;
-          margin-left: -2.5px;
+          width: 4px;
+          height: 4px;
+          margin-left: -2px;
           border-radius: 999px;
-          background: #242832;
-          box-shadow: 0 0 0 1px rgba(255,255,255,.025);
+          background: #2a2f38;
+          box-shadow: 0 0 0 1px rgba(255,255,255,.03);
         }
 
         .tay-laptop-screen {
-          min-height: 502px;
-          border-radius: 24px 24px 4px 4px;
+          min-height: 506px;
+          border-radius: 19px 19px 3px 3px;
           overflow: hidden;
           background: #fff;
           display: grid;
           grid-template-columns: 150px 1fr;
-          border: 1px solid rgba(255,255,255,.07);
+          border: 1px solid rgba(255,255,255,.08);
         }
 
         .tay-laptop-base {
           position: relative;
-          width: 108%;
-          height: 17px;
-          margin-left: -4%;
-          background: linear-gradient(180deg, #e7eaee 0%, #cdd2d8 36%, #9298a0 70%, #767d85 100%);
-          border-radius: 0 0 42% 42% / 0 0 100% 100%;
+          width: 114%;
+          height: 22px;
+          margin-left: -7%;
+          margin-top: -1px;
+          background:
+            linear-gradient(180deg, #f3f5f7 0%, #cfd4da 26%, #a6adb5 60%, #7b828b 100%);
+          border-radius: 0 0 46% 46% / 0 0 100% 100%;
           box-shadow:
-            inset 0 1px 0 rgba(255,255,255,.92),
-            0 8px 14px rgba(15,23,42,.08);
+            inset 0 1px 0 rgba(255,255,255,.98),
+            inset 0 -1px 0 rgba(66,71,79,.08),
+            0 10px 14px rgba(15,23,42,.06);
         }
 
         .tay-laptop-base::before {
           content: "";
           position: absolute;
           top: 0;
-          left: 43%;
-          width: 14%;
-          height: 4px;
-          background: linear-gradient(180deg, #b9bec5, #9da3aa);
-          border-radius: 0 0 6px 6px;
+          left: 44%;
+          width: 12%;
+          height: 5px;
+          background: linear-gradient(180deg, #b8bdc3, #989ea6);
+          border-radius: 0 0 7px 7px;
+        }
+
+        .tay-laptop-base::after {
+          content: "";
+          position: absolute;
+          left: 6%;
+          right: 6%;
+          bottom: -3px;
+          height: 6px;
+          border-radius: 999px;
+          background: rgba(15,23,42,.055);
+          filter: blur(3px);
         }
 
         .tay-dash-sidebar {
@@ -12139,12 +12156,12 @@ function LandingPage() {
           .tay-title {
             font-size: clamp(42px, 12vw, 60px);
             line-height: 1.1;
-            letter-spacing: -0.004em;
+            letter-spacing: 0.002em;
           }
 
           .tay-subtitle {
             font-size: 16px;
-            line-height: 1.7;
+            line-height: 1.72;
           }
 
           .tay-actions {
@@ -12189,12 +12206,12 @@ function LandingPage() {
           }
 
           .tay-laptop-bezel {
-            padding: 7px 7px 9px;
-            border-radius: 22px 22px 8px 8px;
+            padding: 8px 8px 8px;
+            border-radius: 22px 22px 7px 7px;
           }
 
           .tay-laptop-screen {
-            border-radius: 16px 16px 4px 4px;
+            border-radius: 14px 14px 3px 3px;
           }
 
           .tay-highlights {
