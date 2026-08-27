@@ -11371,892 +11371,624 @@ function MobileViewportController() {
 function LandingPage() {
   const navigate = useNavigate();
 
-  const heroFeatures = [
-    { label: 'Hasta 1000 reservas/mes' },
-    { label: 'WhatsApp' },
-    { label: 'Cobro automático' },
-    { label: 'Transferencia' },
-    { label: 'Historial' },
-    { label: 'App instalable' },
-    { label: 'Multi profesional' },
-  ];
-
-  const sidebarItems = [
-    ['⌂', 'Inicio', true],
-    ['▦', 'Agenda'],
-    ['☑', 'Reservas'],
-    ['◎', 'Clientes'],
-    ['▣', 'Cobros'],
-    ['✉', 'Mensajes'],
-    ['◇', 'Promociones'],
-    ['▥', 'Reportes'],
-    ['⚙', 'Configuración'],
-  ];
-
-  const appointments = [
-    { time: '09:30', name: 'Juan Pérez', service: 'Consulta inicial', status: 'Confirmada', tone: 'green' },
-    { time: '10:20', name: 'Ana Silva', service: 'Limpieza dental', status: 'Pendiente', tone: 'orange' },
-    { time: '11:10', name: 'Carlos Díaz', service: 'Control', status: 'Confirmada', tone: 'green' },
-  ];
-
-  const statusStyle = (tone) => ({
-    borderRadius: 999,
-    padding: '5px 9px',
-    background: tone === 'green' ? '#edfff4' : '#fff7e8',
-    color: tone === 'green' ? '#16803a' : '#c06300',
-    fontSize: 10.5,
-    fontWeight: 950,
-    whiteSpace: 'nowrap',
-  });
-
   const goRegister = () => navigate('/profesional/register');
   const goLogin = () => navigate('/login');
 
-  return (
-    <div
-      style={{
-        minHeight: '100vh',
-        fontFamily: APP_FONT,
-        color: '#0b1227',
-        background: 'radial-gradient(circle at 76% 14%, rgba(0,113,227,0.13), transparent 32%), radial-gradient(circle at 18% 90%, rgba(104,92,255,0.12), transparent 28%), linear-gradient(180deg, #ffffff 0%, #f7fbff 42%, #f6f8fc 100%)',
-        overflow: 'hidden',
-      }}
-    >
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900;1000&display=swap');
+  const benefits = [
+    {
+      title: 'Reservas 24/7',
+      text: 'Tus clientes reservan cuando quieren, sin mensajes de ida y vuelta.',
+      icon: '⌁',
+    },
+    {
+      title: 'WhatsApp automático',
+      text: 'Confirmaciones y recordatorios que ayudan a reducir ausencias.',
+      icon: '✓',
+    },
+    {
+      title: 'Clientes y cobros',
+      text: 'Historial, pagos y agenda organizados desde un mismo lugar.',
+      icon: '$',
+    },
+  ];
 
-        .landing-shell-v2 {
-          width: min(1500px, calc(100% - 48px));
+  const previewBookings = [
+    { time: '09:30', name: 'Juan Pérez', service: 'Consulta inicial', status: 'Confirmada' },
+    { time: '10:20', name: 'Ana Silva', service: 'Limpieza dental', status: 'Pendiente' },
+    { time: '11:10', name: 'Carlos Díaz', service: 'Control', status: 'Confirmada' },
+  ];
+
+  return (
+    <div className="landing-refined">
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap');
+
+        .landing-refined {
+          min-height: 100vh;
+          font-family: ${APP_FONT};
+          color: #111827;
+          background: #fbfcfe;
+          overflow-x: hidden;
+        }
+
+        .landing-refined * {
+          box-sizing: border-box;
+        }
+
+        .landing-refined-shell {
+          width: min(1180px, calc(100% - 40px));
           margin: 0 auto;
         }
 
-        .landing-topbar-v2 {
-          height: 78px;
+        .landing-refined-nav {
+          min-height: 78px;
           display: flex;
           align-items: center;
           justify-content: space-between;
-          gap: 24px;
-          padding: 10px 0;
+          gap: 20px;
+          border-bottom: 1px solid rgba(15, 23, 42, 0.055);
         }
 
-        .landing-logo-v2 {
-          display: inline-flex;
-          align-items: center;
-          gap: 12px;
-          border: none;
+        .landing-refined-logo {
+          border: 0;
           background: transparent;
           padding: 0;
           cursor: pointer;
         }
 
-        .landing-nav-v2 {
+        .landing-refined-nav-actions {
           display: flex;
           align-items: center;
-          gap: 34px;
-          color: #20263a;
-          font-size: 14.5px;
-          font-weight: 760;
+          gap: 10px;
         }
 
-        .landing-nav-actions-v2 {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
-
-        .landing-secondary-btn-v2,
-        .landing-primary-btn-v2 {
-          min-height: 46px;
-          border-radius: 16px;
-          padding: 0 24px;
-          font-size: 15px;
-          font-weight: 950;
+        .landing-refined-btn {
+          min-height: 42px;
+          padding: 0 18px;
+          border-radius: 13px;
           font-family: inherit;
+          font-size: 13.5px;
+          font-weight: 850;
           cursor: pointer;
-          transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+          transition: transform .16s ease, box-shadow .16s ease, background .16s ease;
         }
 
-        .landing-secondary-btn-v2 {
-          border: 0.5px solid rgba(17,24,39,0.18);
-          color: #101828;
-          background: rgba(255,255,255,0.76);
-          box-shadow: 0 8px 24px rgba(15,23,42,0.05);
-        }
-
-        .landing-primary-btn-v2 {
-          border: none;
-          color: #fff;
-          background: linear-gradient(135deg, #0071e3 0%, #0657f9 100%);
-          box-shadow: 0 14px 34px rgba(0,113,227,0.24);
-        }
-
-        .landing-secondary-btn-v2:hover,
-        .landing-primary-btn-v2:hover {
+        .landing-refined-btn:hover {
           transform: translateY(-1px);
         }
 
-        .landing-hero-v2 {
-          position: relative;
+        .landing-refined-btn.secondary {
+          border: 1px solid #e3e7ee;
+          color: #344054;
+          background: #fff;
+        }
+
+        .landing-refined-btn.primary {
+          border: 0;
+          color: #fff;
+          background: #0877e6;
+          box-shadow: 0 10px 24px rgba(8, 119, 230, .18);
+        }
+
+        .landing-refined-hero {
           display: grid;
-          grid-template-columns: minmax(0, 0.83fr) minmax(620px, 1.17fr);
+          grid-template-columns: minmax(0, .92fr) minmax(500px, 1.08fr);
+          gap: 70px;
           align-items: center;
-          gap: 34px;
-          padding: 36px 0 46px;
+          padding: 92px 0 86px;
         }
 
-        .landing-hero-left-v2 {
-          min-width: 0;
-          padding: 18px 0 0;
+        .landing-refined-copy {
+          max-width: 560px;
         }
 
-        .landing-badge-v2 {
+        .landing-refined-kicker {
           display: inline-flex;
           align-items: center;
           gap: 8px;
-          padding: 8px 13px;
-          border-radius: 999px;
-          background: rgba(0,113,227,0.09);
-          color: #006edb;
-          border: 0.5px solid rgba(0,113,227,0.13);
+          margin-bottom: 20px;
+          color: #0877e6;
           font-size: 13px;
           font-weight: 850;
-          margin-bottom: 24px;
+          letter-spacing: .01em;
         }
 
-        .landing-title-v2 {
+        .landing-refined-kicker-dot {
+          width: 7px;
+          height: 7px;
+          border-radius: 50%;
+          background: #0877e6;
+          box-shadow: 0 0 0 5px rgba(8, 119, 230, .08);
+        }
+
+        .landing-refined-title {
           margin: 0;
-          max-width: 680px;
-          font-family: "Nunito", "Avenir Next", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-          font-size: clamp(46px, 4.35vw, 74px);
-          line-height: 1.035;
-          letter-spacing: -0.052em;
+          color: #0f172a;
+          font-size: clamp(46px, 5.2vw, 72px);
+          line-height: .99;
+          letter-spacing: -.052em;
           font-weight: 850;
-          color: #080f25;
           text-wrap: balance;
         }
 
-        .landing-title-v2 span {
-          color: #0071e3;
-          font-weight: 900;
+        .landing-refined-title span {
+          color: #0877e6;
         }
 
-        .landing-subtitle-v2 {
+        .landing-refined-subtitle {
           margin: 24px 0 0;
-          max-width: 610px;
-          color: #4b5567;
+          max-width: 530px;
+          color: #667085;
           font-size: 18px;
-          line-height: 1.58;
-          font-weight: 650;
-          letter-spacing: -0.012em;
+          line-height: 1.55;
+          font-weight: 600;
         }
 
-        .landing-actions-v2 {
+        .landing-refined-actions {
           display: flex;
           align-items: center;
-          gap: 14px;
-          margin-top: 28px;
-          flex-wrap: wrap;
-        }
-
-        .landing-main-cta-v2,
-        .landing-demo-cta-v2 {
-          min-height: 54px;
-          border-radius: 17px;
-          padding: 0 26px;
-          font-size: 16px;
-          font-weight: 1000;
-          font-family: inherit;
-          cursor: pointer;
-        }
-
-        .landing-main-cta-v2 {
-          border: none;
-          color: #fff;
-          min-width: 220px;
-          background: linear-gradient(135deg, #0071e3 0%, #075cff 100%);
-          box-shadow: 0 20px 42px rgba(0,113,227,0.26);
-        }
-
-        .landing-demo-cta-v2 {
-          border: 0.5px solid rgba(17,24,39,0.17);
-          background: rgba(255,255,255,0.8);
-          color: #101828;
-          min-width: 160px;
-          box-shadow: 0 10px 28px rgba(15,23,42,0.05);
-        }
-
-        .landing-feature-grid-v2 {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 10px;
-          margin-top: 24px;
-          max-width: 610px;
-        }
-
-        .landing-feature-chip-v2 {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          gap: 0;
-          border-radius: 15px;
-          background: rgba(255,255,255,0.76);
-          border: 0.5px solid rgba(15,23,42,0.10);
-          padding: 10px 15px;
-          color: #263143;
-          font-size: 13px;
-          font-weight: 850;
-          box-shadow: 0 9px 28px rgba(15,23,42,0.04);
-          text-align: center;
-          min-height: 42px;
-        }
-
-        .landing-offer-v2 {
-          display: grid;
-          grid-template-columns: auto 1fr auto;
-          align-items: center;
-          gap: 16px;
+          gap: 12px;
           margin-top: 30px;
-          max-width: 640px;
-          border-radius: 28px;
-          padding: 17px 18px;
-          background: linear-gradient(135deg, #005eea 0%, #7357ff 100%);
-          color: #fff;
-          box-shadow: 0 26px 60px rgba(36,77,255,0.27);
+          flex-wrap: wrap;
         }
 
-        .landing-offer-icon-v2 {
-          width: 58px;
-          height: 58px;
-          border-radius: 20px;
-          background: rgba(255,255,255,0.18);
+        .landing-refined-actions .landing-refined-btn {
+          min-height: 50px;
+          padding: 0 23px;
+          border-radius: 15px;
+          font-size: 15px;
+        }
+
+        .landing-refined-note {
+          margin-top: 18px;
+          color: #98a2b3;
+          font-size: 12.5px;
+          font-weight: 700;
+        }
+
+        .landing-refined-preview-wrap {
+          position: relative;
+        }
+
+        .landing-refined-preview-wrap::before {
+          content: '';
+          position: absolute;
+          width: 360px;
+          height: 360px;
+          right: -90px;
+          top: -90px;
+          border-radius: 50%;
+          background: rgba(8, 119, 230, .07);
+          filter: blur(2px);
+          pointer-events: none;
+        }
+
+        .landing-refined-preview {
+          position: relative;
+          background: rgba(255, 255, 255, .96);
+          border: 1px solid #e8edf3;
+          border-radius: 28px;
+          box-shadow: 0 28px 70px rgba(15, 23, 42, .09);
+          overflow: hidden;
+        }
+
+        .landing-refined-preview-top {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 20px 22px;
+          border-bottom: 1px solid #edf0f4;
+          background: rgba(250, 252, 255, .88);
+        }
+
+        .landing-refined-preview-brand {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .landing-refined-preview-avatar {
+          width: 34px;
+          height: 34px;
+          border-radius: 11px;
           display: grid;
           place-items: center;
-          font-size: 26px;
-          font-weight: 900;
-          line-height: 1;
-        }
-
-        .landing-offer-v2 small {
-          display: block;
-          opacity: 0.78;
-          font-weight: 900;
-          margin-bottom: 2px;
-        }
-
-        .landing-offer-v2 strong {
-          display: block;
-          font-size: 21px;
-          line-height: 1.15;
-          font-weight: 1000;
-        }
-
-        .landing-offer-v2 button {
-          border: 0.5px solid rgba(255,255,255,0.32);
-          background: rgba(255,255,255,0.13);
-          color: #fff;
-          border-radius: 999px;
-          padding: 12px 16px;
+          background: #eef6ff;
+          color: #0877e6;
           font-size: 13px;
-          font-weight: 1000;
-          font-family: inherit;
-          cursor: pointer;
-        }
-
-        .landing-showcase-v2 {
-          position: relative;
-          min-height: 640px;
-          min-width: 0;
-        }
-
-        .landing-dashboard-v2 {
-          position: absolute;
-          left: 0;
-          top: 26px;
-          width: min(880px, 100%);
-          min-height: 590px;
-          background: rgba(255,255,255,0.92);
-          border: 0.5px solid rgba(15,23,42,0.10);
-          border-radius: 34px;
-          box-shadow: 0 32px 90px rgba(15,23,42,0.11);
-          backdrop-filter: blur(20px);
-          display: grid;
-          grid-template-columns: 170px 1fr;
-          overflow: hidden;
-        }
-
-        .landing-dash-sidebar-v2 {
-          border-right: 0.5px solid rgba(15,23,42,0.08);
-          background: linear-gradient(180deg, #fbfdff 0%, #f7f9fd 100%);
-          padding: 22px 14px;
-          display: flex;
-          flex-direction: column;
-          justify-content: space-between;
-          gap: 18px;
-        }
-
-        .landing-dash-menu-v2 {
-          display: grid;
-          gap: 6px;
-          margin-top: 20px;
-        }
-
-        .landing-dash-menu-item-v2 {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          border-radius: 14px;
-          padding: 11px 10px;
-          color: #263143;
-          font-size: 12.2px;
           font-weight: 900;
         }
 
-        .landing-dash-menu-item-v2.active {
-          color: #006ee8;
-          background: #eaf4ff;
+        .landing-refined-preview-main {
+          padding: 24px;
         }
 
-        .landing-dash-main-v2 {
-          padding: 25px 26px 26px;
-        }
-
-        .landing-dash-header-v2 {
+        .landing-refined-preview-head {
           display: flex;
-          justify-content: space-between;
-          gap: 18px;
           align-items: flex-start;
-          margin-bottom: 16px;
+          justify-content: space-between;
+          gap: 20px;
+          margin-bottom: 20px;
         }
 
-        .landing-dash-card-v2 {
-          background: #fff;
-          border: 0.5px solid rgba(15,23,42,0.09);
-          border-radius: 20px;
-          box-shadow: 0 10px 28px rgba(15,23,42,0.045);
+        .landing-refined-preview-head h3 {
+          margin: 0;
+          color: #101828;
+          font-size: 20px;
+          line-height: 1.15;
+          font-weight: 900;
+          letter-spacing: -.025em;
         }
 
-        .landing-dash-grid-v2 {
+        .landing-refined-preview-head p {
+          margin: 5px 0 0;
+          color: #98a2b3;
+          font-size: 12px;
+          font-weight: 700;
+        }
+
+        .landing-refined-today {
+          padding: 8px 11px;
+          border-radius: 10px;
+          background: #f7f9fc;
+          color: #667085;
+          font-size: 11px;
+          font-weight: 800;
+        }
+
+        .landing-refined-bookings {
           display: grid;
-          grid-template-columns: 1.25fr 0.75fr;
-          gap: 12px;
+          gap: 8px;
         }
 
-        .landing-appointment-v2 {
+        .landing-refined-booking {
           display: grid;
-          grid-template-columns: 54px minmax(0, 1fr) auto;
-          gap: 10px;
+          grid-template-columns: 62px minmax(0, 1fr) auto;
           align-items: center;
-          padding: 13px 14px;
-          border-radius: 16px;
-          background: #f8fafc;
-          margin-top: 9px;
+          gap: 12px;
+          min-height: 66px;
+          padding: 11px 13px;
+          border: 1px solid #f0f2f5;
+          border-radius: 15px;
+          background: #fff;
         }
 
-        .landing-mini-stat-v2 {
-          padding: 16px;
-          min-height: 105px;
+        .landing-refined-booking-time {
+          color: #0877e6;
+          font-size: 12.5px;
+          font-weight: 900;
         }
 
-        .landing-income-v2 {
-          margin-top: 12px;
-          padding: 17px;
+        .landing-refined-booking-name {
+          color: #1d2939;
+          font-size: 13px;
+          font-weight: 900;
+        }
+
+        .landing-refined-booking-service {
+          margin-top: 2px;
+          color: #98a2b3;
+          font-size: 11px;
+          font-weight: 700;
+        }
+
+        .landing-refined-status {
+          padding: 5px 8px;
+          border-radius: 999px;
+          font-size: 10px;
+          font-weight: 850;
+          white-space: nowrap;
+        }
+
+        .landing-refined-status.confirmed {
+          background: #edf9f1;
+          color: #22864a;
+        }
+
+        .landing-refined-status.pending {
+          background: #fff7e8;
+          color: #b86a06;
+        }
+
+        .landing-refined-preview-bottom {
           display: grid;
           grid-template-columns: 1fr 1fr;
-          gap: 14px;
-          align-items: center;
-        }
-
-        .landing-floating-card-v2 {
-          position: absolute;
-          background: rgba(255,255,255,0.95);
-          border: 0.5px solid rgba(15,23,42,0.10);
-          border-radius: 24px;
-          box-shadow: 0 24px 65px rgba(15,23,42,0.13);
-          backdrop-filter: blur(22px);
-        }
-
-        .landing-link-card-v2 {
-          right: 0;
-          top: 32px;
-          width: 255px;
-          padding: 18px;
-        }
-
-        .landing-share-icons-v2 {
-          display: flex;
-          align-items: center;
           gap: 10px;
-          margin-top: 10px;
+          margin-top: 16px;
         }
 
-        .landing-share-icon-v2 {
-          width: 32px;
-          height: 32px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: 10px;
+        .landing-refined-mini-card {
+          padding: 15px;
+          border-radius: 16px;
+          background: #f8fafc;
+          border: 1px solid #f0f2f5;
+        }
+
+        .landing-refined-mini-label {
+          color: #98a2b3;
+          font-size: 10.5px;
+          font-weight: 800;
+        }
+
+        .landing-refined-mini-value {
+          margin-top: 5px;
+          color: #101828;
+          font-size: 20px;
+          line-height: 1;
+          font-weight: 900;
+          letter-spacing: -.02em;
+        }
+
+        .landing-refined-mini-value.blue {
+          color: #0877e6;
+        }
+
+        .landing-refined-benefits {
+          padding: 8px 0 78px;
+        }
+
+        .landing-refined-benefits-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 14px;
+        }
+
+        .landing-refined-benefit {
+          min-height: 158px;
+          padding: 22px;
+          border: 1px solid #edf0f4;
+          border-radius: 20px;
           background: #fff;
-          border: 0.5px solid rgba(15,23,42,0.09);
-          box-shadow: 0 8px 20px rgba(15,23,42,0.055);
         }
 
-        .landing-share-icon-v2 svg {
-          width: 18px;
-          height: 18px;
-          display: block;
+        .landing-refined-benefit-icon {
+          width: 34px;
+          height: 34px;
+          border-radius: 11px;
+          display: grid;
+          place-items: center;
+          color: #0877e6;
+          background: #eef6ff;
+          font-size: 13px;
+          font-weight: 900;
         }
 
-
-        .landing-promo-card-v2 {
-          right: 12px;
-          top: 230px;
-          width: 260px;
-          padding: 20px;
+        .landing-refined-benefit h3 {
+          margin: 16px 0 0;
+          color: #1d2939;
+          font-size: 15px;
+          font-weight: 900;
         }
 
-        .landing-reminder-card-v2 {
-          right: 194px;
-          bottom: 70px;
-          width: 245px;
-          padding: 17px;
-          z-index: 4;
+        .landing-refined-benefit p {
+          margin: 7px 0 0;
+          color: #7c8799;
+          font-size: 13px;
+          line-height: 1.5;
+          font-weight: 650;
         }
 
-        .landing-phone-v2 {
-          position: absolute;
-          right: 10px;
-          bottom: 22px;
-          width: 205px;
-          height: 360px;
-          border-radius: 34px;
-          padding: 10px;
-          background: linear-gradient(145deg, #111827, #1f2937);
-          box-shadow: 0 30px 70px rgba(15,23,42,0.25);
-          z-index: 3;
-          transform: rotate(2deg);
-        }
-
-        .landing-phone-screen-v2 {
-          height: 100%;
-          border-radius: 26px;
-          background: #fff;
-          overflow: hidden;
-          padding: 13px 12px;
-          box-sizing: border-box;
-        }
-
-        .landing-trust-row-v2 {
+        .landing-refined-offer {
           display: flex;
           align-items: center;
           justify-content: center;
-          gap: 36px;
-          padding: 0 0 34px;
-          color: #4b5567;
-          font-size: 13px;
-          font-weight: 850;
+          gap: 8px;
+          width: fit-content;
+          max-width: 100%;
+          margin: 26px auto 0;
+          padding: 9px 13px;
+          border-radius: 999px;
+          border: 1px solid #e4ebf3;
+          background: #fff;
+          color: #667085;
+          font-size: 12px;
+          font-weight: 750;
+          text-align: center;
         }
 
-        @media (max-width: 1180px) {
-          .landing-hero-v2 {
+        .landing-refined-offer strong {
+          color: #0877e6;
+          font-weight: 900;
+        }
+
+        @media (max-width: 980px) {
+          .landing-refined-hero {
             grid-template-columns: 1fr;
-            padding-top: 16px;
+            gap: 48px;
+            padding: 66px 0 62px;
           }
 
-          .landing-showcase-v2 {
-            min-height: 620px;
+          .landing-refined-copy {
+            max-width: 680px;
           }
 
-          .landing-dashboard-v2 {
-            position: relative;
-            left: auto;
-            top: auto;
+          .landing-refined-preview-wrap {
+            max-width: 680px;
           }
         }
 
-        @media (max-width: 760px) {
-          .landing-shell-v2 {
-            width: min(100% - 28px, 1500px);
+        @media (max-width: 680px) {
+          .landing-refined-shell {
+            width: min(100% - 28px, 1180px);
           }
 
-          .landing-nav-v2 {
+          .landing-refined-nav {
+            min-height: 68px;
+          }
+
+          .landing-refined-nav-actions .secondary {
             display: none;
           }
 
-          .landing-topbar-v2 {
-            height: auto;
-            padding: 16px 0 10px;
+          .landing-refined-btn {
+            min-height: 40px;
+            padding: 0 14px;
+            border-radius: 12px;
           }
 
-          .landing-nav-actions-v2 .landing-secondary-btn-v2 {
-            display: none;
+          .landing-refined-hero {
+            padding: 52px 0 48px;
           }
 
-          .landing-nav-actions-v2 .landing-primary-btn-v2 {
-            min-height: 42px;
-            padding: 0 15px;
-            border-radius: 14px;
-            font-size: 13.5px;
+          .landing-refined-title {
+            font-size: clamp(40px, 12vw, 55px);
           }
 
-          .landing-title-v2 {
-            font-size: 41px;
-            line-height: 1.06;
-            letter-spacing: -0.045em;
-          }
-
-          .landing-subtitle-v2 {
+          .landing-refined-subtitle {
             font-size: 16px;
           }
 
-          .landing-actions-v2 {
+          .landing-refined-actions {
             display: grid;
             grid-template-columns: 1fr;
           }
 
-          .landing-main-cta-v2,
-          .landing-demo-cta-v2 {
+          .landing-refined-actions .landing-refined-btn {
             width: 100%;
           }
 
-          .landing-offer-v2 {
-            grid-template-columns: auto 1fr;
+          .landing-refined-preview-main {
+            padding: 17px;
           }
 
-          .landing-offer-v2 button {
-            grid-column: 1 / -1;
+          .landing-refined-booking {
+            grid-template-columns: 52px minmax(0, 1fr);
           }
 
-          .landing-showcase-v2 {
-            min-height: auto;
-            padding-bottom: 18px;
-          }
-
-          .landing-dashboard-v2 {
-            grid-template-columns: 1fr;
-            min-height: auto;
-            border-radius: 28px;
-          }
-
-          .landing-dash-sidebar-v2 {
+          .landing-refined-booking .landing-refined-status {
             display: none;
           }
 
-          .landing-dash-main-v2 {
-            padding: 18px;
-          }
-
-          .landing-dash-grid-v2,
-          .landing-income-v2 {
+          .landing-refined-preview-bottom {
             grid-template-columns: 1fr;
           }
 
-          .landing-floating-card-v2,
-          .landing-phone-v2 {
-            position: relative;
-            right: auto;
-            top: auto;
-            bottom: auto;
-            width: auto;
-            margin-top: 14px;
-            transform: none;
+          .landing-refined-benefits-grid {
+            grid-template-columns: 1fr;
           }
 
-          .landing-phone-v2 {
-            width: min(250px, 100%);
-            margin-left: auto;
-            margin-right: auto;
-          }
-
-          .landing-trust-row-v2 {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 14px;
-            padding: 0 0 26px;
+          .landing-refined-benefit {
+            min-height: auto;
           }
         }
       `}</style>
 
-      <header className="landing-shell-v2 landing-topbar-v2">
-        <button className="landing-logo-v2" type="button" onClick={() => navigate('/')}>
-          <TuAgendaLogo height={42} />
-        </button>
-
-        <nav className="landing-nav-v2" aria-label="Navegación principal">
-          <span>Funciones</span>
-          <span>Precios</span>
-          <span>Recursos ▾</span>
-          <span>Para quién es</span>
-          <span>Contacto</span>
-        </nav>
-
-        <div className="landing-nav-actions-v2">
-          <button className="landing-secondary-btn-v2" type="button" onClick={goLogin}>
-            Ingresar
+      <div className="landing-refined-shell">
+        <header className="landing-refined-nav">
+          <button className="landing-refined-logo" type="button" onClick={() => navigate('/')}>
+            <TuAgendaLogo height={38} />
           </button>
-          <button className="landing-primary-btn-v2" type="button" onClick={goRegister}>
-            Crear cuenta
-          </button>
-        </div>
-      </header>
 
-      <main className="landing-shell-v2 landing-hero-v2">
-        <section className="landing-hero-left-v2">
-          <div className="landing-badge-v2">
-            ☆ Agenda online para negocios y profesionales
-          </div>
-
-          <h1 className="landing-title-v2">
-            Tu agenda, tus clientes y tus cobros <span>en un solo lugar.</span>
-          </h1>
-
-          <p className="landing-subtitle-v2">
-            Gestioná reservas, clientes, historial y recordatorios. Confirmaciones por WhatsApp, cobro automático, transferencia, promociones automáticas y app instalable para hacer crecer tu negocio.
-          </p>
-
-          <div className="landing-actions-v2">
-            <button className="landing-main-cta-v2" type="button" onClick={goRegister}>
-              Crear cuenta →
-            </button>
-            <button className="landing-demo-cta-v2" type="button" onClick={goLogin}>
+          <div className="landing-refined-nav-actions">
+            <button className="landing-refined-btn secondary" type="button" onClick={goLogin}>
               Iniciar sesión
             </button>
+            <button className="landing-refined-btn primary" type="button" onClick={goRegister}>
+              Crear cuenta
+            </button>
           </div>
+        </header>
 
-          <div className="landing-feature-grid-v2">
-            {heroFeatures.map((feature) => (
-              <div className="landing-feature-chip-v2" key={feature.label}>
-                <span>{feature.label}</span>
+        <main className="landing-refined-hero">
+          <section className="landing-refined-copy">
+            <div className="landing-refined-kicker">
+              <span className="landing-refined-kicker-dot" />
+              Gestión simple para profesionales
+            </div>
+
+            <h1 className="landing-refined-title">
+              Todo tu negocio, <span>mejor organizado.</span>
+            </h1>
+
+            <p className="landing-refined-subtitle">
+              Reservas, clientes, recordatorios y cobros en una sola plataforma. Menos tareas manuales, más tiempo para atender.
+            </p>
+
+            <div className="landing-refined-actions">
+              <button className="landing-refined-btn primary" type="button" onClick={goRegister}>
+                Crear cuenta
+              </button>
+              <button className="landing-refined-btn secondary" type="button" onClick={goLogin}>
+                Ya tengo una cuenta
+              </button>
+            </div>
+
+            <div className="landing-refined-note">
+              Configuración rápida · Funciona desde celular y computadora
+            </div>
+          </section>
+
+          <section className="landing-refined-preview-wrap" aria-label="Vista previa de TuAgendaYa">
+            <div className="landing-refined-preview">
+              <div className="landing-refined-preview-top">
+                <div className="landing-refined-preview-brand">
+                  <div className="landing-refined-preview-avatar">JP</div>
+                  <div>
+                    <div style={{ color: '#1d2939', fontSize: 12.5, fontWeight: 900 }}>Consultorio Juan Pérez</div>
+                    <div style={{ color: '#98a2b3', fontSize: 10.5, fontWeight: 700, marginTop: 1 }}>Panel del profesional</div>
+                  </div>
+                </div>
+                <div style={{ color: '#0877e6', fontSize: 11.5, fontWeight: 850 }}>Tu Agenda Ya</div>
               </div>
+
+              <div className="landing-refined-preview-main">
+                <div className="landing-refined-preview-head">
+                  <div>
+                    <h3>Reservas de hoy</h3>
+                    <p>Todo lo importante, sin ruido.</p>
+                  </div>
+                  <div className="landing-refined-today">Hoy</div>
+                </div>
+
+                <div className="landing-refined-bookings">
+                  {previewBookings.map((booking) => (
+                    <div className="landing-refined-booking" key={`${booking.time}-${booking.name}`}>
+                      <div className="landing-refined-booking-time">{booking.time}</div>
+                      <div>
+                        <div className="landing-refined-booking-name">{booking.name}</div>
+                        <div className="landing-refined-booking-service">{booking.service}</div>
+                      </div>
+                      <div className={`landing-refined-status ${booking.status === 'Confirmada' ? 'confirmed' : 'pending'}`}>
+                        {booking.status}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="landing-refined-preview-bottom">
+                  <div className="landing-refined-mini-card">
+                    <div className="landing-refined-mini-label">Reservas confirmadas</div>
+                    <div className="landing-refined-mini-value blue">8 de 10</div>
+                  </div>
+                  <div className="landing-refined-mini-card">
+                    <div className="landing-refined-mini-label">Cobrado hoy</div>
+                    <div className="landing-refined-mini-value">$ 12.450</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </main>
+
+        <section className="landing-refined-benefits" aria-label="Beneficios principales">
+          <div className="landing-refined-benefits-grid">
+            {benefits.map((benefit) => (
+              <article className="landing-refined-benefit" key={benefit.title}>
+                <div className="landing-refined-benefit-icon">{benefit.icon}</div>
+                <h3>{benefit.title}</h3>
+                <p>{benefit.text}</p>
+              </article>
             ))}
           </div>
 
-          <div className="landing-offer-v2">
-            <div className="landing-offer-icon-v2">✦</div>
-            <div>
-              <small>Lanzamiento por tiempo limitado</small>
-              <strong>2 meses gratis + 2 meses al 50%</strong>
-              <small>Aprovechá esta oferta exclusiva para nuevos usuarios.</small>
-            </div>
-            <button type="button" onClick={goRegister}>
-              Ver ofertas →
-            </button>
+          <div className="landing-refined-offer">
+            Oferta de lanzamiento: <strong>2 meses gratis + 2 meses al 50%</strong>
           </div>
         </section>
-
-        <section className="landing-showcase-v2" aria-label="Vista previa del producto">
-          <div className="landing-dashboard-v2">
-            <aside className="landing-dash-sidebar-v2">
-              <div>
-                <TuAgendaLogo height={32} />
-                <div className="landing-dash-menu-v2">
-                  {sidebarItems.map(([icon, label, active]) => (
-                    <div key={label} className={`landing-dash-menu-item-v2${active ? ' active' : ''}`}>
-                      <span>{icon}</span>
-                      <span>{label}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fff', border: '0.5px solid rgba(15,23,42,0.08)', borderRadius: 18, padding: 10 }}>
-                <div style={{ width: 34, height: 34, borderRadius: 999, background: 'linear-gradient(135deg, #dbeafe, #ffffff)', display: 'grid', placeItems: 'center', fontWeight: 1000, color: '#006ee8' }}>JP</div>
-                <div>
-                  <div style={{ fontSize: 12.5, fontWeight: 950, color: '#111827' }}>Juan Pérez</div>
-                  <div style={{ fontSize: 10.5, fontWeight: 800, color: '#8e8e93' }}>Mi cuenta</div>
-                </div>
-              </div>
-            </aside>
-
-            <div className="landing-dash-main-v2">
-              <div className="landing-dash-header-v2">
-                <div>
-                  <div style={{ fontSize: 22, fontWeight: 1000, color: '#101828', letterSpacing: '-0.5px' }}>Hola, Juan</div>
-                  <div style={{ marginTop: 3, color: '#667085', fontSize: 12.5, fontWeight: 800 }}>Este es el resumen de tu negocio hoy.</div>
-                </div>
-                <button type="button" style={{ border: '0.5px solid rgba(15,23,42,0.11)', background: '#fff', borderRadius: 14, padding: '10px 12px', fontFamily: 'inherit', color: '#111827', fontWeight: 950 }}>
-                  Hoy ▾
-                </button>
-              </div>
-
-              <div className="landing-dash-grid-v2">
-                <div className="landing-dash-card-v2" style={{ padding: 17 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
-                    <div style={{ fontSize: 15, fontWeight: 1000, color: '#111827' }}>Reservas de hoy</div>
-                    <div style={{ fontSize: 11.5, fontWeight: 950, color: '#0071e3' }}>Ver agenda →</div>
-                  </div>
-
-                  {appointments.map((item) => (
-                    <div className="landing-appointment-v2" key={item.time}>
-                      <div style={{ color: '#0071e3', fontSize: 13, fontWeight: 1000 }}>{item.time}</div>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ color: '#111827', fontSize: 13.5, fontWeight: 1000 }}>{item.name}</div>
-                        <div style={{ color: '#667085', fontSize: 11.2, fontWeight: 800 }}>{item.service}</div>
-                      </div>
-                      <div style={statusStyle(item.tone)}>{item.status}</div>
-                    </div>
-                  ))}
-                </div>
-
-                <div style={{ display: 'grid', gap: 12 }}>
-                  <div className="landing-dash-card-v2 landing-mini-stat-v2">
-                    <div style={{ color: '#667085', fontSize: 11.5, fontWeight: 900 }}>Reservas hoy</div>
-                    <div style={{ color: '#0071e3', fontSize: 34, fontWeight: 1000, lineHeight: 1, marginTop: 7 }}>12</div>
-                    <div style={{ color: '#16a34a', fontSize: 11.5, fontWeight: 950, marginTop: 7 }}>▲ 20% vs ayer</div>
-                    <div style={{ display: 'flex', alignItems: 'end', gap: 5, height: 28, marginTop: 8 }}>
-                      {[13, 15, 14, 18, 25, 31].map((height, index) => (
-                        <span key={index} style={{ width: 10, height, borderRadius: 999, background: index > 3 ? '#0071e3' : '#d9eaff' }} />
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="landing-dash-card-v2 landing-mini-stat-v2">
-                    <div style={{ color: '#667085', fontSize: 11.5, fontWeight: 900 }}>Clientes</div>
-                    <div style={{ color: '#111827', fontSize: 34, fontWeight: 1000, lineHeight: 1, marginTop: 7 }}>248</div>
-                    <div style={{ color: '#667085', fontSize: 11.5, fontWeight: 850, marginTop: 7 }}>+18 nuevos esta semana</div>
-                    <div style={{ display: 'flex', marginTop: 10 }}>
-                      {['#fde68a', '#bfdbfe', '#fecaca', '#bbf7d0', '#e9d5ff'].map((color, index) => (
-                        <span key={color} style={{ width: 24, height: 24, borderRadius: 999, background: color, border: '2px solid #fff', marginLeft: index ? -7 : 0 }} />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="landing-income-v2 landing-dash-card-v2">
-                <div>
-                  <div style={{ color: '#667085', fontSize: 12, fontWeight: 900 }}>Caja / ingresos</div>
-                  <div style={{ marginTop: 6, color: '#111827', fontSize: 26, fontWeight: 1000 }}>$ 248.500</div>
-                  <div style={{ color: '#16a34a', fontSize: 12, fontWeight: 950 }}>▲ 32% vs ayer</div>
-                  <button type="button" style={{ marginTop: 12, border: '0.5px solid rgba(0,113,227,0.20)', background: '#eef6ff', color: '#0071e3', borderRadius: 12, padding: '9px 12px', fontWeight: 950, fontFamily: 'inherit' }}>Ver ingresos</button>
-                </div>
-
-                <div>
-                  <div style={{ color: '#667085', fontSize: 12, fontWeight: 900, marginBottom: 10 }}>Métodos de pago</div>
-                  {[
-                    ['Tarjeta', '60%', '#0071e3'],
-                    ['Transferencia', '30%', '#30d158'],
-                    ['Efectivo', '10%', '#7357ff'],
-                  ].map(([name, value, color]) => (
-                    <div key={name} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 8, alignItems: 'center', marginBottom: 8 }}>
-                      <span style={{ width: 9, height: 9, borderRadius: 999, background: color }} />
-                      <span style={{ fontSize: 12, fontWeight: 900, color: '#364152' }}>{name}</span>
-                      <span style={{ fontSize: 12, fontWeight: 1000, color: '#111827' }}>{value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="landing-floating-card-v2 landing-link-card-v2">
-            <div style={{ color: '#344054', fontSize: 13, fontWeight: 1000, marginBottom: 10 }}>Tu link de reservas</div>
-            <div style={{ background: '#eef6ff', border: '0.5px solid rgba(0,113,227,0.18)', borderRadius: 13, padding: '10px 11px', color: '#006ee8', fontSize: 12, fontWeight: 1000 }}>
-              tuagendaya.com/mi-negocio ⧉
-            </div>
-            <div style={{ color: '#667085', fontSize: 12, fontWeight: 850, marginTop: 12 }}>Compartir por</div>
-            <div className="landing-share-icons-v2" aria-label="Canales para compartir">
-              <span className="landing-share-icon-v2" title="WhatsApp">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path fill="#25D366" d="M20.5 11.8c0 4.8-3.9 8.7-8.7 8.7-1.5 0-3-.4-4.2-1.1L3 20.6l1.2-4.4c-.8-1.3-1.2-2.8-1.2-4.4C3 7 6.9 3.1 11.8 3.1s8.7 3.9 8.7 8.7Z"/>
-                  <path fill="#fff" d="M9.2 7.5c-.2-.5-.4-.5-.6-.5h-.5c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.4s1 2.8 1.2 3c.1.2 2 3.2 5 4.3 2.5.9 3 .7 3.5.7.5-.1 1.7-.7 2-1.4.2-.7.2-1.3.2-1.4-.1-.1-.3-.2-.6-.4l-1.9-.9c-.3-.1-.5-.2-.7.2-.2.3-.8.9-1 1.1-.2.2-.4.2-.7.1-.3-.2-1.3-.5-2.5-1.5-.9-.8-1.5-1.8-1.7-2.1-.2-.3 0-.5.1-.6l.5-.6c.2-.2.2-.3.3-.5.1-.2.1-.4 0-.6L9.2 7.5Z"/>
-                </svg>
-              </span>
-              <span className="landing-share-icon-v2" title="Instagram">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <defs>
-                    <linearGradient id="igLandingGradient" x1="4" y1="20" x2="20" y2="4">
-                      <stop offset="0%" stopColor="#F58529"/>
-                      <stop offset="45%" stopColor="#DD2A7B"/>
-                      <stop offset="100%" stopColor="#515BD4"/>
-                    </linearGradient>
-                  </defs>
-                  <rect x="4" y="4" width="16" height="16" rx="5" fill="url(#igLandingGradient)"/>
-                  <circle cx="12" cy="12" r="3.2" fill="none" stroke="#fff" strokeWidth="1.8"/>
-                  <circle cx="16.8" cy="7.2" r="1.1" fill="#fff"/>
-                </svg>
-              </span>
-              <span className="landing-share-icon-v2" title="Facebook">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <circle cx="12" cy="12" r="9" fill="#1877F2"/>
-                  <path fill="#fff" d="M13.2 19v-6h2l.3-2.3h-2.3V9.2c0-.7.2-1.1 1.2-1.1h1.2V6.1c-.2 0-1-.1-1.8-.1-1.8 0-3 1.1-3 3v1.7h-2V13h2v6h2.4Z"/>
-                </svg>
-              </span>
-              <span className="landing-share-icon-v2" title="Copiar link">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path fill="none" stroke="#344054" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M10.5 13.5 13.5 10.5M8.8 15.2a4 4 0 0 1 0-5.7l1.7-1.7a4 4 0 0 1 5.7 5.7l-.8.8M15.2 8.8a4 4 0 0 1 0 5.7l-1.7 1.7a4 4 0 0 1-5.7-5.7l.8-.8"/>
-                </svg>
-              </span>
-            </div>
-          </div>
-
-          <div className="landing-floating-card-v2 landing-promo-card-v2">
-            <div style={{ display: 'inline-flex', borderRadius: 999, padding: '7px 10px', background: '#eef6ff', color: '#0071e3', fontSize: 11.5, fontWeight: 1000, marginBottom: 12 }}>
-              Promoción de lanzamiento
-            </div>
-            <div style={{ color: '#0071e3', fontSize: 26, fontWeight: 1000, letterSpacing: '-0.8px' }}>2 meses gratis</div>
-            <div style={{ color: '#111827', fontSize: 24, fontWeight: 1000, letterSpacing: '-0.7px' }}>+ 2 meses al 50%</div>
-            <div style={{ marginTop: 12, color: '#667085', fontSize: 12.5, fontWeight: 800, lineHeight: 1.4 }}>
-              Ideal para lanzar tu negocio sin pagar desde el primer día.
-            </div>
-          </div>
-
-          <div className="landing-floating-card-v2 landing-reminder-card-v2">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ width: 42, height: 42, borderRadius: 16, background: '#eafff1', display: 'grid', placeItems: 'center', fontSize: 21 }}>✉</div>
-              <div>
-                <div style={{ color: '#111827', fontSize: 14, fontWeight: 1000 }}>Recordatorio enviado</div>
-                <div style={{ color: '#667085', fontSize: 12, fontWeight: 850 }}>Hoy 08:45</div>
-              </div>
-            </div>
-            <div style={{ marginTop: 11, color: '#344054', fontSize: 13, lineHeight: 1.42, fontWeight: 850 }}>
-              Recordatorio enviado a María Pérez
-            </div>
-            <div style={{ display: 'inline-flex', marginTop: 10, borderRadius: 999, padding: '6px 9px', background: '#edfff4', color: '#16803a', fontSize: 11, fontWeight: 1000 }}>
-              Entregado
-            </div>
-          </div>
-
-          <div className="landing-phone-v2">
-            <div className="landing-phone-screen-v2">
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#111827', fontSize: 11.5, fontWeight: 1000 }}>
-                <span>9:41</span>
-                <span>•••</span>
-              </div>
-              <div style={{ marginTop: 15, color: '#111827', fontSize: 15, fontWeight: 1000 }}>Tu Agenda <span style={{ color: '#0071e3' }}>Ya</span></div>
-              <div style={{ marginTop: 16, color: '#667085', fontSize: 12, fontWeight: 900 }}>Hoy, 24 de mayo</div>
-              <div style={{ display: 'flex', gap: 6, marginTop: 9 }}>
-                {['22', '23', '24', '25', '26'].map((day) => (
-                  <div key={day} style={{ width: 31, height: 36, borderRadius: 11, background: day === '24' ? '#eaf4ff' : '#f5f7fb', color: day === '24' ? '#0071e3' : '#667085', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 1000 }}>
-                    {day}
-                  </div>
-                ))}
-              </div>
-              {appointments.concat({ time: '12:00', name: 'María López', service: 'Blanqueamiento', status: 'Pendiente', tone: 'orange' }).map((item) => (
-                <div key={`${item.time}-${item.name}`} style={{ marginTop: 9, border: '0.5px solid #eef0f4', borderRadius: 14, padding: 9 }}>
-                  <div style={{ color: '#0071e3', fontSize: 11.5, fontWeight: 1000 }}>{item.time}</div>
-                  <div style={{ color: '#111827', fontSize: 12.5, fontWeight: 1000 }}>{item.name}</div>
-                  <div style={{ color: '#667085', fontSize: 10.5, fontWeight: 800 }}>{item.service}</div>
-                </div>
-              ))}
-              <button type="button" style={{ width: '100%', marginTop: 12, border: 'none', borderRadius: 15, background: '#0071e3', color: '#fff', padding: '11px 10px', fontSize: 12.5, fontWeight: 1000, fontFamily: 'inherit' }}>
-                + Nueva reserva
-              </button>
-            </div>
-          </div>
-        </section>
-      </main>
-
-      <section className="landing-shell-v2 landing-trust-row-v2">
-        <div>◴ Más tiempo para lo importante</div>
-        <div>✓ Menos ausencias, más confirmaciones</div>
-        <div>$ Cobrá más rápido y sin complicaciones</div>
-        <div>▦ Todo tu negocio, en un solo lugar</div>
-      </section>
+      </div>
     </div>
   );
 }
-
 
 
 function LegalDocumentPage({ title, lastUpdated, children }) {
