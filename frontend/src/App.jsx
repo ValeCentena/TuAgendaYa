@@ -12303,13 +12303,24 @@ function LandingPage() {
         }
 
         @media (max-width: 820px) {
+          .tay-landing {
+            overflow-x: hidden;
+          }
+
           .tay-landing-shell {
-            width: min(100% - 30px, 1380px);
+            width: calc(100% - 24px);
           }
 
           .tay-landing-header {
-            min-height: 76px;
+            min-height: 72px;
             grid-template-columns: 1fr auto;
+            gap: 12px;
+            padding: 10px 0;
+          }
+
+          .tay-logo-button svg {
+            max-width: 190px;
+            height: auto;
           }
 
           .tay-nav {
@@ -12321,51 +12332,94 @@ function LandingPage() {
           }
 
           .tay-nav-register {
-            min-height: 42px;
-            padding: 0 16px;
-            border-radius: 13px;
-            font-size: 13px;
+            min-height: 40px;
+            padding: 0 14px;
+            border-radius: 12px;
+            font-size: 12.5px;
+            white-space: nowrap;
           }
 
           .tay-hero {
             display: block;
             min-height: auto;
-            padding: 46px 0 36px;
+            padding: 34px 0 28px;
+          }
+
+          .tay-hero-copy {
+            padding: 0;
+          }
+
+          .tay-badge {
+            margin-bottom: 22px;
+            font-size: 12px;
+            padding: 7px 11px;
           }
 
           .tay-title {
-            font-size: clamp(42px, 12vw, 60px);
-            line-height: 1.1;
-            letter-spacing: 0.002em;
+            max-width: none;
+            font-size: clamp(38px, 11.3vw, 54px);
+            line-height: 1.08;
+            letter-spacing: -0.006em;
           }
 
           .tay-subtitle {
-            font-size: 16px;
-            line-height: 1.72;
+            max-width: none;
+            margin-top: 22px;
+            font-size: 15.5px;
+            line-height: 1.66;
+            letter-spacing: 0.006em;
           }
 
           .tay-actions {
             display: grid;
             grid-template-columns: 1fr;
+            gap: 11px;
+            margin-top: 28px;
           }
 
           .tay-main-cta,
           .tay-login-cta {
             width: 100%;
+            min-width: 0;
+            min-height: 52px;
+            border-radius: 15px;
+            font-size: 15px;
           }
 
           .tay-showcase {
-            margin-top: 46px;
+            margin-top: 34px;
+            min-height: auto;
+            display: block;
           }
 
+          /* En móvil el mockup deja de mantener proporciones de escritorio.
+             Lo convertimos en una vista compacta y proporcionada. */
           .tay-laptop {
             width: 100%;
-            margin-right: 0;
+            max-width: 520px;
+            margin: 0 auto;
+            padding-bottom: 0;
+            transform: none;
+            filter: drop-shadow(0 18px 28px rgba(15,23,42,.08));
+          }
+
+          .tay-laptop-bezel {
+            padding: 8px 8px 15px;
+            border-radius: 17px 17px 6px 6px;
+          }
+
+          .tay-laptop-bezel::before {
+            top: 3px;
+            width: 3px;
+            height: 3px;
+            margin-left: -1.5px;
           }
 
           .tay-laptop-screen {
+            min-height: 0;
+            aspect-ratio: 1.34 / 1;
             grid-template-columns: 1fr;
-            min-height: 470px;
+            border-radius: 10px 10px 2px 2px;
           }
 
           .tay-dash-sidebar {
@@ -12373,12 +12427,56 @@ function LandingPage() {
           }
 
           .tay-dash-main {
-            padding: 18px;
+            padding: 14px;
+            overflow: hidden;
           }
 
-          .tay-dash-grid,
+          .tay-dash-title {
+            font-size: 18px;
+          }
+
+          .tay-dash-caption {
+            font-size: 9.5px;
+          }
+
+          .tay-dash-grid {
+            grid-template-columns: 1fr;
+            gap: 10px;
+            margin-top: 14px;
+          }
+
           .tay-dash-bottom {
             grid-template-columns: 1fr;
+            gap: 10px;
+            margin-top: 10px;
+          }
+
+          .tay-reservations-card {
+            padding: 12px;
+          }
+
+          .tay-appointment {
+            grid-template-columns: 42px minmax(0,1fr) auto;
+            gap: 8px;
+            padding: 9px 10px;
+            margin-top: 7px;
+          }
+
+          .tay-appointment-time {
+            font-size: 10px;
+          }
+
+          .tay-appointment-name {
+            font-size: 10px;
+          }
+
+          .tay-appointment-service {
+            font-size: 8.5px;
+          }
+
+          .tay-status {
+            font-size: 7.8px;
+            padding: 4px 6px;
           }
 
           .tay-income-card,
@@ -12386,47 +12484,47 @@ function LandingPage() {
             display: none;
           }
 
-          .tay-laptop-bezel {
-            padding: 9px 9px 20px;
-            border-radius: 20px 20px 7px 7px;
-          }
-
-          .tay-laptop-screen {
-            border-radius: 11px 11px 2px 2px;
+          .tay-reminder-card {
+            padding: 12px;
           }
 
           .tay-laptop-base {
-            height: 20px;
+            width: 110%;
+            height: 16px;
+            margin-left: -5%;
+            margin-top: -2px;
+            border-radius: 2px 2px 5px 5px;
+          }
+
+          .tay-laptop-base::before {
+            height: 4px;
+          }
+
+          .tay-laptop-base::after {
+            bottom: -3px;
+            height: 5px;
           }
 
           .tay-highlights {
             grid-template-columns: 1fr;
-            padding: 22px 0 30px;
-          }
-
-          .tay-section-block {
-            padding: 64px 0;
-          }
-
-          .tay-section-grid {
-            grid-template-columns: 1fr;
-          }
-
-          .tay-price-card {
-            align-items: flex-start;
-            flex-direction: column;
-          }
-
-          .tay-price-card .tay-main-cta {
-            width: 100%;
+            padding: 18px 0 24px;
           }
 
           .tay-highlight,
           .tay-highlight:first-child,
           .tay-highlight:last-child {
-            padding: 16px 0;
+            min-height: 0;
+            grid-template-columns: 50px 1fr;
+            gap: 13px;
+            padding: 15px 0;
             border-right: 0;
             border-bottom: 1px solid rgba(15,23,42,.07);
+          }
+
+          .tay-highlight-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 15px;
           }
 
           .tay-highlight:last-child {
@@ -12435,6 +12533,84 @@ function LandingPage() {
 
           .tay-highlight:nth-child(n+3) {
             margin-top: 0;
+          }
+
+          .tay-section-block {
+            padding: 54px 0;
+          }
+
+          .tay-section-title {
+            font-size: clamp(30px, 9vw, 42px);
+            line-height: 1.13;
+          }
+
+          .tay-section-grid {
+            grid-template-columns: 1fr;
+            gap: 12px;
+          }
+
+          .tay-section-card {
+            padding: 20px;
+            border-radius: 19px;
+          }
+
+          .tay-price-card {
+            align-items: flex-start;
+            flex-direction: column;
+            padding: 22px;
+            border-radius: 22px;
+          }
+
+          .tay-price-title {
+            font-size: 22px;
+          }
+
+          .tay-price-card .tay-main-cta {
+            width: 100%;
+          }
+
+          .tay-company-copy {
+            font-size: 15.5px;
+            line-height: 1.7;
+          }
+        }
+
+        @media (max-width: 430px) {
+          .tay-landing-shell {
+            width: calc(100% - 20px);
+          }
+
+          .tay-logo-button svg {
+            max-width: 165px;
+          }
+
+          .tay-nav-register {
+            padding: 0 12px;
+            font-size: 12px;
+          }
+
+          .tay-title {
+            font-size: clamp(35px, 11vw, 46px);
+          }
+
+          .tay-badge {
+            font-size: 11.5px;
+          }
+
+          .tay-laptop {
+            max-width: 100%;
+          }
+
+          .tay-laptop-screen {
+            aspect-ratio: 1.2 / 1;
+          }
+
+          .tay-card-title {
+            font-size: 11.5px;
+          }
+
+          .tay-section-block {
+            padding: 48px 0;
           }
         }
       `}</style>
