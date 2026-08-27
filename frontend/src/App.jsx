@@ -11374,6 +11374,13 @@ function LandingPage() {
   const goRegister = () => navigate('/profesional/register');
   const goLogin = () => navigate('/login');
 
+  const scrollToSection = (id) => {
+    const element = document.getElementById(id);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
   const sidebarItems = [
     ['⌂', 'Inicio', true],
     ['▦', 'Agenda'],
@@ -11521,8 +11528,37 @@ function LandingPage() {
           letter-spacing: 0.012em;
         }
 
-        .tay-nav span {
+        .tay-nav button {
+          border: 0;
+          background: transparent;
+          padding: 8px 0;
+          color: inherit;
+          font: inherit;
+          font-weight: inherit;
+          letter-spacing: inherit;
           white-space: nowrap;
+          cursor: pointer;
+          position: relative;
+        }
+
+        .tay-nav button::after {
+          content: "";
+          position: absolute;
+          left: 0;
+          right: 100%;
+          bottom: 2px;
+          height: 2px;
+          border-radius: 999px;
+          background: #0071e3;
+          transition: right .18s ease;
+        }
+
+        .tay-nav button:hover {
+          color: #0071e3;
+        }
+
+        .tay-nav button:hover::after {
+          right: 0;
         }
 
         .tay-nav-actions {
@@ -12110,6 +12146,129 @@ function LandingPage() {
           letter-spacing: 0.01em;
         }
 
+        .tay-section-block {
+          scroll-margin-top: 24px;
+          padding: 92px 0;
+          border-top: 0.5px solid rgba(15,23,42,.06);
+          background: rgba(255,255,255,.72);
+        }
+
+        .tay-section-block.alt {
+          background: #f8fbff;
+        }
+
+        .tay-section-eyebrow {
+          color: #0071e3;
+          font-size: 13px;
+          font-weight: 950;
+          letter-spacing: .04em;
+          text-transform: uppercase;
+        }
+
+        .tay-section-title {
+          margin: 12px 0 0;
+          max-width: 760px;
+          color: #0a1125;
+          font-size: clamp(34px, 3.2vw, 52px);
+          line-height: 1.12;
+          letter-spacing: -.02em;
+          font-weight: 950;
+        }
+
+        .tay-section-grid {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 16px;
+          margin-top: 34px;
+        }
+
+        .tay-section-card {
+          padding: 24px;
+          border-radius: 22px;
+          background: #fff;
+          border: .5px solid rgba(15,23,42,.08);
+          box-shadow: 0 12px 28px rgba(15,23,42,.035);
+        }
+
+        .tay-section-card-title {
+          color: #111827;
+          font-size: 16px;
+          font-weight: 1000;
+        }
+
+        .tay-section-card-text {
+          margin-top: 9px;
+          color: #667085;
+          font-size: 13px;
+          line-height: 1.6;
+          font-weight: 700;
+        }
+
+        .tay-price-card {
+          margin-top: 34px;
+          padding: 28px;
+          border-radius: 26px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 28px;
+          background: linear-gradient(135deg, #0068ed 0%, #5f5cff 100%);
+          color: #fff;
+          box-shadow: 0 22px 50px rgba(0,113,227,.18);
+        }
+
+        .tay-price-badge {
+          font-size: 12px;
+          font-weight: 900;
+          opacity: .8;
+        }
+
+        .tay-price-title {
+          margin-top: 6px;
+          font-size: 26px;
+          font-weight: 1000;
+        }
+
+        .tay-price-text {
+          margin-top: 5px;
+          font-size: 13px;
+          font-weight: 750;
+          opacity: .85;
+        }
+
+        .tay-price-card .tay-main-cta {
+          background: #fff;
+          color: #0068ed;
+          box-shadow: none;
+          min-width: 210px;
+        }
+
+        .tay-pill-row {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+          margin-top: 30px;
+        }
+
+        .tay-pill {
+          padding: 11px 16px;
+          border-radius: 999px;
+          background: #eef6ff;
+          border: .5px solid rgba(0,113,227,.12);
+          color: #125fb8;
+          font-size: 13px;
+          font-weight: 900;
+        }
+
+        .tay-company-copy {
+          max-width: 760px;
+          margin: 22px 0 0;
+          color: #5a667a;
+          font-size: 17px;
+          line-height: 1.75;
+          font-weight: 650;
+        }
+
         @media (max-width: 1180px) {
           .tay-nav {
             gap: 22px;
@@ -12251,6 +12410,23 @@ function LandingPage() {
             padding: 22px 0 30px;
           }
 
+          .tay-section-block {
+            padding: 64px 0;
+          }
+
+          .tay-section-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .tay-price-card {
+            align-items: flex-start;
+            flex-direction: column;
+          }
+
+          .tay-price-card .tay-main-cta {
+            width: 100%;
+          }
+
           .tay-highlight,
           .tay-highlight:first-child,
           .tay-highlight:last-child {
@@ -12275,11 +12451,11 @@ function LandingPage() {
         </button>
 
         <nav className="tay-nav" aria-label="Navegación principal">
-          <span>Funciones⌄</span>
-          <span>Precios</span>
-          <span>Para quién es</span>
-          <span>Recursos⌄</span>
-          <span>Empresa</span>
+          <button type="button" onClick={() => scrollToSection('funciones')}>Funciones</button>
+          <button type="button" onClick={() => scrollToSection('precios')}>Precios</button>
+          <button type="button" onClick={() => scrollToSection('para-quien-es')}>Para quién es</button>
+          <button type="button" onClick={() => scrollToSection('recursos')}>Recursos</button>
+          <button type="button" onClick={() => scrollToSection('empresa')}>Empresa</button>
         </nav>
 
         <div className="tay-nav-actions">
@@ -12428,6 +12604,94 @@ function LandingPage() {
               </div>
             </div>
           ))}
+        </div>
+      </section>
+
+      <section id="funciones" className="tay-section-block">
+        <div className="tay-landing-shell">
+          <div className="tay-section-eyebrow">Funciones</div>
+          <h2 className="tay-section-title">Todo lo necesario para gestionar tu negocio.</h2>
+          <div className="tay-section-grid">
+            <div className="tay-section-card">
+              <div className="tay-section-card-title">Agenda y reservas</div>
+              <div className="tay-section-card-text">Organizá horarios, disponibilidad y reservas desde una sola vista.</div>
+            </div>
+            <div className="tay-section-card">
+              <div className="tay-section-card-title">Clientes e historial</div>
+              <div className="tay-section-card-text">Accedé a datos, reservas anteriores y seguimiento de cada cliente.</div>
+            </div>
+            <div className="tay-section-card">
+              <div className="tay-section-card-title">Automatizaciones</div>
+              <div className="tay-section-card-text">Confirmaciones y recordatorios por WhatsApp para reducir ausencias.</div>
+            </div>
+            <div className="tay-section-card">
+              <div className="tay-section-card-title">Cobros y control</div>
+              <div className="tay-section-card-text">Centralizá pagos, transferencias e ingresos en el mismo sistema.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="precios" className="tay-section-block alt">
+        <div className="tay-landing-shell">
+          <div className="tay-section-eyebrow">Precios</div>
+          <h2 className="tay-section-title">Empezá simple y escalá cuando lo necesites.</h2>
+          <div className="tay-price-card">
+            <div>
+              <div className="tay-price-badge">Oferta de lanzamiento</div>
+              <div className="tay-price-title">2 meses gratis + 2 meses al 50%</div>
+              <div className="tay-price-text">Para nuevos usuarios de TuAgendaYa.</div>
+            </div>
+            <button className="tay-main-cta" type="button" onClick={goRegister}>Crear cuenta gratis →</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="para-quien-es" className="tay-section-block">
+        <div className="tay-landing-shell">
+          <div className="tay-section-eyebrow">Para quién es</div>
+          <h2 className="tay-section-title">Hecho para profesionales y negocios con agenda.</h2>
+          <div className="tay-pill-row">
+            {['Barberías', 'Peluquerías', 'Clínicas', 'Consultorios', 'Técnicos', 'Estética', 'Entrenadores', 'Servicios profesionales'].map((item) => (
+              <span className="tay-pill" key={item}>{item}</span>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="recursos" className="tay-section-block alt">
+        <div className="tay-landing-shell">
+          <div className="tay-section-eyebrow">Recursos</div>
+          <h2 className="tay-section-title">Todo para empezar sin complicaciones.</h2>
+          <div className="tay-section-grid">
+            <div className="tay-section-card">
+              <div className="tay-section-card-title">Preguntas frecuentes</div>
+              <div className="tay-section-card-text">Respuestas rápidas sobre reservas, WhatsApp, pagos y configuración.</div>
+            </div>
+            <div className="tay-section-card">
+              <div className="tay-section-card-title">Ayuda</div>
+              <div className="tay-section-card-text">Guías para configurar tu cuenta y empezar a recibir reservas.</div>
+            </div>
+            <div className="tay-section-card">
+              <div className="tay-section-card-title">Contacto</div>
+              <div className="tay-section-card-text">Soporte directo para consultas sobre tu cuenta o el servicio.</div>
+            </div>
+            <div className="tay-section-card">
+              <div className="tay-section-card-title">Seguridad</div>
+              <div className="tay-section-card-text">Buenas prácticas para proteger tus datos y los de tus clientes.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="empresa" className="tay-section-block">
+        <div className="tay-landing-shell">
+          <div className="tay-section-eyebrow">Empresa</div>
+          <h2 className="tay-section-title">TuAgendaYa nació para simplificar la gestión diaria.</h2>
+          <p className="tay-company-copy">
+            Una plataforma pensada para que profesionales y negocios puedan concentrarse en atender a sus clientes,
+            mientras la agenda, los recordatorios y el control quedan organizados en un solo lugar.
+          </p>
         </div>
       </section>
     </div>
