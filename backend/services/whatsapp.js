@@ -448,6 +448,17 @@ async function sendBusinessBookingNotification(booking = {}, professional = {}) 
     };
   }
 
+  const templateName =
+    process.env.WHATSAPP_BUSINESS_BOOKING_TEMPLATE ||
+    process.env.WHATSAPP_PROFESSIONAL_BOOKING_TEMPLATE ||
+    process.env.WHATSAPP_PROFESSIONAL_TEMPLATE ||
+    "nueva_reserva_profesional";
+
+  const languageCode =
+    process.env.WHATSAPP_BUSINESS_TEMPLATE_LANGUAGE ||
+    process.env.WHATSAPP_TEMPLATE_LANGUAGE ||
+    "es_UY";
+
   const businessName =
     professional?.business_name ||
     professional?.businessName ||
@@ -466,11 +477,6 @@ async function sendBusinessBookingNotification(booking = {}, professional = {}) 
   const serviceName =
     getBookingValue(booking, "service_name", "serviceName") || "Servicio";
 
-  const staffName =
-    getBookingValue(booking, "staff_name", "staffName") ||
-    getBookingValue(booking, "professional_name", "professionalName") ||
-    "";
-
   const bookingDate = formatDateForMessage(
     getBookingValue(booking, "booking_date", "bookingDate", "date")
   );
@@ -479,24 +485,23 @@ async function sendBusinessBookingNotification(booking = {}, professional = {}) 
     getBookingValue(booking, "start_time", "startTime", "time")
   );
 
-  const body = [
-    `Nueva reserva en ${businessName}`,
-    "",
-    `Cliente: ${clientName}`,
-    `Teléfono: ${clientPhone}`,
-    `Servicio: ${serviceName}`,
-    staffName ? `Profesional: ${staffName}` : "",
-    `Fecha: ${bookingDate}`,
-    `Hora: ${startTime}`,
-    "",
-    "Entrá al panel para gestionar el turno.",
-  ]
-    .filter(Boolean)
-    .join("\n");
+  const result = await sendTemplateMessage(
+    to,
+    templateName,
+    languageCode,
+    [
+      businessName,
+      clientName,
+      clientPhone,
+      serviceName,
+      bookingDate,
+      startTime,
+    ]
+  );
 
-  const result = await sendWhatsApp(to, body);
-
-  console.log(`WhatsApp business notification sent to ${to}`);
+  console.log(
+    `WhatsApp business booking template "${templateName}" sent to ${to}`
+  );
 
   return result;
 }
