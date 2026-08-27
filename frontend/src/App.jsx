@@ -11394,26 +11394,78 @@ function LandingPage() {
 
   const highlights = [
     {
-      icon: '▦',
+      key: 'agenda',
       title: 'Agenda inteligente',
       text: 'Reservas y horarios siempre ordenados.',
     },
     {
-      icon: '◔',
+      key: 'ausencias',
       title: 'Menos ausencias',
       text: 'Recordatorios y confirmaciones por WhatsApp.',
     },
     {
-      icon: '▣',
+      key: 'cobros',
       title: 'Cobros en un solo lugar',
       text: 'Transferencias, pagos y control simple.',
     },
     {
-      icon: '◎',
+      key: 'clientes',
       title: 'Clientes e historial',
       text: 'Toda la información organizada y disponible.',
     },
   ];
+
+  const HighlightIcon = ({ type }) => {
+    const commonProps = {
+      width: 24,
+      height: 24,
+      viewBox: '0 0 24 24',
+      fill: 'none',
+      stroke: 'currentColor',
+      strokeWidth: '1.9',
+      strokeLinecap: 'round',
+      strokeLinejoin: 'round',
+      'aria-hidden': 'true',
+    };
+
+    if (type === 'agenda') {
+      return (
+        <svg {...commonProps}>
+          <rect x="3.5" y="5" width="17" height="15.5" rx="3.2" />
+          <path d="M8 3.8v3.1M16 3.8v3.1M3.5 9.2h17" />
+          <path d="M8.2 12.5h3.4M8.2 16h6.8" />
+        </svg>
+      );
+    }
+
+    if (type === 'ausencias') {
+      return (
+        <svg {...commonProps}>
+          <path d="M12 20.2a8.2 8.2 0 1 0 0-16.4 8.2 8.2 0 0 0 0 16.4Z" />
+          <path d="M12 7.6v4.5l3.2 1.9" />
+          <path d="M17.2 7.4 19 5.6" />
+        </svg>
+      );
+    }
+
+    if (type === 'cobros') {
+      return (
+        <svg {...commonProps}>
+          <rect x="3.2" y="5.5" width="17.6" height="13" rx="3.2" />
+          <path d="M3.8 10h16.4" />
+          <path d="M7.2 14.2h3.4M14.4 14.2h2.4" />
+        </svg>
+      );
+    }
+
+    return (
+      <svg {...commonProps}>
+        <path d="M12 12.2a3.6 3.6 0 1 0 0-7.2 3.6 3.6 0 0 0 0 7.2Z" />
+        <path d="M5 19.1a7.8 7.8 0 0 1 14 0" />
+        <rect x="3.5" y="3.5" width="17" height="17" rx="8.5" />
+      </svg>
+    );
+  };
 
   return (
     <div className="tay-landing">
@@ -11465,6 +11517,7 @@ function LandingPage() {
           color: #20263a;
           font-size: 14px;
           font-weight: 750;
+          letter-spacing: 0.012em;
         }
 
         .tay-nav span {
@@ -11493,6 +11546,7 @@ function LandingPage() {
           padding: 12px 8px;
           font-size: 14px;
           font-weight: 850;
+          letter-spacing: 0.012em;
         }
 
         .tay-nav-register {
@@ -11504,6 +11558,7 @@ function LandingPage() {
           color: #fff;
           font-size: 14px;
           font-weight: 950;
+          letter-spacing: 0.012em;
           box-shadow: 0 12px 30px rgba(0,113,227,.18);
         }
 
@@ -11538,6 +11593,7 @@ function LandingPage() {
           color: #006ee8;
           font-size: 13px;
           font-weight: 850;
+          letter-spacing: 0.012em;
           margin-bottom: 31px;
         }
 
@@ -11545,8 +11601,8 @@ function LandingPage() {
           margin: 0;
           max-width: 630px;
           font-size: clamp(50px, 4.45vw, 75px);
-          line-height: 1.04;
-          letter-spacing: -.035em;
+          line-height: 1.09;
+          letter-spacing: -0.008em;
           font-weight: 900;
           color: #070e24;
           text-wrap: balance;
@@ -11557,20 +11613,20 @@ function LandingPage() {
         }
 
         .tay-subtitle {
-          max-width: 560px;
-          margin: 26px 0 0;
+          max-width: 580px;
+          margin: 28px 0 0;
           color: #4e5b73;
           font-size: 17.5px;
-          line-height: 1.72;
+          line-height: 1.78;
           font-weight: 650;
-          letter-spacing: 0;
+          letter-spacing: 0.012em;
         }
 
         .tay-actions {
           display: flex;
           align-items: center;
           gap: 18px;
-          margin-top: 32px;
+          margin-top: 34px;
         }
 
         .tay-main-cta,
@@ -11580,7 +11636,7 @@ function LandingPage() {
           padding: 0 28px;
           font-size: 16px;
           font-weight: 950;
-          letter-spacing: .006em;
+          letter-spacing: 0.012em;
         }
 
         .tay-main-cta {
@@ -11614,59 +11670,54 @@ function LandingPage() {
 
         .tay-laptop {
           position: relative;
-          width: min(900px, 100%);
-          margin-right: -92px;
-          filter: drop-shadow(0 28px 46px rgba(15,23,42,.13));
+          width: min(888px, 100%);
+          margin-right: -104px;
+          filter: drop-shadow(0 28px 48px rgba(15,23,42,.11));
         }
 
-        .tay-laptop-screen-shell {
+        .tay-laptop-bezel {
           position: relative;
-          border-radius: 20px 20px 8px 8px;
-          background:
-            linear-gradient(145deg, #17191d 0%, #07090c 45%, #1a1c20 100%);
-          padding: 8px 8px 10px;
-          overflow: hidden;
-          border: 1px solid rgba(0,0,0,.82);
+          border-radius: 32px 32px 10px 10px;
+          background: linear-gradient(180deg, #101318 0%, #05070a 100%);
+          padding: 9px 9px 11px;
           box-shadow:
-            inset 0 1px 0 rgba(255,255,255,.12),
-            inset 0 -1px 0 rgba(255,255,255,.035);
+            inset 0 1px 0 rgba(255,255,255,.08),
+            inset 0 -1px 0 rgba(255,255,255,.025);
         }
 
-        .tay-laptop-screen-shell::before {
+        .tay-laptop-bezel::before {
           content: "";
           position: absolute;
-          top: 3px;
+          top: 4px;
           left: 50%;
-          width: 4px;
-          height: 4px;
-          margin-left: -2px;
+          width: 5px;
+          height: 5px;
+          margin-left: -2.5px;
           border-radius: 999px;
-          background: #24272d;
+          background: #242832;
           box-shadow: 0 0 0 1px rgba(255,255,255,.025);
-          z-index: 3;
         }
 
         .tay-laptop-screen {
-          min-height: 490px;
-          border-radius: 13px 13px 3px 3px;
+          min-height: 502px;
+          border-radius: 24px 24px 4px 4px;
           overflow: hidden;
           background: #fff;
           display: grid;
           grid-template-columns: 150px 1fr;
-          border: 0.5px solid rgba(255,255,255,.08);
+          border: 1px solid rgba(255,255,255,.07);
         }
 
         .tay-laptop-base {
           position: relative;
-          width: 106%;
-          height: 16px;
-          margin-left: -3%;
-          background:
-            linear-gradient(180deg, #eef0f2 0%, #c7cbd0 34%, #91979e 72%, #737981 100%);
-          border-radius: 1px 1px 48% 48% / 1px 1px 100% 100%;
+          width: 108%;
+          height: 17px;
+          margin-left: -4%;
+          background: linear-gradient(180deg, #e7eaee 0%, #cdd2d8 36%, #9298a0 70%, #767d85 100%);
+          border-radius: 0 0 42% 42% / 0 0 100% 100%;
           box-shadow:
-            inset 0 1px 0 rgba(255,255,255,.95),
-            0 5px 10px rgba(15,23,42,.12);
+            inset 0 1px 0 rgba(255,255,255,.92),
+            0 8px 14px rgba(15,23,42,.08);
         }
 
         .tay-laptop-base::before {
@@ -11675,21 +11726,9 @@ function LandingPage() {
           top: 0;
           left: 43%;
           width: 14%;
-          height: 5px;
-          background: linear-gradient(180deg, #b8bdc3, #9ca2a9);
-          border-radius: 0 0 7px 7px;
-        }
-
-        .tay-laptop-base::after {
-          content: "";
-          position: absolute;
-          left: 8%;
-          right: 8%;
-          bottom: -4px;
           height: 4px;
-          border-radius: 50%;
-          background: rgba(15,23,42,.08);
-          filter: blur(2px);
+          background: linear-gradient(180deg, #b9bec5, #9da3aa);
+          border-radius: 0 0 6px 6px;
         }
 
         .tay-dash-sidebar {
@@ -11705,7 +11744,7 @@ function LandingPage() {
           font-size: 13px;
           color: #111827;
           font-weight: 1000;
-          letter-spacing: -.02em;
+          letter-spacing: -.005em;
           margin-bottom: 22px;
         }
 
@@ -11728,6 +11767,7 @@ function LandingPage() {
           color: #344054;
           font-size: 10.5px;
           font-weight: 900;
+          letter-spacing: 0.01em;
         }
 
         .tay-dash-menu-item.active {
@@ -11766,16 +11806,17 @@ function LandingPage() {
           margin: 0;
           color: #111827;
           font-size: 23px;
-          line-height: 1;
+          line-height: 1.04;
           font-weight: 1000;
-          letter-spacing: -.04em;
+          letter-spacing: -0.01em;
         }
 
         .tay-dash-caption {
-          margin-top: 6px;
+          margin-top: 7px;
           color: #667085;
           font-size: 10.8px;
           font-weight: 800;
+          letter-spacing: 0.01em;
         }
 
         .tay-dash-grid {
@@ -11807,12 +11848,14 @@ function LandingPage() {
           color: #111827;
           font-size: 13px;
           font-weight: 1000;
+          letter-spacing: 0.005em;
         }
 
         .tay-link {
           color: #0071e3;
           font-size: 10px;
           font-weight: 950;
+          letter-spacing: 0.012em;
         }
 
         .tay-appointment {
@@ -11830,12 +11873,14 @@ function LandingPage() {
           color: #0071e3;
           font-size: 11px;
           font-weight: 1000;
+          letter-spacing: 0.01em;
         }
 
         .tay-appointment-name {
           color: #111827;
           font-size: 11px;
           font-weight: 1000;
+          letter-spacing: 0.005em;
         }
 
         .tay-appointment-service {
@@ -11843,6 +11888,7 @@ function LandingPage() {
           color: #667085;
           font-size: 9.3px;
           font-weight: 750;
+          letter-spacing: 0.01em;
         }
 
         .tay-status {
@@ -11851,6 +11897,7 @@ function LandingPage() {
           font-size: 8.5px;
           font-weight: 1000;
           white-space: nowrap;
+          letter-spacing: 0.01em;
         }
 
         .tay-status.confirmed {
@@ -11872,6 +11919,7 @@ function LandingPage() {
           color: #667085;
           font-size: 10px;
           font-weight: 900;
+          letter-spacing: 0.01em;
         }
 
         .tay-income-value {
@@ -11880,7 +11928,7 @@ function LandingPage() {
           font-size: 26px;
           line-height: 1;
           font-weight: 1000;
-          letter-spacing: -.04em;
+          letter-spacing: -0.015em;
         }
 
         .tay-income-change {
@@ -11888,6 +11936,7 @@ function LandingPage() {
           color: #16a34a;
           font-size: 9.8px;
           font-weight: 950;
+          letter-spacing: 0.01em;
         }
 
         .tay-chart {
@@ -11944,6 +11993,7 @@ function LandingPage() {
           padding: 9px 10px;
           font-size: 9.5px;
           font-weight: 950;
+          letter-spacing: 0.01em;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -11963,11 +12013,11 @@ function LandingPage() {
         }
 
         .tay-highlight {
-          min-height: 78px;
+          min-height: 88px;
           display: grid;
-          grid-template-columns: 52px 1fr;
+          grid-template-columns: 58px 1fr;
           align-items: center;
-          gap: 14px;
+          gap: 16px;
           padding: 0 28px;
           border-right: 1px solid rgba(15,23,42,.08);
         }
@@ -11982,16 +12032,21 @@ function LandingPage() {
         }
 
         .tay-highlight-icon {
-          width: 50px;
-          height: 50px;
-          border-radius: 16px;
+          width: 56px;
+          height: 56px;
+          border-radius: 17px;
           display: grid;
           place-items: center;
-          background: #eef6ff;
-          border: .5px solid rgba(0,113,227,.08);
+          background: linear-gradient(180deg, #eff6ff 0%, #ebf4ff 100%);
+          border: .5px solid rgba(0,113,227,.10);
           color: #0071e3;
-          font-size: 22px;
-          font-weight: 950;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,.85);
+        }
+
+        .tay-highlight-icon svg {
+          width: 24px;
+          height: 24px;
+          display: block;
         }
 
         .tay-highlight-title {
@@ -11999,6 +12054,7 @@ function LandingPage() {
           font-size: 13.5px;
           font-weight: 1000;
           line-height: 1.25;
+          letter-spacing: 0.01em;
         }
 
         .tay-highlight-text {
@@ -12007,6 +12063,7 @@ function LandingPage() {
           font-size: 11.5px;
           line-height: 1.45;
           font-weight: 700;
+          letter-spacing: 0.01em;
         }
 
         @media (max-width: 1180px) {
@@ -12081,10 +12138,13 @@ function LandingPage() {
 
           .tay-title {
             font-size: clamp(42px, 12vw, 60px);
+            line-height: 1.1;
+            letter-spacing: -0.004em;
           }
 
           .tay-subtitle {
             font-size: 16px;
+            line-height: 1.7;
           }
 
           .tay-actions {
@@ -12128,9 +12188,13 @@ function LandingPage() {
             display: none;
           }
 
-          .tay-laptop-screen-shell {
-            padding: 8px 8px 11px;
-            border-radius: 20px 20px 9px 9px;
+          .tay-laptop-bezel {
+            padding: 7px 7px 9px;
+            border-radius: 22px 22px 8px 8px;
+          }
+
+          .tay-laptop-screen {
+            border-radius: 16px 16px 4px 4px;
           }
 
           .tay-highlights {
@@ -12208,7 +12272,7 @@ function LandingPage() {
 
         <section className="tay-showcase" aria-label="Vista previa de TuAgendaYa">
           <div className="tay-laptop">
-            <div className="tay-laptop-screen-shell">
+            <div className="tay-laptop-bezel">
               <div className="tay-laptop-screen">
                 <aside className="tay-dash-sidebar">
                   <div>
@@ -12226,8 +12290,8 @@ function LandingPage() {
                   <div className="tay-account">
                     <div className="tay-avatar">JP</div>
                     <div>
-                      <div style={{ color: '#111827', fontSize: 10.5, fontWeight: 1000 }}>Juan Pérez</div>
-                      <div style={{ marginTop: 1, color: '#8a94a6', fontSize: 8.8, fontWeight: 800 }}>Mi cuenta</div>
+                      <div style={{ color: '#111827', fontSize: 10.5, fontWeight: 1000, letterSpacing: '0.01em' }}>Juan Pérez</div>
+                      <div style={{ marginTop: 1, color: '#8a94a6', fontSize: 8.8, fontWeight: 800, letterSpacing: '0.01em' }}>Mi cuenta</div>
                     </div>
                   </div>
                 </aside>
@@ -12275,13 +12339,13 @@ function LandingPage() {
                         <div className="tay-reminder-icon">✉</div>
                         <div>
                           <div className="tay-card-title">Recordatorio enviado</div>
-                          <div style={{ marginTop: 3, color: '#667085', fontSize: 9.5, fontWeight: 800 }}>Hoy 08:45</div>
+                          <div style={{ marginTop: 3, color: '#667085', fontSize: 9.5, fontWeight: 800, letterSpacing: '0.01em' }}>Hoy 08:45</div>
                         </div>
                       </div>
-                      <div style={{ marginTop: 12, color: '#475467', fontSize: 10.5, fontWeight: 800 }}>
+                      <div style={{ marginTop: 12, color: '#475467', fontSize: 10.5, fontWeight: 800, letterSpacing: '0.01em' }}>
                         Recordatorio enviado a María Pérez
                       </div>
-                      <div style={{ display: 'inline-flex', marginTop: 9, borderRadius: 999, padding: '5px 8px', background: '#edfff4', color: '#16803a', fontSize: 8.8, fontWeight: 1000 }}>
+                      <div style={{ display: 'inline-flex', marginTop: 9, borderRadius: 999, padding: '5px 8px', background: '#edfff4', color: '#16803a', fontSize: 8.8, fontWeight: 1000, letterSpacing: '0.01em' }}>
                         Entregado
                       </div>
                     </div>
@@ -12289,7 +12353,7 @@ function LandingPage() {
                     <div className="tay-card tay-link-card">
                       <div className="tay-card-title">Tu link de reservas</div>
                       <div className="tay-link-box">tuagendaya.com/mi-negocio ⧉</div>
-                      <div style={{ marginTop: 11, color: '#667085', fontSize: 9.2, fontWeight: 850 }}>
+                      <div style={{ marginTop: 11, color: '#667085', fontSize: 9.2, fontWeight: 850, letterSpacing: '0.01em' }}>
                         Compartilo con tus clientes
                       </div>
                     </div>
@@ -12306,7 +12370,9 @@ function LandingPage() {
         <div className="tay-landing-shell tay-highlights">
           {highlights.map((item) => (
             <div className="tay-highlight" key={item.title}>
-              <div className="tay-highlight-icon">{item.icon}</div>
+              <div className="tay-highlight-icon">
+                <HighlightIcon type={item.key} />
+              </div>
               <div>
                 <div className="tay-highlight-title">{item.title}</div>
                 <div className="tay-highlight-text">{item.text}</div>
@@ -12318,6 +12384,7 @@ function LandingPage() {
     </div>
   );
 }
+
 
 
 function LegalDocumentPage({ title, lastUpdated, children }) {
