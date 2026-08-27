@@ -11374,13 +11374,6 @@ function LandingPage() {
   const goRegister = () => navigate('/profesional/register');
   const goLogin = () => navigate('/login');
 
-  const scrollToSection = (id) => {
-    const element = document.getElementById(id);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  };
-
   const sidebarItems = [
     ['⌂', 'Inicio', true],
     ['▦', 'Agenda'],
@@ -11494,6 +11487,10 @@ function LandingPage() {
           box-sizing: border-box;
         }
 
+        html {
+          scroll-behavior: smooth;
+        }
+
         .tay-landing-shell {
           width: min(1380px, calc(100% - 56px));
           margin: 0 auto;
@@ -11528,7 +11525,7 @@ function LandingPage() {
           letter-spacing: 0.012em;
         }
 
-        .tay-nav button {
+        .tay-nav a {
           border: 0;
           background: transparent;
           padding: 8px 0;
@@ -11539,9 +11536,10 @@ function LandingPage() {
           white-space: nowrap;
           cursor: pointer;
           position: relative;
+          text-decoration: none;
         }
 
-        .tay-nav button::after {
+        .tay-nav a::after {
           content: "";
           position: absolute;
           left: 0;
@@ -11553,11 +11551,11 @@ function LandingPage() {
           transition: right .18s ease;
         }
 
-        .tay-nav button:hover {
+        .tay-nav a:hover {
           color: #0071e3;
         }
 
-        .tay-nav button:hover::after {
+        .tay-nav a:hover::after {
           right: 0;
         }
 
@@ -12451,11 +12449,11 @@ function LandingPage() {
         </button>
 
         <nav className="tay-nav" aria-label="Navegación principal">
-          <button type="button" onClick={() => scrollToSection('funciones')}>Funciones</button>
-          <button type="button" onClick={() => scrollToSection('precios')}>Precios</button>
-          <button type="button" onClick={() => scrollToSection('para-quien-es')}>Para quién es</button>
-          <button type="button" onClick={() => scrollToSection('recursos')}>Recursos</button>
-          <button type="button" onClick={() => scrollToSection('empresa')}>Empresa</button>
+          <a href="#funciones">Funciones</a>
+          <a href="#precios">Precios</a>
+          <a href="#para-quien-es">Para quién es</a>
+          <a href="#recursos">Recursos</a>
+          <a href="#empresa">Empresa</a>
         </nav>
 
         <div className="tay-nav-actions">
