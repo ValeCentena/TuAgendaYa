@@ -12648,12 +12648,13 @@ function LandingPage() {
       <section id="para-quien-es" className="tay-section-block">
         <div className="tay-landing-shell">
           <div className="tay-section-eyebrow">Para quién es</div>
-          <h2 className="tay-section-title">Hecho para profesionales y negocios con agenda.</h2>
-          <div className="tay-pill-row">
-            {['Barberías', 'Peluquerías', 'Clínicas', 'Consultorios', 'Técnicos', 'Estética', 'Entrenadores', 'Servicios profesionales'].map((item) => (
-              <span className="tay-pill" key={item}>{item}</span>
-            ))}
-          </div>
+          <h2 className="tay-section-title">Hecho para profesionales y negocios que quieren trabajar mejor.</h2>
+          <p className="tay-company-copy">
+            TuAgendaYa está diseñado para quienes buscan una gestión más clara, eficiente y profesional.
+            Centralizá reservas, clientes, recordatorios y cobros en una sola plataforma, reducí tareas repetitivas
+            y mantené el control de tu operación diaria con una experiencia simple, ordenada y confiable.
+            Menos tiempo administrando. Más tiempo atendiendo, creciendo y ofreciendo un mejor servicio.
+          </p>
         </div>
       </section>
 
