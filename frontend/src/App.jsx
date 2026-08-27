@@ -10783,10 +10783,6 @@ function AdminDashboardPage() {
     { label: 'Negocios', value: stats?.professionals?.total || 0, color: '#0071e3', bg: '#eef6ff' },
     { label: 'Activos', value: stats?.professionals?.active || 0, color: '#21c55d', bg: '#edfff3' },
     { label: 'Suspendidos', value: stats?.professionals?.suspended || 0, color: '#ff3b30', bg: '#fff0f0' },
-    { label: 'Reservas totales', value: stats?.bookings?.total || 0, color: '#5856d6', bg: '#f1f0ff' },
-    { label: 'Reservas este mes', value: stats?.bookings?.monthly || 0, color: '#0071e3', bg: '#eef6ff' },
-    { label: 'Reservas hoy', value: stats?.bookings?.today || 0, color: '#ff9500', bg: '#fff7e8' },
-    { label: 'Clientes', value: stats?.clients?.total || 0, color: '#111827', bg: '#f4f4f8' },
   ];
 
   return (
