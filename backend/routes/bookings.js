@@ -92,7 +92,7 @@ function createBookingPaymentIdempotencyKey(parts = []) {
     .slice(0, 64);
 }
 
-async function createCardPaymentForBooking({ amount, description, paymentData, professional, service, bookingDate, startTime }) {
+async function createCardPaymentForBooking({ amount, description, paymentData, professional, service, bookingDate, startTime, bookingId }) {
   const accessToken = await getMercadoPagoAccessTokenForBookings(professional.id);
 
   if (!accessToken) {
@@ -133,6 +133,7 @@ async function createCardPaymentForBooking({ amount, description, paymentData, p
       type: "booking_card_payment",
       professional_id: String(professional.id),
       service_id: String(service.id),
+      ...(bookingId ? { booking_id: String(bookingId) } : {}),
     },
   };
 
@@ -2222,30 +2223,9 @@ router.post("/public/:slug/book", async (req, res) => {
         });
       }
 
-      if (finalPaymentMethod === "online" && onlinePaymentData) {
-        const amount = Number(service ? service.price || 0 : 0);
-
-        approvedOnlinePayment = await createCardPaymentForBooking({
-          amount,
-          description: `${service ? service.name : "Reserva"} - ${professional.business_name || professional.name || "TuAgendaYa"}`,
-          paymentData: onlinePaymentData,
-          professional,
-          service,
-          bookingDate: normalizeDate(bookingDate),
-          startTime: normalizeTime(startTime),
-        });
-
-        if (approvedOnlinePayment.status !== "approved") {
-          await bookingClient.query("ROLLBACK");
-          transactionOpen = false;
-
-          return res.status(402).json({
-            error: approvedOnlinePayment.status_detail || "El pago no fue aprobado",
-            paymentStatus: approvedOnlinePayment.status,
-            paymentStatusDetail: approvedOnlinePayment.status_detail,
-          });
-        }
-      }
+      // Para pagos online primero dejamos la reserva creada en estado pendiente.
+      // Así nunca puede existir un cobro aprobado sin una reserva asociada.
+      const isOnlinePayment = finalPaymentMethod === "online";
 
       result = await bookingClient.query(
         `
@@ -2282,9 +2262,9 @@ router.post("/public/:slug/book", async (req, res) => {
           normalizeTime(finalEndTime),
           confirmationToken,
           finalPaymentMethod,
-          approvedOnlinePayment ? "confirmed" : "pending",
-          "paid",
-          Number(service ? service.price || 0 : 0),
+          "pending",
+          isOnlinePayment ? "pending" : "paid",
+          isOnlinePayment ? 0 : Number(service ? service.price || 0 : 0),
         ]
       );
 
@@ -2302,6 +2282,90 @@ router.post("/public/:slug/book", async (req, res) => {
       throw bookingError;
     } finally {
       bookingClient.release();
+    }
+
+    if (finalPaymentMethod === "online" && onlinePaymentData) {
+      const amount = Number(service ? service.price || 0 : 0);
+      const createdBookingId = result.rows[0].id;
+
+      try {
+        approvedOnlinePayment = await createCardPaymentForBooking({
+          amount,
+          description: `${service ? service.name : "Reserva"} - ${professional.business_name || professional.name || "TuAgendaYa"}`,
+          paymentData: onlinePaymentData,
+          professional,
+          service,
+          bookingDate: normalizeDate(bookingDate),
+          startTime: normalizeTime(startTime),
+          bookingId: createdBookingId,
+        });
+      } catch (paymentError) {
+        // No borramos la reserva ante un error de comunicación con Mercado Pago:
+        // el resultado del cobro podría ser ambiguo. La reserva queda pendiente,
+        // evitando el caso crítico de un cobro sin reserva existente.
+        console.error("Mercado Pago payment failed after booking creation:", {
+          bookingId: createdBookingId,
+          error: paymentError.message,
+        });
+
+        return res.status(paymentError.status || 502).json({
+          error: paymentError.message || "No se pudo procesar el pago",
+          bookingId: createdBookingId,
+          paymentStatus: "pending",
+        });
+      }
+
+      if (approvedOnlinePayment.status !== "approved") {
+        // Si Mercado Pago respondió expresamente que no aprobó el pago,
+        // liberamos el horario cancelando la reserva pendiente.
+        await db.query(
+          `
+          UPDATE bookings
+          SET status = 'cancelled',
+              payment_status = 'pending',
+              amount_paid = 0,
+              updated_at = NOW()
+          WHERE id = $1
+            AND professional_id = $2
+          `,
+          [createdBookingId, professional.id]
+        );
+
+        return res.status(402).json({
+          error: approvedOnlinePayment.status_detail || "El pago no fue aprobado",
+          paymentStatus: approvedOnlinePayment.status,
+          paymentStatusDetail: approvedOnlinePayment.status_detail,
+        });
+      }
+
+      // El cobro ya fue aprobado y la reserva existe: ahora consolidamos su estado.
+      const paidBookingResult = await db.query(
+        `
+        UPDATE bookings
+        SET status = 'confirmed',
+            payment_status = 'paid',
+            amount_paid = $1,
+            updated_at = NOW()
+        WHERE id = $2
+          AND professional_id = $3
+        RETURNING *
+        `,
+        [
+          Number(service ? service.price || 0 : 0),
+          createdBookingId,
+          professional.id,
+        ]
+      );
+
+      if (!paidBookingResult.rows[0]) {
+        const consistencyError = new Error(
+          "El pago fue aprobado, pero no se pudo actualizar la reserva creada"
+        );
+        consistencyError.status = 500;
+        throw consistencyError;
+      }
+
+      result = paidBookingResult;
     }
 
     const confirmationUrl = `${getFrontendUrl()}/confirmar-reserva/${confirmationToken}`;
