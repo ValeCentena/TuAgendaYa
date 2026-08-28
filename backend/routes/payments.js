@@ -242,7 +242,7 @@ async function ensureProfessionalPromotion(professionalId) {
 }
 
 
-function getProfessionalIdFromRequest(req) {
+async function getProfessionalIdFromRequest(req) {
   const token = getTokenFromHeader(req);
 
   if (!token) {
@@ -254,12 +254,33 @@ function getProfessionalIdFromRequest(req) {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const id = decoded.id || decoded.professionalId || decoded.professional_id || decoded.userId || decoded.user_id;
+
     if (!id) {
       const error = new Error("Token inválido");
       error.status = 401;
       throw error;
     }
-    return Number(id);
+
+    const professionalId = Number(id);
+
+    const professionalResult = await db.query(
+      `SELECT status FROM professionals WHERE id = $1 LIMIT 1`,
+      [professionalId]
+    );
+
+    if (professionalResult.rows.length === 0) {
+      const error = new Error("Profesional no encontrado");
+      error.status = 401;
+      throw error;
+    }
+
+    if (professionalResult.rows[0].status !== "active") {
+      const error = new Error("Cuenta suspendida");
+      error.status = 403;
+      throw error;
+    }
+
+    return professionalId;
   } catch (error) {
     error.status = error.status || 401;
     error.message = error.message || "Token inválido";
@@ -784,7 +805,7 @@ router.delete("/mercadopago/connect", async (req, res) => {
 router.get("/me/plan", async (req, res, next) => {
   try {
     await ensureBillingSchema();
-    const professionalId = getProfessionalIdFromRequest(req);
+    const professionalId = await getProfessionalIdFromRequest(req);
     const professional = await getProfessional(professionalId);
 
     if (!professional) {
@@ -804,7 +825,7 @@ router.get("/me/plan", async (req, res, next) => {
 router.post("/me/transfer", async (req, res, next) => {
   try {
     await ensureBillingSchema();
-    const professionalId = getProfessionalIdFromRequest(req);
+    const professionalId = await getProfessionalIdFromRequest(req);
     const professional = await getProfessional(professionalId);
 
     if (!professional) {
@@ -842,7 +863,7 @@ router.post("/me/transfer", async (req, res, next) => {
 router.post("/me/transfer-notify", async (req, res, next) => {
   try {
     await ensureBillingSchema();
-    const professionalId = getProfessionalIdFromRequest(req);
+    const professionalId = await getProfessionalIdFromRequest(req);
     const professional = await getProfessional(professionalId);
 
     if (!professional) {
@@ -923,7 +944,7 @@ router.post("/me/transfer-notify", async (req, res, next) => {
 router.post("/me/checkout", async (req, res, next) => {
   try {
     await ensureBillingSchema();
-    const professionalId = getProfessionalIdFromRequest(req);
+    const professionalId = await getProfessionalIdFromRequest(req);
     const professional = await getProfessional(professionalId);
 
     if (!professional) {
@@ -1141,7 +1162,7 @@ router.post("/me/sync-mercadopago", async (req, res, next) => {
   try {
     await ensureBillingSchema();
 
-    const professionalId = getProfessionalIdFromRequest(req);
+    const professionalId = await getProfessionalIdFromRequest(req);
     const paymentId = String(req.body?.paymentId || req.body?.collectionId || req.query.payment_id || req.query.collection_id || "").trim();
 
     if (!paymentId) {
