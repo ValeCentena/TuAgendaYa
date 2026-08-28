@@ -1589,32 +1589,6 @@ router.post("/push/subscribe", async (req, res) => {
     await savePushSubscription(professionalId, subscription, userAgent);
 
 
-
-    let pushNotification = { attempted: false, sent: 0 };
-
-    try {
-      pushNotification = await sendPushToProfessional(professional.id, {
-        title: "Nueva reserva en TuAgendaYa",
-        body: `${clientName} reservó ${service ? service.name : "un servicio"} para el ${normalizeDate(bookingDate)} a las ${normalizeTime(startTime)}`,
-        icon: "/tuagendaya-logo.png",
-        badge: "/tuagendaya-logo.png",
-        url: "/profesional/dashboard",
-        bookingId: result.rows[0].id,
-        clientName,
-        serviceName: service ? service.name : "Servicio",
-        bookingDate: normalizeDate(bookingDate),
-        startTime: normalizeTime(startTime),
-      });
-    } catch (pushError) {
-      console.warn("Push notification skipped:", pushError.message);
-
-      pushNotification = {
-        attempted: true,
-        sent: 0,
-        error: pushError.message || "No se pudo enviar la notificación push",
-      };
-    }
-
     res.status(201).json({
       success: true,
       message: "Notificaciones activadas",
