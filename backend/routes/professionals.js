@@ -113,6 +113,195 @@ function mergeAvailWithDefaults(rows, professionalId) {
   });
 }
 
+
+function normalizeProfessionalProfile(row) {
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    name: row.name || '',
+    businessName: row.business_name || row.name || '',
+    business_name: row.business_name || row.name || '',
+    email: row.email || '',
+    phone: row.phone || '',
+    profession: row.profession || '',
+    address: row.address || '',
+    slug: row.slug || '',
+    logoUrl: row.logo_url || '',
+    logo_url: row.logo_url || '',
+    status: row.status || '',
+    createdAt: row.created_at,
+    created_at: row.created_at,
+    updatedAt: row.updated_at,
+    updated_at: row.updated_at,
+  };
+}
+
+// GET /api/professionals/me/profile
+router.get('/me/profile', authMiddleware, async (req, res) => {
+  try {
+    const professionalId = req.professional.id;
+
+    const result = await db.query(
+      `SELECT
+         id,
+         name,
+         business_name,
+         email,
+         phone,
+         profession,
+         address,
+         slug,
+         logo_url,
+         status,
+         created_at,
+         updated_at
+       FROM professionals
+       WHERE id = $1
+       LIMIT 1`,
+      [professionalId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Profesional no encontrado' });
+    }
+
+    setNoStoreHeaders(res);
+    return res.json({
+      professional: normalizeProfessionalProfile(result.rows[0]),
+    });
+  } catch (err) {
+    console.error('GET /me/profile error:', err);
+    return res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// PATCH /api/professionals/me/profile
+router.patch('/me/profile', authMiddleware, async (req, res) => {
+  try {
+    const professionalId = req.professional.id;
+
+    const currentResult = await db.query(
+      `SELECT
+         id,
+         name,
+         business_name,
+         email,
+         phone,
+         profession,
+         address,
+         slug,
+         logo_url,
+         status,
+         created_at,
+         updated_at
+       FROM professionals
+       WHERE id = $1
+       LIMIT 1`,
+      [professionalId]
+    );
+
+    if (currentResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Profesional no encontrado' });
+    }
+
+    const current = currentResult.rows[0];
+
+    const businessNameInput =
+      req.body.businessName !== undefined
+        ? req.body.businessName
+        : req.body.business_name;
+
+    const logoUrlInput =
+      req.body.logoUrl !== undefined
+        ? req.body.logoUrl
+        : req.body.logo_url;
+
+    const businessName =
+      businessNameInput === undefined
+        ? String(current.business_name || current.name || '').trim()
+        : String(businessNameInput || '').trim();
+
+    const phone =
+      req.body.phone === undefined
+        ? String(current.phone || '').trim()
+        : String(req.body.phone || '').trim();
+
+    const address =
+      req.body.address === undefined
+        ? String(current.address || '').trim()
+        : String(req.body.address || '').trim();
+
+    const logoUrl =
+      logoUrlInput === undefined
+        ? String(current.logo_url || '').trim()
+        : String(logoUrlInput || '').trim();
+
+    if (!businessName) {
+      return res.status(400).json({ error: 'El nombre del negocio es obligatorio' });
+    }
+
+    if (businessName.length > 160) {
+      return res.status(400).json({ error: 'El nombre del negocio es demasiado largo' });
+    }
+
+    if (phone.length > 60) {
+      return res.status(400).json({ error: 'El teléfono es demasiado largo' });
+    }
+
+    if (address.length > 300) {
+      return res.status(400).json({ error: 'La dirección es demasiado larga' });
+    }
+
+    const logoIsAllowed =
+      !logoUrl ||
+      /^https?:\/\//i.test(logoUrl) ||
+      /^data:image\/(?:png|jpeg|webp);base64,/i.test(logoUrl);
+
+    if (!logoIsAllowed) {
+      return res.status(400).json({ error: 'El logo debe ser una URL o una imagen válida' });
+    }
+
+    const updateResult = await db.query(
+      `UPDATE professionals
+       SET business_name = $1,
+           phone = $2,
+           address = $3,
+           logo_url = $4,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $5
+       RETURNING
+         id,
+         name,
+         business_name,
+         email,
+         phone,
+         profession,
+         address,
+         slug,
+         logo_url,
+         status,
+         created_at,
+         updated_at`,
+      [
+        businessName,
+        phone || null,
+        address || null,
+        logoUrl || null,
+        professionalId,
+      ]
+    );
+
+    setNoStoreHeaders(res);
+    return res.json({
+      professional: normalizeProfessionalProfile(updateResult.rows[0]),
+    });
+  } catch (err) {
+    console.error('PATCH /me/profile error:', err);
+    return res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // ── Helpers servicios ─────────────────────────────────────────
 
 function getDefaultServices(profession) {
