@@ -12416,6 +12416,54 @@ function LandingPage() {
           font-weight: 650;
         }
 
+        .tay-contact-grid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 16px;
+          margin-top: 32px;
+        }
+
+        .tay-contact-card {
+          min-height: 118px;
+          padding: 24px;
+          border: 1px solid rgba(15, 23, 42, .08);
+          border-radius: 22px;
+          background: #fff;
+          box-shadow: 0 10px 30px rgba(15, 23, 42, .04);
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          gap: 8px;
+          text-decoration: none;
+          transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+        }
+
+        .tay-contact-card:hover {
+          transform: translateY(-2px);
+          border-color: rgba(0, 113, 227, .18);
+          box-shadow: 0 14px 34px rgba(15, 23, 42, .07);
+        }
+
+        .tay-contact-card-muted:hover {
+          transform: none;
+          border-color: rgba(15, 23, 42, .08);
+          box-shadow: 0 10px 30px rgba(15, 23, 42, .04);
+        }
+
+        .tay-contact-label {
+          color: #7a8495;
+          font-size: 13px;
+          font-weight: 800;
+          letter-spacing: .02em;
+        }
+
+        .tay-contact-card strong {
+          color: #111827;
+          font-size: 17px;
+          line-height: 1.35;
+          overflow-wrap: anywhere;
+        }
+
         @media (max-width: 1180px) {
           .tay-nav {
             gap: 22px;
@@ -12726,6 +12774,18 @@ function LandingPage() {
             font-size: 15.5px;
             line-height: 1.7;
           }
+
+          .tay-contact-grid {
+            grid-template-columns: 1fr;
+            gap: 12px;
+            margin-top: 24px;
+          }
+
+          .tay-contact-card {
+            min-height: 102px;
+            padding: 20px;
+            border-radius: 19px;
+          }
         }
 
         @media (max-width: 430px) {
@@ -12779,6 +12839,7 @@ function LandingPage() {
           <a href="#para-quien-es">Para quién es</a>
           <a href="#recursos">Recursos</a>
           <a href="#empresa">Empresa</a>
+          <a href="#contacto">Contacto</a>
         </nav>
 
         <div className="tay-nav-actions">
@@ -13016,6 +13077,38 @@ function LandingPage() {
             Una plataforma pensada para que profesionales y negocios puedan concentrarse en atender a sus clientes,
             mientras la agenda, los recordatorios y el control quedan organizados en un solo lugar.
           </p>
+        </div>
+      </section>
+
+      <section id="contacto" className="tay-section-block">
+        <div className="tay-landing-shell">
+          <div className="tay-section-eyebrow">Contacto</div>
+          <h2 className="tay-section-title">Estamos para ayudarte.</h2>
+          <p className="tay-company-copy">
+            ¿Tenés alguna consulta sobre TuAgendaYa? Contactanos a través de nuestros canales oficiales.
+          </p>
+
+          <div className="tay-contact-grid">
+            <a className="tay-contact-card" href="mailto:contacto@tuagendaya.com">
+              <span className="tay-contact-label">Correo electrónico</span>
+              <strong>contacto@tuagendaya.com</strong>
+            </a>
+
+            <a
+              className="tay-contact-card"
+              href="https://www.instagram.com/tuagendaya/"
+              target="_blank"
+              rel="noreferrer"
+            >
+              <span className="tay-contact-label">Instagram</span>
+              <strong>@tuagendaya</strong>
+            </a>
+
+            <div className="tay-contact-card tay-contact-card-muted">
+              <span className="tay-contact-label">Teléfono</span>
+              <strong>Próximamente</strong>
+            </div>
+          </div>
         </div>
       </section>
     </div>
