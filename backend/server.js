@@ -3,7 +3,7 @@ const cors = require("cors");
 const helmet = require("helmet");
 require("dotenv").config();
 
-require("./db");
+const db = require("./db");
 
 const authRoutes = require("./routes/auth");
 const professionalsRoutes = require("./routes/professionals");
@@ -144,12 +144,26 @@ app.use(
 app.use(express.json({ limit: "6mb" }));
 app.use(express.urlencoded({ extended: true, limit: "6mb" }));
 
-app.get("/api/health", (req, res) => {
-  res.json({
-    ok: true,
-    service: "tuagendaya-api",
-    timestamp: new Date().toISOString(),
-  });
+app.get("/api/health", async (req, res) => {
+  try {
+    await db.query("SELECT 1");
+
+    res.json({
+      ok: true,
+      service: "tuagendaya-api",
+      database: "connected",
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Health check database error:", error.message);
+
+    res.status(503).json({
+      ok: false,
+      service: "tuagendaya-api",
+      database: "unavailable",
+      timestamp: new Date().toISOString(),
+    });
+  }
 });
 
 app.use("/api/auth/login", professionalLoginLimiter);
