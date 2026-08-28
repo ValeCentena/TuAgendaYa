@@ -751,6 +751,22 @@ function normalizePhoneForWhatsApp(phone) {
   return onlyNumbers;
 }
 
+function getClientIdentityKey(clientName, clientPhone) {
+  const normalizedPhone = normalizePhoneForWhatsApp(clientPhone);
+
+  if (normalizedPhone) {
+    return `phone:${normalizedPhone}`;
+  }
+
+  const normalizedName = normalizeSearchText(clientName);
+
+  if (normalizedName) {
+    return `name:${normalizedName}`;
+  }
+
+  return '';
+}
+
 function buildClientWhatsAppMessage({ clientName, businessName, serviceName, staffName, dateStr, timeStr, endStr }) {
   const safeClientName = String(clientName || '').trim() || 'te';
   const safeBusinessName = String(businessName || '').trim() || 'el negocio';
@@ -3124,7 +3140,9 @@ useEffect(() => {
 
     if (!clientName && !clientPhone) return;
 
-    const key = normalizeSearchText(clientPhone || clientName);
+    const key = getClientIdentityKey(clientName, clientPhone);
+    if (!key) return;
+
     const existing = clientStatsMap.get(key) || {
       name: clientName || 'Sin nombre',
       phone: clientPhone,
@@ -3647,21 +3665,14 @@ useEffect(() => {
             // Solo se oculta cuando ya está completada, cancelada o en la vista Archivadas.
             const canCancel = !isArchivedView && (isPending || isConfirmed) && !isCancelled && !isCompleted;
 
-            const normalizedClientPhone = normalizePhoneForWhatsApp(clientPhone);
-            const normalizedClientName = normalizeSearchText(clientName);
+            const clientIdentityKey = getClientIdentityKey(clientName, clientPhone);
             const clientHistory = bookings.filter((booking) => {
-              const bookingPhone = normalizePhoneForWhatsApp(booking.clientPhone ?? booking.client_phone);
-              const bookingName = normalizeSearchText(booking.clientName ?? booking.client_name);
+              const bookingIdentityKey = getClientIdentityKey(
+                booking.clientName ?? booking.client_name,
+                booking.clientPhone ?? booking.client_phone
+              );
 
-              if (normalizedClientPhone && bookingPhone) {
-                return bookingPhone === normalizedClientPhone;
-              }
-
-              if (normalizedClientName && bookingName) {
-                return bookingName === normalizedClientName;
-              }
-
-              return false;
+              return Boolean(clientIdentityKey && bookingIdentityKey === clientIdentityKey);
             });
 
             const clientTotalBookings = clientHistory.length;
@@ -5604,7 +5615,9 @@ function ClientsSection() {
     if (!clientName && !clientPhone) return;
 
     const normalizedPhone = normalizePhoneForWhatsApp(clientPhone);
-    const key = normalizedPhone || normalizeSearchText(clientName);
+    const key = getClientIdentityKey(clientName, clientPhone);
+
+    if (!key) return;
 
     if (!clientsMap.has(key)) {
       clientsMap.set(key, {
