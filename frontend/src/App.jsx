@@ -11192,9 +11192,16 @@ function ProfesionalPage() {
       if (!token) return;
 
       try {
-        const response = await fetch(`${API_BASE}/auth/me`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const response = await fetch(
+          `${API_BASE}/auth/me?status_check=${Date.now()}`,
+          {
+            cache: 'no-store',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Cache-Control': 'no-cache',
+            },
+          }
+        );
 
         const data = await response.json().catch(() => ({}));
 
@@ -11211,16 +11218,6 @@ function ProfesionalPage() {
         }
 
         if (response.ok) {
-          const refreshedProfessional = normalizeProfessionalFromApi(
-            data.professional || professional || {}
-          );
-
-          localStorage.setItem(
-            'tuagendaya_professional',
-            JSON.stringify(refreshedProfessional)
-          );
-
-          setProfessional(refreshedProfessional);
           setAccountSuspended(false);
         }
       } catch {
