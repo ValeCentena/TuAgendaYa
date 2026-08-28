@@ -1234,8 +1234,15 @@ function UnifiedLoginPage() {
         await loginAsProfessional();
       }
     } catch (loginError) {
+      const normalizedMessage = String(loginError?.message || '').toLowerCase();
+
       if (loginError?.status === 429) {
         setError(loginError.message || 'Demasiados intentos. Intentá nuevamente más tarde.');
+      } else if (
+        loginError?.status === 403 &&
+        (normalizedMessage.includes('inactiva') || normalizedMessage.includes('suspend'))
+      ) {
+        setError('Tu cuenta se encuentra temporalmente suspendida. Contactá con TuAgendaYa si necesitás asistencia.');
       } else {
         setError('Credenciales inválidas. Revisá el email y la contraseña.');
       }
@@ -11189,30 +11196,52 @@ function ProfesionalPage() {
           headers: { Authorization: `Bearer ${token}` },
         });
 
-        if (response.status !== 403) return;
-
         const data = await response.json().catch(() => ({}));
-        const message = String(data.error || '').toLowerCase();
 
-        if (!active || !message.includes('suspend')) return;
+        if (!active) return;
 
-        localStorage.removeItem('tuagendaya_token');
-        localStorage.removeItem('tuagendaya_professional');
-        localStorage.removeItem('tuagendaya_session_persistent');
+        if (response.status === 403) {
+          const message = String(data.error || '').toLowerCase();
 
-        setProfessional(null);
-        setAccountSuspended(true);
+          if (message.includes('suspend') || message.includes('inactiva')) {
+            setAccountSuspended(true);
+          }
+
+          return;
+        }
+
+        if (response.ok) {
+          const refreshedProfessional = normalizeProfessionalFromApi(
+            data.professional || professional || {}
+          );
+
+          localStorage.setItem(
+            'tuagendaya_professional',
+            JSON.stringify(refreshedProfessional)
+          );
+
+          setProfessional(refreshedProfessional);
+          setAccountSuspended(false);
+        }
       } catch {
-        // Si hay un problema de red no cerramos la sesión.
+        // Un problema de red no modifica el estado de la sesión.
       }
     };
 
+    const handleWindowFocus = () => {
+      checkAccountStatus();
+    };
+
     checkAccountStatus();
-    const intervalId = window.setInterval(checkAccountStatus, 10000);
+    const intervalId = window.setInterval(checkAccountStatus, 2000);
+    window.addEventListener('focus', handleWindowFocus);
+    document.addEventListener('visibilitychange', handleWindowFocus);
 
     return () => {
       active = false;
       window.clearInterval(intervalId);
+      window.removeEventListener('focus', handleWindowFocus);
+      document.removeEventListener('visibilitychange', handleWindowFocus);
     };
   }, [professional]);
 
@@ -11283,7 +11312,7 @@ function ProfesionalPage() {
             }}
           >
             Tu cuenta se encuentra temporalmente suspendida. Tus reservas y datos permanecen guardados y no se eliminaron.
-            Si necesitás asistencia, contactá con TuAgendaYa.
+            Cuando la cuenta sea reactivada, el acceso volverá automáticamente. Si necesitás asistencia, contactá con TuAgendaYa.
           </p>
 
           <a
