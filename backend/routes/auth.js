@@ -143,6 +143,10 @@ async function authMiddleware(req, res, next) {
       return res.status(401).json({ error: "Profesional no encontrado" });
     }
 
+    if (result.rows[0].status !== "active") {
+      return res.status(403).json({ error: "Cuenta suspendida" });
+    }
+
     req.professional = result.rows[0];
     next();
   } catch (error) {

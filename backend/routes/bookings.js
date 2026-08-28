@@ -23,7 +23,7 @@ function getTokenFromHeader(req) {
   return authHeader.slice(7);
 }
 
-function getProfessionalIdFromRequest(req) {
+async function getProfessionalIdFromRequest(req) {
   const token = getTokenFromHeader(req);
 
   if (!token) {
@@ -48,7 +48,26 @@ function getProfessionalIdFromRequest(req) {
       throw error;
     }
 
-    return Number(id);
+    const professionalId = Number(id);
+
+    const professionalResult = await db.query(
+      `SELECT status FROM professionals WHERE id = $1 LIMIT 1`,
+      [professionalId]
+    );
+
+    if (professionalResult.rows.length === 0) {
+      const error = new Error("Profesional no encontrado");
+      error.status = 401;
+      throw error;
+    }
+
+    if (professionalResult.rows[0].status !== "active") {
+      const error = new Error("Cuenta suspendida");
+      error.status = 403;
+      throw error;
+    }
+
+    return professionalId;
   } catch (error) {
     error.status = error.status || 401;
     error.message = error.message || "Token inválido";
@@ -1563,7 +1582,7 @@ router.get("/push/public-key", (req, res) => {
 
 router.post("/push/subscribe", async (req, res) => {
   try {
-    const professionalId = getProfessionalIdFromRequest(req);
+    const professionalId = await getProfessionalIdFromRequest(req);
     const subscription = req.body.subscription || req.body;
     const userAgent = req.headers["user-agent"] || "";
 
@@ -1610,7 +1629,7 @@ router.post("/push/subscribe", async (req, res) => {
 
 router.get("/blocks", async (req, res) => {
   try {
-    const professionalId = getProfessionalIdFromRequest(req);
+    const professionalId = await getProfessionalIdFromRequest(req);
     const blocks = await listBlockedTimes(professionalId);
 
     res.json({ blocks });
@@ -1625,7 +1644,7 @@ router.post("/blocks", async (req, res) => {
   try {
     await ensureBlockedTimesTable();
 
-    const professionalId = getProfessionalIdFromRequest(req);
+    const professionalId = await getProfessionalIdFromRequest(req);
     const blockDate = normalizeDate(req.body.blockDate ?? req.body.block_date ?? req.body.date);
     const isFullDay = req.body.isFullDay === true || req.body.is_full_day === true || req.body.isFullDay === "true" || req.body.is_full_day === "true";
     const startTime = isFullDay ? null : normalizeTime(req.body.startTime ?? req.body.start_time);
@@ -1700,7 +1719,7 @@ router.post("/blocks/range", async (req, res) => {
   try {
     await ensureBlockedTimesTable();
 
-    const professionalId = getProfessionalIdFromRequest(req);
+    const professionalId = await getProfessionalIdFromRequest(req);
     const startDate = normalizeDate(req.body.startDate ?? req.body.start_date);
     const endDate = normalizeDate(req.body.endDate ?? req.body.end_date);
     const reason = String(req.body.reason || "").trim() || null;
@@ -1765,7 +1784,7 @@ router.delete("/blocks/:id", async (req, res) => {
   try {
     await ensureBlockedTimesTable();
 
-    const professionalId = getProfessionalIdFromRequest(req);
+    const professionalId = await getProfessionalIdFromRequest(req);
     const blockId = Number(req.params.id);
 
     if (!blockId) {
@@ -2771,7 +2790,7 @@ router.patch("/public/confirmation/:token/cancel", async (req, res) => {
 
 router.get("/me", async (req, res) => {
   try {
-    const professionalId = getProfessionalIdFromRequest(req);
+    const professionalId = await getProfessionalIdFromRequest(req);
 
     const result = await db.query(
       `
@@ -2805,7 +2824,7 @@ router.get("/me", async (req, res) => {
 
 router.patch("/:id/confirm", async (req, res) => {
   try {
-    const professionalId = getProfessionalIdFromRequest(req);
+    const professionalId = await getProfessionalIdFromRequest(req);
     const bookingId = Number(req.params.id);
 
     const result = await db.query(
@@ -2839,7 +2858,7 @@ router.patch("/:id/confirm", async (req, res) => {
 
 router.patch("/:id/complete", async (req, res) => {
   try {
-    const professionalId = getProfessionalIdFromRequest(req);
+    const professionalId = await getProfessionalIdFromRequest(req);
     const bookingId = Number(req.params.id);
 
     const result = await db.query(
@@ -2873,7 +2892,7 @@ router.patch("/:id/complete", async (req, res) => {
 
 router.patch("/:id/cancel", async (req, res) => {
   try {
-    const professionalId = getProfessionalIdFromRequest(req);
+    const professionalId = await getProfessionalIdFromRequest(req);
     const bookingId = Number(req.params.id);
 
     const result = await db.query(
@@ -2911,7 +2930,7 @@ router.patch("/:id/payment", async (req, res) => {
     await ensurePaymentColumns();
     await ensureTipColumns();
 
-    const professionalId = getProfessionalIdFromRequest(req);
+    const professionalId = await getProfessionalIdFromRequest(req);
     const bookingId = Number(req.params.id);
 
     if (!bookingId || Number.isNaN(bookingId)) {
@@ -3034,7 +3053,7 @@ router.get("/cash-closures", async (req, res) => {
   try {
     await ensureCashClosuresTable();
 
-    const professionalId = getProfessionalIdFromRequest(req);
+    const professionalId = await getProfessionalIdFromRequest(req);
     const from = normalizeDate(req.query.from || "");
     const to = normalizeDate(req.query.to || "");
 
@@ -3075,7 +3094,7 @@ router.post("/cash-closures", async (req, res) => {
   try {
     await ensureCashClosuresTable();
 
-    const professionalId = getProfessionalIdFromRequest(req);
+    const professionalId = await getProfessionalIdFromRequest(req);
     const closureDate = normalizeDate(
       req.body.closureDate ?? req.body.closure_date
     );
@@ -3189,7 +3208,7 @@ router.post("/cash-closures", async (req, res) => {
 
 router.get("/:id", async (req, res) => {
   try {
-    const professionalId = getProfessionalIdFromRequest(req);
+    const professionalId = await getProfessionalIdFromRequest(req);
     const bookingId = Number(req.params.id);
 
     const result = await db.query(

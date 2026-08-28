@@ -3,7 +3,7 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const db = require('../db');
 
-function authMiddleware(req, res, next) {
+async function authMiddleware(req, res, next) {
   const header = req.headers.authorization;
   if (!header || !header.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Token requerido' });
@@ -13,6 +13,31 @@ function authMiddleware(req, res, next) {
   header.slice(7),
   process.env.JWT_SECRET
 );
+
+    const professionalId =
+      decoded.id ||
+      decoded.professionalId ||
+      decoded.professional_id ||
+      decoded.userId ||
+      decoded.user_id;
+
+    if (!professionalId) {
+      return res.status(401).json({ error: 'Token inválido o expirado' });
+    }
+
+    const result = await db.query(
+      `SELECT status FROM professionals WHERE id = $1 LIMIT 1`,
+      [professionalId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: 'Profesional no encontrado' });
+    }
+
+    if (result.rows[0].status !== 'active') {
+      return res.status(403).json({ error: 'Cuenta suspendida' });
+    }
+
     req.professional = decoded;
     next();
   } catch (e) {

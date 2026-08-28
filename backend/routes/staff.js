@@ -14,7 +14,7 @@ function getTokenFromHeader(req) {
   return authHeader.slice(7);
 }
 
-function getProfessionalIdFromRequest(req) {
+async function getProfessionalIdFromRequest(req) {
   const token = getTokenFromHeader(req);
 
   if (!token) {
@@ -39,7 +39,26 @@ function getProfessionalIdFromRequest(req) {
       throw error;
     }
 
-    return Number(id);
+    const professionalId = Number(id);
+
+    const professionalResult = await db.query(
+      `SELECT status FROM professionals WHERE id = $1 LIMIT 1`,
+      [professionalId]
+    );
+
+    if (professionalResult.rows.length === 0) {
+      const error = new Error("Profesional no encontrado");
+      error.status = 401;
+      throw error;
+    }
+
+    if (professionalResult.rows[0].status !== "active") {
+      const error = new Error("Cuenta suspendida");
+      error.status = 403;
+      throw error;
+    }
+
+    return professionalId;
   } catch (error) {
     error.status = error.status || 401;
     error.message = error.message || "Token inválido";
@@ -275,7 +294,7 @@ async function getStaffOwnedByProfessional(staffId, ownerProfessionalId) {
 
 router.get("/", async (req, res) => {
   try {
-    const ownerProfessionalId = getProfessionalIdFromRequest(req);
+    const ownerProfessionalId = await getProfessionalIdFromRequest(req);
 
     await ensureDefaultStaff(ownerProfessionalId);
 
@@ -301,7 +320,7 @@ router.get("/", async (req, res) => {
 
 router.post("/", async (req, res) => {
   try {
-    const ownerProfessionalId = getProfessionalIdFromRequest(req);
+    const ownerProfessionalId = await getProfessionalIdFromRequest(req);
 
     const name = String(req.body.name || "").trim();
     const phone = String(req.body.phone || "").trim();
@@ -354,7 +373,7 @@ router.post("/", async (req, res) => {
 
 router.patch("/:id", async (req, res) => {
   try {
-    const ownerProfessionalId = getProfessionalIdFromRequest(req);
+    const ownerProfessionalId = await getProfessionalIdFromRequest(req);
     const staffId = Number(req.params.id);
 
     const existing = await getStaffOwnedByProfessional(staffId, ownerProfessionalId);
@@ -419,7 +438,7 @@ router.patch("/:id", async (req, res) => {
 
 router.delete("/:id", async (req, res) => {
   try {
-    const ownerProfessionalId = getProfessionalIdFromRequest(req);
+    const ownerProfessionalId = await getProfessionalIdFromRequest(req);
     const staffId = Number(req.params.id);
 
     const result = await db.query(
@@ -453,7 +472,7 @@ router.delete("/:id", async (req, res) => {
 
 router.get("/:id/availability", async (req, res) => {
   try {
-    const ownerProfessionalId = getProfessionalIdFromRequest(req);
+    const ownerProfessionalId = await getProfessionalIdFromRequest(req);
     const staffId = Number(req.params.id);
 
     const staff = await getStaffOwnedByProfessional(staffId, ownerProfessionalId);
@@ -480,7 +499,7 @@ router.get("/:id/availability", async (req, res) => {
 
 router.patch("/:id/availability", async (req, res) => {
   try {
-    const ownerProfessionalId = getProfessionalIdFromRequest(req);
+    const ownerProfessionalId = await getProfessionalIdFromRequest(req);
     const staffId = Number(req.params.id);
 
     const staff = await getStaffOwnedByProfessional(staffId, ownerProfessionalId);
