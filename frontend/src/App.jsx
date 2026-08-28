@@ -11173,6 +11173,48 @@ function ProfesionalPage() {
       return {};
     }
   });
+  const [accountSuspended, setAccountSuspended] = useState(false);
+
+  useEffect(() => {
+    if (!professional) return undefined;
+
+    let active = true;
+
+    const checkAccountStatus = async () => {
+      const token = localStorage.getItem('tuagendaya_token');
+      if (!token) return;
+
+      try {
+        const response = await fetch(`${API_BASE}/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (response.status !== 403) return;
+
+        const data = await response.json().catch(() => ({}));
+        const message = String(data.error || '').toLowerCase();
+
+        if (!active || !message.includes('suspend')) return;
+
+        localStorage.removeItem('tuagendaya_token');
+        localStorage.removeItem('tuagendaya_professional');
+        localStorage.removeItem('tuagendaya_session_persistent');
+
+        setProfessional(null);
+        setAccountSuspended(true);
+      } catch {
+        // Si hay un problema de red no cerramos la sesión.
+      }
+    };
+
+    checkAccountStatus();
+    const intervalId = window.setInterval(checkAccountStatus, 10000);
+
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+    };
+  }, [professional]);
 
   const handleProfessionalUpdate = (updatedProfessional) => {
     const normalized = normalizeProfessionalFromApi({
@@ -11184,6 +11226,90 @@ function ProfesionalPage() {
     localStorage.setItem('tuagendaya_professional', JSON.stringify(normalized));
   };
 
+  if (accountSuspended) {
+    return (
+      <AuthLayout>
+        <div
+          style={{
+            width: '100%',
+            maxWidth: 520,
+            margin: '0 auto',
+            background: '#fff',
+            border: '1px solid #ececf2',
+            borderRadius: 28,
+            padding: '34px 28px',
+            boxShadow: '0 18px 48px rgba(15,23,42,0.08)',
+            textAlign: 'center',
+          }}
+        >
+          <TuAgendaLogo height={54} centered />
+
+          <div
+            style={{
+              width: 58,
+              height: 58,
+              margin: '26px auto 18px',
+              borderRadius: 18,
+              display: 'grid',
+              placeItems: 'center',
+              background: '#fff3f2',
+              color: '#d92d20',
+              fontSize: 26,
+              fontWeight: 950,
+            }}
+          >
+            !
+          </div>
+
+          <h1
+            style={{
+              margin: 0,
+              color: '#111827',
+              fontSize: 28,
+              lineHeight: 1.15,
+              letterSpacing: '-0.025em',
+            }}
+          >
+            Cuenta suspendida
+          </h1>
+
+          <p
+            style={{
+              margin: '14px auto 0',
+              maxWidth: 410,
+              color: '#6e6e73',
+              fontSize: 15,
+              lineHeight: 1.65,
+            }}
+          >
+            Tu cuenta se encuentra temporalmente suspendida. Tus reservas y datos permanecen guardados y no se eliminaron.
+            Si necesitás asistencia, contactá con TuAgendaYa.
+          </p>
+
+          <a
+            href="mailto:contacto@tuagendaya.com"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: 48,
+              marginTop: 24,
+              padding: '0 20px',
+              borderRadius: 15,
+              background: '#0071e3',
+              color: '#fff',
+              textDecoration: 'none',
+              fontSize: 14,
+              fontWeight: 900,
+            }}
+          >
+            Contactar soporte
+          </a>
+        </div>
+      </AuthLayout>
+    );
+  }
+
   if (!professional) {
     return (
       <LoginForm
@@ -11191,6 +11317,7 @@ function ProfesionalPage() {
           const normalized = normalizeProfessionalFromApi(prof || {});
           localStorage.setItem('tuagendaya_session_persistent', 'true');
           localStorage.setItem('tuagendaya_professional', JSON.stringify(normalized));
+          setAccountSuspended(false);
           setProfessional(normalized);
         }}
       />
