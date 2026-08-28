@@ -302,6 +302,147 @@ router.patch('/me/profile', authMiddleware, async (req, res) => {
   }
 });
 
+
+async function ensureClientNotesTable() {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS professional_client_notes (
+      id SERIAL PRIMARY KEY,
+      professional_id INTEGER NOT NULL REFERENCES professionals(id) ON DELETE CASCADE,
+      client_key TEXT NOT NULL,
+      client_name TEXT,
+      client_phone TEXT,
+      notes TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (professional_id, client_key)
+    )
+  `);
+}
+
+function normalizeClientNote(row) {
+  return {
+    id: row.id,
+    clientKey: row.client_key,
+    client_key: row.client_key,
+    clientName: row.client_name || '',
+    client_name: row.client_name || '',
+    clientPhone: row.client_phone || '',
+    client_phone: row.client_phone || '',
+    notes: row.notes || '',
+    createdAt: row.created_at,
+    created_at: row.created_at,
+    updatedAt: row.updated_at,
+    updated_at: row.updated_at,
+  };
+}
+
+// GET /api/professionals/me/client-notes
+router.get('/me/client-notes', authMiddleware, async (req, res) => {
+  try {
+    const professionalId = req.professional.id;
+
+    await ensureClientNotesTable();
+
+    const result = await db.query(
+      `SELECT
+         id,
+         client_key,
+         client_name,
+         client_phone,
+         notes,
+         created_at,
+         updated_at
+       FROM professional_client_notes
+       WHERE professional_id = $1
+       ORDER BY updated_at DESC, id DESC`,
+      [professionalId]
+    );
+
+    setNoStoreHeaders(res);
+    return res.json({
+      notes: result.rows.map(normalizeClientNote),
+    });
+  } catch (err) {
+    console.error('GET /me/client-notes error:', err);
+    return res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// PATCH /api/professionals/me/client-notes/:clientKey
+router.patch('/me/client-notes/:clientKey', authMiddleware, async (req, res) => {
+  try {
+    const professionalId = req.professional.id;
+    const clientKey = String(req.params.clientKey || '').trim();
+    const clientName = String(req.body.clientName ?? req.body.client_name ?? '').trim();
+    const clientPhone = String(req.body.clientPhone ?? req.body.client_phone ?? '').trim();
+    const notes = String(req.body.notes ?? '');
+
+    if (!clientKey) {
+      return res.status(400).json({ error: 'Cliente inválido' });
+    }
+
+    if (clientKey.length > 220) {
+      return res.status(400).json({ error: 'Identificador de cliente demasiado largo' });
+    }
+
+    if (clientName.length > 160) {
+      return res.status(400).json({ error: 'El nombre del cliente es demasiado largo' });
+    }
+
+    if (clientPhone.length > 60) {
+      return res.status(400).json({ error: 'El teléfono del cliente es demasiado largo' });
+    }
+
+    if (notes.length > 3000) {
+      return res.status(400).json({ error: 'La nota no puede superar los 3000 caracteres' });
+    }
+
+    await ensureClientNotesTable();
+
+    const result = await db.query(
+      `INSERT INTO professional_client_notes (
+         professional_id,
+         client_key,
+         client_name,
+         client_phone,
+         notes,
+         created_at,
+         updated_at
+       )
+       VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+       ON CONFLICT (professional_id, client_key)
+       DO UPDATE SET
+         client_name = EXCLUDED.client_name,
+         client_phone = EXCLUDED.client_phone,
+         notes = EXCLUDED.notes,
+         updated_at = CURRENT_TIMESTAMP
+       RETURNING
+         id,
+         client_key,
+         client_name,
+         client_phone,
+         notes,
+         created_at,
+         updated_at`,
+      [
+        professionalId,
+        clientKey,
+        clientName || null,
+        clientPhone || null,
+        notes,
+      ]
+    );
+
+    setNoStoreHeaders(res);
+    return res.json({
+      note: normalizeClientNote(result.rows[0]),
+    });
+  } catch (err) {
+    console.error('PATCH /me/client-notes/:clientKey error:', err);
+    return res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // ── Helpers servicios ─────────────────────────────────────────
 
 function getDefaultServices(profession) {
