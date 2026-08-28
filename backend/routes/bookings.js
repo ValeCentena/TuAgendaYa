@@ -2181,68 +2181,128 @@ router.post("/public/:slug/book", async (req, res) => {
       });
     }
 
-    if (finalPaymentMethod === "online" && onlinePaymentData) {
-      const amount = Number(service ? service.price || 0 : 0);
+    let result;
+    const bookingClient = await db.connect();
+    let transactionOpen = false;
 
-      approvedOnlinePayment = await createCardPaymentForBooking({
-        amount,
-        description: `${service ? service.name : "Reserva"} - ${professional.business_name || professional.name || "TuAgendaYa"}`,
-        paymentData: onlinePaymentData,
-        professional,
-        service,
-        bookingDate: normalizeDate(bookingDate),
-        startTime: normalizeTime(startTime),
-      });
+    try {
+      await bookingClient.query("BEGIN");
+      transactionOpen = true;
 
-      if (approvedOnlinePayment.status !== "approved") {
-        return res.status(402).json({
-          error: approvedOnlinePayment.status_detail || "El pago no fue aprobado",
-          paymentStatus: approvedOnlinePayment.status,
-          paymentStatusDetail: approvedOnlinePayment.status_detail,
-        });
-      }
-    }
+      // Serializa la creación de reservas del mismo profesional/staff y fecha.
+      // Evita que dos solicitudes simultáneas validen el mismo horario como libre.
+      const bookingLockKey = [
+        professional.id,
+        staff ? staff.id : 0,
+        normalizeDate(bookingDate),
+      ].join(":");
 
-    const result = await db.query(
-      `
-      INSERT INTO bookings (
-        professional_id,
-        staff_id,
-        service_id,
-        client_name,
-        client_phone,
-        comment,
-        booking_date,
-        start_time,
-        end_time,
-        status,
-        confirmation_token,
-        payment_status,
-        payment_method,
-        amount_paid,
-        created_at,
-        updated_at
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $12, $10, $13, $11, $14, NOW(), NOW())
-      RETURNING *
-      `,
-      [
+      await bookingClient.query(
+        "SELECT pg_advisory_xact_lock(hashtext($1))",
+        [bookingLockKey]
+      );
+
+      // Volvemos a comprobar disponibilidad DESPUÉS de adquirir el lock.
+      // Si otra reserva entró mientras esta solicitud esperaba, se rechaza aquí.
+      const lockedAvailable = await isTimeRangeAvailable(
         professional.id,
         staff ? staff.id : null,
-        finalServiceId ? Number(finalServiceId) : null,
-        clientName,
-        clientPhone,
-        comment || null,
         normalizeDate(bookingDate),
         normalizeTime(startTime),
         normalizeTime(finalEndTime),
-        confirmationToken,
-        finalPaymentMethod,
-        approvedOnlinePayment ? "confirmed" : "pending",
-        "paid",
-        Number(service ? service.price || 0 : 0),
-      ]
-    );
+        availability
+      );
+
+      if (!lockedAvailable) {
+        await bookingClient.query("ROLLBACK");
+        transactionOpen = false;
+
+        return res.status(409).json({
+          error: "Horario no disponible",
+        });
+      }
+
+      if (finalPaymentMethod === "online" && onlinePaymentData) {
+        const amount = Number(service ? service.price || 0 : 0);
+
+        approvedOnlinePayment = await createCardPaymentForBooking({
+          amount,
+          description: `${service ? service.name : "Reserva"} - ${professional.business_name || professional.name || "TuAgendaYa"}`,
+          paymentData: onlinePaymentData,
+          professional,
+          service,
+          bookingDate: normalizeDate(bookingDate),
+          startTime: normalizeTime(startTime),
+        });
+
+        if (approvedOnlinePayment.status !== "approved") {
+          await bookingClient.query("ROLLBACK");
+          transactionOpen = false;
+
+          return res.status(402).json({
+            error: approvedOnlinePayment.status_detail || "El pago no fue aprobado",
+            paymentStatus: approvedOnlinePayment.status,
+            paymentStatusDetail: approvedOnlinePayment.status_detail,
+          });
+        }
+      }
+
+      result = await bookingClient.query(
+        `
+        INSERT INTO bookings (
+          professional_id,
+          staff_id,
+          service_id,
+          client_name,
+          client_phone,
+          comment,
+          booking_date,
+          start_time,
+          end_time,
+          status,
+          confirmation_token,
+          payment_status,
+          payment_method,
+          amount_paid,
+          created_at,
+          updated_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $12, $10, $13, $11, $14, NOW(), NOW())
+        RETURNING *
+        `,
+        [
+          professional.id,
+          staff ? staff.id : null,
+          finalServiceId ? Number(finalServiceId) : null,
+          clientName,
+          clientPhone,
+          comment || null,
+          normalizeDate(bookingDate),
+          normalizeTime(startTime),
+          normalizeTime(finalEndTime),
+          confirmationToken,
+          finalPaymentMethod,
+          approvedOnlinePayment ? "confirmed" : "pending",
+          "paid",
+          Number(service ? service.price || 0 : 0),
+        ]
+      );
+
+      await bookingClient.query("COMMIT");
+      transactionOpen = false;
+    } catch (bookingError) {
+      if (transactionOpen) {
+        try {
+          await bookingClient.query("ROLLBACK");
+        } catch (rollbackError) {
+          console.warn("Booking transaction rollback failed:", rollbackError.message);
+        }
+      }
+
+      throw bookingError;
+    } finally {
+      bookingClient.release();
+    }
 
     const confirmationUrl = `${getFrontendUrl()}/confirmar-reserva/${confirmationToken}`;
 
