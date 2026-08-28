@@ -111,7 +111,7 @@ function createBookingPaymentIdempotencyKey(parts = []) {
     .slice(0, 64);
 }
 
-async function createCardPaymentForBooking({ amount, description, paymentData, professional, service, bookingDate, startTime, bookingId }) {
+async function createCardPaymentForBooking({ amount, description, paymentData, professional, service, bookingDate, startTime, bookingId, confirmationToken }) {
   const accessToken = await getMercadoPagoAccessTokenForBookings(professional.id);
 
   if (!accessToken) {
@@ -153,7 +153,12 @@ async function createCardPaymentForBooking({ amount, description, paymentData, p
       professional_id: String(professional.id),
       service_id: String(service.id),
       ...(bookingId ? { booking_id: String(bookingId) } : {}),
+      ...(confirmationToken ? { confirmation_token: String(confirmationToken) } : {}),
     },
+    ...(bookingId && confirmationToken
+      ? { external_reference: `booking:${bookingId}:${confirmationToken}` }
+      : {}),
+    notification_url: `${getApiPublicUrl()}/api/bookings/public/payment/mercadopago/webhook`,
   };
 
   if (!payload.token) {
@@ -404,6 +409,72 @@ async function markBookingPaidFromMercadoPago({ bookingId, paymentId, paymentSta
   return result.rows[0] || null;
 }
 
+
+function isMercadoPagoPaymentPending(status) {
+  return ["pending", "in_process", "authorized"].includes(
+    String(status || "").trim().toLowerCase()
+  );
+}
+
+function isMercadoPagoPaymentTerminalFailure(status) {
+  return ["rejected", "cancelled"].includes(
+    String(status || "").trim().toLowerCase()
+  );
+}
+
+async function markBookingPaymentFailedFromMercadoPago({ bookingId, paymentId, paymentStatus }) {
+  await ensurePaymentColumns();
+
+  if (!isMercadoPagoPaymentTerminalFailure(paymentStatus)) {
+    return null;
+  }
+
+  const result = await db.query(
+    `
+      UPDATE bookings
+      SET
+        status = 'cancelled',
+        payment_status = 'pending',
+        amount_paid = 0,
+        mercadopago_payment_id = COALESCE($2, mercadopago_payment_id),
+        payment_updated_at = NOW(),
+        updated_at = NOW()
+      WHERE id = $1
+        AND payment_method = 'online'
+        AND payment_status <> 'paid'
+      RETURNING *
+    `,
+    [bookingId, paymentId ? String(paymentId) : null]
+  );
+
+  return result.rows[0] || null;
+}
+
+async function getMercadoPagoAccessTokenForBookingWebhook(paymentId) {
+  await ensurePaymentColumns();
+
+  const result = await db.query(
+    `
+      SELECT b.professional_id
+      FROM bookings b
+      WHERE b.mercadopago_payment_id = $1
+      LIMIT 1
+    `,
+    [String(paymentId)]
+  );
+
+  const professionalId = result.rows[0]?.professional_id;
+
+  if (professionalId) {
+    const connectedToken = await getMercadoPagoAccessTokenForBookings(professionalId);
+    if (connectedToken) {
+      return connectedToken;
+    }
+  }
+
+  return process.env.MERCADOPAGO_ACCESS_TOKEN || "";
+}
+
 function normalizeDate(date) {
   return String(date || "").slice(0, 10);
 }
@@ -498,6 +569,9 @@ async function ensurePaymentColumns() {
   );
   await db.query(
     `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_updated_at TIMESTAMP;`
+  );
+  await db.query(
+    `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS mercadopago_payment_id TEXT;`
   );
 }
 
@@ -2291,6 +2365,7 @@ router.post("/public/:slug/book", async (req, res) => {
           bookingDate: normalizeDate(bookingDate),
           startTime: normalizeTime(startTime),
           bookingId: createdBookingId,
+          confirmationToken,
         });
       } catch (paymentError) {
         // No borramos la reserva ante un error de comunicación con Mercado Pago:
@@ -2308,21 +2383,30 @@ router.post("/public/:slug/book", async (req, res) => {
         });
       }
 
-      if (approvedOnlinePayment.status !== "approved") {
-        // Si Mercado Pago respondió expresamente que no aprobó el pago,
-        // liberamos el horario cancelando la reserva pendiente.
-        await db.query(
-          `
-          UPDATE bookings
-          SET status = 'cancelled',
-              payment_status = 'pending',
-              amount_paid = 0,
-              updated_at = NOW()
-          WHERE id = $1
-            AND professional_id = $2
-          `,
-          [createdBookingId, professional.id]
-        );
+      await ensurePaymentColumns();
+
+      await db.query(
+        `
+        UPDATE bookings
+        SET mercadopago_payment_id = $1,
+            payment_updated_at = NOW(),
+            updated_at = NOW()
+        WHERE id = $2
+          AND professional_id = $3
+        `,
+        [
+          approvedOnlinePayment.id ? String(approvedOnlinePayment.id) : null,
+          createdBookingId,
+          professional.id,
+        ]
+      );
+
+      if (isMercadoPagoPaymentTerminalFailure(approvedOnlinePayment.status)) {
+        await markBookingPaymentFailedFromMercadoPago({
+          bookingId: createdBookingId,
+          paymentId: approvedOnlinePayment.id,
+          paymentStatus: approvedOnlinePayment.status,
+        });
 
         return res.status(402).json({
           error: approvedOnlinePayment.status_detail || "El pago no fue aprobado",
@@ -2331,34 +2415,55 @@ router.post("/public/:slug/book", async (req, res) => {
         });
       }
 
-      // El cobro ya fue aprobado y la reserva existe: ahora consolidamos su estado.
-      const paidBookingResult = await db.query(
-        `
-        UPDATE bookings
-        SET status = 'confirmed',
-            payment_status = 'paid',
-            amount_paid = $1,
-            updated_at = NOW()
-        WHERE id = $2
-          AND professional_id = $3
-        RETURNING *
-        `,
-        [
-          Number(service ? service.price || 0 : 0),
-          createdBookingId,
-          professional.id,
-        ]
-      );
-
-      if (!paidBookingResult.rows[0]) {
-        const consistencyError = new Error(
-          "El pago fue aprobado, pero no se pudo actualizar la reserva creada"
+      if (isMercadoPagoPaymentPending(approvedOnlinePayment.status)) {
+        const pendingBookingResult = await db.query(
+          `SELECT * FROM bookings WHERE id = $1 AND professional_id = $2 LIMIT 1`,
+          [createdBookingId, professional.id]
         );
-        consistencyError.status = 500;
-        throw consistencyError;
-      }
 
-      result = paidBookingResult;
+        result = pendingBookingResult;
+      } else if (approvedOnlinePayment.status === "approved") {
+        // El cobro ya fue aprobado y la reserva existe: ahora consolidamos su estado.
+        const paidBookingResult = await db.query(
+          `
+          UPDATE bookings
+          SET status = 'confirmed',
+              payment_status = 'paid',
+              amount_paid = $1,
+              mercadopago_payment_id = $2,
+              payment_updated_at = NOW(),
+              updated_at = NOW()
+          WHERE id = $3
+            AND professional_id = $4
+          RETURNING *
+          `,
+          [
+            Number(service ? service.price || 0 : 0),
+            approvedOnlinePayment.id ? String(approvedOnlinePayment.id) : null,
+            createdBookingId,
+            professional.id,
+          ]
+        );
+
+        if (!paidBookingResult.rows[0]) {
+          const consistencyError = new Error(
+            "El pago fue aprobado, pero no se pudo actualizar la reserva creada"
+          );
+          consistencyError.status = 500;
+          throw consistencyError;
+        }
+
+        result = paidBookingResult;
+      } else {
+        // Estado desconocido: no liberamos el horario ni asumimos rechazo.
+        // La reserva permanece pendiente hasta que Mercado Pago confirme el resultado.
+        const pendingBookingResult = await db.query(
+          `SELECT * FROM bookings WHERE id = $1 AND professional_id = $2 LIMIT 1`,
+          [createdBookingId, professional.id]
+        );
+
+        result = pendingBookingResult;
+      }
     }
 
     const confirmationUrl = `${getFrontendUrl()}/confirmar-reserva/${confirmationToken}`;
@@ -2512,7 +2617,7 @@ router.post("/public/payment/mercadopago/webhook", async (req, res) => {
       return res.status(200).json({ received: true, ignored: true });
     }
 
-    const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
+    const accessToken = await getMercadoPagoAccessTokenForBookingWebhook(paymentId);
 
     if (!accessToken) {
       return res.status(200).json({ received: true, ignored: true, reason: "missing_access_token" });
@@ -2560,6 +2665,12 @@ router.post("/public/payment/mercadopago/webhook", async (req, res) => {
       paymentMethodId: payment.payment_method_id,
       paymentTypeId: payment.payment_type_id,
       amountPaid: payment.transaction_amount,
+    });
+
+    await markBookingPaymentFailedFromMercadoPago({
+      bookingId,
+      paymentId: payment.id,
+      paymentStatus: payment.status,
     });
 
     res.status(200).json({ received: true });
