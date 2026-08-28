@@ -2,12 +2,11 @@
 # Ajustá los nombres y conectá el repo desde el dashboard de Render.
 
 services:
-  # ─── API (Node.js + SQLite en disco persistente) ─────────────
+  # ─── API (Node.js + PostgreSQL) ───────────────────────────────
   - type: web
     name: tuagendaya-api
     runtime: node
     rootDir: backend
-    # Disco persistente requiere plan Starter+ (no Free)
     plan: starter
     buildCommand: npm install
     startCommand: npm start
@@ -17,8 +16,8 @@ services:
         value: production
       - key: PORT
         value: 10000
-      - key: DATABASE_PATH
-        value: /var/data/tuagendaya.db
+      - key: DATABASE_URL
+        sync: false
       - key: JWT_SECRET
         generateValue: true
       - key: CORS_ORIGIN
@@ -31,11 +30,6 @@ services:
         sync: false
       - key: WHATSAPP_PHONE_NUMBER_ID
         sync: false
-    disk:
-      name: tuagendaya-data
-      mountPath: /var/data
-      sizeGB: 1
-
   # ─── Frontend (sitio estático Vite) ──────────────────────────
   - type: web
     name: tuagendaya-web
