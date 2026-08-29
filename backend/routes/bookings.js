@@ -2926,9 +2926,20 @@ function addRecurrenceToDate(dateValue, unit, amount) {
   return date.toISOString().slice(0, 10);
 }
 
-function buildRepeatedBookingDates(sourceDate, intervalUnit, intervalValue, repeatCount, untilDate) {
+function buildRepeatedBookingDates(firstRepeatDate, intervalUnit, intervalValue, repeatCount, untilDate) {
   const unit = String(intervalUnit || "").trim().toLowerCase();
   const interval = Number(intervalValue);
+  const normalizedFirstDate = normalizeDate(firstRepeatDate);
+  const normalizedUntilDate = untilDate ? normalizeDate(untilDate) : null;
+  const count = repeatCount === null || repeatCount === undefined || repeatCount === ""
+    ? null
+    : Number(repeatCount);
+
+  if (!normalizedFirstDate) {
+    const error = new Error("Elegí la fecha de la primera repetición");
+    error.status = 400;
+    throw error;
+  }
 
   if (!["days", "weeks", "months"].includes(unit)) {
     const error = new Error("Unidad de repetición inválida");
@@ -2942,12 +2953,6 @@ function buildRepeatedBookingDates(sourceDate, intervalUnit, intervalValue, repe
     throw error;
   }
 
-  const normalizedSourceDate = normalizeDate(sourceDate);
-  const normalizedUntilDate = untilDate ? normalizeDate(untilDate) : null;
-  const count = repeatCount === null || repeatCount === undefined || repeatCount === ""
-    ? null
-    : Number(repeatCount);
-
   if (count !== null && (!Number.isInteger(count) || count < 1 || count > 100)) {
     const error = new Error("La cantidad de citas debe estar entre 1 y 100");
     error.status = 400;
@@ -2960,17 +2965,26 @@ function buildRepeatedBookingDates(sourceDate, intervalUnit, intervalValue, repe
     throw error;
   }
 
-  if (normalizedUntilDate && normalizedUntilDate <= normalizedSourceDate) {
-    const error = new Error("La fecha final debe ser posterior a la cita original");
+  if (normalizedUntilDate && normalizedUntilDate < normalizedFirstDate) {
+    const error = new Error("La fecha final no puede ser anterior a la primera repetición");
     error.status = 400;
     throw error;
   }
 
-  const dates = [];
+  const dates = [normalizedFirstDate];
+
+  if (count !== null && count === 1) {
+    return dates;
+  }
+
   let step = 1;
 
   while (dates.length < 100) {
-    const nextDate = addRecurrenceToDate(normalizedSourceDate, unit, interval * step);
+    const nextDate = addRecurrenceToDate(
+      normalizedFirstDate,
+      unit,
+      interval * step
+    );
 
     if (!nextDate) break;
     if (normalizedUntilDate && nextDate > normalizedUntilDate) break;
@@ -3006,9 +3020,15 @@ async function getRepeatSourceBooking(professionalId, bookingId) {
   return result.rows[0] || null;
 }
 
-async function inspectRepeatedBookingDates(professionalId, sourceBooking, dates) {
-  const startTime = normalizeTime(sourceBooking.start_time);
-  const endTime = normalizeTime(sourceBooking.end_time);
+async function inspectRepeatedBookingDates(
+  professionalId,
+  sourceBooking,
+  dates,
+  requestedStartTime
+) {
+  const startTime = normalizeTime(requestedStartTime || sourceBooking.start_time);
+  const durationMinutes = Number(sourceBooking.service_duration_minutes || 30) || 30;
+  const endTime = normalizeTime(addMinutesToTime(startTime, durationMinutes));
   const staffId = sourceBooking.staff_id || null;
   const result = [];
 
@@ -3041,6 +3061,10 @@ async function inspectRepeatedBookingDates(professionalId, sourceBooking, dates)
     result.push({
       bookingDate,
       booking_date: bookingDate,
+      startTime,
+      start_time: startTime,
+      endTime,
+      end_time: endTime,
       available,
       reason: available ? null : "Horario ocupado o no disponible",
     });
@@ -3064,8 +3088,21 @@ router.post("/repeat/preview", async (req, res) => {
       return res.status(404).json({ error: "Reserva original no encontrada" });
     }
 
+    const firstRepeatDate =
+      req.body.firstRepeatDate ||
+      req.body.first_repeat_date;
+    const requestedStartTime =
+      req.body.startTime ||
+      req.body.start_time;
+
+    if (!firstRepeatDate || !requestedStartTime) {
+      return res.status(400).json({
+        error: "Elegí el día y la hora de la primera repetición",
+      });
+    }
+
     const dates = buildRepeatedBookingDates(
-      sourceBooking.booking_date,
+      firstRepeatDate,
       req.body.intervalUnit || req.body.interval_unit,
       req.body.intervalValue ?? req.body.interval_value,
       req.body.repeatCount ?? req.body.repeat_count,
@@ -3075,7 +3112,8 @@ router.post("/repeat/preview", async (req, res) => {
     const preview = await inspectRepeatedBookingDates(
       professionalId,
       sourceBooking,
-      dates
+      dates,
+      requestedStartTime
     );
 
     return res.json({
@@ -3129,16 +3167,30 @@ router.post("/repeat", async (req, res) => {
       }
     }
 
+    const firstRepeatDate =
+      req.body.firstRepeatDate ||
+      req.body.first_repeat_date;
+    const requestedStartTime =
+      req.body.startTime ||
+      req.body.start_time;
+
+    if (!firstRepeatDate || !requestedStartTime) {
+      return res.status(400).json({
+        error: "Elegí el día y la hora de la primera repetición",
+      });
+    }
+
     const dates = buildRepeatedBookingDates(
-      sourceBooking.booking_date,
+      firstRepeatDate,
       req.body.intervalUnit || req.body.interval_unit,
       req.body.intervalValue ?? req.body.interval_value,
       req.body.repeatCount ?? req.body.repeat_count,
       req.body.untilDate || req.body.until_date
     );
 
-    const startTime = normalizeTime(sourceBooking.start_time);
-    const endTime = normalizeTime(sourceBooking.end_time);
+    const startTime = normalizeTime(requestedStartTime);
+    const durationMinutes = Number(service.duration_minutes || sourceBooking.service_duration_minutes || 30) || 30;
+    const endTime = normalizeTime(addMinutesToTime(startTime, durationMinutes));
     const safeClientName = String(sourceBooking.client_name || "").trim();
     const safeClientPhone = String(sourceBooking.client_phone || "").trim();
     const professionalResult = await db.query(

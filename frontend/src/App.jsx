@@ -6070,6 +6070,8 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
   const [endMode, setEndMode] = useState('count');
   const [repeatCount, setRepeatCount] = useState('4');
   const [untilDate, setUntilDate] = useState('');
+  const [firstRepeatDate, setFirstRepeatDate] = useState('');
+  const [repeatStartTime, setRepeatStartTime] = useState('');
   const [preview, setPreview] = useState([]);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -6084,6 +6086,10 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
     setEndMode('count');
     setRepeatCount('4');
     setUntilDate('');
+    setFirstRepeatDate('');
+    setRepeatStartTime(
+      formatTime(booking?.startTime ?? booking?.start_time) || ''
+    );
     setPreview([]);
     setError('');
     setResultMessage('');
@@ -6099,6 +6105,8 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
 
   const payload = {
     sourceBookingId: booking.id,
+    firstRepeatDate,
+    startTime: repeatStartTime,
     intervalValue: Number(intervalValue),
     intervalUnit,
     repeatCount: endMode === 'count' ? Number(repeatCount) : null,
@@ -6106,6 +6114,14 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
   };
 
   const validate = () => {
+    if (!firstRepeatDate) {
+      return 'Elegí en el calendario el primer día de repetición.';
+    }
+
+    if (!repeatStartTime) {
+      return 'Elegí la hora de la cita.';
+    }
+
     if (!Number.isInteger(Number(intervalValue)) || Number(intervalValue) < 1) {
       return 'Indicá cada cuánto querés repetir la cita.';
     }
@@ -6116,6 +6132,10 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
 
     if (endMode === 'date' && !untilDate) {
       return 'Elegí una fecha final.';
+    }
+
+    if (endMode === 'date' && untilDate < firstRepeatDate) {
+      return 'La fecha final no puede ser anterior a la primera repetición.';
     }
 
     return '';
@@ -6237,6 +6257,40 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
           <button type="button" onClick={onClose} disabled={creating} style={{ width: 34, height: 34, borderRadius: 999, border: 'none', background: '#f2f2f7', color: '#6e6e73', fontSize: 18, fontWeight: 900, cursor: creating ? 'default' : 'pointer' }}>×</button>
         </div>
 
+        <div style={{ marginTop: 18 }}>
+          <div style={{ fontSize: 14, fontWeight: 950, color: '#111827', marginBottom: 10 }}>
+            Primera cita repetida
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 150px', gap: 10 }}>
+            <div>
+              <span style={smallLabelStyle}>Día</span>
+              <DatePickerField
+                value={firstRepeatDate}
+                onChange={(value) => {
+                  setFirstRepeatDate(value);
+                  setPreview([]);
+                }}
+                placeholder="Elegir día en calendario"
+                allowPast={false}
+              />
+            </div>
+
+            <label>
+              <span style={smallLabelStyle}>Hora</span>
+              <input
+                type="time"
+                value={repeatStartTime}
+                onChange={(event) => {
+                  setRepeatStartTime(event.target.value);
+                  setPreview([]);
+                }}
+                style={{ ...inputStyle, borderRadius: 13, minHeight: 42 }}
+              />
+            </label>
+          </div>
+        </div>
+
         <div style={{ marginTop: 18, display: 'grid', gridTemplateColumns: '110px minmax(150px, 1fr)', gap: 10 }}>
           <label>
             <span style={smallLabelStyle}>Cada</span>
@@ -6273,7 +6327,7 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
         )}
 
         <div style={{ marginTop: 14, padding: '11px 13px', borderRadius: 14, background: '#f5f5f7', color: '#6e6e73', fontSize: 12, lineHeight: 1.5, fontWeight: 700 }}>
-          La cita se repetirá cada {intervalValue || '—'} {unitLabel}, manteniendo servicio, profesional y horario. Las fechas ocupadas no se pisan.
+          La primera repetición será el {firstRepeatDate ? formatDate(firstRepeatDate) : 'día que elijas'} a las {repeatStartTime || '—'}. Desde ahí se repetirá cada {intervalValue || '—'} {unitLabel}. Se mantienen cliente, servicio y profesional. Las fechas ocupadas no se pisan.
         </div>
 
         <button type="button" onClick={loadPreview} disabled={loadingPreview || creating} style={{ width: '100%', marginTop: 14, padding: '11px 14px', borderRadius: 13, border: '1px solid #0071e3', background: '#fff', color: '#0071e3', fontSize: 13, fontWeight: 900, fontFamily: 'inherit', cursor: loadingPreview || creating ? 'not-allowed' : 'pointer' }}>
