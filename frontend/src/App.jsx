@@ -6077,7 +6077,7 @@ function ClientsSection() {
   const [importedClients, setImportedClients] = useState([]);
   const [importingContacts, setImportingContacts] = useState(false);
   const [importContactsStatus, setImportContactsStatus] = useState('');
-  const webContactsInputRef = useRef(null);
+  const [webImportOpen, setWebImportOpen] = useState(false);
 
   let storedProfessional = {};
 
@@ -6409,7 +6409,13 @@ function ClientsSection() {
 
     try {
       const contacts = await parseWebContactsFile(file);
+
+      if (contacts.length === 0) {
+        throw new Error('No encontramos contactos con teléfono dentro del archivo.');
+      }
+
       await submitImportedContacts(contacts);
+      setWebImportOpen(false);
     } catch (error) {
       setImportContactsStatus(error.message || 'No se pudieron importar los contactos');
     } finally {
@@ -6420,7 +6426,8 @@ function ClientsSection() {
 
   const handleImportContacts = async () => {
     if (!Capacitor.isNativePlatform()) {
-      webContactsInputRef.current?.click();
+      setImportContactsStatus('');
+      setWebImportOpen(true);
       return;
     }
 
@@ -6684,6 +6691,138 @@ function ClientsSection() {
 
   return (
     <div>
+      {webImportOpen && !Capacitor.isNativePlatform() && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Importar clientes"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 15000,
+            background: 'rgba(15,23,42,0.42)',
+            backdropFilter: 'blur(8px)',
+            display: 'grid',
+            placeItems: 'center',
+            padding: 18,
+          }}
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !importingContacts) {
+              setWebImportOpen(false);
+            }
+          }}
+        >
+          <div
+            style={{
+              width: 'min(520px, 100%)',
+              background: '#fff',
+              borderRadius: 24,
+              padding: 22,
+              boxShadow: '0 28px 70px rgba(15,23,42,0.24)',
+              border: '1px solid rgba(15,23,42,0.08)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+              <div>
+                <div style={{ fontSize: 20, fontWeight: 950, color: '#111827' }}>
+                  Importar clientes
+                </div>
+                <div style={{ marginTop: 6, fontSize: 13, lineHeight: 1.5, color: '#6e6e73', fontWeight: 650 }}>
+                  Seleccioná un archivo de contactos. Aceptamos CSV y VCF. Si un teléfono ya existe, no se crea un cliente duplicado.
+                </div>
+              </div>
+
+              <button
+                type="button"
+                disabled={importingContacts}
+                onClick={() => setWebImportOpen(false)}
+                aria-label="Cerrar"
+                style={{
+                  flexShrink: 0,
+                  width: 34,
+                  height: 34,
+                  borderRadius: 999,
+                  border: 'none',
+                  background: '#f2f2f7',
+                  color: '#6e6e73',
+                  fontSize: 18,
+                  fontWeight: 900,
+                  cursor: importingContacts ? 'default' : 'pointer',
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <label
+              style={{
+                display: 'block',
+                marginTop: 18,
+                border: '1.5px dashed #b8c7dc',
+                borderRadius: 18,
+                padding: '26px 18px',
+                background: '#f8fbff',
+                textAlign: 'center',
+                cursor: importingContacts ? 'default' : 'pointer',
+              }}
+            >
+              <input
+                type="file"
+                accept=".csv,.vcf,text/csv,text/vcard,text/x-vcard"
+                onChange={handleWebContactsFile}
+                disabled={importingContacts}
+                style={{
+                  position: 'absolute',
+                  width: 1,
+                  height: 1,
+                  opacity: 0,
+                  pointerEvents: 'none',
+                }}
+              />
+
+              <div style={{ fontSize: 15, fontWeight: 950, color: '#0071e3' }}>
+                {importingContacts ? 'Importando...' : 'Seleccionar archivo'}
+              </div>
+              <div style={{ marginTop: 5, fontSize: 12, color: '#8e8e93', fontWeight: 750 }}>
+                CSV o VCF
+              </div>
+            </label>
+
+            <div
+              style={{
+                marginTop: 14,
+                padding: '12px 14px',
+                borderRadius: 14,
+                background: '#f5f5f7',
+                color: '#6e6e73',
+                fontSize: 12,
+                lineHeight: 1.5,
+                fontWeight: 700,
+              }}
+            >
+              Podés exportar tus contactos desde iCloud, Google Contacts u otra agenda y subir ese archivo acá.
+            </div>
+
+            {importContactsStatus && (
+              <div
+                style={{
+                  marginTop: 12,
+                  padding: '10px 12px',
+                  borderRadius: 12,
+                  background: '#fff4f4',
+                  color: '#b42318',
+                  fontSize: 12,
+                  lineHeight: 1.45,
+                  fontWeight: 800,
+                }}
+              >
+                {importContactsStatus}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <ManualBookingModal
         open={Boolean(manualBookingClient)}
         initialClient={manualBookingClient}
@@ -6791,14 +6930,6 @@ function ClientsSection() {
           </div>
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-            <input
-              ref={webContactsInputRef}
-              type="file"
-              accept=".csv,.vcf,text/csv,text/vcard,text/x-vcard"
-              onChange={handleWebContactsFile}
-              style={{ display: 'none' }}
-            />
-
             <button
               type="button"
               onClick={handleImportContacts}
@@ -6851,7 +6982,7 @@ function ClientsSection() {
 
         {!Capacitor.isNativePlatform() && !importContactsStatus && (
           <div style={{ margin: '-4px 0 14px', fontSize: 11.5, color: '#8e8e93', fontWeight: 700 }}>
-            En la web podés importar contactos desde un archivo CSV o VCF.
+            Desde la web podés importar clientes desde un archivo CSV o VCF exportado desde tus contactos.
           </div>
         )}
 
