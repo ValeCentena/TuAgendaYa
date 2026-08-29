@@ -443,6 +443,96 @@ router.patch('/me/client-notes/:clientKey', authMiddleware, async (req, res) => 
   }
 });
 
+
+// GET /api/professionals/me/booking-start-interval
+router.get('/me/booking-start-interval', authMiddleware, async (req, res) => {
+  try {
+    const professionalId = req.professional.id;
+
+    await ensureBookingStartIntervalColumn();
+
+    const result = await db.query(
+      `SELECT booking_start_interval_minutes
+       FROM professionals
+       WHERE id = $1
+       LIMIT 1`,
+      [professionalId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Profesional no encontrado' });
+    }
+
+    const interval =
+      Number(result.rows[0].booking_start_interval_minutes) === 60 ? 60 : 30;
+
+    setNoStoreHeaders(res);
+    return res.json({
+      bookingStartIntervalMinutes: interval,
+      booking_start_interval_minutes: interval,
+    });
+  } catch (err) {
+    console.error('GET /me/booking-start-interval error:', err);
+    return res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// PATCH /api/professionals/me/booking-start-interval
+router.patch('/me/booking-start-interval', authMiddleware, async (req, res) => {
+  try {
+    const professionalId = req.professional.id;
+    const interval = Number(
+      req.body.bookingStartIntervalMinutes ??
+      req.body.booking_start_interval_minutes
+    );
+
+    if (![30, 60].includes(interval)) {
+      return res.status(400).json({
+        error: 'El intervalo debe ser de 30 o 60 minutos',
+      });
+    }
+
+    await ensureBookingStartIntervalColumn();
+
+    const result = await db.query(
+      `UPDATE professionals
+       SET booking_start_interval_minutes = $1,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2
+       RETURNING booking_start_interval_minutes`,
+      [interval, professionalId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Profesional no encontrado' });
+    }
+
+    setNoStoreHeaders(res);
+    return res.json({
+      bookingStartIntervalMinutes: interval,
+      booking_start_interval_minutes: interval,
+    });
+  } catch (err) {
+    console.error('PATCH /me/booking-start-interval error:', err);
+    return res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+
+async function ensureBookingStartIntervalColumn() {
+  await db.query(`
+    ALTER TABLE professionals
+    ADD COLUMN IF NOT EXISTS booking_start_interval_minutes INTEGER DEFAULT 30
+  `);
+
+  await db.query(`
+    UPDATE professionals
+    SET booking_start_interval_minutes = 30
+    WHERE booking_start_interval_minutes IS NULL
+       OR booking_start_interval_minutes NOT IN (30, 60)
+  `);
+}
+
 // ── Helpers servicios ─────────────────────────────────────────
 
 function getDefaultServices(profession) {

@@ -1338,6 +1338,26 @@ function getAvailabilityBreakEnd(availability) {
   );
 }
 
+
+async function getBookingStartIntervalMinutes(professionalId) {
+  await db.query(`
+    ALTER TABLE professionals
+    ADD COLUMN IF NOT EXISTS booking_start_interval_minutes INTEGER DEFAULT 30
+  `);
+
+  const result = await db.query(
+    `SELECT booking_start_interval_minutes
+     FROM professionals
+     WHERE id = $1
+     LIMIT 1`,
+    [professionalId]
+  );
+
+  return Number(result.rows[0]?.booking_start_interval_minutes) === 60
+    ? 60
+    : 30;
+}
+
 async function getProfessionalBySlug(slug) {
   const result = await db.query(
     `
@@ -2023,6 +2043,9 @@ router.get("/public/:slug/slots", async (req, res) => {
       });
     }
 
+    const bookingStartIntervalMinutes =
+      await getBookingStartIntervalMinutes(professional.id);
+
     let staff = null;
 
     if (staffId) {
@@ -2065,7 +2088,7 @@ router.get("/public/:slug/slots", async (req, res) => {
     const baseSlots = generateSlotsFromConfig(
       availability.start_time,
       availability.end_time,
-      availability.slot_duration_minutes,
+      bookingStartIntervalMinutes,
       serviceDuration
     );
 

@@ -2605,6 +2605,122 @@ const tipEditorStyles = `
 `;
 
 
+function BookingStartIntervalSetting() {
+  const [value, setValue] = useState(30);
+  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState('');
+
+  useEffect(() => {
+    const token = localStorage.getItem('tuagendaya_token');
+
+    fetch(`${API_BASE}/professionals/me/booking-start-interval`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || 'No se pudo cargar el intervalo');
+        setValue(Number(data.bookingStartIntervalMinutes) === 60 ? 60 : 30);
+      })
+      .catch(() => {
+        setStatus('No se pudo cargar esta configuración.');
+      });
+  }, []);
+
+  const saveInterval = async (nextValue) => {
+    const token = localStorage.getItem('tuagendaya_token');
+    setSaving(true);
+    setStatus('');
+
+    try {
+      const response = await fetch(`${API_BASE}/professionals/me/booking-start-interval`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          bookingStartIntervalMinutes: nextValue,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || 'No se pudo guardar');
+      }
+
+      setValue(nextValue);
+      setStatus('Guardado');
+    } catch (error) {
+      setStatus(error.message || 'No se pudo guardar.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        background: '#fff',
+        borderRadius: 20,
+        padding: '20px 24px',
+        boxShadow: '0 1px 8px rgba(0,0,0,0.06)',
+      }}
+    >
+      <div style={{ fontSize: 17, fontWeight: 800, color: '#1a1a1a' }}>
+        Intervalo de inicio de turnos
+      </div>
+      <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 4, lineHeight: 1.5 }}>
+        Elegí cada cuánto tiempo puede comenzar una reserva. Esto no modifica la duración de tus servicios.
+      </div>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 16 }}>
+        {[30, 60].map((option) => {
+          const active = value === option;
+
+          return (
+            <button
+              key={option}
+              type="button"
+              disabled={saving}
+              onClick={() => saveInterval(option)}
+              style={{
+                border: active
+                  ? '1px solid rgba(0,113,227,.25)'
+                  : '1px solid rgba(15,23,42,.08)',
+                borderRadius: 14,
+                padding: '11px 16px',
+                background: active ? '#0071e3' : '#f7f8fa',
+                color: active ? '#fff' : '#1d2636',
+                fontFamily: 'inherit',
+                fontSize: 13,
+                fontWeight: 900,
+                cursor: saving ? 'default' : 'pointer',
+              }}
+            >
+              Cada {option} minutos
+            </button>
+          );
+        })}
+      </div>
+
+      {status && (
+        <div
+          style={{
+            marginTop: 10,
+            fontSize: 12,
+            fontWeight: 800,
+            color: status === 'Guardado' ? '#248a3d' : '#c62828',
+          }}
+        >
+          {status}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 function ManualBookingModal({ open, initialClient = null, onClose, onCreated }) {
   const [services, setServices] = useState([]);
   const [staff, setStaff] = useState([]);
@@ -2612,6 +2728,7 @@ function ManualBookingModal({ open, initialClient = null, onClose, onCreated }) 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [timePickerOpen, setTimePickerOpen] = useState(false);
+  const [bookingStartIntervalMinutes, setBookingStartIntervalMinutes] = useState(30);
   const [form, setForm] = useState({
     clientName: '',
     clientPhone: '',
@@ -2662,10 +2779,18 @@ function ManualBookingModal({ open, initialClient = null, onClose, onCreated }) 
         if (!response.ok) throw new Error(data.error || 'No se pudieron cargar los profesionales');
         return (data.staff || []).map(normalizeStaff).filter((item) => item.isActive !== false);
       }),
+      fetch(`${API_BASE}/professionals/me/booking-start-interval`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }).then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || 'No se pudo cargar el intervalo de horarios');
+        return Number(data.bookingStartIntervalMinutes) === 60 ? 60 : 30;
+      }),
     ])
-      .then(([nextServices, nextStaff]) => {
+      .then(([nextServices, nextStaff, nextInterval]) => {
         setServices(nextServices);
         setStaff(nextStaff);
+        setBookingStartIntervalMinutes(nextInterval);
         setForm((current) => ({
           ...current,
           serviceId: nextServices.length === 1 ? String(nextServices[0].id) : current.serviceId,
@@ -2680,13 +2805,16 @@ function ManualBookingModal({ open, initialClient = null, onClose, onCreated }) 
 
   if (!open) return null;
 
-  const manualTimeOptions = Array.from({ length: 72 }, (_, index) => {
-    const totalMinutes = 6 * 60 + index * 15;
-    const hour = Math.floor(totalMinutes / 60);
-    const minute = totalMinutes % 60;
-    const value = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
-    return value;
-  });
+  const manualTimeOptions = Array.from(
+    { length: Math.floor((24 * 60 - 6 * 60) / bookingStartIntervalMinutes) },
+    (_, index) => {
+      const totalMinutes = 6 * 60 + index * bookingStartIntervalMinutes;
+      const hour = Math.floor(totalMinutes / 60);
+      const minute = totalMinutes % 60;
+      const value = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+      return value;
+    }
+  );
 
   const updateField = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }));
@@ -7056,6 +7184,8 @@ function AvailabilitySection() {
           {saving ? 'Guardando...' : 'Guardar disponibilidad general'}
         </button>
       </div>
+
+      <BookingStartIntervalSetting />
 
       <div style={{ background: '#fff', borderRadius: 20, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
         <div style={{ marginBottom: 16 }}>
