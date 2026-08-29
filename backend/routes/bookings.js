@@ -2897,6 +2897,464 @@ router.patch("/public/confirmation/:token/cancel", async (req, res) => {
 });
 
 
+
+function addRecurrenceToDate(dateValue, unit, amount) {
+  const normalized = normalizeDate(dateValue);
+  const match = String(normalized || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+  if (!match) {
+    return null;
+  }
+
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  const safeAmount = Number(amount) || 0;
+
+  if (unit === "days") {
+    date.setUTCDate(date.getUTCDate() + safeAmount);
+  } else if (unit === "weeks") {
+    date.setUTCDate(date.getUTCDate() + safeAmount * 7);
+  } else if (unit === "months") {
+    const originalDay = date.getUTCDate();
+    date.setUTCDate(1);
+    date.setUTCMonth(date.getUTCMonth() + safeAmount);
+    const lastDay = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate();
+    date.setUTCDate(Math.min(originalDay, lastDay));
+  } else {
+    return null;
+  }
+
+  return date.toISOString().slice(0, 10);
+}
+
+function buildRepeatedBookingDates(sourceDate, intervalUnit, intervalValue, repeatCount, untilDate) {
+  const unit = String(intervalUnit || "").trim().toLowerCase();
+  const interval = Number(intervalValue);
+
+  if (!["days", "weeks", "months"].includes(unit)) {
+    const error = new Error("Unidad de repetición inválida");
+    error.status = 400;
+    throw error;
+  }
+
+  if (!Number.isInteger(interval) || interval < 1 || interval > 365) {
+    const error = new Error("El intervalo debe ser un número válido mayor a 0");
+    error.status = 400;
+    throw error;
+  }
+
+  const normalizedSourceDate = normalizeDate(sourceDate);
+  const normalizedUntilDate = untilDate ? normalizeDate(untilDate) : null;
+  const count = repeatCount === null || repeatCount === undefined || repeatCount === ""
+    ? null
+    : Number(repeatCount);
+
+  if (count !== null && (!Number.isInteger(count) || count < 1 || count > 100)) {
+    const error = new Error("La cantidad de citas debe estar entre 1 y 100");
+    error.status = 400;
+    throw error;
+  }
+
+  if (count === null && !normalizedUntilDate) {
+    const error = new Error("Indicá una cantidad de citas o una fecha final");
+    error.status = 400;
+    throw error;
+  }
+
+  if (normalizedUntilDate && normalizedUntilDate <= normalizedSourceDate) {
+    const error = new Error("La fecha final debe ser posterior a la cita original");
+    error.status = 400;
+    throw error;
+  }
+
+  const dates = [];
+  let step = 1;
+
+  while (dates.length < 100) {
+    const nextDate = addRecurrenceToDate(normalizedSourceDate, unit, interval * step);
+
+    if (!nextDate) break;
+    if (normalizedUntilDate && nextDate > normalizedUntilDate) break;
+
+    dates.push(nextDate);
+
+    if (count !== null && dates.length >= count) break;
+    step += 1;
+  }
+
+  return dates;
+}
+
+async function getRepeatSourceBooking(professionalId, bookingId) {
+  const result = await db.query(
+    `
+    SELECT
+      b.*,
+      s.name AS service_name,
+      s.duration_minutes AS service_duration_minutes,
+      s.price AS service_price,
+      sm.name AS staff_name
+    FROM bookings b
+    LEFT JOIN professional_services s ON s.id = b.service_id
+    LEFT JOIN staff_members sm ON sm.id = b.staff_id
+    WHERE b.id = $1
+      AND b.professional_id = $2
+    LIMIT 1
+    `,
+    [Number(bookingId), professionalId]
+  );
+
+  return result.rows[0] || null;
+}
+
+async function inspectRepeatedBookingDates(professionalId, sourceBooking, dates) {
+  const startTime = normalizeTime(sourceBooking.start_time);
+  const endTime = normalizeTime(sourceBooking.end_time);
+  const staffId = sourceBooking.staff_id || null;
+  const result = [];
+
+  for (const bookingDate of dates) {
+    const availability = await getAvailabilityForDate(
+      professionalId,
+      staffId,
+      bookingDate
+    );
+
+    if (!availability || !isAvailabilityActive(availability)) {
+      result.push({
+        bookingDate,
+        booking_date: bookingDate,
+        available: false,
+        reason: "No hay disponibilidad configurada",
+      });
+      continue;
+    }
+
+    const available = await isTimeRangeAvailable(
+      professionalId,
+      staffId,
+      bookingDate,
+      startTime,
+      endTime,
+      availability
+    );
+
+    result.push({
+      bookingDate,
+      booking_date: bookingDate,
+      available,
+      reason: available ? null : "Horario ocupado o no disponible",
+    });
+  }
+
+  return result;
+}
+
+router.post("/repeat/preview", async (req, res) => {
+  try {
+    const professionalId = await getProfessionalIdFromRequest(req);
+    const sourceBookingId = Number(req.body.sourceBookingId || req.body.source_booking_id);
+
+    if (!sourceBookingId) {
+      return res.status(400).json({ error: "Reserva original requerida" });
+    }
+
+    const sourceBooking = await getRepeatSourceBooking(professionalId, sourceBookingId);
+
+    if (!sourceBooking) {
+      return res.status(404).json({ error: "Reserva original no encontrada" });
+    }
+
+    const dates = buildRepeatedBookingDates(
+      sourceBooking.booking_date,
+      req.body.intervalUnit || req.body.interval_unit,
+      req.body.intervalValue ?? req.body.interval_value,
+      req.body.repeatCount ?? req.body.repeat_count,
+      req.body.untilDate || req.body.until_date
+    );
+
+    const preview = await inspectRepeatedBookingDates(
+      professionalId,
+      sourceBooking,
+      dates
+    );
+
+    return res.json({
+      success: true,
+      sourceBooking: normalizeBooking(sourceBooking),
+      dates: preview,
+      availableCount: preview.filter((item) => item.available).length,
+      conflictCount: preview.filter((item) => !item.available).length,
+    });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      error: error.message || "Error preparando repetición de cita",
+    });
+  }
+});
+
+router.post("/repeat", async (req, res) => {
+  try {
+    await ensurePaymentColumns();
+
+    const professionalId = await getProfessionalIdFromRequest(req);
+    const sourceBookingId = Number(req.body.sourceBookingId || req.body.source_booking_id);
+
+    if (!sourceBookingId) {
+      return res.status(400).json({ error: "Reserva original requerida" });
+    }
+
+    const sourceBooking = await getRepeatSourceBooking(professionalId, sourceBookingId);
+
+    if (!sourceBooking) {
+      return res.status(404).json({ error: "Reserva original no encontrada" });
+    }
+
+    if (!sourceBooking.service_id) {
+      return res.status(400).json({ error: "La reserva original no tiene un servicio válido" });
+    }
+
+    const service = await getServiceForProfessional(professionalId, sourceBooking.service_id);
+
+    if (!service) {
+      return res.status(404).json({ error: "El servicio de la reserva original ya no está disponible" });
+    }
+
+    let staff = null;
+
+    if (sourceBooking.staff_id) {
+      staff = await getStaffForProfessional(professionalId, sourceBooking.staff_id);
+
+      if (!staff) {
+        return res.status(404).json({ error: "El profesional interno de la reserva original ya no está disponible" });
+      }
+    }
+
+    const dates = buildRepeatedBookingDates(
+      sourceBooking.booking_date,
+      req.body.intervalUnit || req.body.interval_unit,
+      req.body.intervalValue ?? req.body.interval_value,
+      req.body.repeatCount ?? req.body.repeat_count,
+      req.body.untilDate || req.body.until_date
+    );
+
+    const startTime = normalizeTime(sourceBooking.start_time);
+    const endTime = normalizeTime(sourceBooking.end_time);
+    const safeClientName = String(sourceBooking.client_name || "").trim();
+    const safeClientPhone = String(sourceBooking.client_phone || "").trim();
+    const professionalResult = await db.query(
+      `SELECT * FROM professionals WHERE id = $1 LIMIT 1`,
+      [professionalId]
+    );
+    const professional = professionalResult.rows[0] || {
+      id: professionalId,
+      name: "TuAgendaYa",
+      business_name: "TuAgendaYa",
+    };
+
+    const created = [];
+    const conflicts = [];
+
+    for (const bookingDate of dates) {
+      const availability = await getAvailabilityForDate(
+        professionalId,
+        staff ? staff.id : null,
+        bookingDate
+      );
+
+      if (!availability || !isAvailabilityActive(availability)) {
+        conflicts.push({ bookingDate, booking_date: bookingDate, reason: "No hay disponibilidad configurada" });
+        continue;
+      }
+
+      const bookingClient = await db.connect();
+      let transactionOpen = false;
+      let insertedRow = null;
+
+      try {
+        await bookingClient.query("BEGIN");
+        transactionOpen = true;
+
+        const bookingLockKey = [
+          professionalId,
+          staff ? staff.id : 0,
+          bookingDate,
+        ].join(":");
+
+        await bookingClient.query(
+          "SELECT pg_advisory_xact_lock(hashtext($1))",
+          [bookingLockKey]
+        );
+
+        const lockedAvailable = await isTimeRangeAvailable(
+          professionalId,
+          staff ? staff.id : null,
+          bookingDate,
+          startTime,
+          endTime,
+          availability
+        );
+
+        if (!lockedAvailable) {
+          await bookingClient.query("ROLLBACK");
+          transactionOpen = false;
+          conflicts.push({ bookingDate, booking_date: bookingDate, reason: "Horario ocupado o no disponible" });
+          continue;
+        }
+
+        const confirmationToken = createConfirmationToken();
+        const insertResult = await bookingClient.query(
+          `
+          INSERT INTO bookings (
+            professional_id,
+            staff_id,
+            service_id,
+            client_name,
+            client_phone,
+            comment,
+            booking_date,
+            start_time,
+            end_time,
+            status,
+            confirmation_token,
+            payment_status,
+            payment_method,
+            amount_paid,
+            created_at,
+            updated_at
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'confirmed', $10, 'paid', 'cash', $11, NOW(), NOW())
+          RETURNING *
+          `,
+          [
+            professionalId,
+            staff ? staff.id : null,
+            sourceBooking.service_id,
+            safeClientName,
+            safeClientPhone,
+            sourceBooking.comment || null,
+            bookingDate,
+            startTime,
+            endTime,
+            confirmationToken,
+            Number(service.price || sourceBooking.service_price || 0),
+          ]
+        );
+
+        insertedRow = insertResult.rows[0];
+        await bookingClient.query("COMMIT");
+        transactionOpen = false;
+      } catch (bookingError) {
+        if (transactionOpen) {
+          try {
+            await bookingClient.query("ROLLBACK");
+          } catch (rollbackError) {
+            console.warn("Repeated booking rollback failed:", rollbackError.message);
+          }
+        }
+
+        throw bookingError;
+      } finally {
+        bookingClient.release();
+      }
+
+      if (!insertedRow) continue;
+
+      const normalizedBooking = normalizeBooking({
+        ...insertedRow,
+        staff_name: staff ? staff.name : null,
+        service_name: service.name,
+        service_duration_minutes: service.duration_minutes,
+        service_price: service.price,
+      });
+
+      const confirmationToken = insertedRow.confirmation_token;
+
+      try {
+        await sendBookingConfirmationMessage(
+          {
+            ...normalizedBooking,
+            client_phone: safeClientPhone,
+            clientPhone: safeClientPhone,
+            client_name: safeClientName,
+            clientName: safeClientName,
+            service_name: service.name || "Servicio",
+            serviceName: service.name || "Servicio",
+            staff_name: staff ? staff.name : null,
+            staffName: staff ? staff.name : null,
+            booking_date: bookingDate,
+            bookingDate,
+            start_time: startTime,
+            startTime,
+            confirmation_token: confirmationToken,
+            confirmationToken,
+          },
+          {
+            ...professional,
+            business_name: professional.business_name || professional.name || "TuAgendaYa",
+            businessName: professional.business_name || professional.name || "TuAgendaYa",
+          }
+        );
+      } catch (whatsappError) {
+        console.warn("Repeated booking WhatsApp confirmation skipped:", whatsappError.message);
+      }
+
+      try {
+        await sendBusinessBookingNotification(
+          {
+            ...normalizedBooking,
+            client_phone: safeClientPhone,
+            clientPhone: safeClientPhone,
+            client_name: safeClientName,
+            clientName: safeClientName,
+            service_name: service.name || "Servicio",
+            serviceName: service.name || "Servicio",
+            staff_name: staff ? staff.name : null,
+            staffName: staff ? staff.name : null,
+            booking_date: bookingDate,
+            bookingDate,
+            start_time: startTime,
+            startTime,
+          },
+          professional
+        );
+      } catch (businessWhatsappError) {
+        console.warn("Repeated booking business notification skipped:", businessWhatsappError.message);
+      }
+
+      try {
+        await sendPushToProfessional(professionalId, {
+          title: "Nueva reserva en TuAgendaYa",
+          body: `${safeClientName} tiene una reserva de ${service.name || "un servicio"} para el ${bookingDate} a las ${startTime}`,
+          icon: "/tuagendaya-logo.png",
+          badge: "/tuagendaya-logo.png",
+          url: "/profesional/dashboard",
+          bookingId: insertedRow.id,
+          clientName: safeClientName,
+          serviceName: service.name || "Servicio",
+          bookingDate,
+          startTime,
+        });
+      } catch (pushError) {
+        console.warn("Repeated booking push notification skipped:", pushError.message);
+      }
+
+      created.push(normalizedBooking);
+    }
+
+    return res.status(201).json({
+      success: true,
+      created,
+      createdCount: created.length,
+      conflicts,
+      conflictCount: conflicts.length,
+    });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      error: error.message || "Error repitiendo cita",
+    });
+  }
+});
+
 router.post("/manual", async (req, res) => {
   try {
     await ensurePaymentColumns();

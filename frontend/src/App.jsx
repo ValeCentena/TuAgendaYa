@@ -6063,6 +6063,254 @@ function CashSection() {
   );
 }
 
+
+function RepeatBookingModal({ open, booking, onClose, onCreated }) {
+  const [intervalValue, setIntervalValue] = useState('1');
+  const [intervalUnit, setIntervalUnit] = useState('weeks');
+  const [endMode, setEndMode] = useState('count');
+  const [repeatCount, setRepeatCount] = useState('4');
+  const [untilDate, setUntilDate] = useState('');
+  const [preview, setPreview] = useState([]);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState('');
+  const [resultMessage, setResultMessage] = useState('');
+
+  useEffect(() => {
+    if (!open) return;
+
+    setIntervalValue('1');
+    setIntervalUnit('weeks');
+    setEndMode('count');
+    setRepeatCount('4');
+    setUntilDate('');
+    setPreview([]);
+    setError('');
+    setResultMessage('');
+  }, [open, booking?.id]);
+
+  if (!open || !booking) return null;
+
+  const sourceDate = getDateKeyFromValue(getBookingDateValue(booking));
+  const sourceTime = formatTime(booking.startTime ?? booking.start_time) || '';
+  const sourceEndTime = formatTime(booking.endTime ?? booking.end_time) || '';
+  const serviceName = booking.serviceName ?? booking.service_name ?? 'Servicio';
+  const staffName = booking.staffName ?? booking.staff_name ?? '';
+
+  const payload = {
+    sourceBookingId: booking.id,
+    intervalValue: Number(intervalValue),
+    intervalUnit,
+    repeatCount: endMode === 'count' ? Number(repeatCount) : null,
+    untilDate: endMode === 'date' ? untilDate : null,
+  };
+
+  const validate = () => {
+    if (!Number.isInteger(Number(intervalValue)) || Number(intervalValue) < 1) {
+      return 'Indicá cada cuánto querés repetir la cita.';
+    }
+
+    if (endMode === 'count' && (!Number.isInteger(Number(repeatCount)) || Number(repeatCount) < 1 || Number(repeatCount) > 100)) {
+      return 'La cantidad de citas debe estar entre 1 y 100.';
+    }
+
+    if (endMode === 'date' && !untilDate) {
+      return 'Elegí una fecha final.';
+    }
+
+    return '';
+  };
+
+  const loadPreview = async () => {
+    const validationError = validate();
+
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    const token = localStorage.getItem('tuagendaya_token');
+    setLoadingPreview(true);
+    setError('');
+    setResultMessage('');
+
+    try {
+      const response = await fetch(`${API_BASE}/bookings/repeat/preview`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || 'No se pudo preparar la repetición.');
+      }
+
+      setPreview(Array.isArray(data.dates) ? data.dates : []);
+    } catch (requestError) {
+      setPreview([]);
+      setError(requestError.message || 'No se pudo preparar la repetición.');
+    } finally {
+      setLoadingPreview(false);
+    }
+  };
+
+  const createRepeatedBookings = async () => {
+    const validationError = validate();
+
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    const token = localStorage.getItem('tuagendaya_token');
+    setCreating(true);
+    setError('');
+    setResultMessage('');
+
+    try {
+      const response = await fetch(`${API_BASE}/bookings/repeat`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || 'No se pudieron crear las citas repetidas.');
+      }
+
+      const createdCount = Number(data.createdCount || 0);
+      const conflictCount = Number(data.conflictCount || 0);
+      setResultMessage(
+        `${createdCount} ${createdCount === 1 ? 'cita creada' : 'citas creadas'}${conflictCount > 0 ? ` · ${conflictCount} con conflicto no se crearon` : ''}`
+      );
+      setPreview([]);
+
+      if (onCreated) {
+        await onCreated(data);
+      }
+    } catch (requestError) {
+      setError(requestError.message || 'No se pudieron crear las citas repetidas.');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const unitLabel = intervalUnit === 'days' ? 'día(s)' : intervalUnit === 'weeks' ? 'semana(s)' : 'mes(es)';
+  const availableCount = preview.filter((item) => item.available).length;
+  const conflictCount = preview.filter((item) => !item.available).length;
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Repetir cita"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 16000,
+        background: 'rgba(15,23,42,.45)',
+        backdropFilter: 'blur(8px)',
+        display: 'grid',
+        placeItems: 'center',
+        padding: 18,
+      }}
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !creating) onClose();
+      }}
+    >
+      <div style={{ width: 'min(620px, 100%)', maxHeight: '88vh', overflowY: 'auto', background: '#fff', borderRadius: 24, padding: 22, boxShadow: '0 28px 70px rgba(15,23,42,.24)', border: '1px solid rgba(15,23,42,.08)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14 }}>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 950, color: '#111827' }}>Repetir cita</div>
+            <div style={{ marginTop: 5, fontSize: 12.5, color: '#6e6e73', fontWeight: 700, lineHeight: 1.45 }}>
+              {formatDate(sourceDate)} · {sourceTime}{sourceEndTime ? ` - ${sourceEndTime}` : ''} · {serviceName}{staffName ? ` · ${staffName}` : ''}
+            </div>
+          </div>
+          <button type="button" onClick={onClose} disabled={creating} style={{ width: 34, height: 34, borderRadius: 999, border: 'none', background: '#f2f2f7', color: '#6e6e73', fontSize: 18, fontWeight: 900, cursor: creating ? 'default' : 'pointer' }}>×</button>
+        </div>
+
+        <div style={{ marginTop: 18, display: 'grid', gridTemplateColumns: '110px minmax(150px, 1fr)', gap: 10 }}>
+          <label>
+            <span style={smallLabelStyle}>Cada</span>
+            <input type="number" min="1" max="365" value={intervalValue} onChange={(event) => { setIntervalValue(event.target.value); setPreview([]); }} style={{ ...inputStyle, borderRadius: 13 }} />
+          </label>
+          <label>
+            <span style={smallLabelStyle}>Período</span>
+            <select value={intervalUnit} onChange={(event) => { setIntervalUnit(event.target.value); setPreview([]); }} style={{ ...inputStyle, borderRadius: 13 }}>
+              <option value="days">Días</option>
+              <option value="weeks">Semanas</option>
+              <option value="months">Meses</option>
+            </select>
+          </label>
+        </div>
+
+        <div style={{ marginTop: 16 }}>
+          <span style={smallLabelStyle}>Repetir hasta</span>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button type="button" onClick={() => { setEndMode('count'); setPreview([]); }} style={{ border: endMode === 'count' ? '1px solid #0071e3' : '1px solid #e2e2e8', borderRadius: 12, padding: '9px 12px', background: endMode === 'count' ? '#eef6ff' : '#fff', color: endMode === 'count' ? '#0071e3' : '#1a1a1a', fontWeight: 850, fontFamily: 'inherit', cursor: 'pointer' }}>Cantidad de citas</button>
+            <button type="button" onClick={() => { setEndMode('date'); setPreview([]); }} style={{ border: endMode === 'date' ? '1px solid #0071e3' : '1px solid #e2e2e8', borderRadius: 12, padding: '9px 12px', background: endMode === 'date' ? '#eef6ff' : '#fff', color: endMode === 'date' ? '#0071e3' : '#1a1a1a', fontWeight: 850, fontFamily: 'inherit', cursor: 'pointer' }}>Fecha final</button>
+          </div>
+        </div>
+
+        {endMode === 'count' ? (
+          <label style={{ display: 'block', marginTop: 14 }}>
+            <span style={smallLabelStyle}>Cantidad de nuevas citas</span>
+            <input type="number" min="1" max="100" value={repeatCount} onChange={(event) => { setRepeatCount(event.target.value); setPreview([]); }} style={{ ...inputStyle, borderRadius: 13 }} />
+          </label>
+        ) : (
+          <div style={{ marginTop: 14 }}>
+            <span style={smallLabelStyle}>Fecha final</span>
+            <DatePickerField value={untilDate} onChange={(value) => { setUntilDate(value); setPreview([]); }} placeholder="Elegir fecha final" allowPast={false} />
+          </div>
+        )}
+
+        <div style={{ marginTop: 14, padding: '11px 13px', borderRadius: 14, background: '#f5f5f7', color: '#6e6e73', fontSize: 12, lineHeight: 1.5, fontWeight: 700 }}>
+          La cita se repetirá cada {intervalValue || '—'} {unitLabel}, manteniendo servicio, profesional y horario. Las fechas ocupadas no se pisan.
+        </div>
+
+        <button type="button" onClick={loadPreview} disabled={loadingPreview || creating} style={{ width: '100%', marginTop: 14, padding: '11px 14px', borderRadius: 13, border: '1px solid #0071e3', background: '#fff', color: '#0071e3', fontSize: 13, fontWeight: 900, fontFamily: 'inherit', cursor: loadingPreview || creating ? 'not-allowed' : 'pointer' }}>
+          {loadingPreview ? 'Revisando fechas...' : 'Ver fechas antes de crear'}
+        </button>
+
+        {preview.length > 0 && (
+          <div style={{ marginTop: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
+              <div style={{ fontSize: 12.5, color: '#1a1a1a', fontWeight: 900 }}>Vista previa</div>
+              <div style={{ fontSize: 11.5, color: '#6e6e73', fontWeight: 800 }}>{availableCount} disponibles{conflictCount ? ` · ${conflictCount} conflictos` : ''}</div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 220, overflowY: 'auto' }}>
+              {preview.map((item) => (
+                <div key={item.bookingDate ?? item.booking_date} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', padding: '9px 11px', borderRadius: 12, background: item.available ? '#f2fbf4' : '#fff4f4', border: `1px solid ${item.available ? '#ccebd4' : '#ffd4d0'}` }}>
+                  <span style={{ fontSize: 12.5, fontWeight: 850, color: '#1a1a1a' }}>{formatDate(item.bookingDate ?? item.booking_date)} · {sourceTime}</span>
+                  <span style={{ fontSize: 11, fontWeight: 900, color: item.available ? '#188038' : '#c62828', textAlign: 'right' }}>{item.available ? 'Disponible' : (item.reason || 'Conflicto')}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {error && <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 12, background: '#fff2f2', color: '#c62828', fontSize: 12.5, fontWeight: 800 }}>{error}</div>}
+        {resultMessage && <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 12, background: '#edfff3', color: '#188038', fontSize: 12.5, fontWeight: 800 }}>{resultMessage}</div>}
+
+        <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+          <button type="button" onClick={onClose} disabled={creating} style={{ flex: 1, padding: '12px 14px', borderRadius: 13, border: '1px solid #e2e2e8', background: '#fff', color: '#1a1a1a', fontSize: 13, fontWeight: 900, fontFamily: 'inherit', cursor: creating ? 'not-allowed' : 'pointer' }}>Cancelar</button>
+          <button type="button" onClick={createRepeatedBookings} disabled={creating || loadingPreview} style={{ flex: 1.4, padding: '12px 14px', borderRadius: 13, border: 'none', background: creating ? '#aeaeb2' : '#0071e3', color: '#fff', fontSize: 13, fontWeight: 900, fontFamily: 'inherit', cursor: creating ? 'not-allowed' : 'pointer' }}>
+            {creating ? 'Creando citas...' : 'Crear citas repetidas'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ClientsSection() {
   const [bookings, setBookings] = useState([]);
   const [loadingClients, setLoadingClients] = useState(true);
@@ -6074,6 +6322,7 @@ function ClientsSection() {
   const [savingNoteKey, setSavingNoteKey] = useState(null);
   const [noteStatus, setNoteStatus] = useState({});
   const [manualBookingClient, setManualBookingClient] = useState(null);
+  const [repeatBooking, setRepeatBooking] = useState(null);
   const [importedClients, setImportedClients] = useState([]);
   const [importingContacts, setImportingContacts] = useState(false);
   const [importContactsStatus, setImportContactsStatus] = useState('');
@@ -6833,6 +7082,14 @@ function ClientsSection() {
         }}
       />
 
+
+      <RepeatBookingModal
+        open={Boolean(repeatBooking)}
+        booking={repeatBooking}
+        onClose={() => setRepeatBooking(null)}
+        onCreated={() => fetchBookings(true)}
+      />
+
       <div style={{ marginBottom: 16 }}>
         <button
           type="button"
@@ -7257,8 +7514,28 @@ function ClientsSection() {
                                   </div>
                                 </div>
 
-                                <div style={{ fontSize: 11, color: statusColor, background: '#fff', border: `0.5px solid ${statusColor}33`, padding: '5px 9px', borderRadius: 999, fontWeight: 900 }}>
-                                  {statusLabel}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                  <div style={{ fontSize: 11, color: statusColor, background: '#fff', border: `0.5px solid ${statusColor}33`, padding: '5px 9px', borderRadius: 999, fontWeight: 900 }}>
+                                    {statusLabel}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => setRepeatBooking(booking)}
+                                    style={{
+                                      border: '1px solid #0071e3',
+                                      borderRadius: 10,
+                                      padding: '6px 9px',
+                                      background: '#fff',
+                                      color: '#0071e3',
+                                      fontSize: 11,
+                                      fontWeight: 900,
+                                      fontFamily: 'inherit',
+                                      cursor: 'pointer',
+                                      whiteSpace: 'nowrap',
+                                    }}
+                                  >
+                                    Repetir cita
+                                  </button>
                                 </div>
                               </div>
                             );
