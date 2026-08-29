@@ -6065,15 +6065,11 @@ function CashSection() {
 
 
 function RepeatBookingModal({ open, booking, onClose, onCreated }) {
-  const [intervalValue, setIntervalValue] = useState('1');
-  const [intervalUnit, setIntervalUnit] = useState('weeks');
-  const [endMode, setEndMode] = useState('count');
-  const [repeatCount, setRepeatCount] = useState('4');
-  const [untilDate, setUntilDate] = useState('');
   const [firstRepeatDate, setFirstRepeatDate] = useState('');
   const [repeatStartTime, setRepeatStartTime] = useState('');
-  const [preview, setPreview] = useState([]);
-  const [loadingPreview, setLoadingPreview] = useState(false);
+  const [repeatCount, setRepeatCount] = useState('4');
+  const [timePickerOpen, setTimePickerOpen] = useState(false);
+  const [bookingStartIntervalMinutes, setBookingStartIntervalMinutes] = useState(30);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
   const [resultMessage, setResultMessage] = useState('');
@@ -6081,18 +6077,34 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
   useEffect(() => {
     if (!open) return;
 
-    setIntervalValue('1');
-    setIntervalUnit('weeks');
-    setEndMode('count');
-    setRepeatCount('4');
-    setUntilDate('');
     setFirstRepeatDate('');
     setRepeatStartTime(
       formatTime(booking?.startTime ?? booking?.start_time) || ''
     );
-    setPreview([]);
+    setRepeatCount('4');
+    setTimePickerOpen(false);
     setError('');
     setResultMessage('');
+
+    const token = localStorage.getItem('tuagendaya_token');
+
+    fetch(`${API_BASE}/professionals/me/booking-start-interval`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(data.error || 'No se pudo cargar el intervalo de horarios');
+        }
+
+        setBookingStartIntervalMinutes(
+          Number(data.bookingStartIntervalMinutes) === 60 ? 60 : 30
+        );
+      })
+      .catch(() => {
+        setBookingStartIntervalMinutes(30);
+      });
   }, [open, booking?.id]);
 
   if (!open || !booking) return null;
@@ -6103,79 +6115,45 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
   const serviceName = booking.serviceName ?? booking.service_name ?? 'Servicio';
   const staffName = booking.staffName ?? booking.staff_name ?? '';
 
+  const repeatTimeOptions = Array.from(
+    { length: Math.floor((24 * 60 - 6 * 60) / bookingStartIntervalMinutes) },
+    (_, index) => {
+      const totalMinutes = 6 * 60 + index * bookingStartIntervalMinutes;
+      const hour = Math.floor(totalMinutes / 60);
+      const minute = totalMinutes % 60;
+
+      return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+    }
+  );
+
   const payload = {
     sourceBookingId: booking.id,
     firstRepeatDate,
     startTime: repeatStartTime,
-    intervalValue: Number(intervalValue),
-    intervalUnit,
-    repeatCount: endMode === 'count' ? Number(repeatCount) : null,
-    untilDate: endMode === 'date' ? untilDate : null,
+    intervalValue: 1,
+    intervalUnit: 'weeks',
+    repeatCount: Number(repeatCount),
+    untilDate: null,
   };
 
   const validate = () => {
     if (!firstRepeatDate) {
-      return 'Elegí en el calendario el primer día de repetición.';
+      return 'Elegí el día de la primera cita.';
     }
 
     if (!repeatStartTime) {
-      return 'Elegí la hora de la cita.';
+      return 'Elegí la hora.';
     }
 
-    if (!Number.isInteger(Number(intervalValue)) || Number(intervalValue) < 1) {
-      return 'Indicá cada cuánto querés repetir la cita.';
-    }
-
-    if (endMode === 'count' && (!Number.isInteger(Number(repeatCount)) || Number(repeatCount) < 1 || Number(repeatCount) > 100)) {
-      return 'La cantidad de citas debe estar entre 1 y 100.';
-    }
-
-    if (endMode === 'date' && !untilDate) {
-      return 'Elegí una fecha final.';
-    }
-
-    if (endMode === 'date' && untilDate < firstRepeatDate) {
-      return 'La fecha final no puede ser anterior a la primera repetición.';
+    if (
+      !Number.isInteger(Number(repeatCount)) ||
+      Number(repeatCount) < 1 ||
+      Number(repeatCount) > 100
+    ) {
+      return 'La cantidad debe estar entre 1 y 100 citas.';
     }
 
     return '';
-  };
-
-  const loadPreview = async () => {
-    const validationError = validate();
-
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
-
-    const token = localStorage.getItem('tuagendaya_token');
-    setLoadingPreview(true);
-    setError('');
-    setResultMessage('');
-
-    try {
-      const response = await fetch(`${API_BASE}/bookings/repeat/preview`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(data.error || 'No se pudo preparar la repetición.');
-      }
-
-      setPreview(Array.isArray(data.dates) ? data.dates : []);
-    } catch (requestError) {
-      setPreview([]);
-      setError(requestError.message || 'No se pudo preparar la repetición.');
-    } finally {
-      setLoadingPreview(false);
-    }
   };
 
   const createRepeatedBookings = async () => {
@@ -6200,32 +6178,33 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
         },
         body: JSON.stringify(payload),
       });
+
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(data.error || 'No se pudieron crear las citas repetidas.');
+        throw new Error(data.error || 'No se pudieron repetir las citas.');
       }
 
       const createdCount = Number(data.createdCount || 0);
       const conflictCount = Number(data.conflictCount || 0);
+
       setResultMessage(
-        `${createdCount} ${createdCount === 1 ? 'cita creada' : 'citas creadas'}${conflictCount > 0 ? ` · ${conflictCount} con conflicto no se crearon` : ''}`
+        `${createdCount} ${createdCount === 1 ? 'cita creada' : 'citas creadas'}${
+          conflictCount > 0
+            ? ` · ${conflictCount} ${conflictCount === 1 ? 'horario ocupado no se creó' : 'horarios ocupados no se crearon'}`
+            : ''
+        }`
       );
-      setPreview([]);
 
       if (onCreated) {
         await onCreated(data);
       }
     } catch (requestError) {
-      setError(requestError.message || 'No se pudieron crear las citas repetidas.');
+      setError(requestError.message || 'No se pudieron repetir las citas.');
     } finally {
       setCreating(false);
     }
   };
-
-  const unitLabel = intervalUnit === 'days' ? 'día(s)' : intervalUnit === 'weeks' ? 'semana(s)' : 'mes(es)';
-  const availableCount = preview.filter((item) => item.available).length;
-  const conflictCount = preview.filter((item) => !item.available).length;
 
   return (
     <div
@@ -6246,118 +6225,332 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
         if (event.target === event.currentTarget && !creating) onClose();
       }}
     >
-      <div style={{ width: 'min(620px, 100%)', maxHeight: '88vh', overflowY: 'auto', background: '#fff', borderRadius: 24, padding: 22, boxShadow: '0 28px 70px rgba(15,23,42,.24)', border: '1px solid rgba(15,23,42,.08)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14 }}>
+      <div
+        style={{
+          width: 'min(520px, 100%)',
+          maxHeight: '88vh',
+          overflowY: 'auto',
+          background: '#fff',
+          borderRadius: 24,
+          padding: 22,
+          boxShadow: '0 28px 70px rgba(15,23,42,.24)',
+          border: '1px solid rgba(15,23,42,.08)',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            gap: 14,
+          }}
+        >
           <div>
-            <div style={{ fontSize: 20, fontWeight: 950, color: '#111827' }}>Repetir cita</div>
-            <div style={{ marginTop: 5, fontSize: 12.5, color: '#6e6e73', fontWeight: 700, lineHeight: 1.45 }}>
-              {formatDate(sourceDate)} · {sourceTime}{sourceEndTime ? ` - ${sourceEndTime}` : ''} · {serviceName}{staffName ? ` · ${staffName}` : ''}
+            <div style={{ fontSize: 20, fontWeight: 950, color: '#111827' }}>
+              Repetir cita
+            </div>
+            <div
+              style={{
+                marginTop: 5,
+                fontSize: 12.5,
+                color: '#6e6e73',
+                fontWeight: 700,
+                lineHeight: 1.45,
+              }}
+            >
+              {serviceName}
+              {staffName ? ` · ${staffName}` : ''}
+            </div>
+            <div
+              style={{
+                marginTop: 3,
+                fontSize: 11.5,
+                color: '#8e8e93',
+                fontWeight: 750,
+              }}
+            >
+              Cita original: {formatDate(sourceDate)} · {sourceTime}
+              {sourceEndTime ? ` - ${sourceEndTime}` : ''}
             </div>
           </div>
-          <button type="button" onClick={onClose} disabled={creating} style={{ width: 34, height: 34, borderRadius: 999, border: 'none', background: '#f2f2f7', color: '#6e6e73', fontSize: 18, fontWeight: 900, cursor: creating ? 'default' : 'pointer' }}>×</button>
+
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={creating}
+            aria-label="Cerrar"
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: 999,
+              border: 'none',
+              background: '#f2f2f7',
+              color: '#6e6e73',
+              fontSize: 18,
+              fontWeight: 900,
+              cursor: creating ? 'default' : 'pointer',
+            }}
+          >
+            ×
+          </button>
         </div>
 
-        <div style={{ marginTop: 18 }}>
-          <div style={{ fontSize: 14, fontWeight: 950, color: '#111827', marginBottom: 10 }}>
-            Primera cita repetida
+        <div
+          style={{
+            marginTop: 20,
+            padding: 16,
+            borderRadius: 18,
+            background: '#f8f9fb',
+            border: '1px solid rgba(15,23,42,.05)',
+          }}
+        >
+          <div
+            style={{
+              fontSize: 14,
+              fontWeight: 950,
+              color: '#111827',
+              marginBottom: 14,
+            }}
+          >
+            Elegí cuándo repetirla
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 150px', gap: 10 }}>
-            <div>
-              <span style={smallLabelStyle}>Día</span>
-              <DatePickerField
-                value={firstRepeatDate}
-                onChange={(value) => {
-                  setFirstRepeatDate(value);
-                  setPreview([]);
+          <div>
+            <span style={smallLabelStyle}>Día</span>
+            <DatePickerField
+              value={firstRepeatDate}
+              onChange={(value) => {
+                setFirstRepeatDate(value);
+                setError('');
+                setResultMessage('');
+              }}
+              placeholder="Seleccionar día"
+              allowPast={false}
+            />
+          </div>
+
+          <div style={{ marginTop: 12, position: 'relative' }}>
+            <span style={smallLabelStyle}>Hora</span>
+
+            <button
+              type="button"
+              onClick={() => setTimePickerOpen((current) => !current)}
+              aria-haspopup="listbox"
+              aria-expanded={timePickerOpen}
+              style={{
+                ...inputStyle,
+                width: '100%',
+                minHeight: 44,
+                borderRadius: 14,
+                background: '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+                cursor: 'pointer',
+                textAlign: 'left',
+                color: repeatStartTime ? '#111827' : '#8e8e93',
+                fontWeight: repeatStartTime ? 850 : 700,
+              }}
+            >
+              <span>{repeatStartTime || 'Seleccionar hora'}</span>
+              <span
+                aria-hidden="true"
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: 9,
+                  display: 'grid',
+                  placeItems: 'center',
+                  background: '#eef6ff',
+                  color: '#0071e3',
+                  fontSize: 15,
+                  lineHeight: 1,
                 }}
-                placeholder="Elegir día en calendario"
-                allowPast={false}
-              />
-            </div>
+              >
+                ◷
+              </span>
+            </button>
 
-            <label>
-              <span style={smallLabelStyle}>Hora</span>
-              <input
-                type="time"
-                value={repeatStartTime}
-                onChange={(event) => {
-                  setRepeatStartTime(event.target.value);
-                  setPreview([]);
+            {timePickerOpen && (
+              <div
+                role="listbox"
+                aria-label="Seleccionar hora"
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 8px)',
+                  left: 0,
+                  right: 0,
+                  zIndex: 17000,
+                  background: 'rgba(255,255,255,.99)',
+                  border: '1px solid rgba(15,23,42,.08)',
+                  borderRadius: 18,
+                  boxShadow: '0 18px 45px rgba(15,23,42,.18)',
+                  padding: 10,
+                  maxHeight: 230,
+                  overflowY: 'auto',
+                  backdropFilter: 'blur(18px)',
                 }}
-                style={{ ...inputStyle, borderRadius: 13, minHeight: 42 }}
-              />
-            </label>
-          </div>
-        </div>
+              >
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(3, minmax(0,1fr))',
+                    gap: 7,
+                  }}
+                >
+                  {repeatTimeOptions.map((time) => {
+                    const selected = repeatStartTime === time;
 
-        <div style={{ marginTop: 18, display: 'grid', gridTemplateColumns: '110px minmax(150px, 1fr)', gap: 10 }}>
-          <label>
-            <span style={smallLabelStyle}>Cada</span>
-            <input type="number" min="1" max="365" value={intervalValue} onChange={(event) => { setIntervalValue(event.target.value); setPreview([]); }} style={{ ...inputStyle, borderRadius: 13 }} />
-          </label>
-          <label>
-            <span style={smallLabelStyle}>Período</span>
-            <select value={intervalUnit} onChange={(event) => { setIntervalUnit(event.target.value); setPreview([]); }} style={{ ...inputStyle, borderRadius: 13 }}>
-              <option value="days">Días</option>
-              <option value="weeks">Semanas</option>
-              <option value="months">Meses</option>
-            </select>
-          </label>
-        </div>
-
-        <div style={{ marginTop: 16 }}>
-          <span style={smallLabelStyle}>Repetir hasta</span>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button type="button" onClick={() => { setEndMode('count'); setPreview([]); }} style={{ border: endMode === 'count' ? '1px solid #0071e3' : '1px solid #e2e2e8', borderRadius: 12, padding: '9px 12px', background: endMode === 'count' ? '#eef6ff' : '#fff', color: endMode === 'count' ? '#0071e3' : '#1a1a1a', fontWeight: 850, fontFamily: 'inherit', cursor: 'pointer' }}>Cantidad de citas</button>
-            <button type="button" onClick={() => { setEndMode('date'); setPreview([]); }} style={{ border: endMode === 'date' ? '1px solid #0071e3' : '1px solid #e2e2e8', borderRadius: 12, padding: '9px 12px', background: endMode === 'date' ? '#eef6ff' : '#fff', color: endMode === 'date' ? '#0071e3' : '#1a1a1a', fontWeight: 850, fontFamily: 'inherit', cursor: 'pointer' }}>Fecha final</button>
-          </div>
-        </div>
-
-        {endMode === 'count' ? (
-          <label style={{ display: 'block', marginTop: 14 }}>
-            <span style={smallLabelStyle}>Cantidad de nuevas citas</span>
-            <input type="number" min="1" max="100" value={repeatCount} onChange={(event) => { setRepeatCount(event.target.value); setPreview([]); }} style={{ ...inputStyle, borderRadius: 13 }} />
-          </label>
-        ) : (
-          <div style={{ marginTop: 14 }}>
-            <span style={smallLabelStyle}>Fecha final</span>
-            <DatePickerField value={untilDate} onChange={(value) => { setUntilDate(value); setPreview([]); }} placeholder="Elegir fecha final" allowPast={false} />
-          </div>
-        )}
-
-        <div style={{ marginTop: 14, padding: '11px 13px', borderRadius: 14, background: '#f5f5f7', color: '#6e6e73', fontSize: 12, lineHeight: 1.5, fontWeight: 700 }}>
-          La primera repetición será el {firstRepeatDate ? formatDate(firstRepeatDate) : 'día que elijas'} a las {repeatStartTime || '—'}. Desde ahí se repetirá cada {intervalValue || '—'} {unitLabel}. Se mantienen cliente, servicio y profesional. Las fechas ocupadas no se pisan.
-        </div>
-
-        <button type="button" onClick={loadPreview} disabled={loadingPreview || creating} style={{ width: '100%', marginTop: 14, padding: '11px 14px', borderRadius: 13, border: '1px solid #0071e3', background: '#fff', color: '#0071e3', fontSize: 13, fontWeight: 900, fontFamily: 'inherit', cursor: loadingPreview || creating ? 'not-allowed' : 'pointer' }}>
-          {loadingPreview ? 'Revisando fechas...' : 'Ver fechas antes de crear'}
-        </button>
-
-        {preview.length > 0 && (
-          <div style={{ marginTop: 14 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
-              <div style={{ fontSize: 12.5, color: '#1a1a1a', fontWeight: 900 }}>Vista previa</div>
-              <div style={{ fontSize: 11.5, color: '#6e6e73', fontWeight: 800 }}>{availableCount} disponibles{conflictCount ? ` · ${conflictCount} conflictos` : ''}</div>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 220, overflowY: 'auto' }}>
-              {preview.map((item) => (
-                <div key={item.bookingDate ?? item.booking_date} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', padding: '9px 11px', borderRadius: 12, background: item.available ? '#f2fbf4' : '#fff4f4', border: `1px solid ${item.available ? '#ccebd4' : '#ffd4d0'}` }}>
-                  <span style={{ fontSize: 12.5, fontWeight: 850, color: '#1a1a1a' }}>{formatDate(item.bookingDate ?? item.booking_date)} · {sourceTime}</span>
-                  <span style={{ fontSize: 11, fontWeight: 900, color: item.available ? '#188038' : '#c62828', textAlign: 'right' }}>{item.available ? 'Disponible' : (item.reason || 'Conflicto')}</span>
+                    return (
+                      <button
+                        key={time}
+                        type="button"
+                        role="option"
+                        aria-selected={selected}
+                        onClick={() => {
+                          setRepeatStartTime(time);
+                          setTimePickerOpen(false);
+                          setError('');
+                          setResultMessage('');
+                        }}
+                        style={{
+                          border: selected
+                            ? '1px solid rgba(0,113,227,.22)'
+                            : '1px solid rgba(15,23,42,.06)',
+                          borderRadius: 12,
+                          padding: '9px 8px',
+                          background: selected ? '#0071e3' : '#f7f8fa',
+                          color: selected ? '#fff' : '#1d2636',
+                          fontFamily: 'inherit',
+                          fontSize: 12.5,
+                          fontWeight: 850,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {time}
+                      </button>
+                    );
+                  })}
                 </div>
-              ))}
-            </div>
+              </div>
+            )}
+          </div>
+
+          <label style={{ display: 'block', marginTop: 12 }}>
+            <span style={smallLabelStyle}>Cantidad de citas</span>
+            <input
+              type="number"
+              min="1"
+              max="100"
+              inputMode="numeric"
+              value={repeatCount}
+              onChange={(event) => {
+                setRepeatCount(event.target.value);
+                setError('');
+                setResultMessage('');
+              }}
+              style={{ ...inputStyle, borderRadius: 14, minHeight: 44 }}
+            />
+          </label>
+        </div>
+
+        <div
+          style={{
+            marginTop: 14,
+            padding: '11px 13px',
+            borderRadius: 14,
+            background: '#f2f7ff',
+            color: '#44607c',
+            fontSize: 12,
+            lineHeight: 1.5,
+            fontWeight: 750,
+          }}
+        >
+          Se repetirá semanalmente desde el día elegido, siempre a la misma hora,
+          por la cantidad de citas que indiques. Si un horario ya está ocupado,
+          esa cita no se crea.
+        </div>
+
+        {error && (
+          <div
+            style={{
+              marginTop: 12,
+              padding: '10px 12px',
+              borderRadius: 12,
+              background: '#fff2f2',
+              color: '#c62828',
+              fontSize: 12.5,
+              fontWeight: 800,
+            }}
+          >
+            {error}
           </div>
         )}
 
-        {error && <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 12, background: '#fff2f2', color: '#c62828', fontSize: 12.5, fontWeight: 800 }}>{error}</div>}
-        {resultMessage && <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 12, background: '#edfff3', color: '#188038', fontSize: 12.5, fontWeight: 800 }}>{resultMessage}</div>}
+        {resultMessage && (
+          <div
+            style={{
+              marginTop: 12,
+              padding: '10px 12px',
+              borderRadius: 12,
+              background: '#edfff3',
+              color: '#188038',
+              fontSize: 12.5,
+              fontWeight: 850,
+            }}
+          >
+            {resultMessage}
+          </div>
+        )}
 
-        <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-          <button type="button" onClick={onClose} disabled={creating} style={{ flex: 1, padding: '12px 14px', borderRadius: 13, border: '1px solid #e2e2e8', background: '#fff', color: '#1a1a1a', fontSize: 13, fontWeight: 900, fontFamily: 'inherit', cursor: creating ? 'not-allowed' : 'pointer' }}>Cancelar</button>
-          <button type="button" onClick={createRepeatedBookings} disabled={creating || loadingPreview} style={{ flex: 1.4, padding: '12px 14px', borderRadius: 13, border: 'none', background: creating ? '#aeaeb2' : '#0071e3', color: '#fff', fontSize: 13, fontWeight: 900, fontFamily: 'inherit', cursor: creating ? 'not-allowed' : 'pointer' }}>
-            {creating ? 'Creando citas...' : 'Crear citas repetidas'}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1.35fr',
+            gap: 10,
+            marginTop: 18,
+          }}
+        >
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={creating}
+            style={{
+              border: 'none',
+              borderRadius: 14,
+              padding: '12px 14px',
+              background: '#f2f2f7',
+              color: '#1a1a1a',
+              fontFamily: 'inherit',
+              fontSize: 13,
+              fontWeight: 900,
+              cursor: creating ? 'default' : 'pointer',
+            }}
+          >
+            Cancelar
+          </button>
+
+          <button
+            type="button"
+            onClick={createRepeatedBookings}
+            disabled={creating}
+            style={{
+              border: 'none',
+              borderRadius: 14,
+              padding: '12px 14px',
+              background: creating ? '#9fc9f3' : '#0071e3',
+              color: '#fff',
+              fontFamily: 'inherit',
+              fontSize: 13.5,
+              fontWeight: 950,
+              cursor: creating ? 'default' : 'pointer',
+              boxShadow: creating ? 'none' : '0 7px 18px rgba(0,113,227,.22)',
+            }}
+          >
+            {creating
+              ? 'Creando citas...'
+              : `Repetir ${Number(repeatCount) > 0 ? repeatCount : ''} ${Number(repeatCount) === 1 ? 'cita' : 'citas'}`}
           </button>
         </div>
       </div>
