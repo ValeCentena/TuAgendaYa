@@ -124,6 +124,8 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:3000",
   "https://tuagendaya-web.onrender.com",
+  "capacitor://localhost",
+  "http://localhost",
 ].filter(Boolean);
 
 app.use(
