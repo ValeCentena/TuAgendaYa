@@ -6065,9 +6065,11 @@ function CashSection() {
 
 
 function RepeatBookingModal({ open, booking, onClose, onCreated }) {
-  const [firstRepeatDate, setFirstRepeatDate] = useState('');
-  const [repeatStartTime, setRepeatStartTime] = useState('');
+  const [selectedDate, setSelectedDate] = useState('');
+  const [selectedTime, setSelectedTime] = useState('');
   const [repeatCount, setRepeatCount] = useState('4');
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [calendarViewDate, setCalendarViewDate] = useState(() => new Date());
   const [timePickerOpen, setTimePickerOpen] = useState(false);
   const [bookingStartIntervalMinutes, setBookingStartIntervalMinutes] = useState(30);
   const [creating, setCreating] = useState(false);
@@ -6077,11 +6079,15 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
   useEffect(() => {
     if (!open) return;
 
-    setFirstRepeatDate('');
-    setRepeatStartTime(
+    const now = new Date();
+
+    setSelectedDate('');
+    setSelectedTime(
       formatTime(booking?.startTime ?? booking?.start_time) || ''
     );
     setRepeatCount('4');
+    setCalendarOpen(false);
+    setCalendarViewDate(new Date(now.getFullYear(), now.getMonth(), 1));
     setTimePickerOpen(false);
     setError('');
     setResultMessage('');
@@ -6115,7 +6121,20 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
   const serviceName = booking.serviceName ?? booking.service_name ?? 'Servicio';
   const staffName = booking.staffName ?? booking.staff_name ?? '';
 
-  const repeatTimeOptions = Array.from(
+  const todayKey = getLocalDateKeyValue();
+  const calendarYear = calendarViewDate.getFullYear();
+  const calendarMonth = calendarViewDate.getMonth();
+  const calendarFirstDay = new Date(calendarYear, calendarMonth, 1);
+  const calendarDaysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+  const calendarStartOffset = calendarFirstDay.getDay();
+  const calendarMonthTitle = calendarViewDate.toLocaleDateString('es-UY', {
+    month: 'long',
+    year: 'numeric',
+  });
+  const calendarTitle =
+    calendarMonthTitle.charAt(0).toUpperCase() + calendarMonthTitle.slice(1);
+
+  const timeOptions = Array.from(
     { length: Math.floor((24 * 60 - 6 * 60) / bookingStartIntervalMinutes) },
     (_, index) => {
       const totalMinutes = 6 * 60 + index * bookingStartIntervalMinutes;
@@ -6128,8 +6147,8 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
 
   const payload = {
     sourceBookingId: booking.id,
-    firstRepeatDate,
-    startTime: repeatStartTime,
+    firstRepeatDate: selectedDate,
+    startTime: selectedTime,
     intervalValue: 1,
     intervalUnit: 'weeks',
     repeatCount: Number(repeatCount),
@@ -6137,12 +6156,12 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
   };
 
   const validate = () => {
-    if (!firstRepeatDate) {
-      return 'Elegí el día de la primera cita.';
+    if (!selectedDate) {
+      return 'Seleccioná un día en el calendario.';
     }
 
-    if (!repeatStartTime) {
-      return 'Elegí la hora.';
+    if (!selectedTime) {
+      return 'Seleccioná un horario.';
     }
 
     if (
@@ -6227,8 +6246,8 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
     >
       <div
         style={{
-          width: 'min(520px, 100%)',
-          maxHeight: '88vh',
+          width: 'min(500px, 100%)',
+          maxHeight: '90vh',
           overflowY: 'auto',
           background: '#fff',
           borderRadius: 24,
@@ -6254,8 +6273,7 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
                 marginTop: 5,
                 fontSize: 12.5,
                 color: '#6e6e73',
-                fontWeight: 700,
-                lineHeight: 1.45,
+                fontWeight: 750,
               }}
             >
               {serviceName}
@@ -6266,10 +6284,10 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
                 marginTop: 3,
                 fontSize: 11.5,
                 color: '#8e8e93',
-                fontWeight: 750,
+                fontWeight: 700,
               }}
             >
-              Cita original: {formatDate(sourceDate)} · {sourceTime}
+              Original: {formatDate(sourceDate)} · {sourceTime}
               {sourceEndTime ? ` - ${sourceEndTime}` : ''}
             </div>
           </div>
@@ -6295,165 +6313,345 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
           </button>
         </div>
 
-        <div
-          style={{
-            marginTop: 20,
-            padding: 16,
-            borderRadius: 18,
-            background: '#f8f9fb',
-            border: '1px solid rgba(15,23,42,.05)',
-          }}
-        >
-          <div
+        <div style={{ marginTop: 20 }}>
+          <span style={smallLabelStyle}>Día</span>
+
+          <button
+            type="button"
+            onClick={() => {
+              setCalendarOpen((current) => !current);
+              setTimePickerOpen(false);
+            }}
             style={{
-              fontSize: 14,
-              fontWeight: 950,
-              color: '#111827',
-              marginBottom: 14,
+              ...inputStyle,
+              minHeight: 46,
+              borderRadius: 14,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              background: calendarOpen ? '#f8fbff' : '#fff',
+              border: calendarOpen ? '1px solid #0071e3' : '0.5px solid #d0d0d5',
+              cursor: 'pointer',
+              textAlign: 'left',
+              color: selectedDate ? '#111827' : '#8e8e93',
+              fontWeight: selectedDate ? 850 : 700,
             }}
           >
-            Elegí cuándo repetirla
-          </div>
-
-          <div>
-            <span style={smallLabelStyle}>Día</span>
-            <DatePickerField
-              value={firstRepeatDate}
-              onChange={(value) => {
-                setFirstRepeatDate(value);
-                setError('');
-                setResultMessage('');
-              }}
-              placeholder="Seleccionar día"
-              allowPast={false}
-            />
-          </div>
-
-          <div style={{ marginTop: 12, position: 'relative' }}>
-            <span style={smallLabelStyle}>Hora</span>
-
-            <button
-              type="button"
-              onClick={() => setTimePickerOpen((current) => !current)}
-              aria-haspopup="listbox"
-              aria-expanded={timePickerOpen}
+            <span>
+              {selectedDate ? formatDate(selectedDate) : 'Seleccionar día'}
+            </span>
+            <span
+              aria-hidden="true"
               style={{
-                ...inputStyle,
-                width: '100%',
-                minHeight: 44,
-                borderRadius: 14,
-                background: '#fff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 12,
-                cursor: 'pointer',
-                textAlign: 'left',
-                color: repeatStartTime ? '#111827' : '#8e8e93',
-                fontWeight: repeatStartTime ? 850 : 700,
+                width: 28,
+                height: 28,
+                borderRadius: 9,
+                display: 'grid',
+                placeItems: 'center',
+                background: '#eef6ff',
+                color: '#0071e3',
+                fontSize: 15,
+                fontWeight: 950,
               }}
             >
-              <span>{repeatStartTime || 'Seleccionar hora'}</span>
-              <span
-                aria-hidden="true"
-                style={{
-                  width: 26,
-                  height: 26,
-                  borderRadius: 9,
-                  display: 'grid',
-                  placeItems: 'center',
-                  background: '#eef6ff',
-                  color: '#0071e3',
-                  fontSize: 15,
-                  lineHeight: 1,
-                }}
-              >
-                ◷
-              </span>
-            </button>
+              ▣
+            </span>
+          </button>
 
-            {timePickerOpen && (
+          {calendarOpen && (
+            <div
+              style={{
+                marginTop: 8,
+                background: '#fff',
+                border: '1px solid rgba(15,23,42,.08)',
+                borderRadius: 18,
+                padding: 12,
+                boxShadow: '0 16px 38px rgba(15,23,42,.12)',
+              }}
+            >
               <div
-                role="listbox"
-                aria-label="Seleccionar hora"
                 style={{
-                  position: 'absolute',
-                  top: 'calc(100% + 8px)',
-                  left: 0,
-                  right: 0,
-                  zIndex: 17000,
-                  background: 'rgba(255,255,255,.99)',
-                  border: '1px solid rgba(15,23,42,.08)',
-                  borderRadius: 18,
-                  boxShadow: '0 18px 45px rgba(15,23,42,.18)',
-                  padding: 10,
-                  maxHeight: 230,
-                  overflowY: 'auto',
-                  backdropFilter: 'blur(18px)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: 10,
                 }}
               >
-                <div
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCalendarViewDate(
+                      (current) =>
+                        new Date(
+                          current.getFullYear(),
+                          current.getMonth() - 1,
+                          1
+                        )
+                    )
+                  }
                   style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(3, minmax(0,1fr))',
-                    gap: 7,
+                    width: 34,
+                    height: 32,
+                    borderRadius: 10,
+                    border: 'none',
+                    background: '#f5f5f7',
+                    color: '#1a1a1a',
+                    fontSize: 17,
+                    fontWeight: 950,
+                    cursor: 'pointer',
                   }}
                 >
-                  {repeatTimeOptions.map((time) => {
-                    const selected = repeatStartTime === time;
+                  ‹
+                </button>
 
-                    return (
-                      <button
-                        key={time}
-                        type="button"
-                        role="option"
-                        aria-selected={selected}
-                        onClick={() => {
-                          setRepeatStartTime(time);
-                          setTimePickerOpen(false);
-                          setError('');
-                          setResultMessage('');
-                        }}
-                        style={{
-                          border: selected
-                            ? '1px solid rgba(0,113,227,.22)'
-                            : '1px solid rgba(15,23,42,.06)',
-                          borderRadius: 12,
-                          padding: '9px 8px',
-                          background: selected ? '#0071e3' : '#f7f8fa',
-                          color: selected ? '#fff' : '#1d2636',
-                          fontFamily: 'inherit',
-                          fontSize: 12.5,
-                          fontWeight: 850,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {time}
-                      </button>
-                    );
-                  })}
+                <div
+                  style={{
+                    fontSize: 13.5,
+                    fontWeight: 950,
+                    color: '#111827',
+                  }}
+                >
+                  {calendarTitle}
                 </div>
-              </div>
-            )}
-          </div>
 
-          <label style={{ display: 'block', marginTop: 12 }}>
-            <span style={smallLabelStyle}>Cantidad de citas</span>
-            <input
-              type="number"
-              min="1"
-              max="100"
-              inputMode="numeric"
-              value={repeatCount}
-              onChange={(event) => {
-                setRepeatCount(event.target.value);
-                setError('');
-                setResultMessage('');
-              }}
-              style={{ ...inputStyle, borderRadius: 14, minHeight: 44 }}
-            />
-          </label>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCalendarViewDate(
+                      (current) =>
+                        new Date(
+                          current.getFullYear(),
+                          current.getMonth() + 1,
+                          1
+                        )
+                    )
+                  }
+                  style={{
+                    width: 34,
+                    height: 32,
+                    borderRadius: 10,
+                    border: 'none',
+                    background: '#f5f5f7',
+                    color: '#1a1a1a',
+                    fontSize: 17,
+                    fontWeight: 950,
+                    cursor: 'pointer',
+                  }}
+                >
+                  ›
+                </button>
+              </div>
+
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(7, 1fr)',
+                  gap: 5,
+                  marginBottom: 5,
+                }}
+              >
+                {['D', 'L', 'M', 'M', 'J', 'V', 'S'].map((day, index) => (
+                  <div
+                    key={`${day}-${index}`}
+                    style={{
+                      textAlign: 'center',
+                      fontSize: 10.5,
+                      color: '#8e8e93',
+                      fontWeight: 900,
+                    }}
+                  >
+                    {day}
+                  </div>
+                ))}
+              </div>
+
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(7, 1fr)',
+                  gap: 5,
+                }}
+              >
+                {Array.from({ length: calendarStartOffset }).map((_, index) => (
+                  <div key={`empty-${index}`} />
+                ))}
+
+                {Array.from({ length: calendarDaysInMonth }).map((_, index) => {
+                  const day = index + 1;
+                  const dateKey = `${calendarYear}-${String(
+                    calendarMonth + 1
+                  ).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                  const selected = selectedDate === dateKey;
+                  const disabled = dateKey < todayKey;
+
+                  return (
+                    <button
+                      key={dateKey}
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => {
+                        setSelectedDate(dateKey);
+                        setCalendarOpen(false);
+                        setError('');
+                        setResultMessage('');
+                      }}
+                      style={{
+                        height: 36,
+                        borderRadius: 11,
+                        border: selected
+                          ? '1px solid #0071e3'
+                          : '1px solid transparent',
+                        background: selected
+                          ? '#0071e3'
+                          : disabled
+                            ? '#fafafa'
+                            : '#f6f6f8',
+                        color: selected
+                          ? '#fff'
+                          : disabled
+                            ? '#c7c7cc'
+                            : '#1a1a1a',
+                        fontSize: 12.5,
+                        fontWeight: 900,
+                        fontFamily: 'inherit',
+                        cursor: disabled ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      {day}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
+
+        <div style={{ marginTop: 14, position: 'relative' }}>
+          <span style={smallLabelStyle}>Hora</span>
+
+          <button
+            type="button"
+            onClick={() => {
+              setTimePickerOpen((current) => !current);
+              setCalendarOpen(false);
+            }}
+            aria-haspopup="listbox"
+            aria-expanded={timePickerOpen}
+            style={{
+              ...inputStyle,
+              minHeight: 46,
+              borderRadius: 14,
+              background: timePickerOpen ? '#f8fbff' : '#fff',
+              border: timePickerOpen ? '1px solid #0071e3' : '0.5px solid #d0d0d5',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              cursor: 'pointer',
+              textAlign: 'left',
+              color: selectedTime ? '#111827' : '#8e8e93',
+              fontWeight: selectedTime ? 850 : 700,
+            }}
+          >
+            <span>{selectedTime || 'Seleccionar hora'}</span>
+            <span
+              aria-hidden="true"
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 9,
+                display: 'grid',
+                placeItems: 'center',
+                background: '#eef6ff',
+                color: '#0071e3',
+                fontSize: 15,
+              }}
+            >
+              ◷
+            </span>
+          </button>
+
+          {timePickerOpen && (
+            <div
+              role="listbox"
+              aria-label="Seleccionar hora"
+              style={{
+                marginTop: 8,
+                background: '#fff',
+                border: '1px solid rgba(15,23,42,.08)',
+                borderRadius: 18,
+                boxShadow: '0 16px 38px rgba(15,23,42,.12)',
+                padding: 10,
+                maxHeight: 225,
+                overflowY: 'auto',
+              }}
+            >
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, minmax(0,1fr))',
+                  gap: 7,
+                }}
+              >
+                {timeOptions.map((time) => {
+                  const selected = selectedTime === time;
+
+                  return (
+                    <button
+                      key={time}
+                      type="button"
+                      role="option"
+                      aria-selected={selected}
+                      onClick={() => {
+                        setSelectedTime(time);
+                        setTimePickerOpen(false);
+                        setError('');
+                        setResultMessage('');
+                      }}
+                      style={{
+                        border: selected
+                          ? '1px solid rgba(0,113,227,.22)'
+                          : '1px solid rgba(15,23,42,.06)',
+                        borderRadius: 12,
+                        padding: '9px 8px',
+                        background: selected ? '#0071e3' : '#f7f8fa',
+                        color: selected ? '#fff' : '#1d2636',
+                        fontFamily: 'inherit',
+                        fontSize: 12.5,
+                        fontWeight: 850,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {time}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <label style={{ display: 'block', marginTop: 14 }}>
+          <span style={smallLabelStyle}>Cantidad de veces</span>
+          <input
+            type="number"
+            min="1"
+            max="100"
+            inputMode="numeric"
+            value={repeatCount}
+            onChange={(event) => {
+              setRepeatCount(event.target.value);
+              setError('');
+              setResultMessage('');
+            }}
+            style={{
+              ...inputStyle,
+              minHeight: 46,
+              borderRadius: 14,
+            }}
+          />
+        </label>
 
         <div
           style={{
@@ -6467,9 +6665,8 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
             fontWeight: 750,
           }}
         >
-          Se repetirá semanalmente desde el día elegido, siempre a la misma hora,
-          por la cantidad de citas que indiques. Si un horario ya está ocupado,
-          esa cita no se crea.
+          Elegís un solo día, una hora y cuántas veces querés repetir la cita.
+          A partir de ese día se repite semanalmente a la misma hora.
         </div>
 
         {error && (
@@ -6507,7 +6704,7 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: '1fr 1.35fr',
+            gridTemplateColumns: '1fr 1.4fr',
             gap: 10,
             marginTop: 18,
           }}
@@ -6550,7 +6747,7 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
           >
             {creating
               ? 'Creando citas...'
-              : `Repetir ${Number(repeatCount) > 0 ? repeatCount : ''} ${Number(repeatCount) === 1 ? 'cita' : 'citas'}`}
+              : `Repetir ${Number(repeatCount) > 0 ? repeatCount : ''} ${Number(repeatCount) === 1 ? 'vez' : 'veces'}`}
           </button>
         </div>
       </div>
