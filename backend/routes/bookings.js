@@ -2873,6 +2873,346 @@ router.patch("/public/confirmation/:token/cancel", async (req, res) => {
   }
 });
 
+
+router.post("/manual", async (req, res) => {
+  try {
+    await ensurePaymentColumns();
+
+    const professionalId = await getProfessionalIdFromRequest(req);
+
+    const {
+      clientName,
+      clientPhone,
+      comment,
+      bookingDate,
+      startTime,
+      endTime,
+      serviceId,
+      service_id,
+      staffId,
+      staff_id,
+    } = req.body;
+
+    const safeClientName = String(clientName || "").trim();
+    const safeClientPhone = String(clientPhone || "").trim();
+    const normalizedBookingDate = normalizeDate(bookingDate);
+    const normalizedStartTime = normalizeTime(startTime);
+
+    if (!safeClientName || !safeClientPhone) {
+      return res.status(400).json({
+        error: "Nombre y teléfono son obligatorios",
+      });
+    }
+
+    if (!bookingDate || !startTime) {
+      return res.status(400).json({
+        error: "Fecha y horario son obligatorios",
+      });
+    }
+
+    const finalServiceId = serviceId || service_id || null;
+    const finalStaffId = staffId || staff_id || null;
+
+    if (!finalServiceId) {
+      return res.status(400).json({
+        error: "Seleccioná un servicio",
+      });
+    }
+
+    const service = await getServiceForProfessional(
+      professionalId,
+      Number(finalServiceId)
+    );
+
+    if (!service) {
+      return res.status(404).json({
+        error: "Servicio no encontrado",
+      });
+    }
+
+    let staff = null;
+
+    if (finalStaffId) {
+      staff = await getStaffForProfessional(
+        professionalId,
+        Number(finalStaffId)
+      );
+
+      if (!staff) {
+        return res.status(404).json({
+          error: "Profesional interno no encontrado",
+        });
+      }
+    }
+
+    const durationMinutes = Number(service.duration_minutes || 30);
+    const finalEndTime = normalizeTime(
+      endTime || addMinutesToTime(normalizedStartTime, durationMinutes)
+    );
+
+    const availability = await getAvailabilityForDate(
+      professionalId,
+      staff ? staff.id : null,
+      normalizedBookingDate
+    );
+
+    if (!availability || !isAvailabilityActive(availability)) {
+      return res.status(409).json({
+        error: "No hay disponibilidad configurada para esa fecha",
+      });
+    }
+
+    const available = await isTimeRangeAvailable(
+      professionalId,
+      staff ? staff.id : null,
+      normalizedBookingDate,
+      normalizedStartTime,
+      finalEndTime,
+      availability
+    );
+
+    if (!available) {
+      return res.status(409).json({
+        error: "Horario no disponible",
+      });
+    }
+
+    const confirmationToken = createConfirmationToken();
+    const bookingClient = await db.connect();
+    let transactionOpen = false;
+    let result;
+
+    try {
+      await bookingClient.query("BEGIN");
+      transactionOpen = true;
+
+      const bookingLockKey = [
+        professionalId,
+        staff ? staff.id : 0,
+        normalizedBookingDate,
+      ].join(":");
+
+      await bookingClient.query(
+        "SELECT pg_advisory_xact_lock(hashtext($1))",
+        [bookingLockKey]
+      );
+
+      const lockedAvailable = await isTimeRangeAvailable(
+        professionalId,
+        staff ? staff.id : null,
+        normalizedBookingDate,
+        normalizedStartTime,
+        finalEndTime,
+        availability
+      );
+
+      if (!lockedAvailable) {
+        await bookingClient.query("ROLLBACK");
+        transactionOpen = false;
+
+        return res.status(409).json({
+          error: "Horario no disponible",
+        });
+      }
+
+      result = await bookingClient.query(
+        `
+        INSERT INTO bookings (
+          professional_id,
+          staff_id,
+          service_id,
+          client_name,
+          client_phone,
+          comment,
+          booking_date,
+          start_time,
+          end_time,
+          status,
+          confirmation_token,
+          payment_status,
+          payment_method,
+          amount_paid,
+          created_at,
+          updated_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'confirmed', $10, 'paid', 'cash', $11, NOW(), NOW())
+        RETURNING *
+        `,
+        [
+          professionalId,
+          staff ? staff.id : null,
+          Number(finalServiceId),
+          safeClientName,
+          safeClientPhone,
+          comment ? String(comment).trim() : null,
+          normalizedBookingDate,
+          normalizedStartTime,
+          finalEndTime,
+          confirmationToken,
+          Number(service.price || 0),
+        ]
+      );
+
+      await bookingClient.query("COMMIT");
+      transactionOpen = false;
+    } catch (bookingError) {
+      if (transactionOpen) {
+        try {
+          await bookingClient.query("ROLLBACK");
+        } catch (rollbackError) {
+          console.warn("Manual booking rollback failed:", rollbackError.message);
+        }
+      }
+
+      throw bookingError;
+    } finally {
+      bookingClient.release();
+    }
+
+    const normalizedBooking = normalizeBooking({
+      ...result.rows[0],
+      staff_name: staff ? staff.name : null,
+      service_name: service.name,
+      service_duration_minutes: service.duration_minutes,
+      service_price: service.price,
+    });
+
+    const professionalResult = await db.query(
+      `SELECT * FROM professionals WHERE id = $1 LIMIT 1`,
+      [professionalId]
+    );
+    const professional = professionalResult.rows[0] || {
+      id: professionalId,
+      name: "TuAgendaYa",
+      business_name: "TuAgendaYa",
+    };
+
+    const confirmationUrl = `${getFrontendUrl()}/confirmar-reserva/${confirmationToken}`;
+
+    let whatsapp = { attempted: false, sent: false };
+
+    try {
+      whatsapp = await sendBookingConfirmationMessage(
+        {
+          ...normalizedBooking,
+          client_phone: safeClientPhone,
+          clientPhone: safeClientPhone,
+          client_name: safeClientName,
+          clientName: safeClientName,
+          service_name: service.name || "Servicio",
+          serviceName: service.name || "Servicio",
+          staff_name: staff ? staff.name : null,
+          staffName: staff ? staff.name : null,
+          booking_date: normalizedBookingDate,
+          bookingDate: normalizedBookingDate,
+          start_time: normalizedStartTime,
+          startTime: normalizedStartTime,
+          confirmation_token: confirmationToken,
+          confirmationToken,
+        },
+        {
+          ...professional,
+          business_name:
+            professional.business_name || professional.name || "TuAgendaYa",
+          businessName:
+            professional.business_name || professional.name || "TuAgendaYa",
+        }
+      );
+    } catch (whatsappError) {
+      console.warn(
+        "WhatsApp manual booking confirmation skipped:",
+        whatsappError.message
+      );
+
+      whatsapp = {
+        attempted: true,
+        sent: false,
+        error: whatsappError.message || "No se pudo enviar WhatsApp",
+      };
+    }
+
+    let businessWhatsapp = { attempted: false, sent: false };
+
+    try {
+      businessWhatsapp = await sendBusinessBookingNotification(
+        {
+          ...normalizedBooking,
+          client_phone: safeClientPhone,
+          clientPhone: safeClientPhone,
+          client_name: safeClientName,
+          clientName: safeClientName,
+          service_name: service.name || "Servicio",
+          serviceName: service.name || "Servicio",
+          staff_name: staff ? staff.name : null,
+          staffName: staff ? staff.name : null,
+          booking_date: normalizedBookingDate,
+          bookingDate: normalizedBookingDate,
+          start_time: normalizedStartTime,
+          startTime: normalizedStartTime,
+        },
+        professional
+      );
+    } catch (businessWhatsappError) {
+      console.warn(
+        "WhatsApp manual booking business notification skipped:",
+        businessWhatsappError.message
+      );
+
+      businessWhatsapp = {
+        attempted: true,
+        sent: false,
+        error:
+          businessWhatsappError.message ||
+          "No se pudo enviar WhatsApp al negocio",
+      };
+    }
+
+    let pushNotification = { attempted: false, sent: 0 };
+
+    try {
+      pushNotification = await sendPushToProfessional(professionalId, {
+        title: "Nueva reserva en TuAgendaYa",
+        body: `${safeClientName} tiene una reserva de ${service.name || "un servicio"} para el ${normalizedBookingDate} a las ${normalizedStartTime}`,
+        icon: "/tuagendaya-logo.png",
+        badge: "/tuagendaya-logo.png",
+        url: "/profesional/dashboard",
+        bookingId: result.rows[0].id,
+        clientName: safeClientName,
+        serviceName: service.name || "Servicio",
+        bookingDate: normalizedBookingDate,
+        startTime: normalizedStartTime,
+      });
+    } catch (pushError) {
+      console.warn(
+        "Manual booking push notification skipped:",
+        pushError.message
+      );
+
+      pushNotification = {
+        attempted: true,
+        sent: 0,
+        error: pushError.message || "No se pudo enviar la notificación push",
+      };
+    }
+
+    return res.status(201).json({
+      success: true,
+      bookingId: result.rows[0].id,
+      confirmationToken,
+      confirmationUrl,
+      whatsapp,
+      businessWhatsapp,
+      pushNotification,
+      booking: normalizedBooking,
+    });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      error: error.message || "Error creando reserva manual",
+    });
+  }
+});
+
+
 router.get("/me", async (req, res) => {
   try {
     const professionalId = await getProfessionalIdFromRequest(req);

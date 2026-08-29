@@ -2605,6 +2605,357 @@ const tipEditorStyles = `
 `;
 
 
+function ManualBookingModal({ open, initialClient = null, onClose, onCreated }) {
+  const [services, setServices] = useState([]);
+  const [staff, setStaff] = useState([]);
+  const [loadingOptions, setLoadingOptions] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [form, setForm] = useState({
+    clientName: '',
+    clientPhone: '',
+    serviceId: '',
+    staffId: '',
+    bookingDate: '',
+    startTime: '',
+    comment: '',
+  });
+
+  useEffect(() => {
+    if (!open) return;
+
+    const now = new Date();
+    const localDate = [
+      now.getFullYear(),
+      String(now.getMonth() + 1).padStart(2, '0'),
+      String(now.getDate()).padStart(2, '0'),
+    ].join('-');
+
+    setForm({
+      clientName: initialClient?.name || '',
+      clientPhone: initialClient?.phone || '',
+      serviceId: '',
+      staffId: '',
+      bookingDate: localDate,
+      startTime: '',
+      comment: '',
+    });
+    setError('');
+    setSaving(false);
+
+    const token = localStorage.getItem('tuagendaya_token');
+    setLoadingOptions(true);
+
+    Promise.all([
+      fetch(`${API_BASE}/professionals/me/services`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }).then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || 'No se pudieron cargar los servicios');
+        return (data.services || []).map(normalizeService).filter((item) => item.isActive !== false);
+      }),
+      fetch(`${API_BASE}/staff`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }).then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || 'No se pudieron cargar los profesionales');
+        return (data.staff || []).map(normalizeStaff).filter((item) => item.isActive !== false);
+      }),
+    ])
+      .then(([nextServices, nextStaff]) => {
+        setServices(nextServices);
+        setStaff(nextStaff);
+        setForm((current) => ({
+          ...current,
+          serviceId: nextServices.length === 1 ? String(nextServices[0].id) : current.serviceId,
+          staffId: nextStaff.length === 1 ? String(nextStaff[0].id) : current.staffId,
+        }));
+      })
+      .catch((loadError) => {
+        setError(loadError.message || 'No se pudieron cargar los datos para agendar.');
+      })
+      .finally(() => setLoadingOptions(false));
+  }, [open, initialClient?.name, initialClient?.phone]);
+
+  if (!open) return null;
+
+  const updateField = (field, value) => {
+    setForm((current) => ({ ...current, [field]: value }));
+    setError('');
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+
+    if (!form.clientName.trim() || !form.clientPhone.trim()) {
+      setError('Nombre y teléfono son obligatorios.');
+      return;
+    }
+
+    if (!form.serviceId) {
+      setError('Seleccioná un servicio.');
+      return;
+    }
+
+    if (!form.bookingDate || !form.startTime) {
+      setError('Seleccioná fecha y hora.');
+      return;
+    }
+
+    const token = localStorage.getItem('tuagendaya_token');
+    setSaving(true);
+    setError('');
+
+    try {
+      const response = await fetch(`${API_BASE}/bookings/manual`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          clientName: form.clientName.trim(),
+          clientPhone: form.clientPhone.trim(),
+          serviceId: Number(form.serviceId),
+          staffId: form.staffId ? Number(form.staffId) : null,
+          bookingDate: form.bookingDate,
+          startTime: form.startTime,
+          comment: form.comment.trim(),
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || 'No se pudo crear la reserva.');
+      }
+
+      onCreated?.(data.booking);
+      onClose?.();
+    } catch (submitError) {
+      setError(submitError.message || 'No se pudo crear la reserva.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Agendar cliente"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !saving) onClose?.();
+      }}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 12000,
+        background: 'rgba(15, 23, 42, 0.46)',
+        backdropFilter: 'blur(8px)',
+        display: 'grid',
+        placeItems: 'center',
+        padding: 18,
+      }}
+    >
+      <form
+        onSubmit={handleSubmit}
+        style={{
+          width: 'min(560px, 100%)',
+          maxHeight: 'calc(100vh - 36px)',
+          overflowY: 'auto',
+          background: '#fff',
+          borderRadius: 24,
+          padding: 22,
+          boxShadow: '0 24px 70px rgba(15,23,42,0.24)',
+          border: '0.5px solid rgba(15,23,42,0.08)',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14, marginBottom: 18 }}>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 950, color: '#111827' }}>Agendar cliente</div>
+            <div style={{ fontSize: 12.5, color: '#6e6e73', lineHeight: 1.45, marginTop: 4, fontWeight: 650 }}>
+              Reserva manual creada por el profesional.
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            aria-label="Cerrar"
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: 17,
+              border: 'none',
+              background: '#f2f2f7',
+              color: '#6e6e73',
+              fontSize: 20,
+              fontWeight: 800,
+              cursor: saving ? 'default' : 'pointer',
+            }}
+          >
+            ×
+          </button>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 12 }}>
+          <label>
+            <span style={{ display: 'block', fontSize: 11.5, color: '#6e6e73', fontWeight: 850, marginBottom: 6 }}>Nombre del cliente</span>
+            <input
+              value={form.clientName}
+              onChange={(event) => updateField('clientName', event.target.value)}
+              placeholder="Nombre y apellido"
+              style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }}
+            />
+          </label>
+
+          <label>
+            <span style={{ display: 'block', fontSize: 11.5, color: '#6e6e73', fontWeight: 850, marginBottom: 6 }}>Teléfono</span>
+            <input
+              value={form.clientPhone}
+              onChange={(event) => updateField('clientPhone', event.target.value)}
+              placeholder="099 123 456"
+              inputMode="tel"
+              style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }}
+            />
+          </label>
+
+          <label>
+            <span style={{ display: 'block', fontSize: 11.5, color: '#6e6e73', fontWeight: 850, marginBottom: 6 }}>Servicio</span>
+            <select
+              value={form.serviceId}
+              onChange={(event) => updateField('serviceId', event.target.value)}
+              disabled={loadingOptions}
+              style={{ ...inputStyle, width: '100%', boxSizing: 'border-box', background: '#fff' }}
+            >
+              <option value="">Seleccionar servicio</option>
+              {services.map((service) => (
+                <option key={service.id} value={service.id}>
+                  {service.name}{service.durationMinutes ? ` · ${service.durationMinutes} min` : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            <span style={{ display: 'block', fontSize: 11.5, color: '#6e6e73', fontWeight: 850, marginBottom: 6 }}>Profesional</span>
+            <select
+              value={form.staffId}
+              onChange={(event) => updateField('staffId', event.target.value)}
+              disabled={loadingOptions}
+              style={{ ...inputStyle, width: '100%', boxSizing: 'border-box', background: '#fff' }}
+            >
+              <option value="">Sin asignar</option>
+              {staff.map((member) => (
+                <option key={member.id} value={member.id}>{member.name}</option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            <span style={{ display: 'block', fontSize: 11.5, color: '#6e6e73', fontWeight: 850, marginBottom: 6 }}>Fecha</span>
+            <input
+              type="date"
+              value={form.bookingDate}
+              onChange={(event) => updateField('bookingDate', event.target.value)}
+              style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }}
+            />
+          </label>
+
+          <label>
+            <span style={{ display: 'block', fontSize: 11.5, color: '#6e6e73', fontWeight: 850, marginBottom: 6 }}>Hora</span>
+            <input
+              type="time"
+              value={form.startTime}
+              onChange={(event) => updateField('startTime', event.target.value)}
+              style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }}
+            />
+          </label>
+        </div>
+
+        <label style={{ display: 'block', marginTop: 12 }}>
+          <span style={{ display: 'block', fontSize: 11.5, color: '#6e6e73', fontWeight: 850, marginBottom: 6 }}>Nota de la reserva (opcional)</span>
+          <textarea
+            value={form.comment}
+            onChange={(event) => updateField('comment', event.target.value)}
+            placeholder="Ej: pidió este horario por teléfono..."
+            maxLength={1000}
+            style={{
+              ...inputStyle,
+              width: '100%',
+              minHeight: 82,
+              resize: 'vertical',
+              boxSizing: 'border-box',
+              fontFamily: 'inherit',
+            }}
+          />
+        </label>
+
+        <div
+          style={{
+            marginTop: 14,
+            padding: '10px 12px',
+            borderRadius: 13,
+            background: '#f5f8ff',
+            color: '#44607c',
+            fontSize: 11.5,
+            lineHeight: 1.45,
+            fontWeight: 700,
+          }}
+        >
+          La reserva se crea confirmada. El sistema mantiene el control de disponibilidad y evita reservar un horario ocupado.
+        </div>
+
+        {error && (
+          <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 12, background: '#fff2f2', color: '#c62828', fontSize: 12.5, fontWeight: 800 }}>
+            {error}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 18 }}>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            style={{
+              border: 'none',
+              borderRadius: 13,
+              padding: '11px 15px',
+              background: '#f2f2f7',
+              color: '#1a1a1a',
+              fontFamily: 'inherit',
+              fontSize: 13,
+              fontWeight: 900,
+              cursor: saving ? 'default' : 'pointer',
+            }}
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            disabled={saving || loadingOptions}
+            style={{
+              border: 'none',
+              borderRadius: 13,
+              padding: '11px 17px',
+              background: saving || loadingOptions ? '#b7c8dc' : '#0071e3',
+              color: '#fff',
+              fontFamily: 'inherit',
+              fontSize: 13,
+              fontWeight: 900,
+              cursor: saving || loadingOptions ? 'default' : 'pointer',
+            }}
+          >
+            {saving ? 'Agendando...' : 'Confirmar reserva'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+
 function ReservationsSection() {
   const [bookings, setBookings] = useState([]);
   const [loadingBookings, setLoadingBookings] = useState(true);
@@ -2622,6 +2973,7 @@ function ReservationsSection() {
   const [pushLoading, setPushLoading] = useState(false);
   const [bookingNotification, setBookingNotification] = useState(null);
   const [newBookingCount, setNewBookingCount] = useState(0);
+  const [manualBookingOpen, setManualBookingOpen] = useState(false);
   const knownBookingIdsRef = useRef(new Set());
   const bookingsBootstrappedRef = useRef(false);
   const notificationTimeoutRef = useRef(null);
@@ -3270,6 +3622,36 @@ useEffect(() => {
 
   return (
     <>
+      <ManualBookingModal
+        open={manualBookingOpen}
+        onClose={() => setManualBookingOpen(false)}
+        onCreated={() => {
+          setManualBookingOpen(false);
+          fetchBookings(true);
+        }}
+      />
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
+        <button
+          type="button"
+          onClick={() => setManualBookingOpen(true)}
+          style={{
+            border: 'none',
+            borderRadius: 14,
+            padding: '11px 16px',
+            background: '#0071e3',
+            color: '#fff',
+            fontFamily: 'inherit',
+            fontSize: 13,
+            fontWeight: 900,
+            cursor: 'pointer',
+            boxShadow: '0 8px 20px rgba(0,113,227,0.18)',
+          }}
+        >
+          + Agendar cliente
+        </button>
+      </div>
+
       {bookingNotification && (
         <div
           role="status"
@@ -5454,6 +5836,7 @@ function ClientsSection() {
   const [noteDrafts, setNoteDrafts] = useState({});
   const [savingNoteKey, setSavingNoteKey] = useState(null);
   const [noteStatus, setNoteStatus] = useState({});
+  const [manualBookingClient, setManualBookingClient] = useState(null);
 
   let storedProfessional = {};
 
@@ -5780,6 +6163,16 @@ function ClientsSection() {
 
   return (
     <div>
+      <ManualBookingModal
+        open={Boolean(manualBookingClient)}
+        initialClient={manualBookingClient}
+        onClose={() => setManualBookingClient(null)}
+        onCreated={() => {
+          setManualBookingClient(null);
+          fetchBookings(true);
+        }}
+      />
+
       <div style={{ marginBottom: 16 }}>
         <button
           type="button"
@@ -6041,29 +6434,54 @@ function ClientsSection() {
                           </div>
                         </div>
 
-                        {whatsappUrl && (
-                          <a
-                            href={whatsappUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="client-whatsapp-button"
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                          <button
+                            type="button"
+                            onClick={() => setManualBookingClient({
+                              name: client.name,
+                              phone: client.phone,
+                            })}
                             style={{
                               display: 'inline-flex',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              textDecoration: 'none',
+                              border: 'none',
                               padding: '10px 14px',
                               borderRadius: 12,
-                              background: '#25d366',
+                              background: '#0071e3',
                               color: '#fff',
                               fontSize: 13,
                               fontWeight: 900,
-                              marginBottom: 12,
+                              fontFamily: 'inherit',
+                              cursor: 'pointer',
                             }}
                           >
-                            Enviar WhatsApp
-                          </a>
-                        )}
+                            Agendar reserva
+                          </button>
+
+                          {whatsappUrl && (
+                            <a
+                              href={whatsappUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="client-whatsapp-button"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                textDecoration: 'none',
+                                padding: '10px 14px',
+                                borderRadius: 12,
+                                background: '#25d366',
+                                color: '#fff',
+                                fontSize: 13,
+                                fontWeight: 900,
+                              }}
+                            >
+                              Enviar WhatsApp
+                            </a>
+                          )}
+                        </div>
 
                         <div className="client-notes-box" style={{ background: '#fafafa', borderRadius: 16, padding: 14, marginBottom: 14, border: '0.5px solid #eeeeef' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 8 }}>
