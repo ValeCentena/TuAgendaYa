@@ -2611,6 +2611,7 @@ function ManualBookingModal({ open, initialClient = null, onClose, onCreated }) 
   const [loadingOptions, setLoadingOptions] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [timePickerOpen, setTimePickerOpen] = useState(false);
   const [form, setForm] = useState({
     clientName: '',
     clientPhone: '',
@@ -2678,6 +2679,14 @@ function ManualBookingModal({ open, initialClient = null, onClose, onCreated }) 
   }, [open, initialClient?.name, initialClient?.phone]);
 
   if (!open) return null;
+
+  const manualTimeOptions = Array.from({ length: 72 }, (_, index) => {
+    const totalMinutes = 6 * 60 + index * 15;
+    const hour = Math.floor(totalMinutes / 60);
+    const minute = totalMinutes % 60;
+    const value = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+    return value;
+  });
 
   const updateField = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }));
@@ -2863,14 +2872,112 @@ function ManualBookingModal({ open, initialClient = null, onClose, onCreated }) 
             />
           </label>
 
-          <label>
+          <label style={{ position: 'relative' }}>
             <span style={{ display: 'block', fontSize: 11.5, color: '#6e6e73', fontWeight: 850, marginBottom: 6 }}>Hora</span>
-            <input
-              type="time"
-              value={form.startTime}
-              onChange={(event) => updateField('startTime', event.target.value)}
-              style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }}
-            />
+
+            <button
+              type="button"
+              onClick={() => setTimePickerOpen((current) => !current)}
+              aria-haspopup="listbox"
+              aria-expanded={timePickerOpen}
+              style={{
+                ...inputStyle,
+                width: '100%',
+                minHeight: 46,
+                boxSizing: 'border-box',
+                background: '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+                cursor: 'pointer',
+                textAlign: 'left',
+                color: form.startTime ? '#111827' : '#8e8e93',
+                fontFamily: 'inherit',
+                fontWeight: form.startTime ? 800 : 650,
+              }}
+            >
+              <span>{form.startTime || 'Seleccionar hora'}</span>
+              <span
+                aria-hidden="true"
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: 9,
+                  display: 'grid',
+                  placeItems: 'center',
+                  background: '#f2f7ff',
+                  color: '#0071e3',
+                  fontSize: 15,
+                  lineHeight: 1,
+                }}
+              >
+                ◷
+              </span>
+            </button>
+
+            {timePickerOpen && (
+              <div
+                role="listbox"
+                aria-label="Seleccionar hora"
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 8px)',
+                  left: 0,
+                  right: 0,
+                  zIndex: 13000,
+                  background: 'rgba(255,255,255,0.98)',
+                  border: '1px solid rgba(15,23,42,0.08)',
+                  borderRadius: 18,
+                  boxShadow: '0 18px 45px rgba(15,23,42,0.18)',
+                  padding: 10,
+                  maxHeight: 248,
+                  overflowY: 'auto',
+                  backdropFilter: 'blur(18px)',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+                    gap: 7,
+                  }}
+                >
+                  {manualTimeOptions.map((time) => {
+                    const selected = form.startTime === time;
+
+                    return (
+                      <button
+                        key={time}
+                        type="button"
+                        role="option"
+                        aria-selected={selected}
+                        onClick={() => {
+                          updateField('startTime', time);
+                          setTimePickerOpen(false);
+                        }}
+                        style={{
+                          border: selected
+                            ? '1px solid rgba(0,113,227,0.22)'
+                            : '1px solid rgba(15,23,42,0.06)',
+                          borderRadius: 12,
+                          padding: '9px 8px',
+                          background: selected ? '#0071e3' : '#f7f8fa',
+                          color: selected ? '#fff' : '#1d2636',
+                          fontFamily: 'inherit',
+                          fontSize: 12.5,
+                          fontWeight: 850,
+                          cursor: 'pointer',
+                          transition: 'transform .15s ease, background .15s ease',
+                        }}
+                      >
+                        {time}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </label>
         </div>
 
