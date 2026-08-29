@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { CapacitorContacts } from '@capgo/capacitor-contacts';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import BookPage from './pages/BookPage.jsx';
 
@@ -6072,6 +6074,9 @@ function ClientsSection() {
   const [savingNoteKey, setSavingNoteKey] = useState(null);
   const [noteStatus, setNoteStatus] = useState({});
   const [manualBookingClient, setManualBookingClient] = useState(null);
+  const [importedClients, setImportedClients] = useState([]);
+  const [importingContacts, setImportingContacts] = useState(false);
+  const [importContactsStatus, setImportContactsStatus] = useState('');
 
   let storedProfessional = {};
 
@@ -6213,18 +6218,142 @@ function ClientsSection() {
       });
   }, []);
 
+
+  const fetchImportedClients = useCallback(() => {
+    const token = localStorage.getItem('tuagendaya_token');
+
+    return fetch(`${API_BASE}/professionals/me/clients`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || 'No se pudieron cargar los contactos importados');
+        setImportedClients(Array.isArray(data.clients) ? data.clients : []);
+      })
+      .catch(() => {
+        setImportedClients([]);
+      });
+  }, []);
+
+  const handleImportContacts = async () => {
+    if (!Capacitor.isNativePlatform()) {
+      setImportContactsStatus('La importación de contactos está disponible desde la app móvil.');
+      return;
+    }
+
+    setImportingContacts(true);
+    setImportContactsStatus('');
+
+    try {
+      const result = await CapacitorContacts.pickContacts({
+        fields: ['id', 'fullName', 'givenName', 'familyName', 'phoneNumbers'],
+        multiple: true,
+      });
+
+      const selected = Array.isArray(result?.contacts) ? result.contacts : [];
+
+      if (selected.length === 0) {
+        setImportContactsStatus('No seleccionaste contactos.');
+        return;
+      }
+
+      const contacts = selected
+        .map((contact) => {
+          const phoneNumbers = Array.isArray(contact?.phoneNumbers) ? contact.phoneNumbers : [];
+          const primaryPhone =
+            phoneNumbers.find((item) => item?.isPrimary && item?.value)?.value ||
+            phoneNumbers.find((item) => item?.value)?.value ||
+            '';
+          const fullName = String(
+            contact?.fullName ||
+            [contact?.givenName, contact?.familyName].filter(Boolean).join(' ') ||
+            'Cliente sin nombre'
+          ).trim();
+
+          return {
+            name: fullName,
+            phone: String(primaryPhone || '').trim(),
+            deviceContactId: contact?.id ? String(contact.id) : null,
+          };
+        })
+        .filter((contact) => contact.phone);
+
+      if (contacts.length === 0) {
+        setImportContactsStatus('Los contactos seleccionados no tienen un número de teléfono disponible.');
+        return;
+      }
+
+      const token = localStorage.getItem('tuagendaya_token');
+      const response = await fetch(`${API_BASE}/professionals/me/clients/import`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ contacts }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || 'No se pudieron importar los contactos');
+      }
+
+      await fetchImportedClients();
+
+      const importedCount = Number(data.imported || 0);
+      const existingCount = Number(data.existing || 0);
+      const skippedCount = Number(data.skipped || 0);
+      const parts = [`${importedCount} ${importedCount === 1 ? 'contacto guardado' : 'contactos guardados'}`];
+
+      if (existingCount > 0) parts.push(`${existingCount} ya ${existingCount === 1 ? 'existía' : 'existían'}`);
+      if (skippedCount > 0) parts.push(`${skippedCount} sin teléfono válido`);
+
+      setImportContactsStatus(parts.join(' · '));
+    } catch (error) {
+      const message = String(error?.message || 'No se pudieron importar los contactos');
+
+      if (/cancel|cancelled|canceled/i.test(message)) {
+        setImportContactsStatus('Importación cancelada.');
+      } else {
+        setImportContactsStatus(message);
+      }
+    } finally {
+      setImportingContacts(false);
+    }
+  };
+
   useEffect(() => {
     fetchBookings(true);
     fetchClientNotes();
+    fetchImportedClients();
 
     const intervalId = window.setInterval(() => {
       fetchBookings(false);
     }, 10000);
 
     return () => window.clearInterval(intervalId);
-  }, [fetchBookings, fetchClientNotes]);
+  }, [fetchBookings, fetchClientNotes, fetchImportedClients]);
 
   const clientsMap = new Map();
+
+  importedClients.forEach((importedClient) => {
+    const clientName = String(importedClient.clientName ?? importedClient.client_name ?? importedClient.name ?? '').trim();
+    const clientPhone = String(importedClient.clientPhone ?? importedClient.client_phone ?? importedClient.phone ?? '').trim();
+    const normalizedPhone = normalizePhoneForWhatsApp(clientPhone);
+    const key = getClientIdentityKey(clientName, clientPhone);
+
+    if (!key) return;
+
+    clientsMap.set(key, {
+      key,
+      name: clientName || 'Cliente sin nombre',
+      phone: clientPhone,
+      normalizedPhone,
+      imported: true,
+      bookings: [],
+    });
+  });
 
   bookings.forEach((booking) => {
     const clientName = getBookingClientName(booking);
@@ -6433,7 +6562,7 @@ function ClientsSection() {
               <div>
                 <div style={{ fontSize: 15, fontWeight: 900, color: '#1a1a1a' }}>Resumen de clientes</div>
                 <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 700, marginTop: 2 }}>
-                  Resumen de clientes creados automáticamente con cada reserva.
+                  Resumen de clientes guardados e identificados por su número de teléfono.
                 </div>
               </div>
             </div>
@@ -6500,32 +6629,60 @@ function ClientsSection() {
           <div>
             <div style={{ fontSize: 17, fontWeight: 900, color: '#1a1a1a' }}>Clientes</div>
             <div style={{ fontSize: 12, color: '#8e8e93', fontWeight: 600, marginTop: 4 }}>
-              Se crean automáticamente con cada reserva. Podés ver historial y contactar por WhatsApp.
+              Se crean con cada reserva o al importar contactos. Podés ver historial y contactar por WhatsApp.
             </div>
           </div>
 
-          <button
-            type="button"
-            className="clients-export-button"
-            onClick={() => exportClientsToCsv(filteredClients, 'clientes-tuagendaya.csv')}
-            disabled={filteredClients.length === 0}
-            style={{
-              border: 'none',
-              background: filteredClients.length === 0 ? '#f2f2f7' : '#0071e3',
-              color: filteredClients.length === 0 ? '#8e8e93' : '#fff',
-              borderRadius: 999,
-              padding: '9px 13px',
-              fontSize: 12,
-              fontWeight: 900,
-              fontFamily: 'inherit',
-              cursor: filteredClients.length === 0 ? 'not-allowed' : 'pointer',
-              whiteSpace: 'nowrap',
-              boxShadow: filteredClients.length === 0 ? 'none' : '0 1px 6px rgba(0,113,227,0.18)',
-            }}
-          >
-            Exportar clientes
-          </button>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <button
+              type="button"
+              onClick={handleImportContacts}
+              disabled={importingContacts}
+              style={{
+                border: 'none',
+                background: importingContacts ? '#d7e7f8' : '#eef6ff',
+                color: '#0071e3',
+                borderRadius: 999,
+                padding: '9px 13px',
+                fontSize: 12,
+                fontWeight: 900,
+                fontFamily: 'inherit',
+                cursor: importingContacts ? 'default' : 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {importingContacts ? 'Importando...' : 'Importar contactos'}
+            </button>
+
+            <button
+              type="button"
+              className="clients-export-button"
+              onClick={() => exportClientsToCsv(filteredClients, 'clientes-tuagendaya.csv')}
+              disabled={filteredClients.length === 0}
+              style={{
+                border: 'none',
+                background: filteredClients.length === 0 ? '#f2f2f7' : '#0071e3',
+                color: filteredClients.length === 0 ? '#8e8e93' : '#fff',
+                borderRadius: 999,
+                padding: '9px 13px',
+                fontSize: 12,
+                fontWeight: 900,
+                fontFamily: 'inherit',
+                cursor: filteredClients.length === 0 ? 'not-allowed' : 'pointer',
+                whiteSpace: 'nowrap',
+                boxShadow: filteredClients.length === 0 ? 'none' : '0 1px 6px rgba(0,113,227,0.18)',
+              }}
+            >
+              Exportar clientes
+            </button>
+          </div>
         </div>
+
+        {importContactsStatus && (
+          <div style={{ margin: '-4px 0 14px', fontSize: 12, color: '#6e6e73', fontWeight: 800 }}>
+            {importContactsStatus}
+          </div>
+        )}
 
         <div className="clients-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10, marginBottom: 14 }}>
           <div style={{ background: '#f5f5f7', borderRadius: 16, padding: 12 }}>
@@ -6556,7 +6713,7 @@ function ClientsSection() {
           <div style={{ textAlign: 'center', color: '#aeaeb2', padding: 34 }}>Cargando clientes...</div>
         ) : filteredClients.length === 0 ? (
           <div style={{ textAlign: 'center', color: '#aeaeb2', padding: 34 }}>
-            {clients.length === 0 ? 'Todavía no hay clientes. Se van a crear automáticamente cuando hagan reservas.' : 'No encontramos clientes con esa búsqueda.'}
+            {clients.length === 0 ? 'Todavía no hay clientes. Podés importar contactos o esperar a que hagan una reserva.' : 'No encontramos clientes con esa búsqueda.'}
           </div>
         ) : (
           <div className="clients-list" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

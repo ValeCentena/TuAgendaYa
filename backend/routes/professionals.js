@@ -303,6 +303,184 @@ router.patch('/me/profile', authMiddleware, async (req, res) => {
 });
 
 
+
+function normalizeClientPhone(phone) {
+  const onlyNumbers = String(phone || '').replace(/\D/g, '');
+
+  if (!onlyNumbers) return '';
+
+  if (onlyNumbers.startsWith('598')) {
+    return onlyNumbers;
+  }
+
+  if (onlyNumbers.startsWith('09') && onlyNumbers.length >= 8) {
+    return `598${onlyNumbers.slice(1)}`;
+  }
+
+  if (onlyNumbers.startsWith('9') && onlyNumbers.length >= 8) {
+    return `598${onlyNumbers}`;
+  }
+
+  if (onlyNumbers.startsWith('0') && onlyNumbers.length > 6) {
+    return `598${onlyNumbers.slice(1)}`;
+  }
+
+  return onlyNumbers;
+}
+
+async function ensureProfessionalClientsTable() {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS professional_clients (
+      id SERIAL PRIMARY KEY,
+      professional_id INTEGER NOT NULL REFERENCES professionals(id) ON DELETE CASCADE,
+      client_name TEXT NOT NULL,
+      client_phone TEXT NOT NULL,
+      normalized_phone TEXT NOT NULL,
+      device_contact_id TEXT,
+      source TEXT NOT NULL DEFAULT 'device',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (professional_id, normalized_phone)
+    )
+  `);
+}
+
+function normalizeProfessionalClient(row) {
+  return {
+    id: row.id,
+    clientName: row.client_name || '',
+    client_name: row.client_name || '',
+    name: row.client_name || '',
+    clientPhone: row.client_phone || '',
+    client_phone: row.client_phone || '',
+    phone: row.client_phone || '',
+    normalizedPhone: row.normalized_phone || '',
+    normalized_phone: row.normalized_phone || '',
+    source: row.source || 'device',
+    createdAt: row.created_at,
+    created_at: row.created_at,
+    updatedAt: row.updated_at,
+    updated_at: row.updated_at,
+  };
+}
+
+// GET /api/professionals/me/clients
+router.get('/me/clients', authMiddleware, async (req, res) => {
+  try {
+    const professionalId = req.professional.id;
+
+    await ensureProfessionalClientsTable();
+
+    const result = await db.query(
+      `SELECT
+         id,
+         client_name,
+         client_phone,
+         normalized_phone,
+         source,
+         created_at,
+         updated_at
+       FROM professional_clients
+       WHERE professional_id = $1
+       ORDER BY client_name ASC, id ASC`,
+      [professionalId]
+    );
+
+    setNoStoreHeaders(res);
+    return res.json({
+      clients: result.rows.map(normalizeProfessionalClient),
+    });
+  } catch (err) {
+    console.error('GET /me/clients error:', err);
+    return res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// POST /api/professionals/me/clients/import
+router.post('/me/clients/import', authMiddleware, async (req, res) => {
+  try {
+    const professionalId = req.professional.id;
+    const contacts = Array.isArray(req.body.contacts) ? req.body.contacts : [];
+
+    if (contacts.length === 0) {
+      return res.status(400).json({ error: 'Seleccioná al menos un contacto' });
+    }
+
+    if (contacts.length > 500) {
+      return res.status(400).json({ error: 'Podés importar hasta 500 contactos por vez' });
+    }
+
+    await ensureProfessionalClientsTable();
+
+    let imported = 0;
+    let existing = 0;
+    let skipped = 0;
+    const processedPhones = new Set();
+
+    for (const contact of contacts) {
+      const clientName = String(contact?.name ?? contact?.clientName ?? '').trim().slice(0, 160);
+      const clientPhone = String(contact?.phone ?? contact?.clientPhone ?? '').trim().slice(0, 60);
+      const normalizedPhone = normalizeClientPhone(clientPhone);
+      const deviceContactId = contact?.deviceContactId
+        ? String(contact.deviceContactId).trim().slice(0, 255)
+        : null;
+
+      if (!normalizedPhone || normalizedPhone.length < 7) {
+        skipped += 1;
+        continue;
+      }
+
+      if (processedPhones.has(normalizedPhone)) {
+        existing += 1;
+        continue;
+      }
+
+      processedPhones.add(normalizedPhone);
+
+      const result = await db.query(
+        `INSERT INTO professional_clients (
+           professional_id,
+           client_name,
+           client_phone,
+           normalized_phone,
+           device_contact_id,
+           source,
+           created_at,
+           updated_at
+         )
+         VALUES ($1, $2, $3, $4, $5, 'device', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+         ON CONFLICT (professional_id, normalized_phone)
+         DO NOTHING
+         RETURNING id`,
+        [
+          professionalId,
+          clientName || 'Cliente sin nombre',
+          clientPhone,
+          normalizedPhone,
+          deviceContactId,
+        ]
+      );
+
+      if (result.rows.length > 0) {
+        imported += 1;
+      } else {
+        existing += 1;
+      }
+    }
+
+    setNoStoreHeaders(res);
+    return res.status(201).json({
+      success: true,
+      imported,
+      existing,
+      skipped,
+    });
+  } catch (err) {
+    console.error('POST /me/clients/import error:', err);
+    return res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 async function ensureClientNotesTable() {
   await db.query(`
     CREATE TABLE IF NOT EXISTS professional_client_notes (
