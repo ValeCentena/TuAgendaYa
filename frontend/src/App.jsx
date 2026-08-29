@@ -6077,6 +6077,7 @@ function ClientsSection() {
   const [importedClients, setImportedClients] = useState([]);
   const [importingContacts, setImportingContacts] = useState(false);
   const [importContactsStatus, setImportContactsStatus] = useState('');
+  const webContactsInputRef = useRef(null);
 
   let storedProfessional = {};
 
@@ -6235,9 +6236,191 @@ function ClientsSection() {
       });
   }, []);
 
+  const submitImportedContacts = async (contacts) => {
+    if (!Array.isArray(contacts) || contacts.length === 0) {
+      setImportContactsStatus('No encontramos contactos con teléfono para importar.');
+      return;
+    }
+
+    const token = localStorage.getItem('tuagendaya_token');
+    const response = await fetch(`${API_BASE}/professionals/me/clients/import`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ contacts }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(data.error || 'No se pudieron importar los contactos');
+    }
+
+    await fetchImportedClients();
+
+    const importedCount = Number(data.imported || 0);
+    const existingCount = Number(data.existing || 0);
+    const skippedCount = Number(data.skipped || 0);
+    const parts = [`${importedCount} ${importedCount === 1 ? 'contacto guardado' : 'contactos guardados'}`];
+
+    if (existingCount > 0) parts.push(`${existingCount} ya ${existingCount === 1 ? 'existía' : 'existían'}`);
+    if (skippedCount > 0) parts.push(`${skippedCount} sin teléfono válido`);
+
+    setImportContactsStatus(parts.join(' · '));
+  };
+
+  const splitCsvLine = (line, separator) => {
+    const values = [];
+    let current = '';
+    let quoted = false;
+
+    for (let index = 0; index < line.length; index += 1) {
+      const char = line[index];
+
+      if (char === '"') {
+        if (quoted && line[index + 1] === '"') {
+          current += '"';
+          index += 1;
+        } else {
+          quoted = !quoted;
+        }
+      } else if (char === separator && !quoted) {
+        values.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+
+    values.push(current.trim());
+    return values;
+  };
+
+  const parseWebContactsFile = async (file) => {
+    const rawText = await file.text();
+    const text = String(rawText || '').replace(/^\uFEFF/, '');
+    const lowerName = String(file?.name || '').toLowerCase();
+
+    if (lowerName.endsWith('.vcf') || /BEGIN:VCARD/i.test(text)) {
+      return text
+        .split(/END:VCARD/i)
+        .map((block) => {
+          const nameMatch =
+            block.match(/(?:^|\r?\n)FN(?:;[^:]*)?:(.+)/i) ||
+            block.match(/(?:^|\r?\n)N(?:;[^:]*)?:([^;\r\n]*);([^;\r\n]*)/i);
+          const phoneMatch = block.match(/(?:^|\r?\n)TEL(?:;[^:]*)?:(.+)/i);
+
+          let name = '';
+
+          if (nameMatch) {
+            if (nameMatch.length >= 3) {
+              name = [nameMatch[2], nameMatch[1]].filter(Boolean).join(' ');
+            } else {
+              name = nameMatch[1];
+            }
+          }
+
+          return {
+            name: String(name || 'Cliente sin nombre')
+              .replace(/\\n/gi, ' ')
+              .replace(/\\,/g, ',')
+              .trim(),
+            phone: String(phoneMatch?.[1] || '')
+              .replace(/^tel:/i, '')
+              .replace(/\\-/g, '-')
+              .trim(),
+            deviceContactId: null,
+          };
+        })
+        .filter((contact) => contact.phone);
+    }
+
+    const lines = text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    if (lines.length < 2) {
+      return [];
+    }
+
+    const firstLine = lines[0];
+    const commaCount = (firstLine.match(/,/g) || []).length;
+    const semicolonCount = (firstLine.match(/;/g) || []).length;
+    const separator = semicolonCount > commaCount ? ';' : ',';
+    const headers = splitCsvLine(firstLine, separator).map((header) =>
+      normalizeSearchText(header).replace(/[^a-z0-9]+/g, ' ').trim()
+    );
+
+    const findHeaderIndex = (candidates) =>
+      headers.findIndex((header) =>
+        candidates.some((candidate) => header === candidate || header.includes(candidate))
+      );
+
+    const nameIndex = findHeaderIndex([
+      'cliente',
+      'nombre',
+      'name',
+      'full name',
+      'given name',
+      'first name',
+    ]);
+
+    const phoneIndexes = headers
+      .map((header, index) => ({ header, index }))
+      .filter(({ header }) =>
+        ['telefono', 'phone', 'mobile', 'celular', 'telefono 1 valor', 'phone 1 value']
+          .some((candidate) => header === candidate || header.includes(candidate))
+      )
+      .map(({ index }) => index);
+
+    if (phoneIndexes.length === 0) {
+      throw new Error('El archivo no tiene una columna de teléfono reconocible.');
+    }
+
+    return lines
+      .slice(1)
+      .map((line) => {
+        const row = splitCsvLine(line, separator);
+        const phone = phoneIndexes
+          .map((index) => row[index])
+          .find((value) => String(value || '').trim());
+
+        return {
+          name: String(nameIndex >= 0 ? row[nameIndex] : 'Cliente sin nombre').trim() || 'Cliente sin nombre',
+          phone: String(phone || '').trim(),
+          deviceContactId: null,
+        };
+      })
+      .filter((contact) => contact.phone);
+  };
+
+  const handleWebContactsFile = async (event) => {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    setImportingContacts(true);
+    setImportContactsStatus('');
+
+    try {
+      const contacts = await parseWebContactsFile(file);
+      await submitImportedContacts(contacts);
+    } catch (error) {
+      setImportContactsStatus(error.message || 'No se pudieron importar los contactos');
+    } finally {
+      setImportingContacts(false);
+      event.target.value = '';
+    }
+  };
+
   const handleImportContacts = async () => {
     if (!Capacitor.isNativePlatform()) {
-      setImportContactsStatus('La importación de contactos está disponible desde la app móvil.');
+      webContactsInputRef.current?.click();
       return;
     }
 
@@ -6283,33 +6466,7 @@ function ClientsSection() {
         return;
       }
 
-      const token = localStorage.getItem('tuagendaya_token');
-      const response = await fetch(`${API_BASE}/professionals/me/clients/import`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ contacts }),
-      });
-
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(data.error || 'No se pudieron importar los contactos');
-      }
-
-      await fetchImportedClients();
-
-      const importedCount = Number(data.imported || 0);
-      const existingCount = Number(data.existing || 0);
-      const skippedCount = Number(data.skipped || 0);
-      const parts = [`${importedCount} ${importedCount === 1 ? 'contacto guardado' : 'contactos guardados'}`];
-
-      if (existingCount > 0) parts.push(`${existingCount} ya ${existingCount === 1 ? 'existía' : 'existían'}`);
-      if (skippedCount > 0) parts.push(`${skippedCount} sin teléfono válido`);
-
-      setImportContactsStatus(parts.join(' · '));
+      await submitImportedContacts(contacts);
     } catch (error) {
       const message = String(error?.message || 'No se pudieron importar los contactos');
 
@@ -6634,6 +6791,14 @@ function ClientsSection() {
           </div>
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <input
+              ref={webContactsInputRef}
+              type="file"
+              accept=".csv,.vcf,text/csv,text/vcard,text/x-vcard"
+              onChange={handleWebContactsFile}
+              style={{ display: 'none' }}
+            />
+
             <button
               type="button"
               onClick={handleImportContacts}
@@ -6681,6 +6846,12 @@ function ClientsSection() {
         {importContactsStatus && (
           <div style={{ margin: '-4px 0 14px', fontSize: 12, color: '#6e6e73', fontWeight: 800 }}>
             {importContactsStatus}
+          </div>
+        )}
+
+        {!Capacitor.isNativePlatform() && !importContactsStatus && (
+          <div style={{ margin: '-4px 0 14px', fontSize: 11.5, color: '#8e8e93', fontWeight: 700 }}>
+            En la web podés importar contactos desde un archivo CSV o VCF.
           </div>
         )}
 
