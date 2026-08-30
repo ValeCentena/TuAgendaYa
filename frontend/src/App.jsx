@@ -500,8 +500,6 @@ function DatePickerField({ value, onChange, placeholder = 'Elegir fecha', allowP
         padding: 9,
         boxShadow: '0 5px 16px rgba(15,23,42,.05)',
         boxSizing: 'border-box',
-        marginLeft: 'auto',
-        marginRight: 'auto',
       }}
     >
       <div
@@ -8285,12 +8283,11 @@ function AvailabilitySection() {
           <div>
             <label style={smallLabelStyle}>Desde</label>
             <input
-              type="text"
+              type="time"
               value={blockForm.startTime}
-              placeholder="13:00"
-              inputMode="numeric"
+              step="60"
               disabled={blockForm.isFullDay}
-              onChange={(event) => setBlockForm({ ...blockForm, startTime: event.target.value })}
+              onChange={(event) => setBlockForm((current) => ({ ...current, startTime: event.target.value }))}
               style={{ ...inputStyle, marginBottom: 0, borderRadius: 14, border: '0.5px solid #e2e2e8', background: blockForm.isFullDay ? '#f7f7fb' : '#fff', boxShadow: blockForm.isFullDay ? 'none' : '0 2px 8px rgba(0,0,0,0.03)', cursor: blockForm.isFullDay ? 'not-allowed' : 'text', opacity: blockForm.isFullDay ? 0.55 : 1 }}
             />
           </div>
@@ -8298,12 +8295,11 @@ function AvailabilitySection() {
           <div>
             <label style={smallLabelStyle}>Hasta</label>
             <input
-              type="text"
+              type="time"
               value={blockForm.endTime}
-              placeholder="14:00"
-              inputMode="numeric"
+              step="60"
               disabled={blockForm.isFullDay}
-              onChange={(event) => setBlockForm({ ...blockForm, endTime: event.target.value })}
+              onChange={(event) => setBlockForm((current) => ({ ...current, endTime: event.target.value }))}
               style={{ ...inputStyle, marginBottom: 0, borderRadius: 14, border: '0.5px solid #e2e2e8', background: blockForm.isFullDay ? '#f7f7fb' : '#fff', boxShadow: blockForm.isFullDay ? 'none' : '0 2px 8px rgba(0,0,0,0.03)', cursor: blockForm.isFullDay ? 'not-allowed' : 'text', opacity: blockForm.isFullDay ? 0.55 : 1 }}
             />
           </div>
