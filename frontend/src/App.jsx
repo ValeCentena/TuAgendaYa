@@ -6154,10 +6154,7 @@ function CashSection() {
 function RepeatBookingModal({ open, booking, onClose, onCreated }) {
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
-  const [frequency, setFrequency] = useState('weekly');
-  const [endMode, setEndMode] = useState('count');
   const [repeatCount, setRepeatCount] = useState('4');
-  const [untilDate, setUntilDate] = useState('');
   const [timePickerOpen, setTimePickerOpen] = useState(false);
   const [bookingStartIntervalMinutes, setBookingStartIntervalMinutes] = useState(30);
   const [creating, setCreating] = useState(false);
@@ -6171,10 +6168,7 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
     setSelectedTime(
       formatTime(booking?.startTime ?? booking?.start_time) || ''
     );
-    setFrequency('weekly');
-    setEndMode('count');
     setRepeatCount('4');
-    setUntilDate('');
     setTimePickerOpen(false);
     setError('');
     setResultMessage('');
@@ -6208,14 +6202,6 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
   const serviceName = booking.serviceName ?? booking.service_name ?? 'Servicio';
   const staffName = booking.staffName ?? booking.staff_name ?? '';
 
-  const frequencyConfig = {
-    weekly: { intervalValue: 1, intervalUnit: 'weeks', label: 'Cada semana' },
-    biweekly: { intervalValue: 2, intervalUnit: 'weeks', label: 'Cada 2 semanas' },
-    monthly: { intervalValue: 1, intervalUnit: 'months', label: 'Cada mes' },
-  };
-
-  const selectedFrequency = frequencyConfig[frequency] || frequencyConfig.weekly;
-
   const timeOptions = Array.from(
     { length: Math.floor((24 * 60 - 6 * 60) / bookingStartIntervalMinutes) },
     (_, index) => {
@@ -6231,39 +6217,27 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
     sourceBookingId: booking.id,
     firstRepeatDate: selectedDate,
     startTime: selectedTime,
-    intervalValue: selectedFrequency.intervalValue,
-    intervalUnit: selectedFrequency.intervalUnit,
-    repeatCount: endMode === 'count' ? Number(repeatCount) : null,
-    untilDate: endMode === 'date' ? untilDate : null,
+    intervalValue: 1,
+    intervalUnit: 'weeks',
+    repeatCount: Number(repeatCount),
+    untilDate: null,
   };
 
   const validate = () => {
     if (!selectedDate) {
-      return 'Elegí la fecha de la primera nueva cita.';
+      return 'Elegí un día en el calendario.';
     }
 
     if (!selectedTime) {
       return 'Seleccioná un horario.';
     }
 
-    if (endMode === 'count') {
-      if (
-        !Number.isInteger(Number(repeatCount)) ||
-        Number(repeatCount) < 1 ||
-        Number(repeatCount) > 100
-      ) {
-        return 'La cantidad debe estar entre 1 y 100 citas.';
-      }
-    }
-
-    if (endMode === 'date') {
-      if (!untilDate) {
-        return 'Elegí hasta qué fecha querés repetir la cita.';
-      }
-
-      if (untilDate < selectedDate) {
-        return 'La fecha final no puede ser anterior a la primera nueva cita.';
-      }
+    if (
+      !Number.isInteger(Number(repeatCount)) ||
+      Number(repeatCount) < 1 ||
+      Number(repeatCount) > 100
+    ) {
+      return 'La cantidad debe estar entre 1 y 100 citas.';
     }
 
     return '';
@@ -6341,24 +6315,49 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
       <div
         className="repeat-booking-modal"
         style={{
-          width: 'min(460px, calc(100vw - 16px))',
+          width: 'min(430px, calc(100vw - 16px))',
           maxHeight: '92vh',
           overflowY: 'auto',
           background: '#fff',
-          borderRadius: 22,
-          padding: 18,
+          borderRadius: 20,
+          padding: 15,
           boxShadow: '0 28px 70px rgba(15,23,42,.24)',
           border: '1px solid rgba(15,23,42,.08)',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14 }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            gap: 14,
+          }}
+        >
           <div>
-            <div style={{ fontSize: 20, fontWeight: 950, color: '#111827' }}>Repetir cita</div>
-            <div style={{ marginTop: 5, fontSize: 12.5, color: '#6e6e73', fontWeight: 750 }}>
-              {serviceName}{staffName ? ` · ${staffName}` : ''}
+            <div style={{ fontSize: 20, fontWeight: 950, color: '#111827' }}>
+              Repetir cita
             </div>
-            <div style={{ marginTop: 3, fontSize: 11.5, color: '#8e8e93', fontWeight: 700 }}>
-              Original: {formatDate(sourceDate)} · {sourceTime}{sourceEndTime ? ` - ${sourceEndTime}` : ''}
+            <div
+              style={{
+                marginTop: 5,
+                fontSize: 12.5,
+                color: '#6e6e73',
+                fontWeight: 750,
+              }}
+            >
+              {serviceName}
+              {staffName ? ` · ${staffName}` : ''}
+            </div>
+            <div
+              style={{
+                marginTop: 3,
+                fontSize: 11.5,
+                color: '#8e8e93',
+                fontWeight: 700,
+              }}
+            >
+              Original: {formatDate(sourceDate)} · {sourceTime}
+              {sourceEndTime ? ` - ${sourceEndTime}` : ''}
             </div>
           </div>
 
@@ -6384,18 +6383,15 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
         </div>
 
         <div style={{ marginTop: 18 }}>
-          <span style={smallLabelStyle}>Primera nueva cita</span>
+          <span style={smallLabelStyle}>Fecha</span>
           <DatePickerField
             value={selectedDate}
             onChange={(value) => {
               setSelectedDate(value);
-              if (endMode === 'date' && untilDate && untilDate < value) {
-                setUntilDate('');
-              }
               setError('');
               setResultMessage('');
             }}
-            placeholder="Elegí la fecha"
+            placeholder="Elegí un día"
             allowPast={false}
           />
         </div>
@@ -6460,7 +6456,13 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
                 overflowY: 'auto',
               }}
             >
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 7 }}>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, minmax(0,1fr))',
+                  gap: 7,
+                }}
+              >
                 {timeOptions.map((time) => {
                   const selected = selectedTime === time;
 
@@ -6499,170 +6501,126 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
           )}
         </div>
 
-        <div style={{ marginTop: 16 }}>
-          <span style={smallLabelStyle}>Frecuencia</span>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
-            {Object.entries(frequencyConfig).map(([key, option]) => {
-              const active = frequency === key;
-
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => {
-                    setFrequency(key);
-                    setError('');
-                    setResultMessage('');
-                  }}
-                  style={{
-                    border: active ? '1px solid rgba(0,113,227,.25)' : '1px solid rgba(15,23,42,.08)',
-                    borderRadius: 13,
-                    padding: '10px 8px',
-                    background: active ? '#0071e3' : '#f7f8fa',
-                    color: active ? '#fff' : '#1d2636',
-                    fontFamily: 'inherit',
-                    fontSize: 12,
-                    fontWeight: 900,
-                    cursor: 'pointer',
-                  }}
-                >
-                  {option.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div style={{ marginTop: 16 }}>
-          <span style={smallLabelStyle}>Repetir hasta</span>
-
-          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-            <button
-              type="button"
-              onClick={() => {
-                setEndMode('count');
-                setError('');
-                setResultMessage('');
-              }}
-              style={{
-                flex: 1,
-                border: endMode === 'count' ? '1px solid rgba(0,113,227,.25)' : '1px solid rgba(15,23,42,.08)',
-                borderRadius: 13,
-                padding: '10px 12px',
-                background: endMode === 'count' ? '#eef6ff' : '#fff',
-                color: endMode === 'count' ? '#0071e3' : '#6e6e73',
-                fontFamily: 'inherit',
-                fontSize: 12.5,
-                fontWeight: 900,
-                cursor: 'pointer',
-              }}
-            >
-              Cantidad de citas
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setEndMode('date');
-                setError('');
-                setResultMessage('');
-              }}
-              style={{
-                flex: 1,
-                border: endMode === 'date' ? '1px solid rgba(0,113,227,.25)' : '1px solid rgba(15,23,42,.08)',
-                borderRadius: 13,
-                padding: '10px 12px',
-                background: endMode === 'date' ? '#eef6ff' : '#fff',
-                color: endMode === 'date' ? '#0071e3' : '#6e6e73',
-                fontFamily: 'inherit',
-                fontSize: 12.5,
-                fontWeight: 900,
-                cursor: 'pointer',
-              }}
-            >
-              Fecha final
-            </button>
-          </div>
-
-          {endMode === 'count' ? (
-            <input
-              type="number"
-              min="1"
-              max="100"
-              inputMode="numeric"
-              value={repeatCount}
-              onChange={(event) => {
-                setRepeatCount(event.target.value);
-                setError('');
-                setResultMessage('');
-              }}
-              style={{ ...inputStyle, borderRadius: 14 }}
-            />
-          ) : (
-            <DatePickerField
-              value={untilDate}
-              onChange={(value) => {
-                setUntilDate(value);
-                setError('');
-                setResultMessage('');
-              }}
-              placeholder="Elegí la fecha final"
-              allowPast={false}
-            />
-          )}
-        </div>
+        <label style={{ display: 'block', marginTop: 14 }}>
+          <span style={smallLabelStyle}>Cantidad de veces</span>
+          <input
+            type="number"
+            min="1"
+            max="100"
+            inputMode="numeric"
+            value={repeatCount}
+            onChange={(event) => {
+              setRepeatCount(event.target.value);
+              setError('');
+              setResultMessage('');
+            }}
+            style={{
+              ...inputStyle,
+              minHeight: 46,
+              borderRadius: 14,
+            }}
+          />
+        </label>
 
         <div
           style={{
             marginTop: 14,
-            padding: '11px 12px',
+            padding: '11px 13px',
             borderRadius: 14,
-            background: '#f7f8fa',
-            color: '#6e6e73',
-            fontSize: 11.5,
+            background: '#f2f7ff',
+            color: '#44607c',
+            fontSize: 12,
             lineHeight: 1.5,
-            fontWeight: 700,
+            fontWeight: 750,
           }}
         >
-          Se repiten cliente, servicio y profesional de la cita original. Los horarios ocupados se omiten y no se pisan reservas existentes.
+          Elegí una fecha en el almanaque, la hora y cuántas veces querés
+          repetirla. Desde esa fecha se repite semanalmente en el mismo horario.
         </div>
 
         {error && (
-          <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 12, background: '#fff2f2', color: '#c62828', fontSize: 12.5, fontWeight: 800 }}>
+          <div
+            style={{
+              marginTop: 12,
+              padding: '10px 12px',
+              borderRadius: 12,
+              background: '#fff2f2',
+              color: '#c62828',
+              fontSize: 12.5,
+              fontWeight: 800,
+            }}
+          >
             {error}
           </div>
         )}
 
         {resultMessage && (
-          <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 12, background: '#edfff3', color: '#188038', fontSize: 12.5, fontWeight: 800 }}>
+          <div
+            style={{
+              marginTop: 12,
+              padding: '10px 12px',
+              borderRadius: 12,
+              background: '#edfff3',
+              color: '#188038',
+              fontSize: 12.5,
+              fontWeight: 850,
+            }}
+          >
             {resultMessage}
           </div>
         )}
 
-        <button
-          type="button"
-          onClick={createRepeatedBookings}
-          disabled={creating}
+        <div
           style={{
-            width: '100%',
-            marginTop: 16,
-            border: 'none',
-            borderRadius: 14,
-            padding: '13px 14px',
-            background: creating ? '#aeaeb2' : '#0071e3',
-            color: '#fff',
-            fontFamily: 'inherit',
-            fontSize: 14,
-            fontWeight: 950,
-            cursor: creating ? 'not-allowed' : 'pointer',
+            display: 'grid',
+            gridTemplateColumns: '1fr 1.4fr',
+            gap: 10,
+            marginTop: 14,
           }}
         >
-          {creating
-            ? 'Creando citas...'
-            : endMode === 'count'
-              ? `Repetir ${Number(repeatCount) > 0 ? repeatCount : ''} ${Number(repeatCount) === 1 ? 'cita' : 'citas'}`
-              : 'Crear citas recurrentes'}
-        </button>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={creating}
+            style={{
+              border: 'none',
+              borderRadius: 14,
+              padding: '12px 14px',
+              background: '#f2f2f7',
+              color: '#1a1a1a',
+              fontFamily: 'inherit',
+              fontSize: 13,
+              fontWeight: 900,
+              cursor: creating ? 'default' : 'pointer',
+            }}
+          >
+            Cancelar
+          </button>
+
+          <button
+            type="button"
+            onClick={createRepeatedBookings}
+            disabled={creating}
+            style={{
+              border: 'none',
+              borderRadius: 14,
+              padding: '12px 14px',
+              background: creating ? '#9fc9f3' : '#0071e3',
+              color: '#fff',
+              fontFamily: 'inherit',
+              fontSize: 13.5,
+              fontWeight: 950,
+              cursor: creating ? 'default' : 'pointer',
+              boxShadow: creating ? 'none' : '0 7px 18px rgba(0,113,227,.22)',
+            }}
+          >
+            {creating
+              ? 'Creando citas...'
+              : `Repetir ${Number(repeatCount) > 0 ? repeatCount : ''} ${
+                  Number(repeatCount) === 1 ? 'vez' : 'veces'
+                }`}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -7898,24 +7856,6 @@ function ClientsSection() {
                                   <div style={{ fontSize: 11, color: statusColor, background: '#fff', border: `0.5px solid ${statusColor}33`, padding: '5px 9px', borderRadius: 999, fontWeight: 900 }}>
                                     {statusLabel}
                                   </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => setRepeatBooking(booking)}
-                                    style={{
-                                      border: '1px solid #0071e3',
-                                      borderRadius: 10,
-                                      padding: '6px 9px',
-                                      background: '#fff',
-                                      color: '#0071e3',
-                                      fontSize: 11,
-                                      fontWeight: 900,
-                                      fontFamily: 'inherit',
-                                      cursor: 'pointer',
-                                      whiteSpace: 'nowrap',
-                                    }}
-                                  >
-                                    Repetir cita
-                                  </button>
                                 </div>
                               </div>
                             );
