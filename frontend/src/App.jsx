@@ -8164,7 +8164,6 @@ function AvailabilitySection() {
         isFullDay: false,
         reason: '',
       }));
-      const repeatEnabled = blockRepeatUnit !== 'none';
       const timeLabel = blockForm.isFullDay
         ? 'Día completo'
         : `${String(blockForm.startTime).slice(0, 5)} a ${String(blockForm.endTime).slice(0, 5)}`;
