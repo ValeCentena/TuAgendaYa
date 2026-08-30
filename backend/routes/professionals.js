@@ -114,6 +114,14 @@ function mergeAvailWithDefaults(rows, professionalId) {
 }
 
 
+
+async function ensurePublicProfileImageColumn() {
+  await db.query(`
+    ALTER TABLE professionals
+    ADD COLUMN IF NOT EXISTS public_profile_image_url TEXT
+  `);
+}
+
 function normalizeProfessionalProfile(row) {
   if (!row) return null;
 
@@ -129,6 +137,8 @@ function normalizeProfessionalProfile(row) {
     slug: row.slug || '',
     logoUrl: row.logo_url || '',
     logo_url: row.logo_url || '',
+    publicProfileImageUrl: row.public_profile_image_url || '',
+    public_profile_image_url: row.public_profile_image_url || '',
     status: row.status || '',
     createdAt: row.created_at,
     created_at: row.created_at,
@@ -142,6 +152,8 @@ router.get('/me/profile', authMiddleware, async (req, res) => {
   try {
     const professionalId = req.professional.id;
 
+    await ensurePublicProfileImageColumn();
+
     const result = await db.query(
       `SELECT
          id,
@@ -153,6 +165,7 @@ router.get('/me/profile', authMiddleware, async (req, res) => {
          address,
          slug,
          logo_url,
+         public_profile_image_url,
          status,
          created_at,
          updated_at
@@ -181,6 +194,8 @@ router.patch('/me/profile', authMiddleware, async (req, res) => {
   try {
     const professionalId = req.professional.id;
 
+    await ensurePublicProfileImageColumn();
+
     const currentResult = await db.query(
       `SELECT
          id,
@@ -192,6 +207,7 @@ router.patch('/me/profile', authMiddleware, async (req, res) => {
          address,
          slug,
          logo_url,
+         public_profile_image_url,
          status,
          created_at,
          updated_at
@@ -217,6 +233,11 @@ router.patch('/me/profile', authMiddleware, async (req, res) => {
         ? req.body.logoUrl
         : req.body.logo_url;
 
+    const publicProfileImageUrlInput =
+      req.body.publicProfileImageUrl !== undefined
+        ? req.body.publicProfileImageUrl
+        : req.body.public_profile_image_url;
+
     const businessName =
       businessNameInput === undefined
         ? String(current.business_name || current.name || '').trim()
@@ -236,6 +257,11 @@ router.patch('/me/profile', authMiddleware, async (req, res) => {
       logoUrlInput === undefined
         ? String(current.logo_url || '').trim()
         : String(logoUrlInput || '').trim();
+
+    const publicProfileImageUrl =
+      publicProfileImageUrlInput === undefined
+        ? String(current.public_profile_image_url || '').trim()
+        : String(publicProfileImageUrlInput || '').trim();
 
     if (!businessName) {
       return res.status(400).json({ error: 'El nombre del negocio es obligatorio' });
@@ -262,14 +288,26 @@ router.patch('/me/profile', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'El logo debe ser una URL o una imagen válida' });
     }
 
+    const publicProfileImageIsAllowed =
+      !publicProfileImageUrl ||
+      /^https?:\/\//i.test(publicProfileImageUrl) ||
+      /^data:image\/(?:png|jpeg|webp);base64,/i.test(publicProfileImageUrl);
+
+    if (!publicProfileImageIsAllowed) {
+      return res.status(400).json({
+        error: 'La foto pública debe ser una URL o una imagen válida',
+      });
+    }
+
     const updateResult = await db.query(
       `UPDATE professionals
        SET business_name = $1,
            phone = $2,
            address = $3,
            logo_url = $4,
+           public_profile_image_url = $5,
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $5
+       WHERE id = $6
        RETURNING
          id,
          name,
@@ -280,6 +318,7 @@ router.patch('/me/profile', authMiddleware, async (req, res) => {
          address,
          slug,
          logo_url,
+         public_profile_image_url,
          status,
          created_at,
          updated_at`,
@@ -288,6 +327,7 @@ router.patch('/me/profile', authMiddleware, async (req, res) => {
         phone || null,
         address || null,
         logoUrl || null,
+        publicProfileImageUrl || null,
         professionalId,
       ]
     );

@@ -1448,6 +1448,11 @@ async function getBookingStartIntervalMinutes(professionalId) {
 }
 
 async function getProfessionalBySlug(slug) {
+  await db.query(`
+    ALTER TABLE professionals
+    ADD COLUMN IF NOT EXISTS public_profile_image_url TEXT
+  `);
+
   const result = await db.query(
     `
     SELECT *
@@ -2296,6 +2301,8 @@ router.get("/public/:slug/services", async (req, res) => {
         slug: professional.slug,
         logoUrl: professional.logo_url || null,
         logo_url: professional.logo_url || null,
+        publicProfileImageUrl: professional.public_profile_image_url || null,
+        public_profile_image_url: professional.public_profile_image_url || null,
         acceptedPaymentMethods: normalizeAcceptedPaymentMethods(professional.accepted_payment_methods),
         accepted_payment_methods: normalizeAcceptedPaymentMethods(professional.accepted_payment_methods),
       },
@@ -2308,6 +2315,8 @@ router.get("/public/:slug/services", async (req, res) => {
         slug: professional.slug,
         logoUrl: professional.logo_url || null,
         logo_url: professional.logo_url || null,
+        publicProfileImageUrl: professional.public_profile_image_url || null,
+        public_profile_image_url: professional.public_profile_image_url || null,
         acceptedPaymentMethods: normalizeAcceptedPaymentMethods(professional.accepted_payment_methods),
         accepted_payment_methods: normalizeAcceptedPaymentMethods(professional.accepted_payment_methods),
       },
@@ -2370,6 +2379,8 @@ router.get("/public/:slug/staff", async (req, res) => {
         slug: professional.slug,
         logoUrl: professional.logo_url || null,
         logo_url: professional.logo_url || null,
+        publicProfileImageUrl: professional.public_profile_image_url || null,
+        public_profile_image_url: professional.public_profile_image_url || null,
         acceptedPaymentMethods: normalizeAcceptedPaymentMethods(professional.accepted_payment_methods),
         accepted_payment_methods: normalizeAcceptedPaymentMethods(professional.accepted_payment_methods),
       },

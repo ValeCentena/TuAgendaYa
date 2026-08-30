@@ -808,6 +808,11 @@ export default function BookPage() {
   const availableSlots = slots.filter((slot) => slot.available);
   const hasSlots = slots.length > 0;
   const businessName = business?.businessName || business?.name || 'TuAgendaYa';
+  const professionalName = String(business?.name || '').trim();
+  const publicProfileImageUrl =
+    business?.publicProfileImageUrl ||
+    business?.public_profile_image_url ||
+    '';
 
   const reservationSummaryText = [
     `Reserva en ${businessName}`,
@@ -918,6 +923,55 @@ export default function BookPage() {
           )}
 
           <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 4 }}>@{slug}</div>
+
+          {professionalName && (
+            <div
+              style={{
+                margin: '12px auto 0',
+                maxWidth: 330,
+                minHeight: 54,
+                borderRadius: 18,
+                background: '#f7f7fb',
+                border: '1px solid rgba(0,0,0,0.045)',
+                padding: publicProfileImageUrl ? '8px 12px' : '10px 14px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 11,
+                boxSizing: 'border-box',
+              }}
+            >
+              {publicProfileImageUrl && (
+                <img
+                  src={publicProfileImageUrl}
+                  alt={professionalName}
+                  style={{
+                    width: 42,
+                    height: 42,
+                    borderRadius: '50%',
+                    objectFit: 'cover',
+                    flex: '0 0 auto',
+                    border: '1px solid rgba(0,0,0,0.07)',
+                    background: '#fff',
+                  }}
+                />
+              )}
+
+              <div
+                style={{
+                  minWidth: 0,
+                  fontSize: 14,
+                  fontWeight: 900,
+                  color: '#1a1a1a',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {professionalName}
+              </div>
+            </div>
+          )}
         </div>
 
         {success ? (

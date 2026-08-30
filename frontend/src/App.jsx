@@ -9613,6 +9613,10 @@ function normalizeProfessionalFromApi(item) {
     slug: item.slug || '',
     logoUrl: item.logoUrl ?? item.logo_url ?? '',
     logo_url: item.logo_url ?? item.logoUrl ?? '',
+    publicProfileImageUrl:
+      item.publicProfileImageUrl ?? item.public_profile_image_url ?? '',
+    public_profile_image_url:
+      item.public_profile_image_url ?? item.publicProfileImageUrl ?? '',
     status: item.status || '',
     createdAt: item.createdAt ?? item.created_at,
     created_at: item.created_at ?? item.createdAt,
@@ -9896,12 +9900,17 @@ function ProfilePublicPreviewCard({ form, publicLink, copyPublicLinkFromProfile 
 
 function BusinessProfileSection({ professional, onProfileUpdated }) {
   const fileInputRef = useRef(null);
+  const publicProfileImageInputRef = useRef(null);
 
   const [form, setForm] = useState({
     businessName: professional?.businessName || professional?.business_name || '',
     phone: professional?.phone || '',
     address: professional?.address || '',
     logoUrl: professional?.logoUrl || professional?.logo_url || '',
+    publicProfileImageUrl:
+      professional?.publicProfileImageUrl ||
+      professional?.public_profile_image_url ||
+      '',
   });
 
   const [loading, setLoading] = useState(true);
@@ -9940,6 +9949,7 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
             phone: normalized.phone || '',
             address: normalized.address || '',
             logoUrl: normalized.logoUrl || '',
+            publicProfileImageUrl: normalized.publicProfileImageUrl || '',
           });
 
           onProfileUpdated(normalized);
@@ -10113,6 +10123,61 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
     }
   };
 
+  const handlePublicProfileImageFileChange = (event) => {
+    const file = event.target.files?.[0];
+
+    if (!file) return;
+
+    setMessage('');
+    setError('');
+
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/webp'];
+
+    if (!allowedTypes.includes(file.type)) {
+      setError('La foto pública debe ser PNG, JPG o WebP.');
+      event.target.value = '';
+      return;
+    }
+
+    const maxSizeBytes = 1 * 1024 * 1024;
+
+    if (file.size > maxSizeBytes) {
+      setError('La foto pública no puede pesar más de 1 MB.');
+      event.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const dataUrl = String(reader.result || '');
+
+      setForm((current) => ({
+        ...current,
+        publicProfileImageUrl: dataUrl,
+      }));
+      setMessage('Foto pública cargada. Guardá el perfil para aplicar el cambio.');
+    };
+
+    reader.onerror = () => {
+      setError('No se pudo leer la foto pública.');
+    };
+
+    reader.readAsDataURL(file);
+  };
+
+  const clearPublicProfileImage = () => {
+    setForm((current) => ({
+      ...current,
+      publicProfileImageUrl: '',
+    }));
+    setMessage('Foto pública quitada. Guardá el perfil para aplicar el cambio.');
+
+    if (publicProfileImageInputRef.current) {
+      publicProfileImageInputRef.current.value = '';
+    }
+  };
+
   const handleSave = async (e) => {
     e.preventDefault();
     setMessage('');
@@ -10125,6 +10190,11 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
 
     if (!isValidLogoValue(form.logoUrl)) {
       setError('El logo debe ser una URL válida o una imagen cargada desde archivo.');
+      return;
+    }
+
+    if (!isValidLogoValue(form.publicProfileImageUrl)) {
+      setError('La foto pública debe ser una URL válida o una imagen cargada desde archivo.');
       return;
     }
 
@@ -10142,6 +10212,7 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
           phone: form.phone.trim(),
           address: form.address.trim(),
           logoUrl: form.logoUrl.trim(),
+          publicProfileImageUrl: form.publicProfileImageUrl.trim(),
         }),
       });
 
@@ -10736,6 +10807,104 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
               Cuando cargues un logo, se va a mostrar acá, en el recuadro superior del panel y en la página pública de reservas.
             </div>
           )}
+
+          <label style={smallLabelStyle}>Foto pública del profesional</label>
+
+          <div
+            style={{
+              background: '#f2f2f7',
+              borderRadius: 18,
+              padding: 16,
+              marginBottom: 12,
+              border: '0.5px solid #e8e8ed',
+            }}
+          >
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: form.publicProfileImageUrl
+                  ? 'auto minmax(0, 1fr) auto'
+                  : 'minmax(0, 1fr) auto',
+                gap: 14,
+                alignItems: 'center',
+              }}
+            >
+              {form.publicProfileImageUrl && (
+                <img
+                  src={form.publicProfileImageUrl}
+                  alt="Foto pública del profesional"
+                  style={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: '50%',
+                    objectFit: 'cover',
+                    display: 'block',
+                    border: '1px solid #e1e4e8',
+                    background: '#fff',
+                  }}
+                />
+              )}
+
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: '#1a1a1a', marginBottom: 4 }}>
+                  Imagen que verá el cliente
+                </div>
+                <div style={{ fontSize: 12, color: '#6e6e73', lineHeight: 1.45 }}>
+                  Podés usar una foto tuya o un logo. Es independiente del logo principal del negocio y se mostrará en círculo junto a tu nombre en la página de reservas.
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                <input
+                  ref={publicProfileImageInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={handlePublicProfileImageFileChange}
+                  style={{ display: 'none' }}
+                />
+
+                <button
+                  type="button"
+                  onClick={() => publicProfileImageInputRef.current?.click()}
+                  style={{
+                    padding: '10px 14px',
+                    borderRadius: 12,
+                    border: 'none',
+                    background: '#0071e3',
+                    color: '#fff',
+                    fontSize: 13,
+                    fontWeight: 800,
+                    fontFamily: 'inherit',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Seleccionar foto
+                </button>
+
+                {form.publicProfileImageUrl && (
+                  <button
+                    type="button"
+                    onClick={clearPublicProfileImage}
+                    style={{
+                      padding: '10px 14px',
+                      borderRadius: 12,
+                      border: '0.5px solid #d0d0d5',
+                      background: '#fff',
+                      color: '#ff453a',
+                      fontSize: 13,
+                      fontWeight: 800,
+                      fontFamily: 'inherit',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    Quitar foto
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
 
           {message && (
             <div style={{ background: '#edfff3', border: '0.5px solid #b7f5c8', borderRadius: 10, padding: '10px 12px', fontSize: 13, color: '#188038', marginBottom: 12 }}>
