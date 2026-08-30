@@ -751,6 +751,25 @@ async function ensureBlockedTimesTable() {
   await db.query(`ALTER TABLE blocked_times ADD COLUMN IF NOT EXISTS is_full_day BOOLEAN DEFAULT FALSE;`);
   await db.query(`ALTER TABLE blocked_times ADD COLUMN IF NOT EXISTS reason TEXT;`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_blocked_times_professional_date ON blocked_times(professional_id, block_date);`);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS recurring_workday_blocks (
+      id SERIAL PRIMARY KEY,
+      professional_id INTEGER NOT NULL REFERENCES professionals(id) ON DELETE CASCADE,
+      staff_id INTEGER,
+      start_time TIME NOT NULL,
+      end_time TIME NOT NULL,
+      reason TEXT,
+      is_active BOOLEAN DEFAULT TRUE,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
+  await db.query(`
+    CREATE INDEX IF NOT EXISTS idx_recurring_workday_blocks_professional
+    ON recurring_workday_blocks(professional_id, is_active);
+  `);
 }
 
 function normalizeBlockedTime(row) {
@@ -774,6 +793,41 @@ function normalizeBlockedTime(row) {
   };
 }
 
+
+function normalizeRecurringWorkdayBlock(row) {
+  return {
+    id: row.id,
+    professionalId: row.professional_id,
+    professional_id: row.professional_id,
+    staffId: row.staff_id,
+    staff_id: row.staff_id,
+    startTime: row.start_time ? String(row.start_time).slice(0, 5) : null,
+    start_time: row.start_time ? String(row.start_time).slice(0, 5) : null,
+    endTime: row.end_time ? String(row.end_time).slice(0, 5) : null,
+    end_time: row.end_time ? String(row.end_time).slice(0, 5) : null,
+    reason: row.reason || "",
+    isWorkingDaysRecurring: true,
+    is_working_days_recurring: true,
+  };
+}
+
+async function listRecurringWorkdayBlocks(professionalId) {
+  await ensureBlockedTimesTable();
+
+  const result = await db.query(
+    `
+    SELECT *
+    FROM recurring_workday_blocks
+    WHERE professional_id = $1
+      AND is_active = true
+    ORDER BY start_time ASC, id ASC
+    `,
+    [professionalId]
+  );
+
+  return result.rows.map(normalizeRecurringWorkdayBlock);
+}
+
 async function listBlockedTimes(professionalId) {
   await ensureBlockedTimesTable();
 
@@ -788,7 +842,10 @@ async function listBlockedTimes(professionalId) {
     [professionalId]
   );
 
-  return result.rows.map(normalizeBlockedTime);
+  const regularBlocks = result.rows.map(normalizeBlockedTime);
+  const recurringBlocks = await listRecurringWorkdayBlocks(professionalId);
+
+  return [...regularBlocks, ...recurringBlocks];
 }
 
 async function getBlockedTimesForDate(professionalId, bookingDate, staffId = null) {
@@ -806,7 +863,39 @@ async function getBlockedTimesForDate(professionalId, bookingDate, staffId = nul
     [professionalId, bookingDate, staffId]
   );
 
-  return result.rows;
+  const blocks = [...result.rows];
+
+  const availability = await getAvailabilityForDate(
+    professionalId,
+    staffId,
+    bookingDate
+  );
+
+  if (availability && isAvailabilityActive(availability)) {
+    const recurringResult = await db.query(
+      `
+      SELECT
+        id,
+        professional_id,
+        staff_id,
+        NULL::date AS block_date,
+        start_time,
+        end_time,
+        false AS is_full_day,
+        reason
+      FROM recurring_workday_blocks
+      WHERE professional_id = $1
+        AND is_active = true
+        AND (staff_id IS NULL OR staff_id = $2)
+      ORDER BY start_time ASC, id ASC
+      `,
+      [professionalId, staffId]
+    );
+
+    blocks.push(...recurringResult.rows);
+  }
+
+  return blocks;
 }
 
 function rangeOverlapsBlockedTime(block, start, end) {
@@ -1707,6 +1796,99 @@ router.get("/blocks", async (req, res) => {
     });
   }
 });
+
+
+router.post("/blocks/working-days", async (req, res) => {
+  try {
+    await ensureBlockedTimesTable();
+
+    const professionalId = await getProfessionalIdFromRequest(req);
+    const startTime = normalizeTime(req.body.startTime ?? req.body.start_time);
+    const endTime = normalizeTime(req.body.endTime ?? req.body.end_time);
+    const reason = String(req.body.reason || "").trim() || null;
+    const staffId = req.body.staffId || req.body.staff_id || null;
+
+    const start = timeToMinutes(startTime);
+    const end = timeToMinutes(endTime);
+
+    if (start === null || end === null || end <= start) {
+      return res.status(400).json({ error: "Revisá el horario bloqueado" });
+    }
+
+    if (staffId) {
+      const staff = await getStaffForProfessional(professionalId, Number(staffId));
+
+      if (!staff) {
+        return res.status(404).json({ error: "Profesional interno no encontrado" });
+      }
+    }
+
+    await db.query(
+      `
+      INSERT INTO recurring_workday_blocks (
+        professional_id,
+        staff_id,
+        start_time,
+        end_time,
+        reason,
+        is_active,
+        created_at,
+        updated_at
+      )
+      SELECT $1, $2, $3::time, $4::time, $5, true, NOW(), NOW()
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM recurring_workday_blocks
+        WHERE professional_id = $1
+          AND COALESCE(staff_id, 0) = COALESCE($2, 0)
+          AND start_time = $3::time
+          AND end_time = $4::time
+          AND is_active = true
+      )
+      `,
+      [
+        professionalId,
+        staffId ? Number(staffId) : null,
+        startTime,
+        endTime,
+        reason,
+      ]
+    );
+
+    const blocks = await listBlockedTimes(professionalId);
+    return res.status(201).json({ success: true, blocks });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      error: error.message || "Error guardando bloqueo de días laborales",
+    });
+  }
+});
+
+router.delete("/blocks/working-days/:id", async (req, res) => {
+  try {
+    await ensureBlockedTimesTable();
+
+    const professionalId = await getProfessionalIdFromRequest(req);
+    const blockId = Number(req.params.id);
+
+    if (!blockId) {
+      return res.status(400).json({ error: "Bloqueo inválido" });
+    }
+
+    await db.query(
+      `DELETE FROM recurring_workday_blocks WHERE id = $1 AND professional_id = $2`,
+      [blockId, professionalId]
+    );
+
+    const blocks = await listBlockedTimes(professionalId);
+    return res.json({ success: true, blocks });
+  } catch (error) {
+    return res.status(error.status || 500).json({
+      error: error.message || "Error eliminando bloqueo de días laborales",
+    });
+  }
+});
+
 
 router.post("/blocks", async (req, res) => {
   try {
