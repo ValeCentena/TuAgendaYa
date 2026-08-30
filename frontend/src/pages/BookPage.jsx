@@ -206,7 +206,6 @@ export default function BookPage() {
   const [selectedTime, setSelectedTime] = useState('');
   const [slots, setSlots] = useState([]);
 
-  const [calendarOpen, setCalendarOpen] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(currentMonthStart);
 
   const [loadingSlots, setLoadingSlots] = useState(false);
@@ -463,20 +462,6 @@ export default function BookPage() {
     return `${day} de ${month} de ${year}`;
   };
 
-  const openCalendar = () => {
-    if (!canChooseDate) return;
-
-    if (bookingDate) {
-      const selected = parseLocalDate(bookingDate);
-      if (selected && !isBeforeMonth(getMonthStart(selected), currentMonthStart)) {
-        setCalendarMonth(getMonthStart(selected));
-      }
-    } else {
-      setCalendarMonth(currentMonthStart);
-    }
-
-    setCalendarOpen((value) => !value);
-  };
 
   const goToPreviousMonth = () => {
     const previous = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1);
@@ -494,7 +479,6 @@ export default function BookPage() {
     const value = toLocalDateString(date);
     setBookingDate(value);
     setSelectedTime('');
-    setCalendarOpen(false);
   };
 
   const buildCalendarDays = () => {
@@ -525,27 +509,29 @@ export default function BookPage() {
     return (
       <div
         style={{
-          marginTop: 8,
+          marginTop: 6,
           background: 'linear-gradient(180deg, #ffffff 0%, #fbfbfd 100%)',
-          borderRadius: 22,
-          padding: 10,
+          borderRadius: 16,
+          padding: 8,
           border: '1px solid rgba(0,0,0,0.06)',
-          boxShadow: '0 12px 26px rgba(0,0,0,0.06)',
-          maxWidth: 390,
+          boxShadow: '0 5px 16px rgba(0,0,0,0.05)',
+          maxWidth: 326,
+          width: '100%',
+          boxSizing: 'border-box',
           marginLeft: 'auto',
           marginRight: 'auto',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
           <button
             type="button"
             onClick={goToPreviousMonth}
             disabled={!canGoPrevious}
             aria-label="Mes anterior"
             style={{
-              width: 26,
-              height: 26,
-              borderRadius: 13,
+              width: 30,
+              height: 28,
+              borderRadius: 10,
               border: '1px solid rgba(0,0,0,0.05)',
               background: canGoPrevious ? '#f5f5f7' : '#fbfbfd',
               color: canGoPrevious ? '#1a1a1a' : '#c7c7cc',
@@ -558,10 +544,10 @@ export default function BookPage() {
           </button>
 
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 13, fontWeight: 850, color: '#111827', letterSpacing: '-0.03em' }}>
+            <div style={{ fontSize: 10.8, fontWeight: 850, color: '#111827', letterSpacing: '-0.03em' }}>
               {MONTH_NAMES[calendarMonth.getMonth()]} {calendarMonth.getFullYear()}
             </div>
-            <div style={{ fontSize: 10.5, color: '#8e8e93', marginTop: 1 }}>
+            <div style={{ fontSize: 9.5, color: '#8e8e93', marginTop: 1 }}>
               Solo fechas disponibles desde hoy
             </div>
           </div>
@@ -571,9 +557,9 @@ export default function BookPage() {
             onClick={goToNextMonth}
             aria-label="Mes siguiente"
             style={{
-              width: 26,
-              height: 26,
-              borderRadius: 13,
+              width: 30,
+              height: 28,
+              borderRadius: 10,
               border: '1px solid rgba(0,0,0,0.05)',
               background: '#f5f5f7',
               color: '#1a1a1a',
@@ -586,16 +572,16 @@ export default function BookPage() {
           </button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 4, marginBottom: 3 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 3, marginBottom: 2 }}>
           {WEEK_DAYS.map((day, index) => (
             <div
               key={`${day}-${index}`}
               style={{
                 textAlign: 'center',
-                fontSize: 10,
+                fontSize: 8.8,
                 fontWeight: 800,
                 color: '#8e8e93',
-                padding: '3px 0',
+                padding: '2px 0',
               }}
             >
               {day}
@@ -603,10 +589,10 @@ export default function BookPage() {
           ))}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 4 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 3 }}>
           {days.map((date, index) => {
             if (!date) {
-              return <div key={`empty-${index}`} style={{ height: 30 }} />;
+              return <div key={`empty-${index}`} style={{ height: 28 }} />;
             }
 
             const isPast = date < todayDate;
@@ -620,12 +606,12 @@ export default function BookPage() {
                 disabled={isPast}
                 onClick={() => selectCalendarDate(date)}
                 style={{
-                  height: 30,
-                  borderRadius: 12,
+                  height: 28,
+                  borderRadius: 9,
                   border: isSelected ? '1px solid #0071e3' : isToday ? '1px solid #0071e3' : '1px solid rgba(0,0,0,0.06)',
                   background: isSelected ? '#0071e3' : isPast ? '#fbfbfd' : '#ffffff',
                   color: isSelected ? '#fff' : isPast ? '#c7c7cc' : '#1a1a1a',
-                  fontSize: 12.5,
+                  fontSize: 10.8,
                   fontWeight: isSelected || isToday ? 850 : 700,
                   fontFamily: 'inherit',
                   cursor: isPast ? 'not-allowed' : 'pointer',
@@ -1196,55 +1182,14 @@ export default function BookPage() {
 
               <label style={labelStyle}>Fecha del turno *</label>
 
-              <button
-                type="button"
-                className="date-row"
-                disabled={!canChooseDate}
-                onClick={openCalendar}
+              <div
                 style={{
-                  width: '100%',
-                  border: calendarOpen ? '1.5px solid #0071e3' : '1px solid rgba(0,0,0,0.07)',
-                  background: canChooseDate ? 'linear-gradient(180deg, #ffffff 0%, #fbfbfd 100%)' : '#f7f7f9',
-                  borderRadius: 20,
-                  padding: '11px 13px',
-                  fontFamily: 'inherit',
-                  cursor: canChooseDate ? 'pointer' : 'not-allowed',
-                  textAlign: 'left',
-                  display: 'flex',
-                  boxShadow: calendarOpen ? '0 10px 24px rgba(0,113,227,0.10)' : '0 8px 18px rgba(0,0,0,0.04)',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 12,
+                  opacity: canChooseDate ? 1 : 0.55,
+                  pointerEvents: canChooseDate ? 'auto' : 'none',
                 }}
               >
-                <div>
-                  <div style={{ fontSize: 15, fontWeight: 800, color: bookingDate ? '#1a1a1a' : '#8e8e93', letterSpacing: '-0.02em' }}>
-                    {bookingDate ? formatLongDate(bookingDate) : 'Tocá acá para elegir una fecha'}
-                  </div>
-                  <div style={{ fontSize: 12, color: '#8e8e93', marginTop: 3 }}>
-                    No se pueden seleccionar fechas anteriores
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: 14,
-                    background: calendarOpen ? '#0071e3' : '#f2f2f7',
-                    color: calendarOpen ? '#fff' : '#0071e3',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: 16,
-                    fontWeight: 800,
-                  }}
-                >
-                  {calendarOpen ? '−' : '+'}
-                </div>
-              </button>
-
-              {calendarOpen && renderCalendar()}
+                {renderCalendar()}
+              </div>
 
               {bookingDate && canChooseDate && (
                 <div

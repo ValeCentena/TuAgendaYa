@@ -492,22 +492,22 @@ function DatePickerField({ value, onChange, placeholder = 'Elegir fecha', allowP
     <div
       style={{
         width: '100%',
-        maxWidth: 390,
+        maxWidth: 326,
         background: '#fff',
         border: '1px solid rgba(15,23,42,.07)',
-        borderRadius: 20,
-        padding: 12,
-        boxShadow: '0 8px 22px rgba(15,23,42,.055)',
+        borderRadius: 16,
+        padding: 9,
+        boxShadow: '0 5px 16px rgba(15,23,42,.05)',
         boxSizing: 'border-box',
       }}
     >
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '36px 1fr 36px',
+          gridTemplateColumns: '32px 1fr 32px',
           alignItems: 'center',
-          gap: 8,
-          marginBottom: 10,
+          gap: 6,
+          marginBottom: 7,
         }}
       >
         <button
@@ -522,13 +522,13 @@ function DatePickerField({ value, onChange, placeholder = 'Elegir fecha', allowP
           }}
           aria-label="Mes anterior"
           style={{
-            width: 34,
-            height: 34,
-            borderRadius: 11,
+            width: 30,
+            height: 30,
+            borderRadius: 9,
             border: '1px solid rgba(15,23,42,.06)',
             background: canGoBack ? '#f7f8fa' : '#fbfbfc',
             color: canGoBack ? '#0071e3' : '#d0d0d5',
-            fontSize: 18,
+            fontSize: 16,
             fontWeight: 950,
             fontFamily: 'inherit',
             cursor: canGoBack ? 'pointer' : 'default',
@@ -540,7 +540,7 @@ function DatePickerField({ value, onChange, placeholder = 'Elegir fecha', allowP
         <div
           style={{
             textAlign: 'center',
-            fontSize: 13.5,
+            fontSize: 12.5,
             fontWeight: 950,
             color: '#111827',
             letterSpacing: '-0.02em',
@@ -559,13 +559,13 @@ function DatePickerField({ value, onChange, placeholder = 'Elegir fecha', allowP
           }
           aria-label="Mes siguiente"
           style={{
-            width: 34,
-            height: 34,
-            borderRadius: 11,
+            width: 30,
+            height: 30,
+            borderRadius: 9,
             border: '1px solid rgba(15,23,42,.06)',
             background: '#f7f8fa',
             color: '#0071e3',
-            fontSize: 18,
+            fontSize: 16,
             fontWeight: 950,
             fontFamily: 'inherit',
             cursor: 'pointer',
@@ -579,8 +579,8 @@ function DatePickerField({ value, onChange, placeholder = 'Elegir fecha', allowP
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(7, 1fr)',
-          gap: 4,
-          marginBottom: 4,
+          gap: 3,
+          marginBottom: 3,
         }}
       >
         {['D', 'L', 'M', 'M', 'J', 'V', 'S'].map((day, index) => (
@@ -588,10 +588,10 @@ function DatePickerField({ value, onChange, placeholder = 'Elegir fecha', allowP
             key={`${day}-${index}`}
             style={{
               textAlign: 'center',
-              fontSize: 9.5,
+              fontSize: 8.8,
               color: '#8e8e93',
               fontWeight: 900,
-              padding: '2px 0',
+              padding: '1px 0',
             }}
           >
             {day}
@@ -602,8 +602,8 @@ function DatePickerField({ value, onChange, placeholder = 'Elegir fecha', allowP
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(7, 1fr)',
-          gap: 4,
+          gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
+          gap: 3,
         }}
       >
         {Array.from({ length: startOffset }).map((_, index) => (
@@ -624,8 +624,8 @@ function DatePickerField({ value, onChange, placeholder = 'Elegir fecha', allowP
               onClick={() => onChange(key)}
               style={{
                 aspectRatio: '1 / 1',
-                minHeight: 32,
-                borderRadius: 10,
+                minHeight: 28,
+                borderRadius: 9,
                 border: selected
                   ? '1px solid #0071e3'
                   : '1px solid transparent',
@@ -639,7 +639,7 @@ function DatePickerField({ value, onChange, placeholder = 'Elegir fecha', allowP
                   : disabled
                     ? '#c7c7cc'
                     : '#1a1a1a',
-                fontSize: 11.5,
+                fontSize: 10.5,
                 fontWeight: 900,
                 fontFamily: 'inherit',
                 cursor: disabled ? 'default' : 'pointer',
@@ -656,10 +656,10 @@ function DatePickerField({ value, onChange, placeholder = 'Elegir fecha', allowP
 
       <div
         style={{
-          marginTop: 9,
+          marginTop: 6,
           textAlign: 'center',
-          minHeight: 18,
-          fontSize: 11,
+          minHeight: 16,
+          fontSize: 10.2,
           color: value ? '#0071e3' : '#8e8e93',
           fontWeight: 800,
         }}
@@ -6307,12 +6307,12 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
     >
       <div
         style={{
-          width: 'min(470px, 100%)',
+          width: 'min(430px, calc(100vw - 20px))',
           maxHeight: '92vh',
           overflowY: 'auto',
           background: '#fff',
-          borderRadius: 24,
-          padding: 20,
+          borderRadius: 20,
+          padding: 16,
           boxShadow: '0 28px 70px rgba(15,23,42,.24)',
           border: '1px solid rgba(15,23,42,.08)',
         }}
@@ -6567,7 +6567,7 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
             display: 'grid',
             gridTemplateColumns: '1fr 1.4fr',
             gap: 10,
-            marginTop: 18,
+            marginTop: 14,
           }}
         >
           <button
