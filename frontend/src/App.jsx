@@ -490,6 +490,7 @@ function DatePickerField({ value, onChange, placeholder = 'Elegir fecha', allowP
 
   return (
     <div
+      className="tay-almanac"
       style={{
         width: '100%',
         maxWidth: 326,
@@ -502,6 +503,7 @@ function DatePickerField({ value, onChange, placeholder = 'Elegir fecha', allowP
       }}
     >
       <div
+        className="tay-almanac-header"
         style={{
           display: 'grid',
           gridTemplateColumns: '32px 1fr 32px',
@@ -511,6 +513,7 @@ function DatePickerField({ value, onChange, placeholder = 'Elegir fecha', allowP
         }}
       >
         <button
+          className="tay-almanac-nav"
           type="button"
           disabled={!canGoBack}
           onClick={() => {
@@ -550,6 +553,7 @@ function DatePickerField({ value, onChange, placeholder = 'Elegir fecha', allowP
         </div>
 
         <button
+          className="tay-almanac-nav"
           type="button"
           onClick={() =>
             setViewDate(
@@ -576,6 +580,7 @@ function DatePickerField({ value, onChange, placeholder = 'Elegir fecha', allowP
       </div>
 
       <div
+        className="tay-almanac-weekdays"
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(7, 1fr)',
@@ -600,6 +605,7 @@ function DatePickerField({ value, onChange, placeholder = 'Elegir fecha', allowP
       </div>
 
       <div
+        className="tay-almanac-days"
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
@@ -618,6 +624,7 @@ function DatePickerField({ value, onChange, placeholder = 'Elegir fecha', allowP
 
           return (
             <button
+              className="tay-almanac-day"
               key={key}
               type="button"
               disabled={disabled}
@@ -6307,12 +6314,12 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
     >
       <div
         style={{
-          width: 'min(430px, calc(100vw - 20px))',
+          width: 'min(430px, calc(100vw - 16px))',
           maxHeight: '92vh',
           overflowY: 'auto',
           background: '#fff',
           borderRadius: 20,
-          padding: 16,
+          padding: 15,
           boxShadow: '0 28px 70px rgba(15,23,42,.24)',
           border: '1px solid rgba(15,23,42,.08)',
         }}
@@ -11503,6 +11510,50 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
 
           .dashboard-panel div[style*="grid-template-columns"] {
             grid-template-columns: 1fr !important;
+          }
+
+          /* Almanaque TuAgendaYa: conservar la misma estructura compacta en móvil */
+          .dashboard-panel .tay-almanac {
+            width: min(100%, 326px) !important;
+            max-width: 326px !important;
+            margin-left: auto !important;
+            margin-right: auto !important;
+            padding: 9px !important;
+            border-radius: 16px !important;
+            overflow: visible !important;
+          }
+
+          .dashboard-panel .tay-almanac-header {
+            display: grid !important;
+            grid-template-columns: 30px minmax(0, 1fr) 30px !important;
+            align-items: center !important;
+            gap: 6px !important;
+          }
+
+          .dashboard-panel .tay-almanac-weekdays,
+          .dashboard-panel .tay-almanac-days {
+            display: grid !important;
+            grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+            gap: 3px !important;
+          }
+
+          .dashboard-panel .tay-almanac-nav {
+            width: 30px !important;
+            height: 30px !important;
+            min-height: 30px !important;
+            padding: 0 !important;
+            border-radius: 9px !important;
+          }
+
+          .dashboard-panel .tay-almanac-day {
+            width: 100% !important;
+            height: auto !important;
+            min-height: 28px !important;
+            aspect-ratio: 1 / 1 !important;
+            padding: 0 !important;
+            border-radius: 9px !important;
+            font-size: 10.5px !important;
+            line-height: 1 !important;
           }
 
           .dashboard-panel div[style*="padding: 20px 24px"],
