@@ -6313,6 +6313,7 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
       }}
     >
       <div
+        className="repeat-booking-modal"
         style={{
           width: 'min(430px, calc(100vw - 16px))',
           maxHeight: '92vh',
@@ -7723,6 +7724,29 @@ function ClientsSection() {
                           >
                             Agendar reserva
                           </button>
+
+                          {client.lastBooking && (
+                            <button
+                              type="button"
+                              onClick={() => setRepeatBooking(client.lastBooking)}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                border: '1px solid #0071e3',
+                                padding: '10px 14px',
+                                borderRadius: 12,
+                                background: '#fff',
+                                color: '#0071e3',
+                                fontSize: 13,
+                                fontWeight: 900,
+                                fontFamily: 'inherit',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Repetir cita
+                            </button>
+                          )}
 
                           {whatsappUrl && (
                             <a
@@ -12166,6 +12190,62 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
 
           .client-history-row > div:last-child {
             justify-self: flex-start !important;
+          }
+
+          /*
+           * Almanaque TuAgendaYa en móvil/app:
+           * estas reglas son deliberadamente más específicas que la regla
+           * general del dashboard que convierte todas las grillas en 1 columna.
+           */
+          .dashboard-panel div.tay-almanac-header[style*="grid-template-columns"] {
+            display: grid !important;
+            grid-template-columns: 30px minmax(0, 1fr) 30px !important;
+            align-items: center !important;
+            gap: 6px !important;
+          }
+
+          .dashboard-panel div.tay-almanac-weekdays[style*="grid-template-columns"],
+          .dashboard-panel div.tay-almanac-days[style*="grid-template-columns"] {
+            display: grid !important;
+            grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+            gap: 3px !important;
+          }
+
+          .dashboard-panel .tay-almanac {
+            width: min(100%, 326px) !important;
+            max-width: 326px !important;
+            margin-left: auto !important;
+            margin-right: auto !important;
+            box-sizing: border-box !important;
+          }
+
+          .dashboard-panel .tay-almanac .tay-almanac-nav {
+            width: 30px !important;
+            height: 30px !important;
+            min-width: 30px !important;
+            min-height: 30px !important;
+            padding: 0 !important;
+          }
+
+          .dashboard-panel .tay-almanac .tay-almanac-day {
+            width: 100% !important;
+            height: auto !important;
+            min-width: 0 !important;
+            min-height: 28px !important;
+            aspect-ratio: 1 / 1 !important;
+            padding: 0 !important;
+            line-height: 1 !important;
+          }
+
+          .dashboard-panel .repeat-booking-modal {
+            width: min(430px, calc(100vw - 16px)) !important;
+            max-width: calc(100vw - 16px) !important;
+            padding: 15px !important;
+            box-sizing: border-box !important;
+          }
+
+          .dashboard-panel .repeat-booking-modal .tay-almanac {
+            width: min(100%, 326px) !important;
           }
         }
       `}</style>
