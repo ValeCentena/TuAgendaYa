@@ -7994,6 +7994,11 @@ function AvailabilitySection() {
   });
   const [blockRepeatUnit, setBlockRepeatUnit] = useState('none');
   const [blockRepeatCount, setBlockRepeatCount] = useState('4');
+  const [workingDaysBlockForm, setWorkingDaysBlockForm] = useState({
+    startTime: '13:00',
+    endTime: '14:00',
+    reason: '',
+  });
 
   const getToken = () => localStorage.getItem('tuagendaya_token');
 
@@ -8092,27 +8097,13 @@ function AvailabilitySection() {
 
   const saveBlock = async () => {
     const token = getToken();
-    const workingDaysRepeat = blockRepeatUnit === 'working_days';
 
-    if (!workingDaysRepeat && !blockForm.blockDate) {
+    if (!blockForm.blockDate) {
       setError('Elegí una fecha para bloquear.');
       return;
     }
 
-    if (
-      blockForm.isFullDay &&
-      workingDaysRepeat
-    ) {
-      setError('Para todos los días de trabajo elegí un horario desde y hasta.');
-      return;
-    }
-
-    if (
-      !blockForm.isFullDay &&
-      (!blockForm.startTime ||
-        !blockForm.endTime ||
-        blockForm.endTime <= blockForm.startTime)
-    ) {
+    if (!blockForm.isFullDay && (!blockForm.startTime || !blockForm.endTime || blockForm.endTime <= blockForm.startTime)) {
       setError('Revisá el horario bloqueado.');
       return;
     }
@@ -8126,7 +8117,6 @@ function AvailabilitySection() {
 
       if (
         repeatEnabled &&
-        !workingDaysRepeat &&
         (!Number.isInteger(Number(blockRepeatCount)) ||
           Number(blockRepeatCount) < 1 ||
           Number(blockRepeatCount) > 90)
@@ -8134,25 +8124,21 @@ function AvailabilitySection() {
         throw new Error('La cantidad de repeticiones debe estar entre 1 y 90.');
       }
 
-      const endpoint = workingDaysRepeat
-        ? `${API_BASE}/bookings/blocks/working-days`
-        : `${API_BASE}/bookings/${repeatEnabled ? 'blocks/repeat' : 'blocks'}`;
-
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...blockForm,
-          isFullDay: workingDaysRepeat ? false : blockForm.isFullDay,
-          recurrenceUnit:
-            repeatEnabled && !workingDaysRepeat ? blockRepeatUnit : null,
-          repeatCount:
-            repeatEnabled && !workingDaysRepeat ? Number(blockRepeatCount) : 1,
-        }),
-      });
+      const response = await fetch(
+        `${API_BASE}/bookings/${repeatEnabled ? 'blocks/repeat' : 'blocks'}`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            ...blockForm,
+            recurrenceUnit: repeatEnabled ? blockRepeatUnit : null,
+            repeatCount: repeatEnabled ? Number(blockRepeatCount) : 1,
+          }),
+        }
+      );
 
       const data = await response.json();
 
@@ -8160,12 +8146,7 @@ function AvailabilitySection() {
         throw new Error(data.error || 'No se pudo bloquear el horario.');
       }
 
-      setBlockedTimes(
-        Array.isArray(data.blocks)
-          ? data.blocks.map(normalizeBlockedTime)
-          : []
-      );
-
+      setBlockedTimes(Array.isArray(data.blocks) ? data.blocks.map(normalizeBlockedTime) : []);
       setBlockForm((current) => ({
         ...current,
         startTime: '13:00',
@@ -8179,14 +8160,60 @@ function AvailabilitySection() {
         : `${String(blockForm.startTime).slice(0, 5)} a ${String(blockForm.endTime).slice(0, 5)}`;
 
       setMessage(
-        workingDaysRepeat
-          ? `Bloqueado todos tus días de trabajo · ${timeLabel}.`
-          : repeatEnabled
-            ? `${Number(blockRepeatCount)} bloqueos creados desde ${formatDate(blockForm.blockDate)} · ${timeLabel}.`
-            : `Bloqueado: ${formatDate(blockForm.blockDate)} · ${timeLabel}.`
+        repeatEnabled
+          ? `${Number(blockRepeatCount)} bloqueos creados desde ${formatDate(blockForm.blockDate)} · ${timeLabel}.`
+          : `Bloqueado: ${formatDate(blockForm.blockDate)} · ${timeLabel}.`
       );
     } catch (err) {
       setError(err.message || 'No se pudo bloquear el horario.');
+    } finally {
+      setSavingBlock(false);
+    }
+  };
+
+  const saveWorkingDaysBlock = async () => {
+    const token = getToken();
+    const startTime = String(workingDaysBlockForm.startTime || '').slice(0, 5);
+    const endTime = String(workingDaysBlockForm.endTime || '').slice(0, 5);
+
+    if (!startTime || !endTime || endTime <= startTime) {
+      setError('Revisá el horario fijo de tus días de trabajo.');
+      return;
+    }
+
+    setSavingBlock(true);
+    setMessage('');
+    setError('');
+
+    try {
+      const response = await fetch(`${API_BASE}/bookings/blocks/working-days`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          startTime,
+          endTime,
+          reason: workingDaysBlockForm.reason,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'No se pudo guardar el bloqueo fijo.');
+      }
+
+      setBlockedTimes(Array.isArray(data.blocks) ? data.blocks.map(normalizeBlockedTime) : []);
+      setWorkingDaysBlockForm({
+        startTime: '13:00',
+        endTime: '14:00',
+        reason: '',
+      });
+      setMessage(`Bloqueo fijo guardado · ${startTime} a ${endTime} en todos tus días de trabajo.`);
+    } catch (err) {
+      setError(err.message || 'No se pudo guardar el bloqueo fijo.');
     } finally {
       setSavingBlock(false);
     }
@@ -8319,6 +8346,76 @@ function AvailabilitySection() {
 
       <div style={{ background: '#fff', borderRadius: 20, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
         <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 17, fontWeight: 800, color: '#1a1a1a' }}>
+            Bloqueo fijo en días de trabajo
+          </div>
+          <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 4, lineHeight: 1.45 }}>
+            Bloqueá el mismo horario en todos los días que tengas marcados como días de trabajo.
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div>
+            <label style={smallLabelStyle}>Desde</label>
+            <input
+              type="time"
+              value={workingDaysBlockForm.startTime}
+              step="60"
+              onChange={(event) =>
+                setWorkingDaysBlockForm((current) => ({
+                  ...current,
+                  startTime: event.target.value,
+                }))
+              }
+              style={{ ...inputStyle, marginBottom: 0, borderRadius: 14, border: '0.5px solid #e2e2e8', background: '#fff' }}
+            />
+          </div>
+
+          <div>
+            <label style={smallLabelStyle}>Hasta</label>
+            <input
+              type="time"
+              value={workingDaysBlockForm.endTime}
+              step="60"
+              onChange={(event) =>
+                setWorkingDaysBlockForm((current) => ({
+                  ...current,
+                  endTime: event.target.value,
+                }))
+              }
+              style={{ ...inputStyle, marginBottom: 0, borderRadius: 14, border: '0.5px solid #e2e2e8', background: '#fff' }}
+            />
+          </div>
+        </div>
+
+        <input
+          value={workingDaysBlockForm.reason}
+          onChange={(event) =>
+            setWorkingDaysBlockForm((current) => ({
+              ...current,
+              reason: event.target.value,
+            }))
+          }
+          placeholder="Motivo opcional, por ejemplo almuerzo"
+          style={{ ...inputStyle, marginTop: 10, marginBottom: 0, borderRadius: 14, border: '0.5px solid #e2e2e8', background: '#fff' }}
+        />
+
+        <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 13, background: '#eef6ff', color: '#44607c', fontSize: 12, lineHeight: 1.45, fontWeight: 750 }}>
+          No lleva fecha ni cantidad. Queda activo permanentemente en todos tus días laborales y se adapta si cambiás qué días trabajás.
+        </div>
+
+        <button
+          type="button"
+          onClick={saveWorkingDaysBlock}
+          disabled={savingBlock}
+          style={{ marginTop: 12, padding: '12px 16px', borderRadius: 14, border: 'none', background: savingBlock ? '#aeaeb2' : '#0071e3', color: '#fff', fontSize: 14, fontWeight: 850, fontFamily: 'inherit', cursor: savingBlock ? 'not-allowed' : 'pointer' }}
+        >
+          {savingBlock ? 'Guardando...' : 'Guardar bloqueo fijo'}
+        </button>
+      </div>
+
+      <div style={{ background: '#fff', borderRadius: 20, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
+        <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 17, fontWeight: 800, color: '#1a1a1a' }}>Bloquear horarios</div>
           <div style={{ fontSize: 13, color: '#6e6e73', marginTop: 4 }}>
             Usalo para pausas, trámites, almuerzo, vacaciones o cualquier horario donde no quieras recibir reservas.
@@ -8403,7 +8500,6 @@ function AvailabilitySection() {
               }}
             >
               <option value="none">Una sola vez</option>
-              <option value="working_days">Todos los días que trabajo</option>
               <option value="days">Cada día</option>
               <option value="weeks">Cada semana</option>
               <option value="months">Cada mes</option>
@@ -8417,14 +8513,8 @@ function AvailabilitySection() {
               min="1"
               max="90"
               inputMode="numeric"
-              value={
-                blockRepeatUnit === 'none' || blockRepeatUnit === 'working_days'
-                  ? '1'
-                  : blockRepeatCount
-              }
-              disabled={
-                blockRepeatUnit === 'none' || blockRepeatUnit === 'working_days'
-              }
+              value={blockRepeatUnit === 'none' ? '1' : blockRepeatCount}
+              disabled={blockRepeatUnit === 'none'}
               onChange={(event) => setBlockRepeatCount(event.target.value)}
               style={{
                 ...inputStyle,
@@ -8432,37 +8522,13 @@ function AvailabilitySection() {
                 marginBottom: 0,
                 borderRadius: 14,
                 border: '0.5px solid #e2e2e8',
-                background:
-                  blockRepeatUnit === 'none' || blockRepeatUnit === 'working_days'
-                    ? '#f7f7fb'
-                    : '#fff',
-                opacity:
-                  blockRepeatUnit === 'none' || blockRepeatUnit === 'working_days'
-                    ? 0.6
-                    : 1,
+                background: blockRepeatUnit === 'none' ? '#f7f7fb' : '#fff',
+                opacity: blockRepeatUnit === 'none' ? 0.6 : 1,
               }}
             />
           </div>
         </div>
 
-        {blockRepeatUnit === 'working_days' && (
-          <div
-            style={{
-              marginTop: 10,
-              padding: '10px 12px',
-              borderRadius: 13,
-              background: '#eef6ff',
-              color: '#44607c',
-              fontSize: 12,
-              lineHeight: 1.45,
-              fontWeight: 750,
-            }}
-          >
-            Se aplica automáticamente a todos los días que tengas activos en
-            Disponibilidad general. Si cambiás tus días de trabajo, este
-            bloqueo se adapta solo.
-          </div>
-        )}
 
         <button
           type="button"
