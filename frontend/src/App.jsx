@@ -8007,6 +8007,8 @@ function AvailabilitySection() {
     endDate: getLocalDateKeyValue(),
     reason: '',
   });
+  const [blockRepeatUnit, setBlockRepeatUnit] = useState('none');
+  const [blockRepeatCount, setBlockRepeatCount] = useState('4');
 
   const getToken = () => localStorage.getItem('tuagendaya_token');
 
@@ -8121,14 +8123,32 @@ function AvailabilitySection() {
     setError('');
 
     try {
-      const response = await fetch(`${API_BASE}/bookings/blocks`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(blockForm),
-      });
+      const repeatEnabled = blockRepeatUnit !== 'none';
+
+      if (
+        repeatEnabled &&
+        (!Number.isInteger(Number(blockRepeatCount)) ||
+          Number(blockRepeatCount) < 1 ||
+          Number(blockRepeatCount) > 90)
+      ) {
+        throw new Error('La cantidad de repeticiones debe estar entre 1 y 90.');
+      }
+
+      const response = await fetch(
+        `${API_BASE}/bookings/${repeatEnabled ? 'blocks/repeat' : 'blocks'}`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            ...blockForm,
+            recurrenceUnit: repeatEnabled ? blockRepeatUnit : null,
+            repeatCount: repeatEnabled ? Number(blockRepeatCount) : 1,
+          }),
+        }
+      );
 
       const data = await response.json();
 
@@ -8144,7 +8164,16 @@ function AvailabilitySection() {
         isFullDay: false,
         reason: '',
       }));
-      setMessage('Horario bloqueado correctamente.');
+      const repeatEnabled = blockRepeatUnit !== 'none';
+      const timeLabel = blockForm.isFullDay
+        ? 'Día completo'
+        : `${String(blockForm.startTime).slice(0, 5)} a ${String(blockForm.endTime).slice(0, 5)}`;
+
+      setMessage(
+        repeatEnabled
+          ? `${Number(blockRepeatCount)} bloqueos creados desde ${formatDate(blockForm.blockDate)} · ${timeLabel}.`
+          : `Bloqueado: ${formatDate(blockForm.blockDate)} · ${timeLabel}.`
+      );
     } catch (err) {
       setError(err.message || 'No se pudo bloquear el horario.');
     } finally {
@@ -8321,6 +8350,59 @@ function AvailabilitySection() {
             />
             Día completo
           </label>
+        </div>
+
+        <div
+          style={{
+            marginTop: 12,
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 1fr) 120px',
+            gap: 10,
+            alignItems: 'end',
+          }}
+        >
+          <div>
+            <label style={smallLabelStyle}>Repetición</label>
+            <select
+              value={blockRepeatUnit}
+              onChange={(event) => setBlockRepeatUnit(event.target.value)}
+              style={{
+                ...inputStyle,
+                width: '100%',
+                marginBottom: 0,
+                borderRadius: 14,
+                border: '0.5px solid #e2e2e8',
+                background: '#fff',
+              }}
+            >
+              <option value="none">Una sola vez</option>
+              <option value="days">Cada día</option>
+              <option value="weeks">Cada semana</option>
+              <option value="months">Cada mes</option>
+            </select>
+          </div>
+
+          <div>
+            <label style={smallLabelStyle}>Cantidad</label>
+            <input
+              type="number"
+              min="1"
+              max="90"
+              inputMode="numeric"
+              value={blockRepeatUnit === 'none' ? '1' : blockRepeatCount}
+              disabled={blockRepeatUnit === 'none'}
+              onChange={(event) => setBlockRepeatCount(event.target.value)}
+              style={{
+                ...inputStyle,
+                width: '100%',
+                marginBottom: 0,
+                borderRadius: 14,
+                border: '0.5px solid #e2e2e8',
+                background: blockRepeatUnit === 'none' ? '#f7f7fb' : '#fff',
+                opacity: blockRepeatUnit === 'none' ? 0.6 : 1,
+              }}
+            />
+          </div>
         </div>
 
         <button
