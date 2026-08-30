@@ -500,6 +500,8 @@ function DatePickerField({ value, onChange, placeholder = 'Elegir fecha', allowP
         padding: 9,
         boxShadow: '0 5px 16px rgba(15,23,42,.05)',
         boxSizing: 'border-box',
+        marginLeft: 'auto',
+        marginRight: 'auto',
       }}
     >
       <div
@@ -12217,6 +12219,8 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
             margin-left: auto !important;
             margin-right: auto !important;
             box-sizing: border-box !important;
+            display: block !important;
+            align-self: center !important;
           }
 
           .dashboard-panel .tay-almanac .tay-almanac-nav {
@@ -12246,6 +12250,9 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
 
           .dashboard-panel .repeat-booking-modal .tay-almanac {
             width: min(100%, 326px) !important;
+            max-width: 326px !important;
+            margin-left: auto !important;
+            margin-right: auto !important;
           }
         }
       `}</style>
