@@ -1382,11 +1382,21 @@ function normalizePublicBooking(row) {
   };
 }
 
+
+async function ensurePublicStaffPhotoColumn() {
+  await db.query(`
+    ALTER TABLE staff_members
+    ADD COLUMN IF NOT EXISTS photo_url TEXT
+  `);
+}
+
 function normalizePublicStaff(row) {
   return {
     id: row.id,
     name: row.name || "",
     color: row.color || "#0071e3",
+    photoUrl: row.photo_url || "",
+    photo_url: row.photo_url || "",
     isActive: Boolean(row.is_active),
   };
 }
@@ -1601,6 +1611,8 @@ async function ensureDefaultStaff(professional) {
 }
 
 async function getPublicStaffForProfessional(professional) {
+  await ensurePublicStaffPhotoColumn();
+
   const result = await db.query(
     `
     SELECT *

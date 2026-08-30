@@ -66,6 +66,14 @@ async function getProfessionalIdFromRequest(req) {
   }
 }
 
+
+async function ensureStaffPhotoColumn() {
+  await db.query(`
+    ALTER TABLE staff_members
+    ADD COLUMN IF NOT EXISTS photo_url TEXT
+  `);
+}
+
 function normalizeStaff(row) {
   return {
     id: row.id,
@@ -75,6 +83,8 @@ function normalizeStaff(row) {
     phone: row.phone,
     email: row.email,
     color: row.color,
+    photoUrl: row.photo_url || "",
+    photo_url: row.photo_url || "",
     isActive: row.is_active,
     is_active: row.is_active,
     createdAt: row.created_at,
@@ -296,6 +306,7 @@ router.get("/", async (req, res) => {
   try {
     const ownerProfessionalId = await getProfessionalIdFromRequest(req);
 
+    await ensureStaffPhotoColumn();
     await ensureDefaultStaff(ownerProfessionalId);
 
     const result = await db.query(
@@ -322,10 +333,26 @@ router.post("/", async (req, res) => {
   try {
     const ownerProfessionalId = await getProfessionalIdFromRequest(req);
 
+    await ensureStaffPhotoColumn();
+
     const name = String(req.body.name || "").trim();
     const phone = String(req.body.phone || "").trim();
     const email = String(req.body.email || "").trim().toLowerCase();
     const color = String(req.body.color || "#0071e3").trim();
+    const photoUrl = String(
+      req.body.photoUrl ?? req.body.photo_url ?? ""
+    ).trim();
+
+    const photoIsAllowed =
+      !photoUrl ||
+      /^https?:\/\//i.test(photoUrl) ||
+      /^data:image\/(?:png|jpeg|webp);base64,/i.test(photoUrl);
+
+    if (!photoIsAllowed) {
+      return res.status(400).json({
+        error: "La foto debe ser una URL o una imagen válida",
+      });
+    }
 
     if (!name) {
       return res.status(400).json({
@@ -341,11 +368,12 @@ router.post("/", async (req, res) => {
         phone,
         email,
         color,
+        photo_url,
         is_active,
         created_at,
         updated_at
       )
-      VALUES ($1, $2, $3, $4, $5, true, NOW(), NOW())
+      VALUES ($1, $2, $3, $4, $5, $6, true, NOW(), NOW())
       RETURNING *
       `,
       [
@@ -354,6 +382,7 @@ router.post("/", async (req, res) => {
         phone || null,
         email || null,
         color || "#0071e3",
+        photoUrl || null,
       ]
     );
 
@@ -376,6 +405,8 @@ router.patch("/:id", async (req, res) => {
     const ownerProfessionalId = await getProfessionalIdFromRequest(req);
     const staffId = Number(req.params.id);
 
+    await ensureStaffPhotoColumn();
+
     const existing = await getStaffOwnedByProfessional(staffId, ownerProfessionalId);
 
     if (!existing) {
@@ -388,6 +419,24 @@ router.patch("/:id", async (req, res) => {
     const phone = req.body.phone === undefined ? existing.phone : String(req.body.phone || "").trim();
     const email = req.body.email === undefined ? existing.email : String(req.body.email || "").trim().toLowerCase();
     const color = req.body.color === undefined ? existing.color : String(req.body.color || "#0071e3").trim();
+    const photoUrlInput =
+      req.body.photoUrl !== undefined ? req.body.photoUrl : req.body.photo_url;
+    const photoUrl =
+      photoUrlInput === undefined
+        ? String(existing.photo_url || "").trim()
+        : String(photoUrlInput || "").trim();
+
+    const photoIsAllowed =
+      !photoUrl ||
+      /^https?:\/\//i.test(photoUrl) ||
+      /^data:image\/(?:png|jpeg|webp);base64,/i.test(photoUrl);
+
+    if (!photoIsAllowed) {
+      return res.status(400).json({
+        error: "La foto debe ser una URL o una imagen válida",
+      });
+    }
+
     const isActive =
       req.body.isActive === undefined && req.body.is_active === undefined
         ? existing.is_active
@@ -407,10 +456,11 @@ router.patch("/:id", async (req, res) => {
         phone = $2,
         email = $3,
         color = $4,
-        is_active = $5,
+        photo_url = $5,
+        is_active = $6,
         updated_at = NOW()
-      WHERE id = $6
-        AND owner_professional_id = $7
+      WHERE id = $7
+        AND owner_professional_id = $8
       RETURNING *
       `,
       [
@@ -418,6 +468,7 @@ router.patch("/:id", async (req, res) => {
         phone || null,
         email || null,
         color || "#0071e3",
+        photoUrl || null,
         isActive,
         staffId,
         ownerProfessionalId,

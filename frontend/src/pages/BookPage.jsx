@@ -173,6 +173,7 @@ function normalizeStaff(item) {
     id: item.id,
     name: item.name || '',
     color: item.color || '#0071e3',
+    photoUrl: item.photoUrl ?? item.photo_url ?? '',
     isActive: Boolean(item.isActive ?? item.is_active ?? true),
   };
 }
@@ -1217,8 +1218,25 @@ export default function BookPage() {
                             boxShadow: isSelected ? '0 8px 22px rgba(0,113,227,0.12)' : 'none',
                           }}
                         >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <span style={{ width: 12, height: 12, borderRadius: 99, background: member.color, display: 'inline-block' }} />
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+                            {member.photoUrl ? (
+                              <img
+                                src={member.photoUrl}
+                                alt={member.name}
+                                style={{
+                                  width: 44,
+                                  height: 44,
+                                  borderRadius: '50%',
+                                  objectFit: 'cover',
+                                  flex: '0 0 auto',
+                                  border: '1px solid rgba(0,0,0,0.07)',
+                                  background: '#fff',
+                                }}
+                              />
+                            ) : (
+                              <span style={{ width: 12, height: 12, borderRadius: 99, background: member.color, display: 'inline-block' }} />
+                            )}
+
                             <div style={{ fontSize: 15, fontWeight: 800, color: '#1a1a1a', letterSpacing: '-0.02em' }}>
                               {member.name}
                             </div>

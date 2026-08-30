@@ -1041,6 +1041,7 @@ function normalizeStaff(item) {
     phone: item.phone || '',
     email: item.email || '',
     color: item.color || '#0071e3',
+    photoUrl: item.photoUrl ?? item.photo_url ?? '',
     isActive: Boolean(item.isActive ?? item.is_active),
   };
 }
@@ -8637,6 +8638,8 @@ function AvailabilitySection() {
   );
 }
 function StaffSection() {
+  const createPhotoInputRef = useRef(null);
+  const editPhotoInputRef = useRef(null);
   const [staff, setStaff] = useState([]);
   const [selectedStaffId, setSelectedStaffId] = useState('');
   const [availability, setAvailability] = useState(getDefaultAvailability());
@@ -8645,6 +8648,7 @@ function StaffSection() {
     name: '',
     phone: '',
     email: '',
+    photoUrl: '',
   });
 
   const [editingId, setEditingId] = useState(null);
@@ -8727,7 +8731,67 @@ function StaffSection() {
       name: '',
       phone: '',
       email: '',
+      photoUrl: '',
     });
+
+    if (createPhotoInputRef.current) {
+      createPhotoInputRef.current.value = '';
+    }
+  };
+
+  const readStaffPhotoFile = (file, onLoaded, inputElement) => {
+    if (!file) return;
+
+    setMessage('');
+    setError('');
+
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/webp'];
+
+    if (!allowedTypes.includes(file.type)) {
+      setError('La foto debe ser PNG, JPG o WebP.');
+      if (inputElement) inputElement.value = '';
+      return;
+    }
+
+    const maxSizeBytes = 1 * 1024 * 1024;
+
+    if (file.size > maxSizeBytes) {
+      setError('La foto no puede pesar más de 1 MB.');
+      if (inputElement) inputElement.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      onLoaded(String(reader.result || ''));
+    };
+
+    reader.onerror = () => {
+      setError('No se pudo leer la foto.');
+    };
+
+    reader.readAsDataURL(file);
+  };
+
+  const handleCreatePhotoChange = (event) => {
+    const file = event.target.files?.[0];
+
+    readStaffPhotoFile(
+      file,
+      (photoUrl) => setForm((current) => ({ ...current, photoUrl })),
+      event.target
+    );
+  };
+
+  const handleEditPhotoChange = (event) => {
+    const file = event.target.files?.[0];
+
+    readStaffPhotoFile(
+      file,
+      (photoUrl) => setEditing((current) => ({ ...current, photoUrl })),
+      event.target
+    );
   };
 
   const handleCreate = async (e) => {
@@ -8753,6 +8817,7 @@ function StaffSection() {
           name: form.name.trim(),
           phone: form.phone.trim(),
           email: form.email.trim(),
+          photoUrl: form.photoUrl,
         }),
       });
 
@@ -8781,8 +8846,13 @@ function StaffSection() {
       name: member.name,
       phone: member.phone || '',
       email: member.email || '',
+      photoUrl: member.photoUrl || '',
       isActive: member.isActive,
     });
+
+    if (editPhotoInputRef.current) {
+      editPhotoInputRef.current.value = '';
+    }
   };
 
   const cancelEditing = () => {
@@ -8812,6 +8882,7 @@ function StaffSection() {
           name: String(editing.name || '').trim(),
           phone: String(editing.phone || '').trim(),
           email: String(editing.email || '').trim(),
+          photoUrl: String(editing.photoUrl || ''),
           isActive: Boolean(editing.isActive),
         }),
       });
@@ -8951,6 +9022,93 @@ function StaffSection() {
             </div>
           </div>
 
+          <div
+            style={{
+              marginTop: 12,
+              padding: 12,
+              borderRadius: 14,
+              background: '#fff',
+              border: '0.5px solid #dedee4',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              flexWrap: 'wrap',
+            }}
+          >
+            {form.photoUrl && (
+              <img
+                src={form.photoUrl}
+                alt="Foto del profesional"
+                style={{
+                  width: 52,
+                  height: 52,
+                  borderRadius: '50%',
+                  objectFit: 'cover',
+                  border: '1px solid #e1e4e8',
+                  background: '#fff',
+                }}
+              />
+            )}
+
+            <div style={{ flex: 1, minWidth: 160 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 850, color: '#1a1a1a' }}>
+                Foto del profesional
+              </div>
+              <div style={{ fontSize: 11.5, color: '#8e8e93', marginTop: 2 }}>
+                Opcional. Se mostrará en círculo cuando el cliente elija profesional.
+              </div>
+            </div>
+
+            <input
+              ref={createPhotoInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={handleCreatePhotoChange}
+              style={{ display: 'none' }}
+            />
+
+            <button
+              type="button"
+              onClick={() => createPhotoInputRef.current?.click()}
+              style={{
+                padding: '9px 12px',
+                borderRadius: 11,
+                border: '0.5px solid #d0d0d5',
+                background: '#fff',
+                color: '#0071e3',
+                fontSize: 12,
+                fontWeight: 850,
+                fontFamily: 'inherit',
+                cursor: 'pointer',
+              }}
+            >
+              {form.photoUrl ? 'Cambiar foto' : 'Agregar foto'}
+            </button>
+
+            {form.photoUrl && (
+              <button
+                type="button"
+                onClick={() => {
+                  setForm((current) => ({ ...current, photoUrl: '' }));
+                  if (createPhotoInputRef.current) createPhotoInputRef.current.value = '';
+                }}
+                style={{
+                  padding: '9px 12px',
+                  borderRadius: 11,
+                  border: '0.5px solid #d0d0d5',
+                  background: '#fff',
+                  color: '#ff453a',
+                  fontSize: 12,
+                  fontWeight: 850,
+                  fontFamily: 'inherit',
+                  cursor: 'pointer',
+                }}
+              >
+                Quitar
+              </button>
+            )}
+          </div>
+
           <button
             type="submit"
             disabled={saving}
@@ -9024,6 +9182,93 @@ function StaffSection() {
                       </div>
                     </div>
 
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12,
+                        padding: 12,
+                        marginBottom: 12,
+                        borderRadius: 14,
+                        background: '#fff',
+                        border: '0.5px solid #e2e2e8',
+                        flexWrap: 'wrap',
+                      }}
+                    >
+                      {editing.photoUrl && (
+                        <img
+                          src={editing.photoUrl}
+                          alt="Foto del profesional"
+                          style={{
+                            width: 52,
+                            height: 52,
+                            borderRadius: '50%',
+                            objectFit: 'cover',
+                            border: '1px solid #e1e4e8',
+                            background: '#fff',
+                          }}
+                        />
+                      )}
+
+                      <div style={{ flex: 1, minWidth: 150 }}>
+                        <div style={{ fontSize: 12.5, fontWeight: 850, color: '#1a1a1a' }}>
+                          Foto del profesional
+                        </div>
+                        <div style={{ fontSize: 11.5, color: '#8e8e93', marginTop: 2 }}>
+                          Opcional e independiente de la foto del profesional principal.
+                        </div>
+                      </div>
+
+                      <input
+                        ref={editPhotoInputRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        onChange={handleEditPhotoChange}
+                        style={{ display: 'none' }}
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => editPhotoInputRef.current?.click()}
+                        style={{
+                          padding: '9px 12px',
+                          borderRadius: 11,
+                          border: '0.5px solid #d0d0d5',
+                          background: '#fff',
+                          color: '#0071e3',
+                          fontSize: 12,
+                          fontWeight: 850,
+                          fontFamily: 'inherit',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {editing.photoUrl ? 'Cambiar foto' : 'Agregar foto'}
+                      </button>
+
+                      {editing.photoUrl && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditing((current) => ({ ...current, photoUrl: '' }));
+                            if (editPhotoInputRef.current) editPhotoInputRef.current.value = '';
+                          }}
+                          style={{
+                            padding: '9px 12px',
+                            borderRadius: 11,
+                            border: '0.5px solid #d0d0d5',
+                            background: '#fff',
+                            color: '#ff453a',
+                            fontSize: 12,
+                            fontWeight: 850,
+                            fontFamily: 'inherit',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          Quitar
+                        </button>
+                      )}
+                    </div>
+
                     <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#1a1a1a', marginBottom: 12 }}>
                       <input
                         type="checkbox"
@@ -9060,8 +9305,24 @@ function StaffSection() {
                         onClick={() => setSelectedStaffId(String(member.id))}
                         style={{ flex: 1, border: 'none', background: 'transparent', padding: 0, textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit' }}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ width: 12, height: 12, borderRadius: 99, background: member.color, display: 'inline-block' }} />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          {member.photoUrl ? (
+                            <img
+                              src={member.photoUrl}
+                              alt={member.name}
+                              style={{
+                                width: 42,
+                                height: 42,
+                                borderRadius: '50%',
+                                objectFit: 'cover',
+                                flex: '0 0 auto',
+                                border: '1px solid #e1e4e8',
+                                background: '#fff',
+                              }}
+                            />
+                          ) : (
+                            <span style={{ width: 12, height: 12, borderRadius: 99, background: member.color, display: 'inline-block' }} />
+                          )}
                           <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>
                             {member.name}
                           </div>
