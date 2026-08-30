@@ -449,143 +449,223 @@ function formatDateKeyLong(dateKey) {
 }
 
 function DatePickerField({ value, onChange, placeholder = 'Elegir fecha', allowPast = true }) {
-  const [open, setOpen] = useState(false);
   const [viewDate, setViewDate] = useState(() => {
     if (value) {
       const [year, month] = String(value).split('-').map(Number);
       if (year && month) return new Date(year, month - 1, 1);
     }
+
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
 
   useEffect(() => {
     if (!value) return;
+
     const [year, month] = String(value).split('-').map(Number);
+
     if (year && month) {
       setViewDate(new Date(year, month - 1, 1));
     }
   }, [value]);
 
   const todayKey = getLocalDateKeyValue();
+  const now = new Date();
+  const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
   const year = viewDate.getFullYear();
   const month = viewDate.getMonth();
+  const viewMonthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
+  const canGoBack = allowPast || viewMonthKey > currentMonthKey;
+
   const firstDay = new Date(year, month, 1);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const startOffset = firstDay.getDay();
-  const monthTitle = viewDate.toLocaleDateString('es-UY', { month: 'long', year: 'numeric' });
-  const capitalizedMonth = monthTitle.charAt(0).toUpperCase() + monthTitle.slice(1);
-
-  const changeMonth = (delta) => {
-    setViewDate((current) => new Date(current.getFullYear(), current.getMonth() + delta, 1));
-  };
-
-  const clearValue = (event) => {
-    event.stopPropagation();
-    onChange('');
-    setOpen(false);
-  };
+  const monthTitle = viewDate.toLocaleDateString('es-UY', {
+    month: 'long',
+    year: 'numeric',
+  });
+  const capitalizedMonth =
+    monthTitle.charAt(0).toUpperCase() + monthTitle.slice(1);
 
   return (
-    <div style={{ position: 'relative', width: '100%' }}>
-      <button
-        type="button"
-        onClick={() => setOpen((current) => !current)}
+    <div
+      style={{
+        width: '100%',
+        maxWidth: 390,
+        background: '#fff',
+        border: '1px solid rgba(15,23,42,.07)',
+        borderRadius: 20,
+        padding: 12,
+        boxShadow: '0 8px 22px rgba(15,23,42,.055)',
+        boxSizing: 'border-box',
+      }}
+    >
+      <div
         style={{
-          width: '100%',
-          minHeight: 42,
-          border: open ? '1px solid #0071e3' : '0.5px solid #d8d8de',
-          background: '#fff',
-          borderRadius: 14,
-          padding: '10px 12px',
-          display: 'flex',
+          display: 'grid',
+          gridTemplateColumns: '36px 1fr 36px',
           alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 10,
-          cursor: 'pointer',
-          fontFamily: 'inherit',
-          boxShadow: open ? '0 0 0 3px rgba(0,113,227,0.10)' : '0 1px 5px rgba(0,0,0,0.03)',
+          gap: 8,
+          marginBottom: 10,
         }}
       >
-        <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: value ? '#1a1a1a' : '#8e8e93', fontSize: 12.5, fontWeight: 800 }}>
-          {value ? formatDate(value) : placeholder}
-        </span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-          {value && (
-            <span
-              onClick={clearValue}
-              style={{ width: 22, height: 22, borderRadius: 999, background: '#f2f2f7', color: '#8e8e93', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 900 }}
-            >
-              ×
-            </span>
-          )}
-          <span style={{ color: '#0071e3', fontSize: 15, fontWeight: 900 }}>▾</span>
-        </span>
-      </button>
-
-      {open && (
-        <div
+        <button
+          type="button"
+          disabled={!canGoBack}
+          onClick={() => {
+            if (!canGoBack) return;
+            setViewDate(
+              (current) =>
+                new Date(current.getFullYear(), current.getMonth() - 1, 1)
+            );
+          }}
+          aria-label="Mes anterior"
           style={{
-            position: 'absolute',
-            zIndex: 60,
-            top: 'calc(100% + 8px)',
-            left: 0,
-            width: 'min(270px, 86vw)',
-            background: '#fff',
-            border: '0.5px solid #e2e2e8',
-            borderRadius: 17,
-            padding: 10,
-            boxShadow: '0 14px 34px rgba(0,0,0,0.12)',
+            width: 34,
+            height: 34,
+            borderRadius: 11,
+            border: '1px solid rgba(15,23,42,.06)',
+            background: canGoBack ? '#f7f8fa' : '#fbfbfc',
+            color: canGoBack ? '#0071e3' : '#d0d0d5',
+            fontSize: 18,
+            fontWeight: 950,
+            fontFamily: 'inherit',
+            cursor: canGoBack ? 'pointer' : 'default',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <button type="button" onClick={() => changeMonth(-1)} style={{ width: 34, height: 30, borderRadius: 10, border: 'none', background: '#f6f6f8', color: '#1a1a1a', fontSize: 15, fontWeight: 900, cursor: 'pointer' }}>‹</button>
-            <div style={{ fontSize: 13.5, fontWeight: 900, color: '#1a1a1a' }}>{capitalizedMonth}</div>
-            <button type="button" onClick={() => changeMonth(1)} style={{ width: 34, height: 30, borderRadius: 10, border: 'none', background: '#f6f6f8', color: '#1a1a1a', fontSize: 15, fontWeight: 900, cursor: 'pointer' }}>›</button>
-          </div>
+          ‹
+        </button>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 5 }}>
-            {['D', 'L', 'M', 'M', 'J', 'V', 'S'].map((day) => (
-              <div key={day} style={{ textAlign: 'center', fontSize: 10.5, color: '#8e8e93', fontWeight: 900 }}>{day}</div>
-            ))}
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
-            {Array.from({ length: startOffset }).map((_, index) => <div key={`empty-${index}`} />)}
-            {Array.from({ length: daysInMonth }).map((_, index) => {
-              const day = index + 1;
-              const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-              const selected = key === value;
-              const disabled = !allowPast && key < todayKey;
-
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => {
-                    onChange(key);
-                    setOpen(false);
-                  }}
-                  style={{
-                    height: 30,
-                    borderRadius: 10,
-                    border: selected ? '1px solid #0071e3' : 'none',
-                    background: selected ? '#eaf3ff' : disabled ? '#fafafa' : '#f6f6f8',
-                    color: disabled ? '#c7c7cc' : selected ? '#0071e3' : '#1a1a1a',
-                    fontSize: 12.5,
-                    fontWeight: 900,
-                    fontFamily: 'inherit',
-                    cursor: disabled ? 'not-allowed' : 'pointer',
-                  }}
-                >
-                  {day}
-                </button>
-              );
-            })}
-          </div>
+        <div
+          style={{
+            textAlign: 'center',
+            fontSize: 13.5,
+            fontWeight: 950,
+            color: '#111827',
+            letterSpacing: '-0.02em',
+          }}
+        >
+          {capitalizedMonth}
         </div>
-      )}
+
+        <button
+          type="button"
+          onClick={() =>
+            setViewDate(
+              (current) =>
+                new Date(current.getFullYear(), current.getMonth() + 1, 1)
+            )
+          }
+          aria-label="Mes siguiente"
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: 11,
+            border: '1px solid rgba(15,23,42,.06)',
+            background: '#f7f8fa',
+            color: '#0071e3',
+            fontSize: 18,
+            fontWeight: 950,
+            fontFamily: 'inherit',
+            cursor: 'pointer',
+          }}
+        >
+          ›
+        </button>
+      </div>
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(7, 1fr)',
+          gap: 4,
+          marginBottom: 4,
+        }}
+      >
+        {['D', 'L', 'M', 'M', 'J', 'V', 'S'].map((day, index) => (
+          <div
+            key={`${day}-${index}`}
+            style={{
+              textAlign: 'center',
+              fontSize: 9.5,
+              color: '#8e8e93',
+              fontWeight: 900,
+              padding: '2px 0',
+            }}
+          >
+            {day}
+          </div>
+        ))}
+      </div>
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(7, 1fr)',
+          gap: 4,
+        }}
+      >
+        {Array.from({ length: startOffset }).map((_, index) => (
+          <div key={`empty-${index}`} />
+        ))}
+
+        {Array.from({ length: daysInMonth }).map((_, index) => {
+          const day = index + 1;
+          const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+          const selected = key === value;
+          const disabled = !allowPast && key < todayKey;
+
+          return (
+            <button
+              key={key}
+              type="button"
+              disabled={disabled}
+              onClick={() => onChange(key)}
+              style={{
+                aspectRatio: '1 / 1',
+                minHeight: 32,
+                borderRadius: 10,
+                border: selected
+                  ? '1px solid #0071e3'
+                  : '1px solid transparent',
+                background: selected
+                  ? '#0071e3'
+                  : disabled
+                    ? '#fafafa'
+                    : '#f7f8fa',
+                color: selected
+                  ? '#fff'
+                  : disabled
+                    ? '#c7c7cc'
+                    : '#1a1a1a',
+                fontSize: 11.5,
+                fontWeight: 900,
+                fontFamily: 'inherit',
+                cursor: disabled ? 'default' : 'pointer',
+                boxShadow: selected
+                  ? '0 5px 12px rgba(0,113,227,.18)'
+                  : 'none',
+              }}
+            >
+              {day}
+            </button>
+          );
+        })}
+      </div>
+
+      <div
+        style={{
+          marginTop: 9,
+          textAlign: 'center',
+          minHeight: 18,
+          fontSize: 11,
+          color: value ? '#0071e3' : '#8e8e93',
+          fontWeight: 800,
+        }}
+      >
+        {value ? `Fecha elegida: ${formatDate(value)}` : placeholder}
+      </div>
     </div>
   );
 }
@@ -2992,15 +3072,15 @@ function ManualBookingModal({ open, initialClient = null, onClose, onCreated }) 
             </select>
           </label>
 
-          <label>
+          <div style={{ gridColumn: '1 / -1' }}>
             <span style={{ display: 'block', fontSize: 11.5, color: '#6e6e73', fontWeight: 850, marginBottom: 6 }}>Fecha</span>
-            <input
-              type="date"
+            <DatePickerField
               value={form.bookingDate}
-              onChange={(event) => updateField('bookingDate', event.target.value)}
-              style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }}
+              onChange={(value) => updateField('bookingDate', value)}
+              placeholder="Elegí un día"
+              allowPast={false}
             />
-          </label>
+          </div>
 
           <label style={{ position: 'relative' }}>
             <span style={{ display: 'block', fontSize: 11.5, color: '#6e6e73', fontWeight: 850, marginBottom: 6 }}>Hora</span>
@@ -6068,7 +6148,6 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
   const [repeatCount, setRepeatCount] = useState('4');
-  const [calendarViewDate, setCalendarViewDate] = useState(() => new Date());
   const [timePickerOpen, setTimePickerOpen] = useState(false);
   const [bookingStartIntervalMinutes, setBookingStartIntervalMinutes] = useState(30);
   const [creating, setCreating] = useState(false);
@@ -6078,14 +6157,11 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
   useEffect(() => {
     if (!open) return;
 
-    const now = new Date();
-
     setSelectedDate('');
     setSelectedTime(
       formatTime(booking?.startTime ?? booking?.start_time) || ''
     );
     setRepeatCount('4');
-    setCalendarViewDate(new Date(now.getFullYear(), now.getMonth(), 1));
     setTimePickerOpen(false);
     setError('');
     setResultMessage('');
@@ -6118,25 +6194,6 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
   const sourceEndTime = formatTime(booking.endTime ?? booking.end_time) || '';
   const serviceName = booking.serviceName ?? booking.service_name ?? 'Servicio';
   const staffName = booking.staffName ?? booking.staff_name ?? '';
-
-  const todayKey = getLocalDateKeyValue();
-  const now = new Date();
-  const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-
-  const calendarYear = calendarViewDate.getFullYear();
-  const calendarMonth = calendarViewDate.getMonth();
-  const viewMonthKey = `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}`;
-  const canGoBack = viewMonthKey > currentMonthKey;
-
-  const firstDay = new Date(calendarYear, calendarMonth, 1);
-  const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
-  const startOffset = firstDay.getDay();
-  const monthTitleRaw = calendarViewDate.toLocaleDateString('es-UY', {
-    month: 'long',
-    year: 'numeric',
-  });
-  const monthTitle =
-    monthTitleRaw.charAt(0).toUpperCase() + monthTitleRaw.slice(1);
 
   const timeOptions = Array.from(
     { length: Math.floor((24 * 60 - 6 * 60) / bookingStartIntervalMinutes) },
@@ -6317,183 +6374,18 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
           </button>
         </div>
 
-        <div
-          style={{
-            marginTop: 18,
-            borderRadius: 20,
-            border: '1px solid rgba(15,23,42,.07)',
-            background: '#fbfcfe',
-            padding: 14,
-          }}
-        >
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '38px 1fr 38px',
-              alignItems: 'center',
-              gap: 8,
-              marginBottom: 12,
+        <div style={{ marginTop: 18 }}>
+          <span style={smallLabelStyle}>Fecha</span>
+          <DatePickerField
+            value={selectedDate}
+            onChange={(value) => {
+              setSelectedDate(value);
+              setError('');
+              setResultMessage('');
             }}
-          >
-            <button
-              type="button"
-              disabled={!canGoBack}
-              onClick={() => {
-                if (!canGoBack) return;
-                setCalendarViewDate(
-                  (current) =>
-                    new Date(current.getFullYear(), current.getMonth() - 1, 1)
-                );
-              }}
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 12,
-                border: '1px solid rgba(15,23,42,.06)',
-                background: canGoBack ? '#fff' : '#f5f5f7',
-                color: canGoBack ? '#0071e3' : '#c7c7cc',
-                fontSize: 18,
-                fontWeight: 950,
-                cursor: canGoBack ? 'pointer' : 'default',
-              }}
-            >
-              ‹
-            </button>
-
-            <div
-              style={{
-                textAlign: 'center',
-                fontSize: 14,
-                fontWeight: 950,
-                color: '#111827',
-              }}
-            >
-              {monthTitle}
-            </div>
-
-            <button
-              type="button"
-              onClick={() =>
-                setCalendarViewDate(
-                  (current) =>
-                    new Date(current.getFullYear(), current.getMonth() + 1, 1)
-                )
-              }
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 12,
-                border: '1px solid rgba(15,23,42,.06)',
-                background: '#fff',
-                color: '#0071e3',
-                fontSize: 18,
-                fontWeight: 950,
-                cursor: 'pointer',
-              }}
-            >
-              ›
-            </button>
-          </div>
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(7, 1fr)',
-              gap: 4,
-              marginBottom: 5,
-            }}
-          >
-            {['D', 'L', 'M', 'M', 'J', 'V', 'S'].map((day, index) => (
-              <div
-                key={`${day}-${index}`}
-                style={{
-                  textAlign: 'center',
-                  fontSize: 10,
-                  color: '#8e8e93',
-                  fontWeight: 900,
-                }}
-              >
-                {day}
-              </div>
-            ))}
-          </div>
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(7, 1fr)',
-              gap: 4,
-            }}
-          >
-            {Array.from({ length: startOffset }).map((_, index) => (
-              <div key={`empty-${index}`} />
-            ))}
-
-            {Array.from({ length: daysInMonth }).map((_, index) => {
-              const day = index + 1;
-              const dateKey = `${calendarYear}-${String(
-                calendarMonth + 1
-              ).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-
-              const selected = selectedDate === dateKey;
-              const disabled = dateKey < todayKey;
-
-              return (
-                <button
-                  key={dateKey}
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => {
-                    setSelectedDate(dateKey);
-                    setError('');
-                    setResultMessage('');
-                  }}
-                  style={{
-                    aspectRatio: '1 / 1',
-                    minHeight: 34,
-                    borderRadius: 11,
-                    border: selected
-                      ? '1px solid #0071e3'
-                      : '1px solid transparent',
-                    background: selected
-                      ? '#0071e3'
-                      : disabled
-                        ? '#fafafa'
-                        : '#fff',
-                    color: selected
-                      ? '#fff'
-                      : disabled
-                        ? '#c7c7cc'
-                        : '#1a1a1a',
-                    fontSize: 12,
-                    fontWeight: 900,
-                    fontFamily: 'inherit',
-                    cursor: disabled ? 'default' : 'pointer',
-                    boxShadow: selected
-                      ? '0 6px 14px rgba(0,113,227,.22)'
-                      : 'none',
-                  }}
-                >
-                  {day}
-                </button>
-              );
-            })}
-          </div>
-
-          <div
-            style={{
-              marginTop: 10,
-              minHeight: 20,
-              textAlign: 'center',
-              fontSize: 11.5,
-              color: selectedDate ? '#0071e3' : '#8e8e93',
-              fontWeight: 850,
-            }}
-          >
-            {selectedDate
-              ? `Fecha elegida: ${formatDate(selectedDate)}`
-              : 'Elegí un día del almanaque'}
-          </div>
+            placeholder="Elegí un día"
+            allowPast={false}
+          />
         </div>
 
         <div style={{ marginTop: 14, position: 'relative' }}>
