@@ -12219,8 +12219,6 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
             margin-left: auto !important;
             margin-right: auto !important;
             box-sizing: border-box !important;
-            display: block !important;
-            align-self: center !important;
           }
 
           .dashboard-panel .tay-almanac .tay-almanac-nav {
@@ -12250,9 +12248,6 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
 
           .dashboard-panel .repeat-booking-modal .tay-almanac {
             width: min(100%, 326px) !important;
-            max-width: 326px !important;
-            margin-left: auto !important;
-            margin-right: auto !important;
           }
         }
       `}</style>
