@@ -6065,9 +6065,10 @@ function CashSection() {
 
 
 function RepeatBookingModal({ open, booking, onClose, onCreated }) {
-  const [selectedWeekday, setSelectedWeekday] = useState(null);
+  const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
   const [repeatCount, setRepeatCount] = useState('4');
+  const [calendarViewDate, setCalendarViewDate] = useState(() => new Date());
   const [timePickerOpen, setTimePickerOpen] = useState(false);
   const [bookingStartIntervalMinutes, setBookingStartIntervalMinutes] = useState(30);
   const [creating, setCreating] = useState(false);
@@ -6077,11 +6078,14 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
   useEffect(() => {
     if (!open) return;
 
-    setSelectedWeekday(null);
+    const now = new Date();
+
+    setSelectedDate('');
     setSelectedTime(
       formatTime(booking?.startTime ?? booking?.start_time) || ''
     );
     setRepeatCount('4');
+    setCalendarViewDate(new Date(now.getFullYear(), now.getMonth(), 1));
     setTimePickerOpen(false);
     setError('');
     setResultMessage('');
@@ -6115,34 +6119,24 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
   const serviceName = booking.serviceName ?? booking.service_name ?? 'Servicio';
   const staffName = booking.staffName ?? booking.staff_name ?? '';
 
-  const weekdayOptions = [
-    { value: 1, short: 'LUN', label: 'Lunes' },
-    { value: 2, short: 'MAR', label: 'Martes' },
-    { value: 3, short: 'MIÉ', label: 'Miércoles' },
-    { value: 4, short: 'JUE', label: 'Jueves' },
-    { value: 5, short: 'VIE', label: 'Viernes' },
-    { value: 6, short: 'SÁB', label: 'Sábado' },
-    { value: 0, short: 'DOM', label: 'Domingo' },
-  ];
+  const todayKey = getLocalDateKeyValue();
+  const now = new Date();
+  const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-  const getNextDateForWeekday = (weekday) => {
-    if (weekday === null || weekday === undefined) return '';
+  const calendarYear = calendarViewDate.getFullYear();
+  const calendarMonth = calendarViewDate.getMonth();
+  const viewMonthKey = `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}`;
+  const canGoBack = viewMonthKey > currentMonthKey;
 
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const daysAhead = (weekday - today.getDay() + 7) % 7;
-    const safeDaysAhead = daysAhead === 0 ? 7 : daysAhead;
-    const nextDate = new Date(today);
-    nextDate.setDate(today.getDate() + safeDaysAhead);
-
-    return [
-      nextDate.getFullYear(),
-      String(nextDate.getMonth() + 1).padStart(2, '0'),
-      String(nextDate.getDate()).padStart(2, '0'),
-    ].join('-');
-  };
-
-  const firstRepeatDate = getNextDateForWeekday(selectedWeekday);
+  const firstDay = new Date(calendarYear, calendarMonth, 1);
+  const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+  const startOffset = firstDay.getDay();
+  const monthTitleRaw = calendarViewDate.toLocaleDateString('es-UY', {
+    month: 'long',
+    year: 'numeric',
+  });
+  const monthTitle =
+    monthTitleRaw.charAt(0).toUpperCase() + monthTitleRaw.slice(1);
 
   const timeOptions = Array.from(
     { length: Math.floor((24 * 60 - 6 * 60) / bookingStartIntervalMinutes) },
@@ -6157,7 +6151,7 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
 
   const payload = {
     sourceBookingId: booking.id,
-    firstRepeatDate,
+    firstRepeatDate: selectedDate,
     startTime: selectedTime,
     intervalValue: 1,
     intervalUnit: 'weeks',
@@ -6166,8 +6160,8 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
   };
 
   const validate = () => {
-    if (selectedWeekday === null) {
-      return 'Elegí un día de la semana.';
+    if (!selectedDate) {
+      return 'Elegí un día en el calendario.';
     }
 
     if (!selectedTime) {
@@ -6235,10 +6229,6 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
     }
   };
 
-  const selectedWeekdayInfo = weekdayOptions.find(
-    (item) => item.value === selectedWeekday
-  );
-
   return (
     <div
       role="dialog"
@@ -6260,12 +6250,12 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
     >
       <div
         style={{
-          width: 'min(500px, 100%)',
-          maxHeight: '90vh',
+          width: 'min(470px, 100%)',
+          maxHeight: '92vh',
           overflowY: 'auto',
           background: '#fff',
           borderRadius: 24,
-          padding: 22,
+          padding: 20,
           boxShadow: '0 28px 70px rgba(15,23,42,.24)',
           border: '1px solid rgba(15,23,42,.08)',
         }}
@@ -6327,78 +6317,186 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
           </button>
         </div>
 
-        <div style={{ marginTop: 20 }}>
-          <span style={smallLabelStyle}>Día de la semana</span>
+        <div
+          style={{
+            marginTop: 18,
+            borderRadius: 20,
+            border: '1px solid rgba(15,23,42,.07)',
+            background: '#fbfcfe',
+            padding: 14,
+          }}
+        >
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '38px 1fr 38px',
+              alignItems: 'center',
+              gap: 8,
+              marginBottom: 12,
+            }}
+          >
+            <button
+              type="button"
+              disabled={!canGoBack}
+              onClick={() => {
+                if (!canGoBack) return;
+                setCalendarViewDate(
+                  (current) =>
+                    new Date(current.getFullYear(), current.getMonth() - 1, 1)
+                );
+              }}
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 12,
+                border: '1px solid rgba(15,23,42,.06)',
+                background: canGoBack ? '#fff' : '#f5f5f7',
+                color: canGoBack ? '#0071e3' : '#c7c7cc',
+                fontSize: 18,
+                fontWeight: 950,
+                cursor: canGoBack ? 'pointer' : 'default',
+              }}
+            >
+              ‹
+            </button>
+
+            <div
+              style={{
+                textAlign: 'center',
+                fontSize: 14,
+                fontWeight: 950,
+                color: '#111827',
+              }}
+            >
+              {monthTitle}
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                setCalendarViewDate(
+                  (current) =>
+                    new Date(current.getFullYear(), current.getMonth() + 1, 1)
+                )
+              }
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 12,
+                border: '1px solid rgba(15,23,42,.06)',
+                background: '#fff',
+                color: '#0071e3',
+                fontSize: 18,
+                fontWeight: 950,
+                cursor: 'pointer',
+              }}
+            >
+              ›
+            </button>
+          </div>
 
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
-              gap: 6,
-              marginTop: 7,
+              gridTemplateColumns: 'repeat(7, 1fr)',
+              gap: 4,
+              marginBottom: 5,
             }}
           >
-            {weekdayOptions.map((day) => {
-              const selected = selectedWeekday === day.value;
+            {['D', 'L', 'M', 'M', 'J', 'V', 'S'].map((day, index) => (
+              <div
+                key={`${day}-${index}`}
+                style={{
+                  textAlign: 'center',
+                  fontSize: 10,
+                  color: '#8e8e93',
+                  fontWeight: 900,
+                }}
+              >
+                {day}
+              </div>
+            ))}
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(7, 1fr)',
+              gap: 4,
+            }}
+          >
+            {Array.from({ length: startOffset }).map((_, index) => (
+              <div key={`empty-${index}`} />
+            ))}
+
+            {Array.from({ length: daysInMonth }).map((_, index) => {
+              const day = index + 1;
+              const dateKey = `${calendarYear}-${String(
+                calendarMonth + 1
+              ).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+              const selected = selectedDate === dateKey;
+              const disabled = dateKey < todayKey;
 
               return (
                 <button
-                  key={day.value}
+                  key={dateKey}
                   type="button"
-                  aria-pressed={selected}
+                  disabled={disabled}
                   onClick={() => {
-                    setSelectedWeekday(day.value);
+                    setSelectedDate(dateKey);
                     setError('');
                     setResultMessage('');
                   }}
-                  title={day.label}
                   style={{
-                    minHeight: 58,
-                    borderRadius: 14,
+                    aspectRatio: '1 / 1',
+                    minHeight: 34,
+                    borderRadius: 11,
                     border: selected
-                      ? '1px solid rgba(0,113,227,.28)'
-                      : '1px solid rgba(15,23,42,.07)',
-                    background: selected ? '#0071e3' : '#f7f8fa',
-                    color: selected ? '#fff' : '#1d2636',
-                    display: 'grid',
-                    placeItems: 'center',
-                    padding: '7px 3px',
+                      ? '1px solid #0071e3'
+                      : '1px solid transparent',
+                    background: selected
+                      ? '#0071e3'
+                      : disabled
+                        ? '#fafafa'
+                        : '#fff',
+                    color: selected
+                      ? '#fff'
+                      : disabled
+                        ? '#c7c7cc'
+                        : '#1a1a1a',
+                    fontSize: 12,
+                    fontWeight: 900,
                     fontFamily: 'inherit',
-                    cursor: 'pointer',
+                    cursor: disabled ? 'default' : 'pointer',
                     boxShadow: selected
-                      ? '0 7px 16px rgba(0,113,227,.18)'
+                      ? '0 6px 14px rgba(0,113,227,.22)'
                       : 'none',
                   }}
                 >
-                  <span
-                    style={{
-                      fontSize: 10.5,
-                      fontWeight: 950,
-                      letterSpacing: '.02em',
-                    }}
-                  >
-                    {day.short}
-                  </span>
+                  {day}
                 </button>
               );
             })}
           </div>
 
-          {selectedWeekdayInfo && firstRepeatDate && (
-            <div
-              style={{
-                marginTop: 9,
-                fontSize: 11.5,
-                color: '#0071e3',
-                fontWeight: 850,
-              }}
-            >
-              Primera cita: {selectedWeekdayInfo.label} {formatDate(firstRepeatDate)}
-            </div>
-          )}
+          <div
+            style={{
+              marginTop: 10,
+              minHeight: 20,
+              textAlign: 'center',
+              fontSize: 11.5,
+              color: selectedDate ? '#0071e3' : '#8e8e93',
+              fontWeight: 850,
+            }}
+          >
+            {selectedDate
+              ? `Fecha elegida: ${formatDate(selectedDate)}`
+              : 'Elegí un día del almanaque'}
+          </div>
         </div>
 
-        <div style={{ marginTop: 16, position: 'relative' }}>
+        <div style={{ marginTop: 14, position: 'relative' }}>
           <span style={smallLabelStyle}>Hora</span>
 
           <button
@@ -6410,8 +6508,7 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
               ...inputStyle,
               minHeight: 46,
               borderRadius: 14,
-              background: timePickerOpen ? '#f8fbff' : '#fff',
-              border: timePickerOpen ? '1px solid #0071e3' : '0.5px solid #d0d0d5',
+              background: '#fff',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
@@ -6445,11 +6542,15 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
               role="listbox"
               aria-label="Seleccionar hora"
               style={{
-                marginTop: 8,
+                position: 'absolute',
+                top: 'calc(100% + 8px)',
+                left: 0,
+                right: 0,
+                zIndex: 17000,
                 background: '#fff',
                 border: '1px solid rgba(15,23,42,.08)',
                 borderRadius: 18,
-                boxShadow: '0 16px 38px rgba(15,23,42,.12)',
+                boxShadow: '0 16px 38px rgba(15,23,42,.14)',
                 padding: 10,
                 maxHeight: 225,
                 overflowY: 'auto',
@@ -6500,7 +6601,7 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
           )}
         </div>
 
-        <label style={{ display: 'block', marginTop: 16 }}>
+        <label style={{ display: 'block', marginTop: 14 }}>
           <span style={smallLabelStyle}>Cantidad de veces</span>
           <input
             type="number"
@@ -6533,8 +6634,8 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
             fontWeight: 750,
           }}
         >
-          Elegí el día de la semana, la hora y cuántas veces querés repetir la
-          cita. Se creará semanalmente siempre ese mismo día y horario.
+          Elegí una fecha en el almanaque, la hora y cuántas veces querés
+          repetirla. Desde esa fecha se repite semanalmente en el mismo horario.
         </div>
 
         {error && (
@@ -6615,7 +6716,9 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
           >
             {creating
               ? 'Creando citas...'
-              : `Repetir ${Number(repeatCount) > 0 ? repeatCount : ''} ${Number(repeatCount) === 1 ? 'vez' : 'veces'}`}
+              : `Repetir ${Number(repeatCount) > 0 ? repeatCount : ''} ${
+                  Number(repeatCount) === 1 ? 'vez' : 'veces'
+                }`}
           </button>
         </div>
       </div>
