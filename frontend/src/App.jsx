@@ -3281,6 +3281,342 @@ function ManualBookingModal({ open, initialClient = null, onClose, onCreated }) 
 }
 
 
+function NicoTimelineCalendar({
+  bookings,
+  staff,
+  selectedDateKey,
+  onDateChange,
+  onBookingOpen,
+  ownerName,
+}) {
+  const pad = (value) => String(value).padStart(2, '0');
+  const toDateKey = (date) =>
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+
+  const fromDateKey = (dateKey) => {
+    const [year, month, day] = String(dateKey || '').split('-').map(Number);
+    if (!year || !month || !day) return new Date();
+    return new Date(year, month - 1, day);
+  };
+
+  const addDays = (dateKey, amount) => {
+    const date = fromDateKey(dateKey);
+    date.setDate(date.getDate() + amount);
+    return toDateKey(date);
+  };
+
+  const bookingDateKey = (booking) => {
+    const raw = String(getBookingDateValue(booking) || '').trim();
+    const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+
+    const slash = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (slash) return `${slash[3]}-${pad(slash[2])}-${pad(slash[1])}`;
+
+    const parsed = new Date(raw);
+    return Number.isNaN(parsed.getTime()) ? '' : toDateKey(parsed);
+  };
+
+  const timeToMinutes = (value) => {
+    const normalized = formatTime(value);
+    if (!normalized) return null;
+    const [hour, minute] = normalized.split(':').map(Number);
+    return Number.isFinite(hour) && Number.isFinite(minute)
+      ? hour * 60 + minute
+      : null;
+  };
+
+  const selectedDate = fromDateKey(selectedDateKey);
+  const weekday = selectedDate.toLocaleDateString('es-UY', { weekday: 'long' });
+  const month = selectedDate.toLocaleDateString('es-UY', { month: 'long' });
+  const dayTitle = `${weekday.charAt(0).toUpperCase()}${weekday.slice(1)} ${selectedDate.getDate()} de ${month}`;
+
+  const monday = new Date(selectedDate);
+  monday.setDate(selectedDate.getDate() - ((selectedDate.getDay() + 6) % 7));
+
+  const weekDays = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(monday);
+    date.setDate(monday.getDate() + index);
+    const key = toDateKey(date);
+
+    return {
+      key,
+      weekday: ['D', 'L', 'M', 'M', 'J', 'V', 'S'][date.getDay()],
+      day: date.getDate(),
+      count: bookings.filter((booking) => bookingDateKey(booking) === key).length,
+    };
+  });
+
+  const dayBookings = bookings.filter(
+    (booking) => bookingDateKey(booking) === selectedDateKey
+  );
+
+  const activeStaff = (Array.isArray(staff) ? staff : [])
+    .filter((member) => member?.isActive !== false)
+    .map((member, index) => ({
+      id: String(member.id),
+      name: member.name || `Profesional ${index + 1}`,
+      color: member.color || '#0071e3',
+    }));
+
+  const needsOwnerColumn = dayBookings.some(
+    (booking) => !(booking.staffId ?? booking.staff_id)
+  );
+
+  const columns = [...activeStaff];
+
+  if (needsOwnerColumn || columns.length === 0) {
+    columns.unshift({
+      id: 'owner',
+      name: ownerName || 'Profesional principal',
+      color: '#0071e3',
+    });
+  }
+
+  dayBookings.forEach((booking) => {
+    const staffId = booking.staffId ?? booking.staff_id;
+    const staffName = booking.staffName ?? booking.staff_name;
+
+    if (staffId && !columns.some((member) => String(member.id) === String(staffId))) {
+      columns.push({
+        id: String(staffId),
+        name: staffName || 'Profesional',
+        color: '#34c759',
+      });
+    }
+  });
+
+  const palette = ['#0071e3', '#34c759', '#ff9f0a', '#af52de', '#ff453a', '#5ac8fa'];
+  const staffColumns = columns.map((member, index) => ({
+    ...member,
+    color: member.color || palette[index % palette.length],
+  }));
+
+  const bookingMinutes = dayBookings
+    .flatMap((booking) => [
+      timeToMinutes(booking.startTime ?? booking.start_time),
+      timeToMinutes(booking.endTime ?? booking.end_time),
+    ])
+    .filter(Number.isFinite);
+
+  const startHour = Math.max(
+    6,
+    Math.min(9, bookingMinutes.length ? Math.floor(Math.min(...bookingMinutes) / 60) : 9)
+  );
+  const endHour = Math.min(
+    23,
+    Math.max(19, bookingMinutes.length ? Math.ceil(Math.max(...bookingMinutes) / 60) : 19)
+  );
+
+  const minuteHeight = 1.15;
+  const timelineHeight = (endHour - startHour) * 60 * minuteHeight;
+  const columnWidth = 210;
+  const timeGutter = 58;
+  const hours = Array.from({ length: endHour - startHour + 1 }, (_, index) => startHour + index);
+
+  return (
+    <div
+      style={{
+        background: '#ffffff',
+        borderRadius: 26,
+        padding: '18px 14px 20px',
+        color: '#1a1a1a',
+        border: '1px solid #e5e5ea',
+        boxShadow: '0 14px 44px rgba(0,0,0,0.08)',
+        overflow: 'hidden',
+        marginBottom: 16,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 16 }}>
+        <button
+          type="button"
+          onClick={() => onDateChange(addDays(selectedDateKey, -1))}
+          style={{ width: 38, height: 38, borderRadius: 19, border: '1px solid #d9d9df', background: '#f7f7fb', color: '#0071e3', fontSize: 25, cursor: 'pointer', fontFamily: 'inherit' }}
+        >
+          ‹
+        </button>
+
+        <div style={{ textAlign: 'center', minWidth: 0 }}>
+          <div style={{ fontSize: 22, fontWeight: 950, letterSpacing: '-0.035em' }}>{dayTitle}</div>
+          <div style={{ fontSize: 11.5, color: '#8e8e93', fontWeight: 750, marginTop: 3 }}>
+            Vista diaria por profesional
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => onDateChange(addDays(selectedDateKey, 1))}
+          style={{ width: 38, height: 38, borderRadius: 19, border: '1px solid #d9d9df', background: '#f7f7fb', color: '#0071e3', fontSize: 25, cursor: 'pointer', fontFamily: 'inherit' }}
+        >
+          ›
+        </button>
+      </div>
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(7, minmax(58px, 1fr))',
+          gap: 7,
+          overflowX: 'auto',
+          paddingBottom: 6,
+          marginBottom: 12,
+        }}
+      >
+        {weekDays.map((item) => {
+          const active = item.key === selectedDateKey;
+
+          return (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => onDateChange(item.key)}
+              style={{
+                minWidth: 58,
+                borderRadius: 18,
+                padding: '9px 5px 8px',
+                border: active ? '2px solid #0071e3' : '1px solid #e1e1e6',
+                background: active ? '#eef6ff' : '#f7f7fb',
+                color: '#1a1a1a',
+                fontFamily: 'inherit',
+                cursor: 'pointer',
+              }}
+            >
+              <div style={{ fontSize: 10.5, fontWeight: 900, color: active ? '#0071e3' : '#8e8e93' }}>{item.weekday}</div>
+              <div style={{ fontSize: 20, fontWeight: 950, marginTop: 2 }}>{item.day}</div>
+              <div style={{ fontSize: 10.5, fontWeight: 900, marginTop: 1, color: item.count ? '#0071e3' : '#aeaeb2' }}>
+                {item.count || '—'}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      <div style={{ overflowX: 'auto', paddingBottom: 4 }}>
+        <div style={{ minWidth: timeGutter + staffColumns.length * columnWidth }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: `${timeGutter}px repeat(${Math.max(staffColumns.length, 1)}, ${columnWidth}px)`,
+              alignItems: 'center',
+              marginBottom: 10,
+            }}
+          >
+            <div />
+            {staffColumns.map((member) => (
+              <div
+                key={member.id}
+                style={{ padding: '0 7px', fontSize: 12.5, fontWeight: 900, color: member.color, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+              >
+                <span style={{ width: 9, height: 9, borderRadius: 99, display: 'inline-block', background: member.color, marginRight: 7 }} />
+                {member.name}
+              </div>
+            ))}
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: `${timeGutter}px repeat(${Math.max(staffColumns.length, 1)}, ${columnWidth}px)`,
+            }}
+          >
+            <div style={{ position: 'relative', height: timelineHeight }}>
+              {hours.map((hour) => (
+                <div
+                  key={hour}
+                  style={{ position: 'absolute', top: (hour - startHour) * 60 * minuteHeight - 8, right: 9, fontSize: 11.5, fontWeight: 800, color: '#8e8e93', whiteSpace: 'nowrap' }}
+                >
+                  {pad(hour)}:00
+                </div>
+              ))}
+            </div>
+
+            {staffColumns.map((member) => {
+              const memberBookings = dayBookings.filter((booking) => {
+                const id = booking.staffId ?? booking.staff_id;
+                return member.id === 'owner'
+                  ? !id
+                  : String(id || '') === String(member.id);
+              });
+
+              return (
+                <div
+                  key={member.id}
+                  style={{ position: 'relative', height: timelineHeight, borderLeft: '1px solid #e5e5ea', background: '#fbfbfd' }}
+                >
+                  {hours.map((hour) => (
+                    <div
+                      key={hour}
+                      style={{ position: 'absolute', left: 0, right: 0, top: (hour - startHour) * 60 * minuteHeight, borderTop: '1px solid #e5e5ea' }}
+                    />
+                  ))}
+
+                  {memberBookings.map((booking) => {
+                    const start = timeToMinutes(booking.startTime ?? booking.start_time);
+                    const explicitEnd = timeToMinutes(booking.endTime ?? booking.end_time);
+                    const duration = Number(booking.serviceDurationMinutes ?? booking.service_duration_minutes ?? 30) || 30;
+                    const end = explicitEnd || (Number.isFinite(start) ? start + duration : null);
+
+                    if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+
+                    const top = Math.max(0, (start - startHour * 60) * minuteHeight);
+                    const height = Math.max(42, (end - start) * minuteHeight - 5);
+                    const status = String(booking.status || '').toLowerCase();
+                    const cancelled = ['cancelled', 'cancelada', 'cancelado'].includes(status);
+                    const completed = ['completed', 'completada', 'completado'].includes(status);
+                    const clientName = booking.clientName ?? booking.client_name ?? 'Cliente sin nombre';
+                    const serviceName = booking.serviceName ?? booking.service_name ?? 'Reserva';
+
+                    return (
+                      <button
+                        key={booking.id}
+                        type="button"
+                        onClick={() => onBookingOpen(booking)}
+                        style={{
+                          position: 'absolute',
+                          top,
+                          left: 7,
+                          right: 7,
+                          height,
+                          borderRadius: 15,
+                          border: `1px solid ${member.color}88`,
+                          borderLeft: `5px solid ${member.color}`,
+                          background: cancelled ? '#fff2f2' : completed ? '#f2f0ff' : `${member.color}18`,
+                          color: '#1a1a1a',
+                          textAlign: 'left',
+                          padding: '9px 10px',
+                          overflow: 'hidden',
+                          cursor: 'pointer',
+                          fontFamily: 'inherit',
+                          boxShadow: cancelled ? 'none' : '0 4px 14px rgba(0,0,0,0.14)',
+                          opacity: cancelled ? 0.58 : 1,
+                        }}
+                      >
+                        <div style={{ fontSize: 13, fontWeight: 950, lineHeight: 1.15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: cancelled ? 'line-through' : 'none' }}>
+                          {clientName}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#6e6e73', marginTop: 4, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {serviceName}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {dayBookings.length === 0 && (
+        <div style={{ marginTop: 14, textAlign: 'center', color: '#8e8e93', fontSize: 12.5, fontWeight: 750 }}>
+          No hay reservas para este día.
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 function ReservationsSection() {
   const [bookings, setBookings] = useState([]);
   const [loadingBookings, setLoadingBookings] = useState(true);
@@ -3299,6 +3635,15 @@ function ReservationsSection() {
   const [bookingNotification, setBookingNotification] = useState(null);
   const [newBookingCount, setNewBookingCount] = useState(0);
   const [manualBookingOpen, setManualBookingOpen] = useState(false);
+  const [nicoAgendaMode, setNicoAgendaMode] = useState('calendar');
+  const [nicoCalendarDateKey, setNicoCalendarDateKey] = useState(() => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  });
+  const [nicoStaff, setNicoStaff] = useState([]);
   const knownBookingIdsRef = useRef(new Set());
   const bookingsBootstrappedRef = useRef(false);
   const notificationTimeoutRef = useRef(null);
@@ -3483,6 +3828,39 @@ useEffect(() => {
   }
 
   const businessName = storedProfessional.businessName || storedProfessional.business_name || storedProfessional.name || '';
+  const nicoIdentityText = normalizeSearchText(
+    `${businessName} ${storedProfessional.name || ''} ${storedProfessional.slug || ''}`
+  );
+  const isNicoAquinoBusiness =
+    nicoIdentityText.includes('nico') &&
+    nicoIdentityText.includes('aquino');
+
+  useEffect(() => {
+    if (!isNicoAquinoBusiness) return undefined;
+
+    const token = localStorage.getItem('tuagendaya_token');
+    let cancelled = false;
+
+    fetch(`${API_BASE}/staff`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        if (cancelled) return;
+        setNicoStaff(
+          (Array.isArray(data.staff) ? data.staff : [])
+            .map(normalizeStaff)
+            .filter((member) => member.isActive !== false)
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setNicoStaff([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isNicoAquinoBusiness]);
 
   const fetchBookings = useCallback((showLoading = false) => {
     const token = localStorage.getItem('tuagendaya_token');
@@ -3838,6 +4216,17 @@ useEffect(() => {
   const frequentClient = Array.from(clientStatsMap.values()).sort((a, b) => b.count - a.count)[0] || null;
   const frequentClientLabel = frequentClient ? `${frequentClient.name} (${frequentClient.count})` : 'Sin datos';
 
+  const openBookingFromNicoCalendar = (booking) => {
+    const dateKey = getBookingDateKey(booking);
+
+    if (dateKey < todayKey) setReservationView('archived');
+    else if (dateKey > todayKey) setReservationView('upcoming');
+    else setReservationView('today');
+
+    setExpandedBookingId(booking.id);
+    setNicoAgendaMode('list');
+  };
+
   const reservationViewButtonStyle = (key) => ({
     flex: 1,
     padding: '11px 12px',
@@ -3977,6 +4366,50 @@ useEffect(() => {
         </button>
       </div>
 
+      {isNicoAquinoBusiness && (
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              width: 'min(420px, 100%)',
+              padding: 4,
+              borderRadius: 18,
+              background: '#ffffff',
+              border: '1px solid #e5e5ea',
+              boxShadow: '0 6px 20px rgba(0,0,0,0.06)',
+            }}
+          >
+            {[
+              ['list', '☷  Lista'],
+              ['calendar', '▣  Calendario'],
+            ].map(([key, label]) => {
+              const active = nicoAgendaMode === key;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setNicoAgendaMode(key)}
+                  style={{
+                    border: 'none',
+                    borderRadius: 14,
+                    padding: '11px 14px',
+                    background: active ? '#0071e3' : 'transparent',
+                    color: active ? '#ffffff' : '#6e6e73',
+                    fontFamily: 'inherit',
+                    fontSize: 13,
+                    fontWeight: 950,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {bookingNotification && (
         <div
           role="status"
@@ -4087,7 +4520,18 @@ useEffect(() => {
         </div>
       )}
 
-      {!loadingBookings && (
+      {isNicoAquinoBusiness && nicoAgendaMode === 'calendar' && !loadingBookings && (
+        <NicoTimelineCalendar
+          bookings={bookings}
+          staff={nicoStaff}
+          selectedDateKey={nicoCalendarDateKey}
+          onDateChange={setNicoCalendarDateKey}
+          onBookingOpen={openBookingFromNicoCalendar}
+          ownerName={storedProfessional.name || businessName || 'Nico Aquino'}
+        />
+      )}
+
+      {(!isNicoAquinoBusiness || nicoAgendaMode === 'list') && !loadingBookings && (
         <div style={{ background: '#fff', borderRadius: 22, padding: '18px 20px', marginBottom: 16, boxShadow: '0 1px 8px rgba(0,0,0,0.05)' }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
             <div>
@@ -4120,7 +4564,7 @@ useEffect(() => {
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+      <div style={{ display: isNicoAquinoBusiness && nicoAgendaMode === 'calendar' ? 'none' : 'flex', gap: 10, marginBottom: 16 }}>
         <button type="button" onClick={() => setReservationView('today')} style={reservationViewButtonStyle('today')}>
           Hoy ({todayBookings.length})
         </button>
@@ -4132,7 +4576,7 @@ useEffect(() => {
         </button>
       </div>
 
-      <div style={{ background: '#fff', borderRadius: 20, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>
+      <div style={{ background: '#fff', borderRadius: 20, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)', display: isNicoAquinoBusiness && nicoAgendaMode === 'calendar' ? 'none' : 'block' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
           <div>
             <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>{currentTitle}</div>
