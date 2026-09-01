@@ -11146,10 +11146,10 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
       return;
     }
 
-    const maxSizeBytes = 1 * 1024 * 1024;
+    const maxSizeBytes = 48 * 1024 * 1024;
 
     if (file.size > maxSizeBytes) {
-      setError('La foto pública no puede pesar más de 1 MB.');
+      setError('La foto pública no puede pesar más de 48 MB.');
       event.target.value = '';
       return;
     }

@@ -143,7 +143,7 @@ app.use(
   })
 );
 
-app.use(express.json({ limit: "6mb" }));
+app.use(express.json({ limit: "70mb" }));
 app.use(express.urlencoded({ extended: true, limit: "6mb" }));
 
 app.get("/api/health", async (req, res) => {
