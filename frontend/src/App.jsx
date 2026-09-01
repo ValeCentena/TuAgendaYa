@@ -3447,7 +3447,7 @@ function NicoTimelineCalendar({
             white-space: nowrap !important;
           }
 
-          .nico-week-grid {
+          .dashboard-panel div.nico-week-grid[style*="grid-template-columns"] {
             display: grid !important;
             grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
             gap: 4px !important;
@@ -3480,14 +3480,14 @@ function NicoTimelineCalendar({
           }
 
           .nico-timeline-inner {
-            width: max(100%, calc(44px + (var(--nico-staff-count) * 120px))) !important;
-            min-width: max(100%, calc(44px + (var(--nico-staff-count) * 120px))) !important;
+            width: 100% !important;
+            min-width: 0 !important;
           }
 
-          .nico-staff-header,
-          .nico-timeline-grid {
+          .dashboard-panel div.nico-staff-header[style*="grid-template-columns"],
+          .dashboard-panel div.nico-timeline-grid[style*="grid-template-columns"] {
             display: grid !important;
-            grid-template-columns: 44px repeat(var(--nico-staff-count), minmax(120px, 1fr)) !important;
+            grid-template-columns: 44px repeat(var(--nico-staff-count), minmax(0, 1fr)) !important;
             width: 100% !important;
             min-width: 100% !important;
           }
@@ -3538,6 +3538,11 @@ function NicoTimelineCalendar({
             max-width: 100% !important;
             border-radius: 16px !important;
           }
+
+          .dashboard-panel div.nico-view-switch[style*="grid-template-columns"] {
+            display: grid !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          }
         }
 
         @media (max-width: 390px) {
@@ -3553,13 +3558,13 @@ function NicoTimelineCalendar({
           }
 
           .nico-timeline-inner {
-            width: max(100%, calc(40px + (var(--nico-staff-count) * 116px))) !important;
-            min-width: max(100%, calc(40px + (var(--nico-staff-count) * 116px))) !important;
+            width: 100% !important;
+            min-width: 0 !important;
           }
 
-          .nico-staff-header,
-          .nico-timeline-grid {
-            grid-template-columns: 40px repeat(var(--nico-staff-count), minmax(116px, 1fr)) !important;
+          .dashboard-panel div.nico-staff-header[style*="grid-template-columns"],
+          .dashboard-panel div.nico-timeline-grid[style*="grid-template-columns"] {
+            grid-template-columns: 40px repeat(var(--nico-staff-count), minmax(0, 1fr)) !important;
           }
         }
       `}</style>
