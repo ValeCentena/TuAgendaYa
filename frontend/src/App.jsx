@@ -3415,7 +3415,124 @@ function NicoTimelineCalendar({
   const hours = Array.from({ length: endHour - startHour + 1 }, (_, index) => startHour + index);
 
   return (
-    <div
+    <>
+      <style>{`
+        @media (max-width: 720px) {
+          .dashboard-panel .nico-calendar-card {
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+            padding: 14px 8px 18px !important;
+            border-radius: 20px !important;
+            overflow: hidden !important;
+          }
+
+          .dashboard-panel .nico-calendar-title {
+            font-size: 19px !important;
+            line-height: 1.15 !important;
+            white-space: nowrap !important;
+          }
+
+          .dashboard-panel .nico-week-grid {
+            display: grid !important;
+            grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+            gap: 4px !important;
+            width: 100% !important;
+            overflow: hidden !important;
+            margin-bottom: 10px !important;
+          }
+
+          .dashboard-panel .nico-day-chip {
+            min-width: 0 !important;
+            width: 100% !important;
+            height: 66px !important;
+            min-height: 66px !important;
+            padding: 6px 1px !important;
+            border-radius: 12px !important;
+          }
+
+          .dashboard-panel .nico-day-chip > div:nth-child(1) {
+            font-size: 9px !important;
+          }
+
+          .dashboard-panel .nico-day-chip > div:nth-child(2) {
+            font-size: 17px !important;
+          }
+
+          .dashboard-panel .nico-day-chip > div:nth-child(3) {
+            font-size: 9px !important;
+          }
+
+          .dashboard-panel .nico-timeline-scroll {
+            width: 100% !important;
+            max-width: 100% !important;
+            overflow-x: hidden !important;
+          }
+
+          .dashboard-panel .nico-timeline-inner {
+            width: 100% !important;
+            min-width: 0 !important;
+            max-width: 100% !important;
+          }
+
+          .dashboard-panel .nico-staff-header,
+          .dashboard-panel .nico-timeline-grid {
+            display: grid !important;
+            grid-template-columns:
+              44px repeat(var(--nico-staff-count), minmax(0, 1fr)) !important;
+            width: 100% !important;
+            min-width: 0 !important;
+          }
+
+          .dashboard-panel .nico-staff-header > div {
+            min-width: 0 !important;
+            padding-left: 5px !important;
+            padding-right: 5px !important;
+            font-size: 11px !important;
+          }
+
+          .dashboard-panel .nico-timeline-grid > div {
+            min-width: 0 !important;
+          }
+
+          .dashboard-panel .nico-timeline-grid button {
+            left: 4px !important;
+            right: 4px !important;
+            padding: 7px 7px !important;
+            border-radius: 12px !important;
+          }
+
+          .dashboard-panel .nico-timeline-grid button > div:first-child {
+            font-size: 11.5px !important;
+          }
+
+          .dashboard-panel .nico-timeline-grid button > div:last-child {
+            font-size: 9.5px !important;
+          }
+        }
+
+        @media (max-width: 390px) {
+          .dashboard-panel .nico-calendar-card {
+            padding-left: 6px !important;
+            padding-right: 6px !important;
+          }
+
+          .dashboard-panel .nico-day-chip {
+            height: 62px !important;
+            min-height: 62px !important;
+            border-radius: 11px !important;
+          }
+
+          .dashboard-panel .nico-staff-header,
+          .dashboard-panel .nico-timeline-grid {
+            grid-template-columns:
+              40px repeat(var(--nico-staff-count), minmax(0, 1fr)) !important;
+          }
+        }
+      `}</style>
+
+      <div
+        className="nico-calendar-card"
       style={{
         background: '#ffffff',
         borderRadius: 26,
@@ -3437,7 +3554,7 @@ function NicoTimelineCalendar({
         </button>
 
         <div style={{ textAlign: 'center', minWidth: 0 }}>
-          <div style={{ fontSize: 22, fontWeight: 950, letterSpacing: '-0.035em' }}>{dayTitle}</div>
+          <div className="nico-calendar-title" style={{ fontSize: 22, fontWeight: 950, letterSpacing: '-0.035em' }}>{dayTitle}</div>
           <div style={{ fontSize: 11.5, color: '#8e8e93', fontWeight: 750, marginTop: 3 }}>
             Vista diaria por profesional
           </div>
@@ -3453,6 +3570,7 @@ function NicoTimelineCalendar({
       </div>
 
       <div
+        className="nico-week-grid"
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(7, minmax(58px, 1fr))',
@@ -3467,6 +3585,7 @@ function NicoTimelineCalendar({
 
           return (
             <button
+              className="nico-day-chip"
               key={item.key}
               type="button"
               onClick={() => onDateChange(item.key)}
@@ -3491,9 +3610,16 @@ function NicoTimelineCalendar({
         })}
       </div>
 
-      <div style={{ overflowX: 'auto', paddingBottom: 4 }}>
-        <div style={{ minWidth: timeGutter + staffColumns.length * columnWidth }}>
+      <div className="nico-timeline-scroll" style={{ overflowX: 'auto', paddingBottom: 4 }}>
+        <div
+          className="nico-timeline-inner"
+          style={{
+            minWidth: timeGutter + staffColumns.length * columnWidth,
+            '--nico-staff-count': Math.max(staffColumns.length, 1),
+          }}
+        >
           <div
+            className="nico-staff-header"
             style={{
               display: 'grid',
               gridTemplateColumns: `${timeGutter}px repeat(${Math.max(staffColumns.length, 1)}, ${columnWidth}px)`,
@@ -3514,6 +3640,7 @@ function NicoTimelineCalendar({
           </div>
 
           <div
+            className="nico-timeline-grid"
             style={{
               display: 'grid',
               gridTemplateColumns: `${timeGutter}px repeat(${Math.max(staffColumns.length, 1)}, ${columnWidth}px)`,
@@ -3612,7 +3739,8 @@ function NicoTimelineCalendar({
           No hay reservas para este día.
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }
 
