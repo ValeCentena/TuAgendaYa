@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Capacitor } from '@capacitor/core';
+import { LocalNotifications } from '@capacitor/local-notifications';
 import { CapacitorContacts } from '@capgo/capacitor-contacts';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import BookPage from './pages/BookPage.jsx';
@@ -384,6 +385,118 @@ function getBookingDateValue(booking) {
 function formatTime(t) {
   if (!t) return null;
   return String(t).slice(0, 5);
+}
+
+
+function isNativeIosApp() {
+  return Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
+}
+
+function getLocalNotificationId(prefix, value) {
+  const text = String(value ?? '');
+  let hash = 0;
+
+  for (let index = 0; index < text.length; index += 1) {
+    hash = ((hash << 5) - hash + text.charCodeAt(index)) | 0;
+  }
+
+  const positiveHash = Math.abs(hash || 1) % 400000000;
+  return prefix + positiveHash;
+}
+
+function getBookingStartDateTime(booking) {
+  const dateKey = getDateKeyFromValue(getBookingDateValue(booking));
+  const timeValue = formatTime(booking?.startTime ?? booking?.start_time);
+
+  if (!dateKey || !timeValue) return null;
+
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const [hour, minute] = timeValue.split(':').map(Number);
+
+  if (!year || !month || !day || Number.isNaN(hour) || Number.isNaN(minute)) return null;
+
+  const date = new Date(year, month - 1, day, hour, minute, 0, 0);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+async function showNativeNewBookingNotification(booking, totalNew = 1) {
+  if (!isNativeIosApp()) return;
+
+  const permission = await LocalNotifications.checkPermissions();
+  if (permission.display !== 'granted') return;
+
+  const clientName = String(booking?.clientName ?? booking?.client_name ?? 'Cliente').trim() || 'Cliente';
+  const serviceName = String(booking?.serviceName ?? booking?.service_name ?? 'Reserva').trim() || 'Reserva';
+  const dateText = formatDate(getBookingDateValue(booking));
+  const timeText = formatTime(booking?.startTime ?? booking?.start_time) || 'Sin hora';
+  const extraText = Number(totalNew) > 1 ? ` (+${Number(totalNew) - 1} más)` : '';
+
+  await LocalNotifications.schedule({
+    notifications: [
+      {
+        id: getLocalNotificationId(1000000000, booking?.id ?? Date.now()),
+        title: Number(totalNew) > 1 ? `${totalNew} reservas nuevas` : 'Nueva reserva',
+        body: `${clientName} · ${serviceName} · ${dateText} ${timeText}${extraText}`,
+        schedule: { at: new Date(Date.now() + 1000) },
+        extra: {
+          tuagendayaType: 'new-booking',
+          bookingId: booking?.id ?? null,
+        },
+      },
+    ],
+  });
+}
+
+async function syncNativeBookingReminderNotifications(bookings = []) {
+  if (!isNativeIosApp()) return;
+
+  const permission = await LocalNotifications.checkPermissions();
+  if (permission.display !== 'granted') return;
+
+  const pending = await LocalNotifications.getPending();
+  const previousReminderNotifications = (pending.notifications || []).filter((notification) =>
+    notification?.extra?.tuagendayaType === 'booking-reminder'
+    || (Number(notification?.id) >= 1500000000 && Number(notification?.id) < 1900000000)
+  );
+
+  if (previousReminderNotifications.length > 0) {
+    await LocalNotifications.cancel({
+      notifications: previousReminderNotifications.map((notification) => ({ id: notification.id })),
+    });
+  }
+
+  const now = Date.now();
+  const reminders = [];
+
+  for (const booking of bookings) {
+    const status = String(booking?.status || '').trim().toLowerCase();
+    if (status === 'cancelled' || status === 'canceled' || status === 'completed' || status === 'no_show' || status === 'no-show') continue;
+
+    const startDate = getBookingStartDateTime(booking);
+    if (!startDate) continue;
+
+    const reminderAt = new Date(startDate.getTime() - (60 * 60 * 1000));
+    if (reminderAt.getTime() <= now) continue;
+
+    const clientName = String(booking?.clientName ?? booking?.client_name ?? 'Cliente').trim() || 'Cliente';
+    const serviceName = String(booking?.serviceName ?? booking?.service_name ?? 'Reserva').trim() || 'Reserva';
+    const timeText = formatTime(booking?.startTime ?? booking?.start_time) || '';
+
+    reminders.push({
+      id: getLocalNotificationId(1500000000, booking?.id ?? `${getBookingDateValue(booking)}-${timeText}-${clientName}`),
+      title: 'Cita en 1 hora',
+      body: `${clientName} · ${serviceName}${timeText ? ` · ${timeText}` : ''}`,
+      schedule: { at: reminderAt },
+      extra: {
+        tuagendayaType: 'booking-reminder',
+        bookingId: booking?.id ?? null,
+      },
+    });
+  }
+
+  if (reminders.length > 0) {
+    await LocalNotifications.schedule({ notifications: reminders });
+  }
 }
 
 function formatMoney(value) {
@@ -3812,6 +3925,7 @@ function ReservationsSection() {
   const knownBookingIdsRef = useRef(new Set());
   const bookingsBootstrappedRef = useRef(false);
   const notificationTimeoutRef = useRef(null);
+  const nativeReminderSignatureRef = useRef('');
 
   const playPanelNotificationSound = () => {
     try {
@@ -4063,12 +4177,34 @@ useEffect(() => {
             })[0];
 
             showNewBookingNotification(newestBooking, newBookings.length);
+            showNativeNewBookingNotification(newestBooking, newBookings.length).catch((error) => {
+              console.error('No se pudo mostrar la notificación local de nueva reserva:', error);
+            });
           }
 
           knownBookingIdsRef.current = nextIds;
         }
 
         setBookings(nextBookings);
+
+        if (isNativeIosApp()) {
+          const reminderSignature = nextBookings
+            .map((booking) => [
+              booking?.id ?? '',
+              getBookingDateValue(booking) ?? '',
+              booking?.startTime ?? booking?.start_time ?? '',
+              booking?.status ?? '',
+            ].join(':'))
+            .sort()
+            .join('|');
+
+          if (nativeReminderSignatureRef.current !== reminderSignature) {
+            nativeReminderSignatureRef.current = reminderSignature;
+            syncNativeBookingReminderNotifications(nextBookings).catch((error) => {
+              console.error('No se pudieron sincronizar los recordatorios de citas:', error);
+            });
+          }
+        }
       })
       .catch(() => {
         if (showLoading) {
@@ -16384,6 +16520,26 @@ function CookiesPage() {
 }
 
 export default function App() {
+  useEffect(() => {
+    if (!isNativeIosApp()) return;
+
+    const initializeLocalNotifications = async () => {
+      try {
+        let permission = await LocalNotifications.checkPermissions();
+
+        if (permission.display === 'prompt' || permission.display === 'prompt-with-rationale') {
+          permission = await LocalNotifications.requestPermissions();
+        }
+
+        if (permission.display !== 'granted') return;
+      } catch (error) {
+        console.error('No se pudieron inicializar las notificaciones locales:', error);
+      }
+    };
+
+    initializeLocalNotifications();
+  }, []);
+
   return (
     <>
       <MobileViewportController />
