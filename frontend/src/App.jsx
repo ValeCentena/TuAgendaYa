@@ -3363,15 +3363,29 @@ function NicoTimelineCalendar({
     (booking) => !(booking.staffId ?? booking.staff_id)
   );
 
+  const normalizeNameKey = (value) =>
+    String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+      .toLowerCase();
+
+  const ownerNameKey = normalizeNameKey(ownerName);
+  const ownerStaffMatch = activeStaff.find(
+    (member) => ownerNameKey && normalizeNameKey(member.name) === ownerNameKey
+  );
+
   const columns = [...activeStaff];
 
-  if (needsOwnerColumn || columns.length === 0) {
+  if ((needsOwnerColumn || columns.length === 0) && !ownerStaffMatch) {
     columns.unshift({
       id: 'owner',
       name: ownerName || 'Profesional principal',
       color: '#0071e3',
     });
   }
+
+  const ownerColumnId = ownerStaffMatch ? String(ownerStaffMatch.id) : 'owner';
 
   dayBookings.forEach((booking) => {
     const staffId = booking.staffId ?? booking.staff_id;
@@ -3418,22 +3432,22 @@ function NicoTimelineCalendar({
     <>
       <style>{`
         @media (max-width: 720px) {
-          .dashboard-panel .nico-calendar-card {
+          .nico-calendar-card {
             width: 100% !important;
             max-width: 100% !important;
             box-sizing: border-box !important;
-            padding: 14px 8px 18px !important;
-            border-radius: 20px !important;
+            padding: 12px 6px 18px !important;
+            border-radius: 18px !important;
             overflow: hidden !important;
           }
 
-          .dashboard-panel .nico-calendar-title {
+          .nico-calendar-title {
             font-size: 19px !important;
             line-height: 1.15 !important;
             white-space: nowrap !important;
           }
 
-          .dashboard-panel .nico-week-grid {
+          .nico-week-grid {
             display: grid !important;
             grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
             gap: 4px !important;
@@ -3442,41 +3456,41 @@ function NicoTimelineCalendar({
             margin-bottom: 10px !important;
           }
 
-          .dashboard-panel .nico-day-chip {
+          .nico-day-chip {
             min-width: 0 !important;
             width: 100% !important;
-            height: 66px !important;
-            min-height: 66px !important;
+            height: 64px !important;
+            min-height: 64px !important;
             padding: 6px 1px !important;
             border-radius: 12px !important;
           }
 
-          .dashboard-panel .nico-day-chip > div:nth-child(1) {
+          .nico-day-chip > div:nth-child(1) {
             font-size: 9px !important;
           }
 
-          .dashboard-panel .nico-day-chip > div:nth-child(2) {
+          .nico-day-chip > div:nth-child(2) {
             font-size: 17px !important;
           }
 
-          .dashboard-panel .nico-day-chip > div:nth-child(3) {
+          .nico-day-chip > div:nth-child(3) {
             font-size: 9px !important;
           }
 
-          .dashboard-panel .nico-timeline-scroll {
+          .nico-timeline-scroll {
             width: 100% !important;
             max-width: 100% !important;
             overflow-x: hidden !important;
           }
 
-          .dashboard-panel .nico-timeline-inner {
+          .nico-timeline-inner {
             width: 100% !important;
             min-width: 0 !important;
             max-width: 100% !important;
           }
 
-          .dashboard-panel .nico-staff-header,
-          .dashboard-panel .nico-timeline-grid {
+          .nico-staff-header,
+          .nico-timeline-grid {
             display: grid !important;
             grid-template-columns:
               44px repeat(var(--nico-staff-count), minmax(0, 1fr)) !important;
@@ -3484,47 +3498,58 @@ function NicoTimelineCalendar({
             min-width: 0 !important;
           }
 
-          .dashboard-panel .nico-staff-header > div {
+          .nico-staff-header > div {
             min-width: 0 !important;
             padding-left: 5px !important;
             padding-right: 5px !important;
             font-size: 11px !important;
           }
 
-          .dashboard-panel .nico-timeline-grid > div {
+          .nico-timeline-grid > div {
             min-width: 0 !important;
           }
 
-          .dashboard-panel .nico-timeline-grid button {
+          .nico-timeline-grid button {
             left: 4px !important;
             right: 4px !important;
             padding: 7px 7px !important;
             border-radius: 12px !important;
           }
 
-          .dashboard-panel .nico-timeline-grid button > div:first-child {
+          .nico-timeline-grid button > div:first-child {
             font-size: 11.5px !important;
           }
 
-          .dashboard-panel .nico-timeline-grid button > div:last-child {
+          .nico-timeline-grid button > div:last-child {
             font-size: 9.5px !important;
+          }
+
+          .nico-view-switch-wrap {
+            width: 100% !important;
+            margin-bottom: 12px !important;
+          }
+
+          .nico-view-switch {
+            width: 100% !important;
+            max-width: 100% !important;
+            border-radius: 16px !important;
           }
         }
 
         @media (max-width: 390px) {
-          .dashboard-panel .nico-calendar-card {
+          .nico-calendar-card {
             padding-left: 6px !important;
             padding-right: 6px !important;
           }
 
-          .dashboard-panel .nico-day-chip {
+          .nico-day-chip {
             height: 62px !important;
             min-height: 62px !important;
             border-radius: 11px !important;
           }
 
-          .dashboard-panel .nico-staff-header,
-          .dashboard-panel .nico-timeline-grid {
+          .nico-staff-header,
+          .nico-timeline-grid {
             grid-template-columns:
               40px repeat(var(--nico-staff-count), minmax(0, 1fr)) !important;
           }
@@ -3660,9 +3685,8 @@ function NicoTimelineCalendar({
             {staffColumns.map((member) => {
               const memberBookings = dayBookings.filter((booking) => {
                 const id = booking.staffId ?? booking.staff_id;
-                return member.id === 'owner'
-                  ? !id
-                  : String(id || '') === String(member.id);
+                if (!id) return String(member.id) === String(ownerColumnId);
+                return String(id) === String(member.id);
               });
 
               return (
@@ -4495,8 +4519,9 @@ useEffect(() => {
       </div>
 
       {isNicoAquinoBusiness && (
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
+        <div className="nico-view-switch-wrap" style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
           <div
+            className="nico-view-switch"
             style={{
               display: 'grid',
               gridTemplateColumns: '1fr 1fr',
