@@ -12032,22 +12032,21 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
                     boxShadow: 'inset 0 0 0 2px rgba(0,113,227,0.28)',
                   }}
                 >
-                  <img
-                    src={publicPhotoCrop.url}
-                    alt="Foto para encuadrar"
-                    draggable="false"
+                  <div
+                    aria-hidden="true"
                     style={{
                       position: 'absolute',
-                      left: '50%',
-                      top: '50%',
-                      width: publicPhotoCrop.width,
-                      height: publicPhotoCrop.height,
-                      maxWidth: 'none',
-                      maxHeight: 'none',
+                      left: `calc(50% + ${publicPhotoOffset.x}px)`,
+                      top: `calc(50% + ${publicPhotoOffset.y}px)`,
+                      width: `${publicPhotoCrop.width * Math.max(280 / publicPhotoCrop.width, 280 / publicPhotoCrop.height) * publicPhotoZoom}px`,
+                      height: `${publicPhotoCrop.height * Math.max(280 / publicPhotoCrop.width, 280 / publicPhotoCrop.height) * publicPhotoZoom}px`,
+                      transform: 'translate(-50%, -50%)',
+                      backgroundImage: `url("${publicPhotoCrop.url}")`,
+                      backgroundSize: '100% 100%',
+                      backgroundPosition: 'center',
+                      backgroundRepeat: 'no-repeat',
                       userSelect: 'none',
                       pointerEvents: 'none',
-                      transformOrigin: 'center center',
-                      transform: `translate(-50%, -50%) translate(${publicPhotoOffset.x}px, ${publicPhotoOffset.y}px) scale(${Math.max(280 / publicPhotoCrop.width, 280 / publicPhotoCrop.height) * publicPhotoZoom})`,
                     }}
                   />
                 </div>
