@@ -3436,13 +3436,13 @@ function NicoTimelineCalendar({
             width: 100% !important;
             max-width: 100% !important;
             box-sizing: border-box !important;
-            padding: 12px 6px 18px !important;
+            padding: 12px 8px 16px !important;
             border-radius: 18px !important;
             overflow: hidden !important;
           }
 
           .nico-calendar-title {
-            font-size: 19px !important;
+            font-size: 18px !important;
             line-height: 1.15 !important;
             white-space: nowrap !important;
           }
@@ -3453,59 +3453,63 @@ function NicoTimelineCalendar({
             gap: 4px !important;
             width: 100% !important;
             overflow: hidden !important;
-            margin-bottom: 10px !important;
+            margin-bottom: 12px !important;
           }
 
           .nico-day-chip {
             min-width: 0 !important;
             width: 100% !important;
-            height: 64px !important;
-            min-height: 64px !important;
-            padding: 6px 1px !important;
-            border-radius: 12px !important;
+            height: 58px !important;
+            min-height: 58px !important;
+            padding: 5px 1px !important;
+            border-radius: 11px !important;
           }
 
-          .nico-day-chip > div:nth-child(1) {
-            font-size: 9px !important;
-          }
+          .nico-day-chip > div:nth-child(1) { font-size: 8.5px !important; }
+          .nico-day-chip > div:nth-child(2) { font-size: 16px !important; }
+          .nico-day-chip > div:nth-child(3) { font-size: 8.5px !important; }
 
-          .nico-day-chip > div:nth-child(2) {
-            font-size: 17px !important;
-          }
-
-          .nico-day-chip > div:nth-child(3) {
-            font-size: 9px !important;
-          }
-
+          /* La grilla móvil conserva una columna fija de horas a la izquierda
+             y las columnas de profesionales/reservas a la derecha. */
           .nico-timeline-scroll {
             width: 100% !important;
             max-width: 100% !important;
-            overflow-x: hidden !important;
+            overflow-x: auto !important;
+            overflow-y: hidden !important;
+            -webkit-overflow-scrolling: touch !important;
           }
 
           .nico-timeline-inner {
-            width: 100% !important;
-            min-width: 0 !important;
-            max-width: 100% !important;
+            width: max(100%, calc(44px + (var(--nico-staff-count) * 120px))) !important;
+            min-width: max(100%, calc(44px + (var(--nico-staff-count) * 120px))) !important;
           }
 
           .nico-staff-header,
           .nico-timeline-grid {
             display: grid !important;
-            grid-template-columns:
-              44px repeat(var(--nico-staff-count), minmax(0, 1fr)) !important;
+            grid-template-columns: 44px repeat(var(--nico-staff-count), minmax(120px, 1fr)) !important;
             width: 100% !important;
-            min-width: 0 !important;
+            min-width: 100% !important;
           }
 
-          .nico-staff-header > div {
-            min-width: 0 !important;
-            padding-left: 5px !important;
-            padding-right: 5px !important;
-            font-size: 11px !important;
+          .nico-staff-header > div:first-child,
+          .nico-timeline-grid > div:first-child {
+            position: sticky !important;
+            left: 0 !important;
+            z-index: 4 !important;
+            background: #ffffff !important;
           }
 
-          .nico-timeline-grid > div {
+          .nico-staff-header > div:not(:first-child) {
+            min-width: 0 !important;
+            padding: 0 6px !important;
+            font-size: 10.5px !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+          }
+
+          .nico-timeline-grid > div:not(:first-child) {
             min-width: 0 !important;
           }
 
@@ -3513,15 +3517,15 @@ function NicoTimelineCalendar({
             left: 4px !important;
             right: 4px !important;
             padding: 7px 7px !important;
-            border-radius: 12px !important;
+            border-radius: 11px !important;
           }
 
           .nico-timeline-grid button > div:first-child {
-            font-size: 11.5px !important;
+            font-size: 11px !important;
           }
 
           .nico-timeline-grid button > div:last-child {
-            font-size: 9.5px !important;
+            font-size: 9px !important;
           }
 
           .nico-view-switch-wrap {
@@ -3543,15 +3547,19 @@ function NicoTimelineCalendar({
           }
 
           .nico-day-chip {
-            height: 62px !important;
-            min-height: 62px !important;
-            border-radius: 11px !important;
+            height: 54px !important;
+            min-height: 54px !important;
+            border-radius: 10px !important;
+          }
+
+          .nico-timeline-inner {
+            width: max(100%, calc(40px + (var(--nico-staff-count) * 116px))) !important;
+            min-width: max(100%, calc(40px + (var(--nico-staff-count) * 116px))) !important;
           }
 
           .nico-staff-header,
           .nico-timeline-grid {
-            grid-template-columns:
-              40px repeat(var(--nico-staff-count), minmax(0, 1fr)) !important;
+            grid-template-columns: 40px repeat(var(--nico-staff-count), minmax(116px, 1fr)) !important;
           }
         }
       `}</style>
@@ -3671,11 +3679,11 @@ function NicoTimelineCalendar({
               gridTemplateColumns: `${timeGutter}px repeat(${Math.max(staffColumns.length, 1)}, ${columnWidth}px)`,
             }}
           >
-            <div style={{ position: 'relative', height: timelineHeight }}>
+            <div className="nico-time-gutter" style={{ position: 'relative', height: timelineHeight }}>
               {hours.map((hour) => (
                 <div
                   key={hour}
-                  style={{ position: 'absolute', top: (hour - startHour) * 60 * minuteHeight - 8, right: 9, fontSize: 11.5, fontWeight: 800, color: '#8e8e93', whiteSpace: 'nowrap' }}
+                  style={{ position: 'absolute', top: (hour - startHour) * 60 * minuteHeight - 8, left: 0, right: 6, textAlign: 'right', fontSize: 11, fontWeight: 800, color: '#8e8e93', whiteSpace: 'nowrap' }}
                 >
                   {pad(hour)}:00
                 </div>
