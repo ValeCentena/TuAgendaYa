@@ -11255,7 +11255,9 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
       image.src = publicPhotoCrop.url;
       await image.decode();
 
-      const outputSize = 1024;
+      // La foto original puede pesar hasta 48 MB, pero nunca se envía así al servidor.
+      // Guardamos un recorte cuadrado liviano, suficiente para la foto circular del perfil.
+      const outputSize = 720;
       const viewport = 280;
       const baseScale = Math.max(viewport / publicPhotoCrop.width, viewport / publicPhotoCrop.height);
       const displayScale = baseScale * publicPhotoZoom;
@@ -11280,7 +11282,33 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
         displayedHeight * outputScale
       );
 
-      const optimizedDataUrl = canvas.toDataURL('image/jpeg', 0.86);
+      const canvasToBlob = (quality) =>
+        new Promise((resolve, reject) => {
+          canvas.toBlob(
+            (blob) => (blob ? resolve(blob) : reject(new Error('image-compression-failed'))),
+            'image/jpeg',
+            quality
+          );
+        });
+
+      // Intentamos mantener el archivo final por debajo de ~600 KB.
+      let quality = 0.78;
+      let optimizedBlob = await canvasToBlob(quality);
+      while (optimizedBlob.size > 600 * 1024 && quality > 0.48) {
+        quality = Math.max(0.48, quality - 0.08);
+        optimizedBlob = await canvasToBlob(quality);
+      }
+
+      const optimizedDataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(new Error('image-read-failed'));
+        reader.readAsDataURL(optimizedBlob);
+      });
+
+      if (!optimizedDataUrl.startsWith('data:image/jpeg;base64,')) {
+        throw new Error('image-output-invalid');
+      }
 
       setForm((current) => ({
         ...current,
@@ -11344,18 +11372,35 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
         }),
       });
 
-      const data = await res.json();
+      const responseText = await res.text();
+      let data = {};
+
+      if (responseText) {
+        try {
+          data = JSON.parse(responseText);
+        } catch {
+          data = {};
+        }
+      }
 
       if (!res.ok) {
-        setError(data.error || 'No se pudo guardar el perfil.');
+        const serverMessage = data.error || data.message;
+        if (serverMessage) {
+          setError(serverMessage);
+        } else if (res.status === 413) {
+          setError('La imagen sigue siendo demasiado pesada para el servidor. Volvé a encuadrarla e intentá nuevamente.');
+        } else {
+          setError(`No se pudo guardar el perfil (error ${res.status}).`);
+        }
       } else {
         const normalized = normalizeProfessionalFromApi(data.professional);
         localStorage.setItem('tuagendaya_professional', JSON.stringify(normalized));
         onProfileUpdated(normalized);
         setMessage('Perfil del negocio guardado correctamente.');
       }
-    } catch {
-      setError('No se pudo conectar con el servidor.');
+    } catch (saveError) {
+      console.error('Error al guardar el perfil:', saveError);
+      setError('No se pudo conectar con el servidor. Revisá tu conexión e intentá nuevamente.');
     } finally {
       setSaving(false);
     }
