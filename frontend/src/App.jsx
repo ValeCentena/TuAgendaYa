@@ -10936,6 +10936,10 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
   const [profilePushStatus, setProfilePushStatus] = useState('checking');
   const [profilePushMessage, setProfilePushMessage] = useState('');
   const [profilePushLoading, setProfilePushLoading] = useState(false);
+  const [publicPhotoCrop, setPublicPhotoCrop] = useState(null);
+  const [publicPhotoZoom, setPublicPhotoZoom] = useState(1);
+  const [publicPhotoOffset, setPublicPhotoOffset] = useState({ x: 0, y: 0 });
+  const publicPhotoDragRef = useRef(null);
 
   const token = localStorage.getItem('tuagendaya_token');
 
@@ -11130,6 +11134,34 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
     }
   };
 
+  const clampPublicPhotoOffset = (offset, zoom = publicPhotoZoom, crop = publicPhotoCrop) => {
+    if (!crop) return { x: 0, y: 0 };
+
+    const viewport = 280;
+    const baseScale = Math.max(viewport / crop.width, viewport / crop.height);
+    const displayedWidth = crop.width * baseScale * zoom;
+    const displayedHeight = crop.height * baseScale * zoom;
+    const maxX = Math.max(0, (displayedWidth - viewport) / 2);
+    const maxY = Math.max(0, (displayedHeight - viewport) / 2);
+
+    return {
+      x: Math.max(-maxX, Math.min(maxX, offset.x)),
+      y: Math.max(-maxY, Math.min(maxY, offset.y)),
+    };
+  };
+
+  const closePublicPhotoCrop = () => {
+    if (publicPhotoCrop?.url) URL.revokeObjectURL(publicPhotoCrop.url);
+    setPublicPhotoCrop(null);
+    setPublicPhotoZoom(1);
+    setPublicPhotoOffset({ x: 0, y: 0 });
+    publicPhotoDragRef.current = null;
+
+    if (publicProfileImageInputRef.current) {
+      publicProfileImageInputRef.current.value = '';
+    }
+  };
+
   const handlePublicProfileImageFileChange = (event) => {
     const file = event.target.files?.[0];
 
@@ -11154,23 +11186,112 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
       return;
     }
 
-    const reader = new FileReader();
+    const objectUrl = URL.createObjectURL(file);
+    const image = new Image();
 
-    reader.onload = () => {
-      const dataUrl = String(reader.result || '');
+    image.onload = () => {
+      setPublicPhotoCrop({
+        url: objectUrl,
+        width: image.naturalWidth || image.width,
+        height: image.naturalHeight || image.height,
+        name: file.name,
+      });
+      setPublicPhotoZoom(1);
+      setPublicPhotoOffset({ x: 0, y: 0 });
+    };
+
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      setError('No se pudo abrir la foto pública. Probá con otra imagen.');
+      event.target.value = '';
+    };
+
+    image.src = objectUrl;
+  };
+
+  const handlePublicPhotoZoomChange = (event) => {
+    const nextZoom = Number(event.target.value);
+    setPublicPhotoZoom(nextZoom);
+    setPublicPhotoOffset((current) => clampPublicPhotoOffset(current, nextZoom));
+  };
+
+  const handlePublicPhotoPointerDown = (event) => {
+    if (!publicPhotoCrop) return;
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    publicPhotoDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: publicPhotoOffset.x,
+      originY: publicPhotoOffset.y,
+    };
+  };
+
+  const handlePublicPhotoPointerMove = (event) => {
+    const drag = publicPhotoDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+
+    setPublicPhotoOffset(
+      clampPublicPhotoOffset({
+        x: drag.originX + (event.clientX - drag.startX),
+        y: drag.originY + (event.clientY - drag.startY),
+      })
+    );
+  };
+
+  const handlePublicPhotoPointerEnd = (event) => {
+    if (publicPhotoDragRef.current?.pointerId === event.pointerId) {
+      publicPhotoDragRef.current = null;
+    }
+  };
+
+  const applyPublicPhotoCrop = async () => {
+    if (!publicPhotoCrop) return;
+
+    setError('');
+
+    try {
+      const image = new Image();
+      image.src = publicPhotoCrop.url;
+      await image.decode();
+
+      const outputSize = 1024;
+      const viewport = 280;
+      const baseScale = Math.max(viewport / publicPhotoCrop.width, viewport / publicPhotoCrop.height);
+      const displayScale = baseScale * publicPhotoZoom;
+      const outputScale = outputSize / viewport;
+      const displayedWidth = publicPhotoCrop.width * displayScale;
+      const displayedHeight = publicPhotoCrop.height * displayScale;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = outputSize;
+      canvas.height = outputSize;
+      const context = canvas.getContext('2d');
+
+      if (!context) throw new Error('canvas-unavailable');
+
+      context.fillStyle = '#ffffff';
+      context.fillRect(0, 0, outputSize, outputSize);
+      context.drawImage(
+        image,
+        ((viewport - displayedWidth) / 2 + publicPhotoOffset.x) * outputScale,
+        ((viewport - displayedHeight) / 2 + publicPhotoOffset.y) * outputScale,
+        displayedWidth * outputScale,
+        displayedHeight * outputScale
+      );
+
+      const optimizedDataUrl = canvas.toDataURL('image/jpeg', 0.86);
 
       setForm((current) => ({
         ...current,
-        publicProfileImageUrl: dataUrl,
+        publicProfileImageUrl: optimizedDataUrl,
       }));
-      setMessage('Foto pública cargada. Guardá el perfil para aplicar el cambio.');
-    };
-
-    reader.onerror = () => {
-      setError('No se pudo leer la foto pública.');
-    };
-
-    reader.readAsDataURL(file);
+      setMessage('Foto encuadrada y optimizada. Guardá el perfil para aplicar el cambio.');
+      closePublicPhotoCrop();
+    } catch (cropError) {
+      console.error('Error al encuadrar la foto pública:', cropError);
+      setError('No se pudo procesar la foto. Probá con otra imagen.');
+    }
   };
 
   const clearPublicProfileImage = () => {
@@ -11815,6 +11936,131 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
             </div>
           )}
 
+          {publicPhotoCrop && (
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Encuadrar foto pública"
+              style={{
+                position: 'fixed',
+                inset: 0,
+                zIndex: 99999,
+                background: 'rgba(0, 0, 0, 0.56)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 18,
+              }}
+            >
+              <div
+                style={{
+                  width: 'min(100%, 390px)',
+                  background: '#fff',
+                  borderRadius: 24,
+                  padding: 18,
+                  boxShadow: '0 24px 70px rgba(0,0,0,0.28)',
+                }}
+              >
+                <div style={{ fontSize: 20, fontWeight: 900, color: '#111827', marginBottom: 4 }}>
+                  Encuadrar foto
+                </div>
+                <div style={{ fontSize: 13, color: '#6e6e73', lineHeight: 1.45, marginBottom: 16 }}>
+                  Arrastrá la imagen para acomodarla y usá el zoom hasta que quede como querés.
+                </div>
+
+                <div
+                  onPointerDown={handlePublicPhotoPointerDown}
+                  onPointerMove={handlePublicPhotoPointerMove}
+                  onPointerUp={handlePublicPhotoPointerEnd}
+                  onPointerCancel={handlePublicPhotoPointerEnd}
+                  style={{
+                    width: 280,
+                    height: 280,
+                    maxWidth: '100%',
+                    margin: '0 auto',
+                    borderRadius: '50%',
+                    overflow: 'hidden',
+                    position: 'relative',
+                    background: '#e9eaee',
+                    touchAction: 'none',
+                    cursor: 'grab',
+                    boxShadow: 'inset 0 0 0 2px rgba(0,113,227,0.28)',
+                  }}
+                >
+                  <img
+                    src={publicPhotoCrop.url}
+                    alt="Foto para encuadrar"
+                    draggable="false"
+                    style={{
+                      position: 'absolute',
+                      left: '50%',
+                      top: '50%',
+                      width: publicPhotoCrop.width,
+                      height: publicPhotoCrop.height,
+                      maxWidth: 'none',
+                      maxHeight: 'none',
+                      userSelect: 'none',
+                      pointerEvents: 'none',
+                      transformOrigin: 'center center',
+                      transform: `translate(-50%, -50%) translate(${publicPhotoOffset.x}px, ${publicPhotoOffset.y}px) scale(${Math.max(280 / publicPhotoCrop.width, 280 / publicPhotoCrop.height) * publicPhotoZoom})`,
+                    }}
+                  />
+                </div>
+
+                <div style={{ marginTop: 18 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 800, color: '#6e6e73', marginBottom: 7 }}>
+                    <span>Zoom</span>
+                    <span>{Math.round(publicPhotoZoom * 100)}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="1"
+                    max="3"
+                    step="0.01"
+                    value={publicPhotoZoom}
+                    onChange={handlePublicPhotoZoomChange}
+                    style={{ width: '100%', accentColor: '#0071e3' }}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 18 }}>
+                  <button
+                    type="button"
+                    onClick={closePublicPhotoCrop}
+                    style={{
+                      minHeight: 46,
+                      borderRadius: 14,
+                      border: '1px solid #d8d8dd',
+                      background: '#fff',
+                      color: '#1a1a1a',
+                      fontWeight: 800,
+                      fontFamily: 'inherit',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={applyPublicPhotoCrop}
+                    style={{
+                      minHeight: 46,
+                      borderRadius: 14,
+                      border: 'none',
+                      background: '#0071e3',
+                      color: '#fff',
+                      fontWeight: 800,
+                      fontFamily: 'inherit',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Usar foto
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           <label style={smallLabelStyle}>Foto pública del profesional</label>
 
           <div
@@ -11857,7 +12103,7 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
                   Imagen que verá el cliente
                 </div>
                 <div style={{ fontSize: 12, color: '#6e6e73', lineHeight: 1.45 }}>
-                  Podés usar una foto tuya o un logo. Es independiente del logo principal del negocio y se mostrará en círculo junto a tu nombre en la página de reservas.
+                  Podés elegir una imagen de hasta 48 MB. Antes de guardarla vas a poder moverla y hacer zoom para encuadrarla; TuAgendaYa la optimiza automáticamente. Es independiente del logo principal del negocio.
                 </div>
               </div>
 
