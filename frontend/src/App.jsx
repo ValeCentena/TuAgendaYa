@@ -4038,7 +4038,7 @@ function ReservationsSection() {
   const [bookingNotification, setBookingNotification] = useState(null);
   const [newBookingCount, setNewBookingCount] = useState(0);
   const [manualBookingOpen, setManualBookingOpen] = useState(false);
-  const [nicoAgendaMode, setNicoAgendaMode] = useState('calendar');
+  const [nicoAgendaMode, setNicoAgendaMode] = useState('list');
   const [nicoCalendarDateKey, setNicoCalendarDateKey] = useState(() => {
     const now = new Date();
     const y = now.getFullYear();
@@ -4232,30 +4232,30 @@ useEffect(() => {
   }
 
   const businessName = storedProfessional.businessName || storedProfessional.business_name || storedProfessional.name || '';
-  const nicoIdentityText = normalizeSearchText(
-    `${businessName} ${storedProfessional.name || ''} ${storedProfessional.slug || ''}`
-  );
-  const isNicoAquinoBusiness =
-    nicoIdentityText.includes('nico') &&
-    nicoIdentityText.includes('aquino');
 
   useEffect(() => {
-    if (!isNicoAquinoBusiness) return undefined;
-
     const token = localStorage.getItem('tuagendaya_token');
     let cancelled = false;
 
-    fetch(`${API_BASE}/staff`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((response) => response.json())
-      .then((data) => {
+    Promise.all([
+      fetch(`${API_BASE}/staff`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }).then((response) => response.json()),
+      fetch(`${API_BASE}/professionals/me/agenda-view`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }).then((response) => response.json()),
+    ])
+      .then(([staffData, agendaViewData]) => {
         if (cancelled) return;
+
         setNicoStaff(
-          (Array.isArray(data.staff) ? data.staff : [])
+          (Array.isArray(staffData.staff) ? staffData.staff : [])
             .map(normalizeStaff)
             .filter((member) => member.isActive !== false)
         );
+
+        const savedMode = agendaViewData.agendaViewMode || agendaViewData.agenda_view_mode;
+        setNicoAgendaMode(savedMode === 'calendar' ? 'calendar' : 'list');
       })
       .catch(() => {
         if (!cancelled) setNicoStaff([]);
@@ -4264,7 +4264,33 @@ useEffect(() => {
     return () => {
       cancelled = true;
     };
-  }, [isNicoAquinoBusiness]);
+  }, []);
+
+  const changeAgendaMode = async (mode) => {
+    if (mode !== 'list' && mode !== 'calendar') return;
+
+    const previousMode = nicoAgendaMode;
+    setNicoAgendaMode(mode);
+
+    try {
+      const token = localStorage.getItem('tuagendaya_token');
+      const response = await fetch(`${API_BASE}/professionals/me/agenda-view`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ agendaViewMode: mode }),
+      });
+
+      if (!response.ok) {
+        throw new Error('No se pudo guardar la vista de agenda');
+      }
+    } catch (error) {
+      console.error('Error guardando vista de agenda:', error);
+      setNicoAgendaMode(previousMode);
+    }
+  };
 
   const fetchBookings = useCallback((showLoading = false) => {
     const token = localStorage.getItem('tuagendaya_token');
@@ -4792,7 +4818,7 @@ useEffect(() => {
         </button>
       </div>
 
-      {isNicoAquinoBusiness && (
+      {
         <div className="nico-view-switch-wrap" style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
           <div
             className="nico-view-switch"
@@ -4816,7 +4842,7 @@ useEffect(() => {
                 <button
                   key={key}
                   type="button"
-                  onClick={() => setNicoAgendaMode(key)}
+                  onClick={() => changeAgendaMode(key)}
                   style={{
                     border: 'none',
                     borderRadius: 14,
@@ -4835,7 +4861,7 @@ useEffect(() => {
             })}
           </div>
         </div>
-      )}
+      }
 
       {bookingNotification && (
         <div
@@ -4947,18 +4973,18 @@ useEffect(() => {
         </div>
       )}
 
-      {isNicoAquinoBusiness && nicoAgendaMode === 'calendar' && !loadingBookings && (
+      {nicoAgendaMode === 'calendar' && !loadingBookings && (
         <NicoTimelineCalendar
           bookings={bookings}
           staff={nicoStaff}
           selectedDateKey={nicoCalendarDateKey}
           onDateChange={setNicoCalendarDateKey}
           onBookingOpen={openBookingFromNicoCalendar}
-          ownerName={storedProfessional.name || businessName || 'Nico Aquino'}
+          ownerName={storedProfessional.name || businessName || 'Profesional principal'}
         />
       )}
 
-      {(!isNicoAquinoBusiness || nicoAgendaMode === 'list') && !loadingBookings && (
+      {nicoAgendaMode === 'list' && !loadingBookings && (
         <div style={{ background: '#fff', borderRadius: 22, padding: '18px 20px', marginBottom: 16, boxShadow: '0 1px 8px rgba(0,0,0,0.05)' }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
             <div>
@@ -4991,7 +5017,7 @@ useEffect(() => {
         </div>
       )}
 
-      <div style={{ display: isNicoAquinoBusiness && nicoAgendaMode === 'calendar' ? 'none' : 'flex', gap: 10, marginBottom: 16 }}>
+      <div style={{ display: nicoAgendaMode === 'calendar' ? 'none' : 'flex', gap: 10, marginBottom: 16 }}>
         <button type="button" onClick={() => setReservationView('today')} style={reservationViewButtonStyle('today')}>
           Hoy ({todayBookings.length})
         </button>
@@ -5003,7 +5029,7 @@ useEffect(() => {
         </button>
       </div>
 
-      <div style={{ background: '#fff', borderRadius: 20, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)', display: isNicoAquinoBusiness && nicoAgendaMode === 'calendar' ? 'none' : 'block' }}>
+      <div style={{ background: '#fff', borderRadius: 20, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)', display: nicoAgendaMode === 'calendar' ? 'none' : 'block' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
           <div>
             <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>{currentTitle}</div>

@@ -770,6 +770,7 @@ async function ensureProfessionalSettingsColumns() {
   await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS allow_client_cancellations INTEGER DEFAULT 1`);
   await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS cancellation_limit_minutes INTEGER DEFAULT 0`);
   await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS accepted_payment_methods TEXT DEFAULT 'cash,transfer,online'`);
+  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS agenda_view_mode TEXT DEFAULT 'list'`);
   await db.query(`ALTER TABLE professionals ALTER COLUMN min_advance_hours SET DEFAULT 0`).catch(() => {});
 }
 
@@ -932,6 +933,55 @@ async function syncActiveServicesToLegacyTable(professionalId) {
   }
 }
 
+
+// ══════════════════════════════════════════════════════════════
+// VISTA DE AGENDA
+// ══════════════════════════════════════════════════════════════
+
+router.get('/me/agenda-view', authMiddleware, async (req, res) => {
+  try {
+    await ensureProfessionalSettingsColumns();
+    const professionalId = req.professional.id;
+    const row = (await db.query(
+      `SELECT agenda_view_mode FROM professionals WHERE id = $1 LIMIT 1`,
+      [professionalId]
+    )).rows[0];
+
+    const mode = row?.agenda_view_mode === 'calendar' ? 'calendar' : 'list';
+    setNoStoreHeaders(res);
+    return res.json({ agendaViewMode: mode, agenda_view_mode: mode });
+  } catch (err) {
+    console.error('GET /me/agenda-view error:', err);
+    return res.status(500).json({ error: 'Error obteniendo la vista de agenda' });
+  }
+});
+
+router.patch('/me/agenda-view', authMiddleware, async (req, res) => {
+  try {
+    await ensureProfessionalSettingsColumns();
+    const professionalId = req.professional.id;
+    const requestedMode = req.body.agendaViewMode !== undefined
+      ? req.body.agendaViewMode
+      : req.body.agenda_view_mode;
+    const mode = requestedMode === 'calendar' ? 'calendar' : requestedMode === 'list' ? 'list' : null;
+
+    if (!mode) {
+      return res.status(400).json({ error: 'Vista de agenda inválida' });
+    }
+
+    await db.query(
+      `UPDATE professionals
+       SET agenda_view_mode = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2`,
+      [mode, professionalId]
+    );
+
+    return res.json({ success: true, agendaViewMode: mode, agenda_view_mode: mode });
+  } catch (err) {
+    console.error('PATCH /me/agenda-view error:', err);
+    return res.status(500).json({ error: 'Error guardando la vista de agenda' });
+  }
+});
 
 // ══════════════════════════════════════════════════════════════
 // AJUSTES DEL NEGOCIO
