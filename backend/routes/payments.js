@@ -118,6 +118,30 @@ async function getMercadoPagoConnection(professionalId) {
 }
 
 
+function isLifetimeFreeProfessional(professional = {}) {
+  return professional?.lifetime_free === true || professional?.lifetimeFree === true;
+}
+
+async function ensureNicoLifetimeFree() {
+  await db.query(
+    `UPDATE professionals
+     SET lifetime_free = TRUE,
+         status = 'active',
+         plan = 'Profesional',
+         plan_payment_status = 'paid',
+         plan_expires_at = NULL,
+         billing_method = 'lifetime_free',
+         plan_price = 0,
+         updated_at = NOW()
+     WHERE lifetime_free IS NOT TRUE
+       AND (
+         (LOWER(COALESCE(slug, '')) LIKE '%nico%' AND LOWER(COALESCE(slug, '')) LIKE '%aquino%')
+         OR
+         (LOWER(COALESCE(business_name, '')) LIKE '%nico%' AND LOWER(COALESCE(business_name, '')) LIKE '%aquino%')
+       )`
+  );
+}
+
 function getLaunchPromotionConfig(professional = {}) {
   const freeMonths = Number(professional.promo_free_months ?? process.env.PROMO_FREE_MONTHS ?? 2) || 2;
   const discountMonths = Number(professional.promo_discount_months ?? process.env.PROMO_DISCOUNT_MONTHS ?? 2) || 2;
@@ -150,6 +174,21 @@ function addMonthsSafe(date, months) {
 
 function getPromotionState(professional = {}) {
   const config = getLaunchPromotionConfig(professional);
+
+  if (isLifetimeFreeProfessional(professional)) {
+    return {
+      stage: 'lifetime_free',
+      label: 'Gratis de por vida',
+      daysLeft: 0,
+      amount: 0,
+      baseAmount: config.basePrice,
+      discountPercent: 100,
+      currency: config.currency,
+      startedAt: professional.created_at || config.startedAt,
+      freeUntil: null,
+      discountUntil: null,
+    };
+  }
   const startDate = new Date(config.startedAt);
 
   if (Number.isNaN(startDate.getTime())) {
@@ -500,6 +539,8 @@ async function ensureBillingSchema() {
   await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS billing_method TEXT;`);
   await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS plan_price NUMERIC(10, 2) DEFAULT 0;`);
   await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS plan_currency TEXT DEFAULT 'UYU';`);
+  await db.query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS lifetime_free BOOLEAN DEFAULT FALSE;`);
+  await ensureNicoLifetimeFree();
   await db.query(`ALTER TABLE plan_payments ADD COLUMN IF NOT EXISTS seen_by_admin BOOLEAN DEFAULT FALSE;`).catch(() => {});
   await db.query(`ALTER TABLE plan_payments ADD COLUMN IF NOT EXISTS notified_at TIMESTAMP;`).catch(() => {});
   await db.query(`
@@ -571,6 +612,28 @@ function hasFuturePlanExpiration(professional) {
 async function normalizePaidStatusFromExpiration(professional) {
   if (!professional || !professional.id) return professional;
 
+  if (isLifetimeFreeProfessional(professional)) {
+    if (professional.plan_payment_status === 'paid' && professional.status === 'active' && professional.billing_method === 'lifetime_free') {
+      return professional;
+    }
+
+    const result = await db.query(
+      `UPDATE professionals
+       SET status = 'active',
+           plan = 'Profesional',
+           plan_payment_status = 'paid',
+           plan_expires_at = NULL,
+           billing_method = 'lifetime_free',
+           plan_price = 0,
+           updated_at = NOW()
+       WHERE id = $1
+       RETURNING *`,
+      [professional.id]
+    );
+
+    return result.rows[0] || professional;
+  }
+
   const shouldBePaid = hasFuturePlanExpiration(professional);
 
   if (!shouldBePaid || professional.plan_payment_status === "paid") {
@@ -595,13 +658,18 @@ async function normalizePaidStatusFromExpiration(professional) {
 
 function serializePlan(professional, latestPayment) {
   const promotion = getPromotionState(professional);
+  const lifetimeFree = isLifetimeFreeProfessional(professional);
   const isPaidByExpiration = hasFuturePlanExpiration(professional);
-  const status = isPaidByExpiration
-    ? "paid"
-    : professional.plan_payment_status || (latestPayment?.status === "pending" && latestPayment?.method === "transfer" ? "pending_transfer" : "pending");
+  const status = lifetimeFree
+    ? 'paid'
+    : isPaidByExpiration
+      ? 'paid'
+      : professional.plan_payment_status || (latestPayment?.status === 'pending' && latestPayment?.method === 'transfer' ? 'pending_transfer' : 'pending');
 
   return {
-    plan: isPaidByExpiration && String(professional.plan || "gratis").toLowerCase() === "gratis" ? "Profesional" : professional.plan || "gratis",
+    plan: lifetimeFree ? 'Profesional' : (isPaidByExpiration && String(professional.plan || "gratis").toLowerCase() === "gratis" ? "Profesional" : professional.plan || "gratis"),
+    lifetimeFree,
+    lifetime_free: lifetimeFree,
     monthlyLimit: Number(professional.monthly_limit || 1000),
     monthly_limit: Number(professional.monthly_limit || 1000),
     paymentStatus: status,
@@ -813,8 +881,10 @@ router.get("/me/plan", async (req, res, next) => {
     }
 
     await ensureProfessionalPromotion(professionalId);
+    await ensureNicoLifetimeFree();
 
-    const normalizedProfessional = await normalizePaidStatusFromExpiration(professional);
+    const refreshedProfessional = await getProfessional(professionalId);
+    const normalizedProfessional = await normalizePaidStatusFromExpiration(refreshedProfessional || professional);
     const latestPayment = await getLatestPayment(professionalId);
     res.json({ plan: serializePlan(normalizedProfessional, latestPayment) });
   } catch (error) {
@@ -830,6 +900,13 @@ router.post("/me/transfer", async (req, res, next) => {
 
     if (!professional) {
       return res.status(404).json({ error: "Profesional no encontrado" });
+    }
+
+    if (isLifetimeFreeProfessional(professional)) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Esta cuenta tiene membresía gratuita de por vida. No corresponde realizar pagos.',
+      });
     }
 
     const reference = `TY-${professionalId}`;
@@ -868,6 +945,13 @@ router.post("/me/transfer-notify", async (req, res, next) => {
 
     if (!professional) {
       return res.status(404).json({ error: "Profesional no encontrado" });
+    }
+
+    if (isLifetimeFreeProfessional(professional)) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Esta cuenta tiene membresía gratuita de por vida. No corresponde realizar pagos.',
+      });
     }
 
     const reference = `TY-${professionalId}`;
@@ -949,6 +1033,13 @@ router.post("/me/checkout", async (req, res, next) => {
 
     if (!professional) {
       return res.status(404).json({ error: "Profesional no encontrado" });
+    }
+
+    if (isLifetimeFreeProfessional(professional)) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Esta cuenta tiene membresía gratuita de por vida. No corresponde realizar pagos.',
+      });
     }
 
     await ensureProfessionalPromotion(professionalId);

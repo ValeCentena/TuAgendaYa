@@ -11577,13 +11577,16 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
   const transferReference = billingInfo?.transferReference || billingInfo?.transfer_reference || `TuAgendaYa-${professional?.id || publicSlug || 'plan'}`;
   const transferConcept = billingInfo?.transferConcept || billingInfo?.transfer_concept || `TuAgendaYa plan ${professional?.businessName || professional?.business_name || professional?.name || ''}`.trim();
   const promotion = billingInfo?.promotion || {};
+  const lifetimeFree = Boolean(billingInfo?.lifetimeFree ?? billingInfo?.lifetime_free);
   const promoStage = promotion.stage || 'normal';
   const promoLabel = promotion.label || '';
   const promoDaysLeft = Number(promotion.daysLeft || promotion.days_left || 0);
   const basePlanAmount = Number(billingInfo?.baseAmount || billingInfo?.base_amount || planAmount || 0) || 0;
   const isPromoFree = promoStage === 'free';
   const isPromoDiscount = promoStage === 'discount';
-  const billingStatusText = isPromoFree
+  const billingStatusText = lifetimeFree
+    ? 'Gratis de por vida'
+    : isPromoFree
     ? 'Gratis'
     : isPromoDiscount
       ? '50% descuento'
@@ -11594,8 +11597,8 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
           : billingStatus === 'pending_transfer'
             ? 'Transferencia pendiente'
             : 'Pendiente';
-  const billingStatusColor = isPromoFree || isPromoDiscount ? '#0071e3' : billingStatus === 'paid' ? '#188038' : billingStatus === 'overdue' ? '#ff453a' : '#ff9f0a';
-  const planExpiresLabel = planExpiresAt ? new Date(planExpiresAt).toLocaleDateString('es-UY') : 'Sin vencimiento cargado';
+  const billingStatusColor = lifetimeFree ? '#188038' : isPromoFree || isPromoDiscount ? '#0071e3' : billingStatus === 'paid' ? '#188038' : billingStatus === 'overdue' ? '#ff453a' : '#ff9f0a';
+  const planExpiresLabel = lifetimeFree ? 'No vence' : planExpiresAt ? new Date(planExpiresAt).toLocaleDateString('es-UY') : 'Sin vencimiento cargado';
   const planGraceDays = Number(billingInfo?.graceDays || billingInfo?.grace_days || 5);
   const planExpiresDate = planExpiresAt ? new Date(planExpiresAt) : null;
   const planGraceUntil = planExpiresDate && !Number.isNaN(planExpiresDate.getTime())
@@ -11607,7 +11610,7 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
   const planGraceDaysLeft = planGraceUntil
     ? Math.ceil((planGraceUntil.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     : null;
-  const shouldShowPlanReminder = isPromoFree || isPromoDiscount || billingStatus !== 'paid' || (planDaysToExpire !== null && planDaysToExpire <= 5);
+  const shouldShowPlanReminder = !lifetimeFree && (isPromoFree || isPromoDiscount || billingStatus !== 'paid' || (planDaysToExpire !== null && planDaysToExpire <= 5));
   const planReminderText = isPromoFree
     ? `Promoción de lanzamiento activa: te quedan ${promoDaysLeft} día${promoDaysLeft === 1 ? '' : 's'} gratis. Después tenés 2 meses con 50% de descuento.`
     : isPromoDiscount
@@ -11863,16 +11866,26 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
         )}
 
         <div id="pago-del-plan" style={{ marginTop: 14, color: '#1a1a1a', fontSize: 16, fontWeight: 950 }}>
-          Promoción y pago
+          {lifetimeFree ? 'Membresía' : 'Promoción y pago'}
         </div>
 
-        {paymentSyncLoading && (
+        {lifetimeFree && (
+          <div style={{ marginTop: 8, background: '#edfff3', border: '0.5px solid #c9f1d5', borderRadius: 18, padding: 14 }}>
+            <div style={{ fontSize: 15, fontWeight: 950, color: '#188038' }}>Membresía gratuita de por vida</div>
+            <div style={{ fontSize: 12.5, color: '#4f6f59', fontWeight: 700, marginTop: 4, lineHeight: 1.45 }}>
+              Esta cuenta no tiene vencimiento y no necesita realizar pagos.
+            </div>
+          </div>
+        )}
+
+        {!lifetimeFree && paymentSyncLoading && (
           <div style={{ marginTop: 10, borderRadius: 14, padding: '10px 12px', background: '#eef6ff', border: '0.5px solid #cfe5ff', color: '#0071e3', fontSize: 12.5, fontWeight: 850 }}>
             Confirmando pago con Mercado Pago...
           </div>
         )}
 
-        <div className="plan-payment-card" style={{ marginTop: 8, background: '#fff', border: '0.5px solid #e8e8ed', borderRadius: 18, padding: 14 }}>
+        {!lifetimeFree && (
+          <div className="plan-payment-card" style={{ marginTop: 8, background: '#fff', border: '0.5px solid #e8e8ed', borderRadius: 18, padding: 14 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 12 }}>
             <div>
               <div style={{ fontSize: 15, fontWeight: 950, color: '#1a1a1a' }}>Pago del plan</div>
@@ -11955,7 +11968,8 @@ function BusinessProfileSection({ professional, onProfileUpdated }) {
               </button>
             </div>
           )}
-        </div>
+          </div>
+        )}
       </div>
 
       <div style={{ background: '#fff', borderRadius: 20, padding: '20px 24px', boxShadow: '0 1px 8px rgba(0,0,0,0.06)' }}>

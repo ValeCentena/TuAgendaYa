@@ -354,6 +354,7 @@ async function initDB() {
       `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS billing_method TEXT`,
       `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS plan_price NUMERIC(10, 2) DEFAULT 0`,
       `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS plan_currency TEXT DEFAULT 'UYU'`,
+      `ALTER TABLE professionals ADD COLUMN IF NOT EXISTS lifetime_free BOOLEAN DEFAULT FALSE`,
       `ALTER TABLE plan_payments ADD COLUMN IF NOT EXISTS seen_by_admin BOOLEAN DEFAULT FALSE`,
       `ALTER TABLE plan_payments ADD COLUMN IF NOT EXISTS notified_at TIMESTAMP`,
       `ALTER TABLE plan_payments ADD COLUMN IF NOT EXISTS mp_status TEXT`,
@@ -406,6 +407,7 @@ async function ensureLaunchPromotionSchema() {
   await query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS last_payment_at TIMESTAMP`);
   await query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS billing_method TEXT`);
   await query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS monthly_limit INTEGER DEFAULT 1000`);
+  await query(`ALTER TABLE professionals ADD COLUMN IF NOT EXISTS lifetime_free BOOLEAN DEFAULT FALSE`);
 
   await query(`
     UPDATE professionals
