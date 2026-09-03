@@ -2932,6 +2932,8 @@ function ManualBookingModal({ open, initialClient = null, onClose, onCreated }) 
   const [error, setError] = useState('');
   const [timePickerOpen, setTimePickerOpen] = useState(false);
   const [bookingStartIntervalMinutes, setBookingStartIntervalMinutes] = useState(30);
+  const [manualClients, setManualClients] = useState([]);
+  const [clientSuggestionsOpen, setClientSuggestionsOpen] = useState(false);
   const [form, setForm] = useState({
     clientName: '',
     clientPhone: '',
@@ -2963,6 +2965,7 @@ function ManualBookingModal({ open, initialClient = null, onClose, onCreated }) 
     });
     setError('');
     setSaving(false);
+    setClientSuggestionsOpen(false);
 
     const token = localStorage.getItem('tuagendaya_token');
     setLoadingOptions(true);
@@ -2989,11 +2992,52 @@ function ManualBookingModal({ open, initialClient = null, onClose, onCreated }) 
         if (!response.ok) throw new Error(data.error || 'No se pudo cargar el intervalo de horarios');
         return Number(data.bookingStartIntervalMinutes) === 60 ? 60 : 30;
       }),
+      fetch(`${API_BASE}/bookings/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }).then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || 'No se pudieron cargar los clientes');
+        return Array.isArray(data.bookings) ? data.bookings : [];
+      }),
+      fetch(`${API_BASE}/professionals/me/clients`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }).then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) return [];
+        return Array.isArray(data.clients) ? data.clients : [];
+      }),
     ])
-      .then(([nextServices, nextStaff, nextInterval]) => {
+      .then(([nextServices, nextStaff, nextInterval, existingBookings, importedClients]) => {
         setServices(nextServices);
         setStaff(nextStaff);
         setBookingStartIntervalMinutes(nextInterval);
+
+        const clientMap = new Map();
+        const addClient = (nameValue, phoneValue) => {
+          const name = String(nameValue || '').trim();
+          const phone = String(phoneValue || '').trim();
+          if (!name && !phone) return;
+
+          const identityKey = normalizePhoneForWhatsApp(phone) || `name:${normalizeSearchText(name)}`;
+          if (!identityKey || identityKey === 'name:') return;
+
+          const current = clientMap.get(identityKey);
+          clientMap.set(identityKey, {
+            name: name || current?.name || 'Sin nombre',
+            phone: phone || current?.phone || '',
+          });
+        };
+
+        existingBookings.forEach((booking) => {
+          addClient(booking.clientName ?? booking.client_name, booking.clientPhone ?? booking.client_phone);
+        });
+        importedClients.forEach((client) => {
+          addClient(client.name ?? client.clientName ?? client.client_name, client.phone ?? client.clientPhone ?? client.client_phone);
+        });
+
+        setManualClients(
+          Array.from(clientMap.values()).sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }))
+        );
         setForm((current) => ({
           ...current,
           serviceId: nextServices.length === 1 ? String(nextServices[0].id) : current.serviceId,
@@ -3021,6 +3065,31 @@ function ManualBookingModal({ open, initialClient = null, onClose, onCreated }) 
 
   const updateField = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }));
+    setError('');
+  };
+
+  const clientSearch = normalizeSearchText(form.clientName);
+  const filteredManualClients = clientSearch
+    ? manualClients
+        .filter((client) => normalizeSearchText(client.name).includes(clientSearch))
+        .sort((a, b) => {
+          const aName = normalizeSearchText(a.name);
+          const bName = normalizeSearchText(b.name);
+          const aStarts = aName.startsWith(clientSearch) ? 0 : 1;
+          const bStarts = bName.startsWith(clientSearch) ? 0 : 1;
+          if (aStarts !== bStarts) return aStarts - bStarts;
+          return a.name.localeCompare(b.name, 'es', { sensitivity: 'base' });
+        })
+        .slice(0, 8)
+    : [];
+
+  const selectManualClient = (client) => {
+    setForm((current) => ({
+      ...current,
+      clientName: client.name || '',
+      clientPhone: client.phone || '',
+    }));
+    setClientSuggestionsOpen(false);
     setError('');
   };
 
@@ -3140,14 +3209,70 @@ function ManualBookingModal({ open, initialClient = null, onClose, onCreated }) 
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 12 }}>
-          <label>
+          <label style={{ position: 'relative' }}>
             <span style={{ display: 'block', fontSize: 11.5, color: '#6e6e73', fontWeight: 850, marginBottom: 6 }}>Nombre del cliente</span>
             <input
               value={form.clientName}
-              onChange={(event) => updateField('clientName', event.target.value)}
+              onChange={(event) => {
+                updateField('clientName', event.target.value);
+                setClientSuggestionsOpen(true);
+              }}
+              onFocus={() => {
+                if (form.clientName.trim()) setClientSuggestionsOpen(true);
+              }}
+              onBlur={() => {
+                window.setTimeout(() => setClientSuggestionsOpen(false), 140);
+              }}
               placeholder="Nombre y apellido"
+              autoComplete="off"
               style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }}
             />
+
+            {clientSuggestionsOpen && clientSearch && filteredManualClients.length > 0 && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  zIndex: 40,
+                  marginTop: 5,
+                  background: '#fff',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: 14,
+                  boxShadow: '0 12px 32px rgba(15,23,42,0.16)',
+                  overflow: 'hidden',
+                  maxHeight: 260,
+                  overflowY: 'auto',
+                }}
+              >
+                {filteredManualClients.map((client, index) => (
+                  <button
+                    key={`${normalizePhoneForWhatsApp(client.phone) || normalizeSearchText(client.name)}-${index}`}
+                    type="button"
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      selectManualClient(client);
+                    }}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      border: 'none',
+                      borderBottom: index < filteredManualClients.length - 1 ? '1px solid #f1f1f3' : 'none',
+                      background: '#fff',
+                      textAlign: 'left',
+                      padding: '11px 12px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <div style={{ fontSize: 13.5, fontWeight: 850, color: '#111827' }}>{client.name || 'Sin nombre'}</div>
+                    {client.phone && (
+                      <div style={{ fontSize: 11.5, color: '#6e6e73', marginTop: 2, fontWeight: 650 }}>{client.phone}</div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
           </label>
 
           <label>
