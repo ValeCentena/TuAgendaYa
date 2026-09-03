@@ -3711,27 +3711,50 @@ router.post("/repeat", async (req, res) => {
         service_price: service.price,
       });
 
-      const confirmationToken = insertedRow.confirmation_token;
+      created.push(normalizedBooking);
+    }
+
+    // Una repetición es una sola acción del profesional: enviamos una única
+    // confirmación agrupada con las fechas que realmente se pudieron crear.
+    // Los recordatorios individuales (cliente 2 h / profesional 1 h) siguen
+    // funcionando por cada reserva y no se alteran aquí.
+    if (created.length > 0) {
+      const createdDateKeys = created
+        .map((booking) => String(booking.booking_date || booking.bookingDate || "").slice(0, 10))
+        .filter(Boolean);
+
+      const formattedDates = createdDateKeys.map((dateKey) => {
+        const match = dateKey.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (!match) return dateKey;
+        return `${match[3]}/${match[2]}/${match[1].slice(-2)}`;
+      });
+
+      const datesSummary = formattedDates.join(", ");
+      const firstCreated = created[0];
+      const firstConfirmationToken =
+        firstCreated.confirmation_token || firstCreated.confirmationToken || "";
+
+      const groupedBookingPayload = {
+        ...firstCreated,
+        client_phone: safeClientPhone,
+        clientPhone: safeClientPhone,
+        client_name: safeClientName,
+        clientName: safeClientName,
+        service_name: service.name || "Servicio",
+        serviceName: service.name || "Servicio",
+        staff_name: staff ? staff.name : null,
+        staffName: staff ? staff.name : null,
+        booking_date: datesSummary,
+        bookingDate: datesSummary,
+        start_time: startTime,
+        startTime,
+        confirmation_token: firstConfirmationToken,
+        confirmationToken: firstConfirmationToken,
+      };
 
       try {
         await sendBookingConfirmationMessage(
-          {
-            ...normalizedBooking,
-            client_phone: safeClientPhone,
-            clientPhone: safeClientPhone,
-            client_name: safeClientName,
-            clientName: safeClientName,
-            service_name: service.name || "Servicio",
-            serviceName: service.name || "Servicio",
-            staff_name: staff ? staff.name : null,
-            staffName: staff ? staff.name : null,
-            booking_date: bookingDate,
-            bookingDate,
-            start_time: startTime,
-            startTime,
-            confirmation_token: confirmationToken,
-            confirmationToken,
-          },
+          groupedBookingPayload,
           {
             ...professional,
             business_name: professional.business_name || professional.name || "TuAgendaYa",
@@ -3739,50 +3762,32 @@ router.post("/repeat", async (req, res) => {
           }
         );
       } catch (whatsappError) {
-        console.warn("Repeated booking WhatsApp confirmation skipped:", whatsappError.message);
+        console.warn("Repeated booking grouped WhatsApp confirmation skipped:", whatsappError.message);
       }
 
       try {
-        await sendBusinessBookingNotification(
-          {
-            ...normalizedBooking,
-            client_phone: safeClientPhone,
-            clientPhone: safeClientPhone,
-            client_name: safeClientName,
-            clientName: safeClientName,
-            service_name: service.name || "Servicio",
-            serviceName: service.name || "Servicio",
-            staff_name: staff ? staff.name : null,
-            staffName: staff ? staff.name : null,
-            booking_date: bookingDate,
-            bookingDate,
-            start_time: startTime,
-            startTime,
-          },
-          professional
-        );
+        await sendBusinessBookingNotification(groupedBookingPayload, professional);
       } catch (businessWhatsappError) {
-        console.warn("Repeated booking business notification skipped:", businessWhatsappError.message);
+        console.warn("Repeated booking grouped business notification skipped:", businessWhatsappError.message);
       }
 
       try {
         await sendPushToProfessional(professionalId, {
-          title: "Nueva reserva en TuAgendaYa",
-          body: `${safeClientName} tiene una reserva de ${service.name || "un servicio"} para el ${bookingDate} a las ${startTime}`,
+          title: created.length > 1 ? "Citas repetidas creadas" : "Nueva reserva en TuAgendaYa",
+          body: `${safeClientName} · ${service.name || "Servicio"} · ${datesSummary} · ${startTime}`,
           icon: "/tuagendaya-logo.png",
           badge: "/tuagendaya-logo.png",
           url: "/profesional/dashboard",
-          bookingId: insertedRow.id,
+          bookingId: firstCreated.id,
+          bookingIds: created.map((booking) => booking.id).filter(Boolean),
           clientName: safeClientName,
           serviceName: service.name || "Servicio",
-          bookingDate,
+          bookingDates: createdDateKeys,
           startTime,
         });
       } catch (pushError) {
-        console.warn("Repeated booking push notification skipped:", pushError.message);
+        console.warn("Repeated booking grouped push notification skipped:", pushError.message);
       }
-
-      created.push(normalizedBooking);
     }
 
     return res.status(201).json({

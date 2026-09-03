@@ -419,7 +419,7 @@ function getBookingStartDateTime(booking) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-async function showNativeNewBookingNotification(booking, totalNew = 1) {
+async function showNativeNewBookingNotification(booking, totalNew = 1, newBookings = []) {
   if (!isNativeIosApp()) return;
 
   const permission = await LocalNotifications.checkPermissions();
@@ -427,16 +427,19 @@ async function showNativeNewBookingNotification(booking, totalNew = 1) {
 
   const clientName = String(booking?.clientName ?? booking?.client_name ?? 'Cliente').trim() || 'Cliente';
   const serviceName = String(booking?.serviceName ?? booking?.service_name ?? 'Reserva').trim() || 'Reserva';
-  const dateText = formatDate(getBookingDateValue(booking));
   const timeText = formatTime(booking?.startTime ?? booking?.start_time) || 'Sin hora';
-  const extraText = Number(totalNew) > 1 ? ` (+${Number(totalNew) - 1} más)` : '';
+  const groupedBookings = Array.isArray(newBookings) && newBookings.length > 1 ? newBookings : [booking];
+  const dateTexts = [...new Set(groupedBookings
+    .map((item) => formatDate(getBookingDateValue(item)))
+    .filter(Boolean))];
+  const dateText = dateTexts.join(', ') || formatDate(getBookingDateValue(booking));
 
   await LocalNotifications.schedule({
     notifications: [
       {
         id: getLocalNotificationId(1000000000, booking?.id ?? Date.now()),
-        title: Number(totalNew) > 1 ? `${totalNew} reservas nuevas` : 'Nueva reserva',
-        body: `${clientName} · ${serviceName} · ${dateText} ${timeText}${extraText}`,
+        title: Number(totalNew) > 1 ? 'Citas repetidas creadas' : 'Nueva reserva',
+        body: `${clientName} · ${serviceName} · ${dateText} · ${timeText}`,
         schedule: { at: new Date(Date.now() + 1000) },
         extra: {
           tuagendayaType: 'new-booking',
@@ -4084,10 +4087,14 @@ function ReservationsSection() {
     }
   };
 
-  const showNewBookingNotification = useCallback((booking, totalNew = 1) => {
+  const showNewBookingNotification = useCallback((booking, totalNew = 1, newBookings = []) => {
     const clientName = String(booking?.clientName ?? booking?.client_name ?? 'Cliente').trim() || 'Cliente';
     const serviceName = String(booking?.serviceName ?? booking?.service_name ?? 'Reserva').trim() || 'Reserva';
-    const dateText = formatDate(getBookingDateValue(booking));
+    const groupedBookings = Array.isArray(newBookings) && newBookings.length > 1 ? newBookings : [booking];
+    const dateTexts = [...new Set(groupedBookings
+      .map((item) => formatDate(getBookingDateValue(item)))
+      .filter(Boolean))];
+    const dateText = dateTexts.join(', ') || formatDate(getBookingDateValue(booking));
     const timeText = formatTime(booking?.startTime ?? booking?.start_time) || 'Sin hora';
 
     setBookingNotification({
@@ -4327,8 +4334,8 @@ useEffect(() => {
               return dateB - dateA;
             })[0];
 
-            showNewBookingNotification(newestBooking, newBookings.length);
-            showNativeNewBookingNotification(newestBooking, newBookings.length).catch((error) => {
+            showNewBookingNotification(newestBooking, newBookings.length, newBookings);
+            showNativeNewBookingNotification(newestBooking, newBookings.length, newBookings).catch((error) => {
               console.error('No se pudo mostrar la notificación local de nueva reserva:', error);
             });
           }
