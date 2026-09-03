@@ -4943,43 +4943,6 @@ useEffect(() => {
         </div>
       )}
 
-      {pushStatus !== 'enabled' && (
-        <div style={{ background: '#fff', borderRadius: 22, padding: '16px 18px', marginBottom: 16, border: '0.5px solid #e5e5ea', boxShadow: '0 1px 8px rgba(0,0,0,0.05)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
-            <div style={{ minWidth: 220, flex: 1 }}>
-              <div style={{ fontSize: 15, fontWeight: 900, color: '#1a1a1a', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span>🔔</span>
-                <span>Notificaciones de nuevas reservas</span>
-              </div>
-              <div style={{ fontSize: 12.5, color: '#6e6e73', fontWeight: 650, marginTop: 4, lineHeight: 1.4 }}>
-                {pushMessage || 'Activá las notificaciones para recibir avisos aunque no tengas TuAgendaYa abierto.'}
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={enablePushNotifications}
-              disabled={pushLoading || pushStatus === 'unsupported'}
-              style={{
-                border: 'none',
-                borderRadius: 999,
-                background: pushStatus === 'unsupported' ? '#c7c7cc' : '#0071e3',
-                color: '#fff',
-                padding: '11px 15px',
-                fontSize: 13,
-                fontWeight: 900,
-                fontFamily: 'inherit',
-                cursor: pushLoading || pushStatus === 'unsupported' ? 'default' : 'pointer',
-                whiteSpace: 'nowrap',
-                boxShadow: pushStatus === 'unsupported' ? 'none' : '0 10px 24px rgba(0,113,227,0.18)',
-              }}
-            >
-              {pushLoading ? 'Activando...' : 'Activar notificaciones'}
-            </button>
-          </div>
-        </div>
-      )}
-
       {nicoAgendaMode === 'calendar' && !loadingBookings && (
         <NicoTimelineCalendar
           bookings={bookings}
