@@ -7180,12 +7180,18 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
       }
 
       const createdCount = Number(data.createdCount || 0);
+      const existingCount = Number(data.existingCount || 0);
       const conflictCount = Number(data.conflictCount || 0);
+      const confirmedCount = Number(data.confirmedCount || createdCount + existingCount);
 
       setResultMessage(
-        `${createdCount} ${createdCount === 1 ? 'cita creada' : 'citas creadas'}${
+        `${confirmedCount} ${confirmedCount === 1 ? 'cita lista' : 'citas listas'}${
+          existingCount > 0
+            ? ` · ${existingCount} ${existingCount === 1 ? 'ya existía' : 'ya existían'}`
+            : ''
+        }${
           conflictCount > 0
-            ? ` · ${conflictCount} ${conflictCount === 1 ? 'horario ocupado no se creó' : 'horarios ocupados no se crearon'}`
+            ? ` · ${conflictCount} ${conflictCount === 1 ? 'horario realmente ocupado' : 'horarios realmente ocupados'}`
             : ''
         }`
       );

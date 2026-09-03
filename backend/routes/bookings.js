@@ -3422,6 +3422,54 @@ async function getRepeatSourceBooking(professionalId, bookingId) {
   return result.rows[0] || null;
 }
 
+async function findExistingRepeatedBooking({
+  queryClient,
+  professionalId,
+  staffId,
+  serviceId,
+  clientName,
+  clientPhone,
+  bookingDate,
+  startTime,
+  endTime,
+}) {
+  const phoneDigits = String(clientPhone || "").replace(/\D/g, "");
+  const normalizedName = String(clientName || "").trim().toLowerCase();
+
+  const result = await queryClient.query(
+    `
+    SELECT *
+    FROM bookings
+    WHERE professional_id = $1
+      AND staff_id IS NOT DISTINCT FROM $2::integer
+      AND service_id = $3
+      AND booking_date = $4
+      AND start_time = $5
+      AND end_time = $6
+      AND status <> 'cancelled'
+      AND (
+        ($7 <> '' AND regexp_replace(COALESCE(client_phone, ''), '[^0-9]', '', 'g') = $7)
+        OR
+        ($7 = '' AND $8 <> '' AND LOWER(TRIM(COALESCE(client_name, ''))) = $8)
+      )
+    ORDER BY id ASC
+    LIMIT 1
+    `,
+    [
+      professionalId,
+      staffId || null,
+      Number(serviceId),
+      bookingDate,
+      startTime,
+      endTime,
+      phoneDigits,
+      normalizedName,
+    ]
+  );
+
+  return result.rows[0] || null;
+}
+
 async function inspectRepeatedBookingDates(
   professionalId,
   sourceBooking,
@@ -3600,7 +3648,9 @@ router.post("/repeat", async (req, res) => {
     };
 
     const created = [];
-    const createdDateKeys = [];
+    const existing = [];
+    const confirmedSeries = [];
+    const confirmedDateKeys = [];
     const conflicts = [];
 
     for (const bookingDate of dates) {
@@ -3633,6 +3683,41 @@ router.post("/repeat", async (req, res) => {
           "SELECT pg_advisory_xact_lock(hashtext($1))",
           [bookingLockKey]
         );
+
+        // Si esta misma cita ya existe para este cliente, servicio, profesional
+        // interno, fecha y horario, no la duplicamos ni la tratamos como un
+        // conflicto. Esto hace que "Repetir cita" sea idempotente ante
+        // reintentos y permite resumir correctamente una serie parcialmente
+        // creada en un intento anterior.
+        const existingRow = await findExistingRepeatedBooking({
+          queryClient: bookingClient,
+          professionalId,
+          staffId: staff ? staff.id : null,
+          serviceId: sourceBooking.service_id,
+          clientName: safeClientName,
+          clientPhone: safeClientPhone,
+          bookingDate,
+          startTime,
+          endTime,
+        });
+
+        if (existingRow) {
+          await bookingClient.query("ROLLBACK");
+          transactionOpen = false;
+
+          const normalizedExisting = normalizeBooking({
+            ...existingRow,
+            staff_name: staff ? staff.name : null,
+            service_name: service.name,
+            service_duration_minutes: service.duration_minutes,
+            service_price: service.price,
+          });
+
+          existing.push(normalizedExisting);
+          confirmedSeries.push(normalizedExisting);
+          confirmedDateKeys.push(bookingDate);
+          continue;
+        }
 
         const lockedAvailable = await isTimeRangeAvailable(
           professionalId,
@@ -3717,26 +3802,25 @@ router.post("/repeat", async (req, res) => {
       });
 
       created.push(normalizedBooking);
+      confirmedSeries.push(normalizedBooking);
       // bookingDate viene de buildRepeatedBookingDates() y ya está normalizada
       // como YYYY-MM-DD. La guardamos directamente para el resumen agrupado.
-      // No usamos booking.booking_date devuelto por PostgreSQL porque puede
-      // llegar como Date y al convertirlo a string se pierde el año al recortar.
-      createdDateKeys.push(bookingDate);
+      confirmedDateKeys.push(bookingDate);
     }
 
     // Una repetición es una sola acción del profesional: enviamos una única
     // confirmación agrupada con las fechas que realmente se pudieron crear.
     // Los recordatorios individuales (cliente 2 h / profesional 1 h) siguen
     // funcionando por cada reserva y no se alteran aquí.
-    if (created.length > 0) {
-      const formattedDates = createdDateKeys.map((dateKey) => {
+    if (confirmedSeries.length > 0 && created.length > 0) {
+      const formattedDates = confirmedDateKeys.map((dateKey) => {
         const match = dateKey.match(/^(\d{4})-(\d{2})-(\d{2})$/);
         if (!match) return dateKey;
         return `${match[3]}/${match[2]}/${match[1].slice(-2)}`;
       });
 
       const datesSummary = formattedDates.join(", ");
-      const firstCreated = created[0];
+      const firstCreated = confirmedSeries[0];
       const firstConfirmationToken =
         firstCreated.confirmation_token || firstCreated.confirmationToken || "";
 
@@ -3779,16 +3863,16 @@ router.post("/repeat", async (req, res) => {
 
       try {
         await sendPushToProfessional(professionalId, {
-          title: created.length > 1 ? "Citas repetidas creadas" : "Nueva reserva en TuAgendaYa",
+          title: confirmedSeries.length > 1 ? "Citas repetidas creadas" : "Nueva reserva en TuAgendaYa",
           body: `${safeClientName} · ${service.name || "Servicio"} · ${datesSummary} · ${startTime}`,
           icon: "/tuagendaya-logo.png",
           badge: "/tuagendaya-logo.png",
           url: "/profesional/dashboard",
           bookingId: firstCreated.id,
-          bookingIds: created.map((booking) => booking.id).filter(Boolean),
+          bookingIds: confirmedSeries.map((booking) => booking.id).filter(Boolean),
           clientName: safeClientName,
           serviceName: service.name || "Servicio",
-          bookingDates: createdDateKeys,
+          bookingDates: confirmedDateKeys,
           startTime,
         });
       } catch (pushError) {
@@ -3800,6 +3884,9 @@ router.post("/repeat", async (req, res) => {
       success: true,
       created,
       createdCount: created.length,
+      existing,
+      existingCount: existing.length,
+      confirmedCount: confirmedSeries.length,
       conflicts,
       conflictCount: conflicts.length,
     });
