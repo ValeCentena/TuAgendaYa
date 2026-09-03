@@ -3600,6 +3600,7 @@ router.post("/repeat", async (req, res) => {
     };
 
     const created = [];
+    const createdDateKeys = [];
     const conflicts = [];
 
     for (const bookingDate of dates) {
@@ -3716,6 +3717,11 @@ router.post("/repeat", async (req, res) => {
       });
 
       created.push(normalizedBooking);
+      // bookingDate viene de buildRepeatedBookingDates() y ya está normalizada
+      // como YYYY-MM-DD. La guardamos directamente para el resumen agrupado.
+      // No usamos booking.booking_date devuelto por PostgreSQL porque puede
+      // llegar como Date y al convertirlo a string se pierde el año al recortar.
+      createdDateKeys.push(bookingDate);
     }
 
     // Una repetición es una sola acción del profesional: enviamos una única
@@ -3723,10 +3729,6 @@ router.post("/repeat", async (req, res) => {
     // Los recordatorios individuales (cliente 2 h / profesional 1 h) siguen
     // funcionando por cada reserva y no se alteran aquí.
     if (created.length > 0) {
-      const createdDateKeys = created
-        .map((booking) => String(booking.booking_date || booking.bookingDate || "").slice(0, 10))
-        .filter(Boolean);
-
       const formattedDates = createdDateKeys.map((dateKey) => {
         const match = dateKey.match(/^(\d{4})-(\d{2})-(\d{2})$/);
         if (!match) return dateKey;
