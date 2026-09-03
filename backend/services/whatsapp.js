@@ -49,34 +49,66 @@ function getBookingValue(booking, ...keys) {
   return "";
 }
 
-function formatDateForMessage(value) {
-  if (!value) return "fecha a confirmar";
+function formatSingleDateForMessage(value, includeYear = true) {
+  if (!value) return "";
 
   const raw = String(value).trim();
+  if (!raw) return "";
 
-  // Si viene como YYYY-MM-DD
+  // YYYY-MM-DD (o timestamp que empieza con esa fecha)
   const isoMatch = raw.slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
 
   if (isoMatch) {
     const year = isoMatch[1].slice(-2);
     const month = isoMatch[2];
     const day = isoMatch[3];
-
-    return `${day}/${month}/${year}`;
+    return includeYear ? `${day}/${month}/${year}` : `${day}/${month}`;
   }
 
-  // Si viene como fecha tipo "Thu Aug 27 2026..."
+  // DD/MM/YY o DD/MM/YYYY ya formateado.
+  const uyMatch = raw.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/);
+  if (uyMatch) {
+    const day = uyMatch[1].padStart(2, "0");
+    const month = uyMatch[2].padStart(2, "0");
+    const year = uyMatch[3]
+      ? String(uyMatch[3]).slice(-2)
+      : "";
+    return includeYear && year ? `${day}/${month}/${year}` : `${day}/${month}`;
+  }
+
+  // Fechas producidas por Date.toDateString(), por ejemplo "Fri Sep 04 2026".
   const parsedDate = new Date(raw);
 
   if (!Number.isNaN(parsedDate.getTime())) {
     const day = String(parsedDate.getDate()).padStart(2, "0");
     const month = String(parsedDate.getMonth() + 1).padStart(2, "0");
     const year = String(parsedDate.getFullYear()).slice(-2);
-
-    return `${day}/${month}/${year}`;
+    return includeYear ? `${day}/${month}/${year}` : `${day}/${month}`;
   }
 
   return raw;
+}
+
+function formatDateForMessage(value) {
+  if (!value) return "fecha a confirmar";
+
+  const raw = String(value).trim();
+
+  // Las citas repetidas llegan agrupadas en una sola cadena separada por comas.
+  // Las mostramos siempre en formato uruguayo corto para evitar nombres de días/meses
+  // en inglés provenientes del locale del servidor.
+  const groupedDates = raw
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  if (groupedDates.length > 1) {
+    return groupedDates
+      .map((item) => formatSingleDateForMessage(item, false))
+      .join(", ");
+  }
+
+  return formatSingleDateForMessage(raw, true) || raw;
 }
 
 function formatTimeForMessage(value) {
