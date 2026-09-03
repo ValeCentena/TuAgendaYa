@@ -3583,8 +3583,12 @@ router.post("/repeat", async (req, res) => {
 
     const startTime = normalizeTime(requestedStartTime);
     const endTime = getRepeatedBookingEndTime(sourceBooking, startTime);
-    const safeClientName = String(sourceBooking.client_name || "").trim();
-    const safeClientPhone = String(sourceBooking.client_phone || "").trim();
+    const safeClientName = String(
+      req.body.clientName ?? req.body.client_name ?? sourceBooking.client_name ?? ""
+    ).trim();
+    const safeClientPhone = String(
+      req.body.clientPhone ?? req.body.client_phone ?? sourceBooking.client_phone ?? ""
+    ).trim();
     const professionalResult = await db.query(
       `SELECT * FROM professionals WHERE id = $1 LIMIT 1`,
       [professionalId]

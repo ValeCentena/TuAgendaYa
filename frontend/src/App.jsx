@@ -7120,6 +7120,8 @@ function RepeatBookingModal({ open, booking, onClose, onCreated }) {
 
   const payload = {
     sourceBookingId: booking.id,
+    clientName: booking.repeatClientName ?? booking.clientName ?? booking.client_name ?? '',
+    clientPhone: booking.repeatClientPhone ?? booking.clientPhone ?? booking.client_phone ?? '',
     firstRepeatDate: selectedDate,
     startTime: selectedTime,
     intervalValue: 1,
@@ -8633,7 +8635,11 @@ function ClientsSection() {
                           {client.lastBooking && (
                             <button
                               type="button"
-                              onClick={() => setRepeatBooking(client.lastBooking)}
+                              onClick={() => setRepeatBooking({
+                                ...client.lastBooking,
+                                repeatClientName: client.name || '',
+                                repeatClientPhone: client.phone || '',
+                              })}
                               style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
