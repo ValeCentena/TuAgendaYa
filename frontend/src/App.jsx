@@ -14378,6 +14378,7 @@ function AdminDashboardPage() {
   const [adminNoteSaving, setAdminNoteSaving] = useState(false);
   const [adminCsvDownloading, setAdminCsvDownloading] = useState('');
   const [adminAudit, setAdminAudit] = useState([]);
+  const [adminAuditOpen, setAdminAuditOpen] = useState(false);
 
   const token = localStorage.getItem('tuagendaya_admin_token');
 
@@ -14916,38 +14917,61 @@ function AdminDashboardPage() {
           )}
         </div>
 
-        <div style={{ background: '#fff', borderRadius: 24, padding: 22, boxShadow: '0 1px 10px rgba(0,0,0,0.06)', marginBottom: 18 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14, flexWrap: 'wrap', marginBottom: 14 }}>
+        <div style={{ background: '#fff', borderRadius: 24, padding: 18, boxShadow: '0 1px 10px rgba(0,0,0,0.06)', marginBottom: 18 }}>
+          <button
+            type="button"
+            onClick={() => setAdminAuditOpen((open) => !open)}
+            aria-expanded={adminAuditOpen}
+            style={{
+              width: '100%',
+              border: 'none',
+              background: 'transparent',
+              padding: 0,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: 14,
+              cursor: 'pointer',
+              textAlign: 'left',
+            }}
+          >
             <div>
               <h2 style={{ margin: '0 0 5px', color: '#1a1a1a', fontSize: 20, fontWeight: 900 }}>Auditoría de cambios</h2>
               <p style={{ margin: 0, color: '#6e6e73', fontSize: 13 }}>Últimas acciones realizadas desde el panel administrador.</p>
             </div>
-            <div style={{ color: '#8e8e93', fontSize: 12, fontWeight: 850 }}>Últimos 50 registros</div>
-          </div>
-
-          {adminAudit.length === 0 ? (
-            <div style={{ background: '#f7f7fb', borderRadius: 16, padding: 14, color: '#8e8e93', fontSize: 13, fontWeight: 800 }}>
-              Todavía no hay acciones administrativas registradas.
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+              <span style={{ color: '#8e8e93', fontSize: 12, fontWeight: 850 }}>Últimos 50 registros</span>
+              <span style={{ color: '#0071e3', fontSize: 22, lineHeight: 1, transform: adminAuditOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform .18s ease' }}>›</span>
             </div>
-          ) : (
-            <div style={{ display: 'grid', gap: 8 }}>
-              {adminAudit.map((entry) => (
-                <div key={entry.id} style={{ border: '1px solid #ececf2', background: '#fbfbfd', borderRadius: 15, padding: '11px 13px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ color: '#1a1a1a', fontSize: 13.5, fontWeight: 900 }}>{getAuditActionLabel(entry)}</div>
-                      <div style={{ color: '#0071e3', fontSize: 12.5, fontWeight: 850, marginTop: 2 }}>{entry.businessName || 'Negocio'}</div>
-                      {getAuditDetail(entry) && (
-                        <div style={{ color: '#6e6e73', fontSize: 12, fontWeight: 700, marginTop: 3 }}>{getAuditDetail(entry)}</div>
-                      )}
-                    </div>
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div style={{ color: '#6e6e73', fontSize: 11.5, fontWeight: 850 }}>{entry.createdAt ? new Date(entry.createdAt).toLocaleString('es-UY') : '—'}</div>
-                      <div style={{ color: '#8e8e93', fontSize: 10.5, fontWeight: 750, marginTop: 2 }}>{entry.adminEmail || 'Admin'}</div>
-                    </div>
-                  </div>
+          </button>
+
+          {adminAuditOpen && (
+            <div style={{ marginTop: 14 }}>
+              {adminAudit.length === 0 ? (
+                <div style={{ background: '#f7f7fb', borderRadius: 16, padding: 14, color: '#8e8e93', fontSize: 13, fontWeight: 800 }}>
+                  Todavía no hay acciones administrativas registradas.
                 </div>
-              ))}
+              ) : (
+                <div style={{ display: 'grid', gap: 8 }}>
+                  {adminAudit.map((entry) => (
+                    <div key={entry.id} style={{ border: '1px solid #ececf2', background: '#fbfbfd', borderRadius: 15, padding: '11px 13px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ color: '#1a1a1a', fontSize: 13.5, fontWeight: 900 }}>{getAuditActionLabel(entry)}</div>
+                          <div style={{ color: '#0071e3', fontSize: 12.5, fontWeight: 850, marginTop: 2 }}>{entry.businessName || 'Negocio'}</div>
+                          {getAuditDetail(entry) && (
+                            <div style={{ color: '#6e6e73', fontSize: 12, fontWeight: 700, marginTop: 3 }}>{getAuditDetail(entry)}</div>
+                          )}
+                        </div>
+                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                          <div style={{ color: '#6e6e73', fontSize: 11.5, fontWeight: 850 }}>{entry.createdAt ? new Date(entry.createdAt).toLocaleString('es-UY') : '—'}</div>
+                          <div style={{ color: '#8e8e93', fontSize: 10.5, fontWeight: 750, marginTop: 2 }}>{entry.adminEmail || 'Admin'}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
