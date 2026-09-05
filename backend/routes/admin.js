@@ -38,6 +38,20 @@ function requireAdmin(req, res, next) {
 
 const NICO_LIFETIME_FREE_SLUG = 'barberianicoaquino';
 
+
+async function ensureAdminProfessionalNotesTable() {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS admin_professional_notes (
+      professional_id BIGINT PRIMARY KEY REFERENCES professionals(id) ON DELETE CASCADE,
+      note TEXT NOT NULL DEFAULT '',
+      updated_by TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+}
+
+
 function normalizeProfessional(row) {
   const slug = String(row.slug || '').trim().toLowerCase();
   const lifetimeFree = row.lifetime_free === true || slug === NICO_LIFETIME_FREE_SLUG;
@@ -539,6 +553,16 @@ router.get("/professionals/:id", requireAdmin, async (req, res) => {
       return res.status(404).json({ error: "Negocio no encontrado" });
     }
 
+    await ensureAdminProfessionalNotesTable();
+
+    const notesResult = await db.query(
+      `SELECT note, updated_by, updated_at
+       FROM admin_professional_notes
+       WHERE professional_id = $1
+       LIMIT 1`,
+      [professionalId]
+    );
+
     const bookingsResult = await db.query(
       `
       SELECT
@@ -565,13 +589,64 @@ router.get("/professionals/:id", requireAdmin, async (req, res) => {
       [professionalId]
     );
 
+    const noteRow = notesResult.rows[0] || null;
+
     res.json({
       professional: normalizeProfessional(professionalResult.rows[0]),
       latestBookings: bookingsResult.rows,
+      adminNote: noteRow ? {
+        note: noteRow.note || '',
+        updatedBy: noteRow.updated_by || '',
+        updatedAt: noteRow.updated_at || null,
+      } : { note: '', updatedBy: '', updatedAt: null },
     });
   } catch (error) {
     console.error("Error admin professional detail:", error);
     res.status(500).json({ error: "Error obteniendo detalle del negocio" });
+  }
+});
+
+
+router.patch("/professionals/:id/admin-note", requireAdmin, async (req, res) => {
+  try {
+    const professionalId = Number(req.params.id);
+    if (!professionalId || Number.isNaN(professionalId)) {
+      return res.status(400).json({ error: "Profesional inválido" });
+    }
+
+    const note = String(req.body?.note ?? '').trim();
+    if (note.length > 5000) {
+      return res.status(400).json({ error: "La nota interna no puede superar los 5000 caracteres" });
+    }
+
+    const exists = await db.query(`SELECT id FROM professionals WHERE id = $1 LIMIT 1`, [professionalId]);
+    if (exists.rows.length === 0) {
+      return res.status(404).json({ error: "Negocio no encontrado" });
+    }
+
+    await ensureAdminProfessionalNotesTable();
+
+    const result = await db.query(
+      `INSERT INTO admin_professional_notes (professional_id, note, updated_by, created_at, updated_at)
+       VALUES ($1, $2, $3, NOW(), NOW())
+       ON CONFLICT (professional_id)
+       DO UPDATE SET note = EXCLUDED.note, updated_by = EXCLUDED.updated_by, updated_at = NOW()
+       RETURNING note, updated_by, updated_at`,
+      [professionalId, note, String(req.admin?.email || '')]
+    );
+
+    const row = result.rows[0];
+    res.json({
+      success: true,
+      adminNote: {
+        note: row.note || '',
+        updatedBy: row.updated_by || '',
+        updatedAt: row.updated_at || null,
+      },
+    });
+  } catch (error) {
+    console.error("Error guardando nota interna admin:", error);
+    res.status(500).json({ error: "No se pudo guardar la nota interna" });
   }
 });
 

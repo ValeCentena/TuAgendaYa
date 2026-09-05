@@ -14373,6 +14373,9 @@ function AdminDashboardPage() {
   const [adminActionLoading, setAdminActionLoading] = useState('');
   const [planModalOpen, setPlanModalOpen] = useState(false);
   const [supportLoginLoading, setSupportLoginLoading] = useState(false);
+  const [adminInternalNote, setAdminInternalNote] = useState('');
+  const [adminInternalNoteMeta, setAdminInternalNoteMeta] = useState(null);
+  const [adminNoteSaving, setAdminNoteSaving] = useState(false);
 
   const token = localStorage.getItem('tuagendaya_admin_token');
 
@@ -14619,16 +14622,38 @@ function AdminDashboardPage() {
     }
   };
 
+  const saveAdminInternalNote = async () => {
+    if (!selectedBusiness?.id || adminNoteSaving) return;
+
+    try {
+      setAdminNoteSaving(true);
+      const data = await adminFetch(`/admin/professionals/${selectedBusiness.id}/admin-note`, {
+        method: 'PATCH',
+        body: JSON.stringify({ note: adminInternalNote }),
+      });
+      setAdminInternalNote(data.adminNote?.note || '');
+      setAdminInternalNoteMeta(data.adminNote || null);
+    } catch (err) {
+      alert(err.message || 'No se pudo guardar la nota interna');
+    } finally {
+      setAdminNoteSaving(false);
+    }
+  };
+
   const openBusinessDetail = async (professional) => {
     setDetailError('');
     setDetailLoading(true);
     setSelectedBusiness(professional);
     setSelectedBusinessBookings([]);
+    setAdminInternalNote('');
+    setAdminInternalNoteMeta(null);
 
     try {
       const data = await adminFetch(`/admin/professionals/${professional.id}`);
       setSelectedBusiness(data.professional || professional);
       setSelectedBusinessBookings(data.latestBookings || []);
+      setAdminInternalNote(data.adminNote?.note || '');
+      setAdminInternalNoteMeta(data.adminNote || null);
     } catch (err) {
       setDetailError(err.message || 'No se pudo cargar el detalle del negocio');
     } finally {
@@ -14639,6 +14664,8 @@ function AdminDashboardPage() {
   const closeBusinessDetail = () => {
     setSelectedBusiness(null);
     setSelectedBusinessBookings([]);
+    setAdminInternalNote('');
+    setAdminInternalNoteMeta(null);
     setDetailError('');
     setDetailLoading(false);
   };
@@ -14660,11 +14687,15 @@ function AdminDashboardPage() {
       slug: alertItem.slug || '',
     });
     setSelectedBusinessBookings([]);
+    setAdminInternalNote('');
+    setAdminInternalNoteMeta(null);
 
     try {
       const data = await adminFetch(`/admin/professionals/${alertItem.professionalId}`);
       setSelectedBusiness(data.professional || null);
       setSelectedBusinessBookings(data.latestBookings || []);
+      setAdminInternalNote(data.adminNote?.note || '');
+      setAdminInternalNoteMeta(data.adminNote || null);
     } catch (err) {
       setDetailError(err.message || 'No se pudo cargar el detalle del negocio');
     } finally {
@@ -15168,6 +15199,63 @@ function AdminDashboardPage() {
                       style={{ border: 'none', borderRadius: 14, padding: '11px 12px', background: selectedBusiness.status === 'suspended' ? '#21c55d' : '#ff3b30', color: '#fff', fontWeight: 900, cursor: adminActionLoading ? 'wait' : 'pointer' }}
                     >
                       {selectedBusiness.status === 'suspended' ? 'Activar negocio' : 'Suspender negocio'}
+                    </button>
+                  </div>
+                </div>
+
+
+                <div style={{ border: '1px solid #e8e8ed', background: '#fff', borderRadius: 18, padding: 16, marginBottom: 16 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 10, flexWrap: 'wrap' }}>
+                    <div>
+                      <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 900, color: '#1a1a1a' }}>Notas internas</h3>
+                      <div style={{ color: '#6e6e73', fontSize: 12, fontWeight: 750 }}>Solo visibles desde el panel administrador.</div>
+                    </div>
+                    {adminInternalNoteMeta?.updatedAt && (
+                      <div style={{ color: '#8e8e93', fontSize: 11, fontWeight: 750, textAlign: 'right' }}>
+                        Última edición: {new Date(adminInternalNoteMeta.updatedAt).toLocaleString('es-UY')}
+                      </div>
+                    )}
+                  </div>
+
+                  <textarea
+                    value={adminInternalNote}
+                    onChange={(event) => setAdminInternalNote(event.target.value.slice(0, 5000))}
+                    placeholder="Ej.: Cliente VIP, acuerdo comercial especial, contactar por renovación..."
+                    rows={5}
+                    style={{
+                      width: '100%',
+                      resize: 'vertical',
+                      minHeight: 110,
+                      boxSizing: 'border-box',
+                      border: '1px solid #dcdce3',
+                      borderRadius: 14,
+                      padding: '12px 13px',
+                      fontSize: 14,
+                      lineHeight: 1.45,
+                      fontFamily: 'inherit',
+                      outline: 'none',
+                      color: '#1a1a1a',
+                      background: '#fbfbfd',
+                    }}
+                  />
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginTop: 10 }}>
+                    <span style={{ color: '#8e8e93', fontSize: 11, fontWeight: 750 }}>{adminInternalNote.length}/5000</span>
+                    <button
+                      type="button"
+                      disabled={adminNoteSaving}
+                      onClick={saveAdminInternalNote}
+                      style={{
+                        border: 'none',
+                        borderRadius: 13,
+                        padding: '10px 16px',
+                        background: adminNoteSaving ? '#9ecbff' : '#0071e3',
+                        color: '#fff',
+                        fontWeight: 900,
+                        cursor: adminNoteSaving ? 'wait' : 'pointer',
+                      }}
+                    >
+                      {adminNoteSaving ? 'Guardando...' : 'Guardar nota'}
                     </button>
                   </div>
                 </div>
