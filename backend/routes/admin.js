@@ -36,7 +36,12 @@ function requireAdmin(req, res, next) {
 }
 
 
+const NICO_LIFETIME_FREE_SLUG = 'barberianicoaquino';
+
 function normalizeProfessional(row) {
+  const slug = String(row.slug || '').trim().toLowerCase();
+  const lifetimeFree = row.lifetime_free === true || slug === NICO_LIFETIME_FREE_SLUG;
+
   return {
     id: row.id,
     name: row.name,
@@ -49,8 +54,26 @@ function normalizeProfessional(row) {
     slug: row.slug,
     logoUrl: row.logo_url,
     logo_url: row.logo_url,
-    status: row.status,
-    plan: row.plan || "gratis",
+    status: lifetimeFree ? 'active' : row.status,
+    plan: lifetimeFree ? 'Profesional' : (row.plan || "gratis"),
+    lifetimeFree,
+    lifetime_free: lifetimeFree,
+    monthlyLimit: Number(row.monthly_limit || 1000),
+    monthly_limit: Number(row.monthly_limit || 1000),
+    monthlyBookingsCount: Number(row.monthly_bookings_count || 0),
+    monthly_bookings_count: Number(row.monthly_bookings_count || 0),
+    planPaymentStatus: lifetimeFree ? 'paid' : (row.plan_payment_status || 'pending'),
+    plan_payment_status: lifetimeFree ? 'paid' : (row.plan_payment_status || 'pending'),
+    planExpiresAt: lifetimeFree ? null : (row.plan_expires_at || null),
+    plan_expires_at: lifetimeFree ? null : (row.plan_expires_at || null),
+    lastPaymentAt: row.last_payment_at || null,
+    last_payment_at: row.last_payment_at || null,
+    billingMethod: lifetimeFree ? 'lifetime_free' : (row.billing_method || null),
+    billing_method: lifetimeFree ? 'lifetime_free' : (row.billing_method || null),
+    planPrice: lifetimeFree ? 0 : Number(row.plan_price || 0),
+    plan_price: lifetimeFree ? 0 : Number(row.plan_price || 0),
+    planCurrency: row.plan_currency || 'UYU',
+    plan_currency: row.plan_currency || 'UYU',
     bookingsCount: Number(row.bookings_count || 0),
     clientsCount: Number(row.clients_count || 0),
     createdAt: row.created_at,
@@ -164,9 +187,19 @@ router.get("/stats", requireAdmin, async (req, res) => {
         p.slug,
         p.logo_url,
         p.status,
+        p.plan,
+        p.lifetime_free,
+        p.monthly_limit,
+        p.plan_payment_status,
+        p.plan_expires_at,
+        p.last_payment_at,
+        p.billing_method,
+        p.plan_price,
+        p.plan_currency,
         p.created_at,
         p.updated_at,
         COUNT(b.id)::int AS bookings_count,
+        COUNT(b.id) FILTER (WHERE b.date >= DATE_TRUNC('month', CURRENT_DATE) AND b.date < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month')::int AS monthly_bookings_count,
         COUNT(DISTINCT LOWER(TRIM(b.client_phone))) FILTER (WHERE b.client_phone IS NOT NULL AND TRIM(b.client_phone) <> '')::int AS clients_count
       FROM professionals p
       LEFT JOIN bookings b ON b.professional_id = p.id
@@ -227,9 +260,19 @@ router.get("/professionals", requireAdmin, async (req, res) => {
         p.slug,
         p.logo_url,
         p.status,
+        p.plan,
+        p.lifetime_free,
+        p.monthly_limit,
+        p.plan_payment_status,
+        p.plan_expires_at,
+        p.last_payment_at,
+        p.billing_method,
+        p.plan_price,
+        p.plan_currency,
         p.created_at,
         p.updated_at,
         COUNT(b.id)::int AS bookings_count,
+        COUNT(b.id) FILTER (WHERE b.date >= DATE_TRUNC('month', CURRENT_DATE) AND b.date < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month')::int AS monthly_bookings_count,
         COUNT(DISTINCT LOWER(TRIM(b.client_phone))) FILTER (WHERE b.client_phone IS NOT NULL AND TRIM(b.client_phone) <> '')::int AS clients_count
       FROM professionals p
       LEFT JOIN bookings b ON b.professional_id = p.id
@@ -269,9 +312,19 @@ router.get("/professionals/:id", requireAdmin, async (req, res) => {
         p.slug,
         p.logo_url,
         p.status,
+        p.plan,
+        p.lifetime_free,
+        p.monthly_limit,
+        p.plan_payment_status,
+        p.plan_expires_at,
+        p.last_payment_at,
+        p.billing_method,
+        p.plan_price,
+        p.plan_currency,
         p.created_at,
         p.updated_at,
         COUNT(b.id)::int AS bookings_count,
+        COUNT(b.id) FILTER (WHERE b.date >= DATE_TRUNC('month', CURRENT_DATE) AND b.date < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month')::int AS monthly_bookings_count,
         COUNT(DISTINCT LOWER(TRIM(b.client_phone))) FILTER (WHERE b.client_phone IS NOT NULL AND TRIM(b.client_phone) <> '')::int AS clients_count
       FROM professionals p
       LEFT JOIN bookings b ON b.professional_id = p.id

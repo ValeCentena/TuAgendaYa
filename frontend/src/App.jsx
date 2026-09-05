@@ -14535,16 +14535,17 @@ function AdminDashboardPage() {
             <div style={{ display: 'grid', gap: 12 }}>
               {professionals.map((professional) => {
                 const publicUrl = professional.slug ? `https://tuagendaya.com/reservar/${professional.slug}` : '';
-                const isActive = professional.status !== 'suspended';
-                const planName = professional.plan || 'Profesional';
+                const lifetimeFree = Boolean(professional.lifetimeFree ?? professional.lifetime_free) || String(professional.slug || '').trim().toLowerCase() === 'barberianicoaquino';
+                const isActive = lifetimeFree ? true : professional.status !== 'suspended';
+                const planName = lifetimeFree ? 'Profesional' : (professional.plan || 'Profesional');
                 const monthlyLimit = Number(professional.monthlyLimit || professional.monthly_limit || 1000);
                 const monthlyUsed = Number(professional.monthlyBookingsCount || professional.monthly_bookings_count || 0);
                 const monthlyPercent = monthlyLimit > 0 ? Math.min(100, Math.round((monthlyUsed / monthlyLimit) * 100)) : 0;
-                const rawPaymentStatus = professional.planPaymentStatus || professional.plan_payment_status || 'pending';
-                const billingMethod = professional.billingMethod || professional.billing_method || 'Sin elegir';
-                const planExpiresAt = professional.planExpiresAt || professional.plan_expires_at || '';
-                const lastPaymentAt = professional.lastPaymentAt || professional.last_payment_at || '';
-                const planPrice = Number(professional.planPrice || professional.plan_price || 0);
+                const rawPaymentStatus = lifetimeFree ? 'paid' : (professional.planPaymentStatus || professional.plan_payment_status || 'pending');
+                const billingMethod = lifetimeFree ? 'lifetime_free' : (professional.billingMethod || professional.billing_method || 'Sin elegir');
+                const planExpiresAt = lifetimeFree ? '' : (professional.planExpiresAt || professional.plan_expires_at || '');
+                const lastPaymentAt = lifetimeFree ? '' : (professional.lastPaymentAt || professional.last_payment_at || '');
+                const planPrice = lifetimeFree ? 0 : Number(professional.planPrice || professional.plan_price || 0);
                 const planCurrency = professional.planCurrency || professional.plan_currency || 'UYU';
                 const expiresDate = planExpiresAt ? new Date(planExpiresAt) : null;
                 const daysToExpire = expiresDate && !Number.isNaN(expiresDate.getTime())
@@ -14555,29 +14556,33 @@ function AdminDashboardPage() {
                 const promotion = professional.promotion || professional.planPromotion || professional.plan_promotion || {};
                 const promoStage = isPaidByExpiration ? 'normal' : promotion.stage || professional.promoStage || professional.promo_stage || 'normal';
                 const planNameClean = String(planName || '').trim().toLowerCase();
-                const isTrialPlan = !isPaidByExpiration && (
+                const isTrialPlan = !lifetimeFree && !isPaidByExpiration && (
                   promoStage === 'free' ||
                   promoStage === 'discount' ||
                   planNameClean === 'free' ||
                   planNameClean === 'gratis'
                 );
                 const promoLabel = promoStage === 'free' ? 'Estado de prueba' : promoStage === 'discount' ? 'Prueba 50%' : '';
-                const paymentLabel = isTrialPlan
-                  ? 'Estado de prueba'
-                  : paymentStatus === 'paid'
-                    ? 'Pago'
-                    : paymentStatus === 'overdue'
-                      ? 'Vencido'
-                      : paymentStatus === 'pending_transfer'
-                        ? 'Transferencia'
-                        : 'Pendiente';
-                const paymentColor = isTrialPlan ? '#0071e3' : paymentStatus === 'paid' ? '#188038' : paymentStatus === 'overdue' ? '#ff3b30' : '#ff9500';
-                const paymentBg = isTrialPlan ? '#eef6ff' : paymentStatus === 'paid' ? '#edfff3' : paymentStatus === 'overdue' ? '#fff0f0' : '#fff7e8';
-                const billingMethodLabel = billingMethod === 'mercadopago'
-                  ? 'Automático'
-                  : billingMethod === 'transfer'
-                    ? 'Transferencia'
-                    : 'Sin elegir';
+                const paymentLabel = lifetimeFree
+                  ? 'Gratis de por vida'
+                  : isTrialPlan
+                    ? 'Estado de prueba'
+                    : paymentStatus === 'paid'
+                      ? 'Pago'
+                      : paymentStatus === 'overdue'
+                        ? 'Vencido'
+                        : paymentStatus === 'pending_transfer'
+                          ? 'Transferencia'
+                          : 'Pendiente';
+                const paymentColor = lifetimeFree ? '#188038' : isTrialPlan ? '#0071e3' : paymentStatus === 'paid' ? '#188038' : paymentStatus === 'overdue' ? '#ff3b30' : '#ff9500';
+                const paymentBg = lifetimeFree ? '#edfff3' : isTrialPlan ? '#eef6ff' : paymentStatus === 'paid' ? '#edfff3' : paymentStatus === 'overdue' ? '#fff0f0' : '#fff7e8';
+                const billingMethodLabel = lifetimeFree
+                  ? 'Exento'
+                  : billingMethod === 'mercadopago'
+                    ? 'Automático'
+                    : billingMethod === 'transfer'
+                      ? 'Transferencia'
+                      : 'Sin elegir';
                 const formatAdminDate = (value) => {
                   if (!value) return 'Sin dato';
                   const parsed = new Date(value);
@@ -14635,18 +14640,18 @@ function AdminDashboardPage() {
                       <div>
                         <div style={{ color: '#8e8e93', fontSize: 11, fontWeight: 850 }}>Vencimiento</div>
                         <div style={{ color: daysToExpire !== null && daysToExpire < 0 ? '#ff3b30' : '#1a1a1a', fontSize: 13, fontWeight: 950, marginTop: 3 }}>
-                          {formatAdminDate(planExpiresAt)}
+                          {lifetimeFree ? 'No vence' : formatAdminDate(planExpiresAt)}
                         </div>
                       </div>
                       <div>
                         <div style={{ color: '#8e8e93', fontSize: 11, fontWeight: 850 }}>Faltan</div>
                         <div style={{ color: daysToExpire !== null && daysToExpire <= 3 ? '#ff9500' : '#1a1a1a', fontSize: 13, fontWeight: 950, marginTop: 3 }}>
-                          {daysToExpire === null ? 'Sin dato' : daysToExpire < 0 ? `${Math.abs(daysToExpire)} días vencido` : `${daysToExpire} días`}
+                          {lifetimeFree ? '—' : daysToExpire === null ? 'Sin dato' : daysToExpire < 0 ? `${Math.abs(daysToExpire)} días vencido` : `${daysToExpire} días`}
                         </div>
                       </div>
                       <div>
                         <div style={{ color: '#8e8e93', fontSize: 11, fontWeight: 850 }}>Último pago</div>
-                        <div style={{ color: '#1a1a1a', fontSize: 13, fontWeight: 950, marginTop: 3 }}>{formatAdminDate(lastPaymentAt)}</div>
+                        <div style={{ color: '#1a1a1a', fontSize: 13, fontWeight: 950, marginTop: 3 }}>{lifetimeFree ? 'No aplica' : formatAdminDate(lastPaymentAt)}</div>
                       </div>
                       <div>
                         <div style={{ color: '#8e8e93', fontSize: 11, fontWeight: 850 }}>Cobro</div>
