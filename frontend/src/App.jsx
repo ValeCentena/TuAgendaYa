@@ -14628,8 +14628,11 @@ function AdminDashboardPage() {
               style={{ width: '100%', border: '1px solid #dcdce3', borderRadius: 14, padding: '12px 14px', outline: 'none', fontSize: 14, background: '#fff' }}
             >
               <option value="all">Todos</option>
-              <option value="active">Activos</option>
-              <option value="suspended">Suspendidos</option>
+              <option value="trial">Prueba</option>
+              <option value="active_paid">Activo/Pagado</option>
+              <option value="expired">Vencido</option>
+              <option value="suspended">Suspendido</option>
+              <option value="lifetime_free">Gratis de por vida</option>
             </select>
           </div>
 

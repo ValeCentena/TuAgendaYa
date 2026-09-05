@@ -253,8 +253,42 @@ router.get("/professionals", requireAdmin, async (req, res) => {
     }
 
     if (status && status !== "all") {
-      params.push(status);
-      where.push(`p.status = $${params.length}`);
+      const lifetimeFreeSql = `(COALESCE(p.lifetime_free, FALSE) = TRUE OR LOWER(COALESCE(p.slug, '')) = '${NICO_LIFETIME_FREE_SLUG}')`;
+      const activePaidSql = `(
+        COALESCE(p.status, 'active') <> 'suspended'
+        AND NOT ${lifetimeFreeSql}
+        AND (
+          LOWER(COALESCE(p.plan_payment_status, '')) = 'paid'
+          OR (p.plan_expires_at IS NOT NULL AND p.plan_expires_at >= CURRENT_DATE)
+        )
+      )`;
+      const expiredSql = `(
+        COALESCE(p.status, 'active') <> 'suspended'
+        AND NOT ${lifetimeFreeSql}
+        AND (
+          LOWER(COALESCE(p.plan_payment_status, '')) = 'overdue'
+          OR (p.plan_expires_at IS NOT NULL AND p.plan_expires_at < CURRENT_DATE)
+        )
+      )`;
+
+      if (status === 'suspended') {
+        where.push(`p.status = 'suspended'`);
+      } else if (status === 'lifetime_free') {
+        where.push(lifetimeFreeSql);
+      } else if (status === 'active_paid') {
+        where.push(activePaidSql);
+      } else if (status === 'expired') {
+        where.push(expiredSql);
+      } else if (status === 'trial') {
+        where.push(`(
+          COALESCE(p.status, 'active') <> 'suspended'
+          AND NOT ${lifetimeFreeSql}
+          AND NOT ${activePaidSql}
+          AND NOT ${expiredSql}
+        )`);
+      } else {
+        return res.status(400).json({ error: 'Filtro de estado inválido' });
+      }
     }
 
     const whereSql = where.length > 0 ? `WHERE ${where.join(" AND ")}` : "";
