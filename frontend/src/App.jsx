@@ -13063,6 +13063,23 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
   const businessLogoUrl = professional?.logoUrl || professional?.logo_url || '';
   const businessName = professional?.businessName || professional?.business_name || '';
 
+  const [supportSession] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('tuagendaya_support_session') || 'null');
+    } catch {
+      return null;
+    }
+  });
+
+  const exitSupportMode = () => {
+    const returnPath = supportSession?.returnPath || '/admin/dashboard';
+    localStorage.removeItem('tuagendaya_token');
+    localStorage.removeItem('tuagendaya_professional');
+    localStorage.removeItem('tuagendaya_session_persistent');
+    localStorage.removeItem('tuagendaya_support_session');
+    window.location.assign(returnPath);
+  };
+
   useEffect(() => {
     setBusinessLogoMode('square');
   }, [businessLogoUrl]);
@@ -13087,6 +13104,11 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
   };
 
   const handleLogout = () => {
+    if (supportSession) {
+      exitSupportMode();
+      return;
+    }
+
     localStorage.removeItem('tuagendaya_token');
     localStorage.removeItem('tuagendaya_professional');
     localStorage.removeItem('tuagendaya_session_persistent');
@@ -13165,6 +13187,40 @@ function Dashboard({ professional, onLogout, onProfileUpdated }) {
 
   return (
     <div className="dashboard-panel" style={{ minHeight: '100vh', background: '#f2f2f7', padding: '20px 16px', fontFamily: APP_FONT }}>
+      {supportSession && (
+        <div
+          style={{
+            position: 'sticky',
+            top: 8,
+            zIndex: 10020,
+            maxWidth: 1180,
+            margin: '0 auto 12px',
+            padding: '10px 12px',
+            borderRadius: 16,
+            background: '#fff7e6',
+            border: '1px solid #ffd591',
+            boxShadow: '0 8px 24px rgba(120,72,0,0.10)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+          }}
+        >
+          <div style={{ minWidth: 0 }}>
+            <div style={{ color: '#9a5b00', fontSize: 12, fontWeight: 950, letterSpacing: '0.04em' }}>MODO SOPORTE</div>
+            <div style={{ color: '#5c3b00', fontSize: 13, fontWeight: 800, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              Estás viendo el panel de {supportSession.businessName || businessName || 'este negocio'}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={exitSupportMode}
+            style={{ border: 'none', borderRadius: 12, padding: '9px 12px', background: '#111827', color: '#fff', fontSize: 12, fontWeight: 900, cursor: 'pointer', whiteSpace: 'nowrap' }}
+          >
+            Volver al admin
+          </button>
+        </div>
+      )}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap');
 
@@ -14316,6 +14372,7 @@ function AdminDashboardPage() {
   const [detailError, setDetailError] = useState('');
   const [adminActionLoading, setAdminActionLoading] = useState('');
   const [planModalOpen, setPlanModalOpen] = useState(false);
+  const [supportLoginLoading, setSupportLoginLoading] = useState(false);
 
   const token = localStorage.getItem('tuagendaya_admin_token');
 
@@ -14521,6 +14578,45 @@ function AdminDashboardPage() {
 
     if (!window.confirm(`¿Reiniciar desde hoy el período de prueba de ${professional.businessName || professional.name || 'este negocio'}? Esto reemplaza su estado de pago y vencimiento actuales.`)) return;
     await runPlanAction(professional, 'reset_trial', {}, 'Período de prueba reiniciado');
+  };
+
+  const enterBusinessSupportMode = async (professional) => {
+    if (!professional?.id || supportLoginLoading) return;
+
+    if (professional.status === 'suspended') {
+      alert('El negocio está suspendido. Reactivalo antes de entrar en modo soporte.');
+      return;
+    }
+
+    const businessName = professional.businessName || professional.business_name || professional.name || 'este negocio';
+    if (!window.confirm(`¿Entrar al panel de ${businessName} en modo soporte?`)) return;
+
+    try {
+      setSupportLoginLoading(true);
+      const data = await adminFetch(`/admin/professionals/${professional.id}/support-session`, {
+        method: 'POST',
+      });
+
+      const normalizedProfessional = normalizeProfessionalFromApi(data.professional || professional);
+      const returnPath = isAdminApp ? '/admin-app/dashboard' : '/admin/dashboard';
+
+      localStorage.setItem('tuagendaya_token', data.token);
+      localStorage.setItem('tuagendaya_professional', JSON.stringify(normalizedProfessional));
+      localStorage.setItem('tuagendaya_session_persistent', 'true');
+      localStorage.setItem('tuagendaya_support_session', JSON.stringify({
+        professionalId: normalizedProfessional.id,
+        businessName,
+        returnPath,
+        startedAt: new Date().toISOString(),
+        expiresInSeconds: Number(data.expiresInSeconds || 7200),
+      }));
+
+      navigate('/profesional/dashboard');
+    } catch (err) {
+      alert(err.message || 'No se pudo iniciar el modo soporte');
+    } finally {
+      setSupportLoginLoading(false);
+    }
   };
 
   const openBusinessDetail = async (professional) => {
@@ -15056,6 +15152,14 @@ function AdminDashboardPage() {
                       style={{ border: '1px solid #ffd8a8', borderRadius: 14, padding: '11px 12px', background: '#fff', color: '#b26a00', fontWeight: 900, cursor: adminActionLoading ? 'wait' : 'pointer' }}
                     >
                       Reiniciar prueba
+                    </button>
+                    <button
+                      type="button"
+                      disabled={Boolean(adminActionLoading) || supportLoginLoading}
+                      onClick={() => enterBusinessSupportMode(selectedBusiness)}
+                      style={{ border: '1px solid #cfe3fb', borderRadius: 14, padding: '11px 12px', background: '#f2f8ff', color: '#0071e3', fontWeight: 900, cursor: adminActionLoading || supportLoginLoading ? 'wait' : 'pointer' }}
+                    >
+                      {supportLoginLoading ? 'Entrando...' : 'Entrar como negocio'}
                     </button>
                     <button
                       type="button"

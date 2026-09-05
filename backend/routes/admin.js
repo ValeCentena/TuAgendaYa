@@ -575,6 +575,89 @@ router.get("/professionals/:id", requireAdmin, async (req, res) => {
   }
 });
 
+
+router.post("/professionals/:id/support-session", requireAdmin, async (req, res) => {
+  try {
+    const professionalId = Number(req.params.id);
+
+    if (!professionalId || Number.isNaN(professionalId)) {
+      return res.status(400).json({ error: "Profesional inválido" });
+    }
+
+    const result = await db.query(
+      `
+      SELECT
+        id, name, business_name, email, phone, profession, address, slug, logo_url,
+        public_profile_image_url, status, created_at, updated_at
+      FROM professionals
+      WHERE id = $1
+      LIMIT 1
+      `,
+      [professionalId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Negocio no encontrado" });
+    }
+
+    const professional = result.rows[0];
+
+    if (professional.status !== 'active') {
+      return res.status(409).json({ error: "El negocio está suspendido. Reactivalo antes de entrar en modo soporte." });
+    }
+
+    if (!process.env.JWT_SECRET) {
+      return res.status(500).json({ error: "JWT_SECRET no está configurado" });
+    }
+
+    const supportToken = jwt.sign(
+      {
+        id: professional.id,
+        professionalId: professional.id,
+        email: professional.email,
+        supportMode: true,
+        supportAdmin: req.admin.email,
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '2h' }
+    );
+
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS admin_audit_log (
+        id BIGSERIAL PRIMARY KEY,
+        admin_email TEXT NOT NULL,
+        action TEXT NOT NULL,
+        professional_id BIGINT REFERENCES professionals(id) ON DELETE SET NULL,
+        metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await db.query(
+      `INSERT INTO admin_audit_log (admin_email, action, professional_id, metadata)
+       VALUES ($1, 'support_login', $2, $3::jsonb)`,
+      [
+        String(req.admin.email || ''),
+        professional.id,
+        JSON.stringify({
+          businessName: professional.business_name || professional.name || '',
+          slug: professional.slug || '',
+        }),
+      ]
+    );
+
+    res.json({
+      success: true,
+      token: supportToken,
+      expiresInSeconds: 7200,
+      professional: normalizeProfessional(professional),
+    });
+  } catch (error) {
+    console.error("Error creando sesión de soporte:", error);
+    res.status(500).json({ error: "No se pudo iniciar el modo soporte" });
+  }
+});
+
 router.patch("/professionals/:id/status", requireAdmin, async (req, res) => {
   try {
     const professionalId = Number(req.params.id);
