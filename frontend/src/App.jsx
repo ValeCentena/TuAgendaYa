@@ -14377,6 +14377,7 @@ function AdminDashboardPage() {
   const [adminInternalNoteMeta, setAdminInternalNoteMeta] = useState(null);
   const [adminNoteSaving, setAdminNoteSaving] = useState(false);
   const [adminCsvDownloading, setAdminCsvDownloading] = useState('');
+  const [adminAudit, setAdminAudit] = useState([]);
 
   const token = localStorage.getItem('tuagendaya_admin_token');
 
@@ -14417,16 +14418,18 @@ function AdminDashboardPage() {
       if (search.trim()) params.set('search', search.trim());
       if (status !== 'all') params.set('status', status);
 
-      const [statsData, professionalsData, alertsData] = await Promise.all([
+      const [statsData, professionalsData, alertsData, auditData] = await Promise.all([
         adminFetch('/admin/stats'),
         adminFetch(`/admin/professionals?${params.toString()}`),
         adminFetch('/admin/alerts'),
+        adminFetch('/admin/audit?limit=50'),
       ]);
 
       setStats(statsData);
       setProfessionals(professionalsData.professionals || []);
       setAdminAlerts(alertsData.alerts || []);
       setAdminAlertCounts(alertsData.counts || { total: 0, critical: 0, warning: 0, info: 0 });
+      setAdminAudit(auditData.audit || []);
     } catch (err) {
       setError(err.message || 'Error cargando panel admin');
     } finally {
@@ -14634,6 +14637,7 @@ function AdminDashboardPage() {
       });
       setAdminInternalNote(data.adminNote?.note || '');
       setAdminInternalNoteMeta(data.adminNote || null);
+      await loadAdminData();
     } catch (err) {
       alert(err.message || 'No se pudo guardar la nota interna');
     } finally {
@@ -14765,6 +14769,37 @@ function AdminDashboardPage() {
     }
   };
 
+  const getAuditActionLabel = (entry) => {
+    const labels = {
+      plan_changed: 'Plan cambiado',
+      expiration_extended: 'Vencimiento extendido',
+      manual_payment_registered: 'Pago manual registrado',
+      lifetime_free_enabled: 'Gratis de por vida activado',
+      lifetime_free_disabled: 'Gratis de por vida desactivado',
+      trial_reset: 'Período de prueba reiniciado',
+      business_suspended: 'Negocio suspendido',
+      business_activated: 'Negocio activado',
+      support_login: 'Modo soporte iniciado',
+      internal_note_updated: 'Nota interna actualizada',
+    };
+    return labels[entry?.action] || entry?.action || 'Acción administrativa';
+  };
+
+  const getAuditDetail = (entry) => {
+    const meta = entry?.metadata || {};
+    if (entry?.action === 'plan_changed') return `Plan: ${meta.previousPlan || '—'} → ${meta.newPlan || '—'}`;
+    if (entry?.action === 'expiration_extended') return `${meta.days || 0} día${Number(meta.days) === 1 ? '' : 's'} agregados`;
+    if (entry?.action === 'manual_payment_registered') return `${meta.currency || 'UYU'} ${Number(meta.amount || 0)} · ${meta.days || 0} días`;
+    if (entry?.action === 'lifetime_free_enabled') return 'La cuenta quedó exenta de pagos';
+    if (entry?.action === 'lifetime_free_disabled') return 'Se quitó la exención permanente';
+    if (entry?.action === 'trial_reset') return 'Prueba reiniciada desde la fecha de la acción';
+    if (entry?.action === 'business_suspended') return 'Estado: activo → suspendido';
+    if (entry?.action === 'business_activated') return 'Estado: suspendido → activo';
+    if (entry?.action === 'support_login') return 'Acceso temporal al panel del negocio';
+    if (entry?.action === 'internal_note_updated') return `Nota guardada · ${Number(meta.noteLength || 0)} caracteres`;
+    return '';
+  };
+
   const statCards = [
     { label: 'Negocios', value: stats?.professionals?.total || 0, color: '#0071e3', bg: '#eef6ff' },
     { label: 'Activos', value: stats?.professionals?.active || 0, color: '#21c55d', bg: '#edfff3' },
@@ -14878,6 +14913,42 @@ function AdminDashboardPage() {
                 })}
               </div>
             </>
+          )}
+        </div>
+
+        <div style={{ background: '#fff', borderRadius: 24, padding: 22, boxShadow: '0 1px 10px rgba(0,0,0,0.06)', marginBottom: 18 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14, flexWrap: 'wrap', marginBottom: 14 }}>
+            <div>
+              <h2 style={{ margin: '0 0 5px', color: '#1a1a1a', fontSize: 20, fontWeight: 900 }}>Auditoría de cambios</h2>
+              <p style={{ margin: 0, color: '#6e6e73', fontSize: 13 }}>Últimas acciones realizadas desde el panel administrador.</p>
+            </div>
+            <div style={{ color: '#8e8e93', fontSize: 12, fontWeight: 850 }}>Últimos 50 registros</div>
+          </div>
+
+          {adminAudit.length === 0 ? (
+            <div style={{ background: '#f7f7fb', borderRadius: 16, padding: 14, color: '#8e8e93', fontSize: 13, fontWeight: 800 }}>
+              Todavía no hay acciones administrativas registradas.
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gap: 8 }}>
+              {adminAudit.map((entry) => (
+                <div key={entry.id} style={{ border: '1px solid #ececf2', background: '#fbfbfd', borderRadius: 15, padding: '11px 13px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ color: '#1a1a1a', fontSize: 13.5, fontWeight: 900 }}>{getAuditActionLabel(entry)}</div>
+                      <div style={{ color: '#0071e3', fontSize: 12.5, fontWeight: 850, marginTop: 2 }}>{entry.businessName || 'Negocio'}</div>
+                      {getAuditDetail(entry) && (
+                        <div style={{ color: '#6e6e73', fontSize: 12, fontWeight: 700, marginTop: 3 }}>{getAuditDetail(entry)}</div>
+                      )}
+                    </div>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div style={{ color: '#6e6e73', fontSize: 11.5, fontWeight: 850 }}>{entry.createdAt ? new Date(entry.createdAt).toLocaleString('es-UY') : '—'}</div>
+                      <div style={{ color: '#8e8e93', fontSize: 10.5, fontWeight: 750, marginTop: 2 }}>{entry.adminEmail || 'Admin'}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
 

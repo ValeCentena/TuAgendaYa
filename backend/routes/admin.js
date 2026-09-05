@@ -126,6 +126,35 @@ async function ensureAdminProfessionalNotesTable() {
   `);
 }
 
+async function ensureAdminAuditTable(queryable = db) {
+  await queryable.query(`
+    CREATE TABLE IF NOT EXISTS admin_audit_log (
+      id BIGSERIAL PRIMARY KEY,
+      admin_email TEXT NOT NULL,
+      action TEXT NOT NULL,
+      professional_id BIGINT REFERENCES professionals(id) ON DELETE SET NULL,
+      metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await queryable.query(`CREATE INDEX IF NOT EXISTS idx_admin_audit_log_created_at ON admin_audit_log(created_at DESC)`);
+  await queryable.query(`CREATE INDEX IF NOT EXISTS idx_admin_audit_log_professional_id ON admin_audit_log(professional_id)`);
+}
+
+async function logAdminAudit(queryable, req, action, professionalId, metadata = {}) {
+  await ensureAdminAuditTable(queryable);
+  await queryable.query(
+    `INSERT INTO admin_audit_log (admin_email, action, professional_id, metadata)
+     VALUES ($1, $2, $3, $4::jsonb)`,
+    [
+      String(req.admin?.email || ''),
+      String(action || ''),
+      professionalId || null,
+      JSON.stringify(metadata || {}),
+    ]
+  );
+}
+
 
 function normalizeProfessional(row) {
   const slug = String(row.slug || '').trim().toLowerCase();
@@ -469,6 +498,46 @@ router.get("/alerts", requireAdmin, async (req, res) => {
 });
 
 
+router.get('/audit', requireAdmin, async (req, res) => {
+  try {
+    await ensureAdminAuditTable();
+    const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 50, 1), 200);
+    const result = await db.query(
+      `SELECT
+         a.id,
+         a.admin_email,
+         a.action,
+         a.professional_id,
+         a.metadata,
+         a.created_at,
+         p.name,
+         p.business_name,
+         p.slug
+       FROM admin_audit_log a
+       LEFT JOIN professionals p ON p.id = a.professional_id
+       ORDER BY a.created_at DESC
+       LIMIT $1`,
+      [limit]
+    );
+
+    res.json({
+      audit: result.rows.map((row) => ({
+        id: row.id,
+        adminEmail: row.admin_email,
+        action: row.action,
+        professionalId: row.professional_id,
+        businessName: row.business_name || row.name || row.metadata?.businessName || 'Negocio',
+        slug: row.slug || row.metadata?.slug || '',
+        metadata: row.metadata || {},
+        createdAt: row.created_at,
+      })),
+    });
+  } catch (error) {
+    console.error('Error obteniendo auditoría admin:', error);
+    res.status(500).json({ error: 'Error obteniendo auditoría' });
+  }
+});
+
 router.get('/exports/businesses.csv', requireAdmin, async (req, res) => {
   try {
     const { params, whereSql } = buildAdminExportProfessionalFilter(req.query, 'p');
@@ -804,6 +873,9 @@ router.patch("/professionals/:id/admin-note", requireAdmin, async (req, res) => 
     );
 
     const row = result.rows[0];
+    await logAdminAudit(db, req, 'internal_note_updated', professionalId, {
+      noteLength: note.length,
+    });
     res.json({
       success: true,
       adminNote: {
@@ -865,29 +937,10 @@ router.post("/professionals/:id/support-session", requireAdmin, async (req, res)
       { expiresIn: '2h' }
     );
 
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS admin_audit_log (
-        id BIGSERIAL PRIMARY KEY,
-        admin_email TEXT NOT NULL,
-        action TEXT NOT NULL,
-        professional_id BIGINT REFERENCES professionals(id) ON DELETE SET NULL,
-        metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `);
-
-    await db.query(
-      `INSERT INTO admin_audit_log (admin_email, action, professional_id, metadata)
-       VALUES ($1, 'support_login', $2, $3::jsonb)`,
-      [
-        String(req.admin.email || ''),
-        professional.id,
-        JSON.stringify({
-          businessName: professional.business_name || professional.name || '',
-          slug: professional.slug || '',
-        }),
-      ]
-    );
+    await logAdminAudit(db, req, 'support_login', professional.id, {
+      businessName: professional.business_name || professional.name || '',
+      slug: professional.slug || '',
+    });
 
     res.json({
       success: true,
@@ -912,6 +965,14 @@ router.patch("/professionals/:id/status", requireAdmin, async (req, res) => {
 
     if (!['active', 'suspended'].includes(status)) {
       return res.status(400).json({ error: "Estado inválido" });
+    }
+
+    const previousResult = await db.query(
+      `SELECT status, business_name, name, slug FROM professionals WHERE id = $1 LIMIT 1`,
+      [professionalId]
+    );
+    if (previousResult.rows.length === 0) {
+      return res.status(404).json({ error: "Negocio no encontrado" });
     }
 
     const result = await db.query(
@@ -942,6 +1003,13 @@ router.patch("/professionals/:id/status", requireAdmin, async (req, res) => {
       return res.status(404).json({ error: "Negocio no encontrado" });
     }
 
+    await logAdminAudit(db, req, status === 'suspended' ? 'business_suspended' : 'business_activated', professionalId, {
+      previousStatus: previousResult.rows[0].status || 'active',
+      newStatus: status,
+      businessName: previousResult.rows[0].business_name || previousResult.rows[0].name || '',
+      slug: previousResult.rows[0].slug || '',
+    });
+
     res.json({
       success: true,
       professional: normalizeProfessional(result.rows[0]),
@@ -965,7 +1033,7 @@ router.patch("/professionals/:id/plan-actions", requireAdmin, async (req, res) =
     }
 
     const currentResult = await client.query(
-      `SELECT id, slug, plan, status, lifetime_free, plan_price, plan_currency, plan_expires_at
+      `SELECT id, slug, name, business_name, plan, status, lifetime_free, plan_price, plan_currency, plan_expires_at
        FROM professionals
        WHERE id = $1
        LIMIT 1`,
@@ -1137,6 +1205,30 @@ router.patch("/professionals/:id/plan-actions", requireAdmin, async (req, res) =
       await client.query('ROLLBACK');
       return res.status(400).json({ error: "Acción de plan inválida" });
     }
+
+    const auditMetadata = {
+      businessName: current.business_name || current.name || '',
+      slug: current.slug || '',
+      previousPlan: current.plan || null,
+    };
+    if (action === 'set_plan') auditMetadata.newPlan = normalizeText(req.body.plan);
+    if (action === 'extend_expiration') auditMetadata.days = Number.parseInt(req.body.days, 10);
+    if (action === 'mark_manual_payment') {
+      auditMetadata.amount = Number(req.body.amount ?? current.plan_price ?? process.env.PLAN_BASE_PRICE ?? 600);
+      auditMetadata.currency = normalizeText(req.body.currency || current.plan_currency || process.env.PLAN_CURRENCY || 'UYU').toUpperCase();
+      auditMetadata.days = Number.parseInt(req.body.days ?? 30, 10);
+    }
+    if (action === 'set_lifetime_free') auditMetadata.enabled = req.body.enabled === true;
+    if (action === 'reset_trial') auditMetadata.resetAt = new Date().toISOString();
+
+    const auditActionMap = {
+      set_plan: 'plan_changed',
+      extend_expiration: 'expiration_extended',
+      mark_manual_payment: 'manual_payment_registered',
+      set_lifetime_free: req.body.enabled === true ? 'lifetime_free_enabled' : 'lifetime_free_disabled',
+      reset_trial: 'trial_reset',
+    };
+    await logAdminAudit(client, req, auditActionMap[action] || action, professionalId, auditMetadata);
 
     await client.query('COMMIT');
 
