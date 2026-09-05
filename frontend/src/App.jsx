@@ -1063,22 +1063,21 @@ function exportBookingsToCsv(bookings, filename = 'reservas.csv') {
   downloadCsvFile(filename, headers, rows);
 }
 
-function exportClientsToCsv(clients, filename = 'clientes.csv') {
-  const headers = [
-    'Cliente',
-    'Telefono',
-    'Reservas totales',
-    'Asistencias',
-    'Canceladas',
-    'Pendientes o confirmadas',
-    'Ultima reserva',
-    'Ultima hora',
-    'Notas internas',
-  ];
+const CLIENT_EXPORT_HEADERS = [
+  'Cliente',
+  'Telefono',
+  'Reservas totales',
+  'Asistencias',
+  'Canceladas',
+  'Pendientes o confirmadas',
+  'Ultima reserva',
+  'Ultima hora',
+  'Notas internas',
+];
 
-  const rows = clients.map((client) => {
+function getClientExportRows(clients) {
+  return clients.map((client) => {
     const lastBooking = client.lastBooking;
-
     return [
       client.name || '',
       client.phone || '',
@@ -1091,8 +1090,161 @@ function exportClientsToCsv(clients, filename = 'clientes.csv') {
       client.notes || '',
     ];
   });
+}
 
-  downloadCsvFile(filename, headers, rows);
+function downloadTextFile(filename, content, mimeType = 'text/plain;charset=utf-8;') {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function escapeXml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function pdfEscape(value) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\x20-\x7E]/g, '?')
+    .replace(/\\/g, '\\\\')
+    .replace(/\(/g, '\\(')
+    .replace(/\)/g, '\\)');
+}
+
+function buildSimpleClientsPdf(clients) {
+  const lines = ['TuAgendaYa - Clientes', ''];
+  clients.forEach((client, index) => {
+    lines.push(`${index + 1}. ${client.name || 'Cliente sin nombre'} - ${client.phone || 'Sin telefono'}`);
+    lines.push(`   Reservas: ${client.bookings?.length || 0} | Asistencias: ${client.completedCount || 0} | Canceladas: ${client.cancelledCount || 0}`);
+    if (client.notes) lines.push(`   Nota: ${client.notes}`);
+    lines.push('');
+  });
+
+  const pages = [];
+  const perPage = 44;
+  for (let i = 0; i < lines.length; i += perPage) pages.push(lines.slice(i, i + perPage));
+  if (pages.length === 0) pages.push(['TuAgendaYa - Clientes']);
+
+  const objects = [];
+  objects.push('<< /Type /Catalog /Pages 2 0 R >>');
+  const pageObjectIds = [];
+  const contentObjectIds = [];
+  for (let i = 0; i < pages.length; i += 1) {
+    pageObjectIds.push(3 + i * 2);
+    contentObjectIds.push(4 + i * 2);
+  }
+  const fontObjectId = 3 + pages.length * 2;
+  objects.push(`<< /Type /Pages /Kids [${pageObjectIds.map((id) => `${id} 0 R`).join(' ')}] /Count ${pages.length} >>`);
+
+  pages.forEach((pageLines, pageIndex) => {
+    const pageId = pageObjectIds[pageIndex];
+    const contentId = contentObjectIds[pageIndex];
+    objects[pageId - 1] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 ${fontObjectId} 0 R >> >> /Contents ${contentId} 0 R >>`;
+    const commands = ['BT', '/F1 10 Tf', '42 800 Td'];
+    pageLines.forEach((line, lineIndex) => {
+      if (lineIndex > 0) commands.push('0 -17 Td');
+      commands.push(`(${pdfEscape(line).slice(0, 105)}) Tj`);
+    });
+    commands.push('ET');
+    const stream = commands.join('\n');
+    objects[contentId - 1] = `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`;
+  });
+  objects[fontObjectId - 1] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>';
+
+  let pdf = '%PDF-1.4\n';
+  const offsets = [0];
+  objects.forEach((obj, index) => {
+    offsets.push(pdf.length);
+    pdf += `${index + 1} 0 obj\n${obj}\nendobj\n`;
+  });
+  const xrefOffset = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (let i = 1; i <= objects.length; i += 1) pdf += `${String(offsets[i]).padStart(10, '0')} 00000 n \n`;
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+  return pdf;
+}
+
+function exportClients(clients, format) {
+  const safeClients = Array.isArray(clients) ? clients : [];
+  const rows = getClientExportRows(safeClients);
+  const base = 'clientes-tuagendaya';
+
+  if (format === 'csv') {
+    downloadCsvFile(`${base}.csv`, CLIENT_EXPORT_HEADERS, rows);
+    return;
+  }
+
+  if (format === 'json') {
+    const data = safeClients.map((client) => ({
+      nombre: client.name || '',
+      telefono: client.phone || '',
+      reservasTotales: client.bookings?.length || 0,
+      asistencias: client.completedCount || 0,
+      canceladas: client.cancelledCount || 0,
+      pendientesOConfirmadas: client.pendingOrConfirmedCount || 0,
+      notas: client.notes || '',
+    }));
+    downloadTextFile(`${base}.json`, JSON.stringify(data, null, 2), 'application/json;charset=utf-8;');
+    return;
+  }
+
+  if (format === 'xml') {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<clientes>\n${safeClients.map((client) => `  <cliente><nombre>${escapeXml(client.name || '')}</nombre><telefono>${escapeXml(client.phone || '')}</telefono><reservas>${client.bookings?.length || 0}</reservas><notas>${escapeXml(client.notes || '')}</notas></cliente>`).join('\n')}\n</clientes>`;
+    downloadTextFile(`${base}.xml`, xml, 'application/xml;charset=utf-8;');
+    return;
+  }
+
+  if (format === 'txt') {
+    const text = safeClients.map((client) => `${client.name || 'Cliente sin nombre'}\t${client.phone || ''}`).join('\n');
+    downloadTextFile(`${base}.txt`, text);
+    return;
+  }
+
+  if (format === 'vcf') {
+    const vcf = safeClients.map((client) => [
+      'BEGIN:VCARD',
+      'VERSION:3.0',
+      `FN:${String(client.name || 'Cliente sin nombre').replace(/[,;\n]/g, ' ')}`,
+      `TEL;TYPE=CELL:${String(client.phone || '').replace(/[\r\n]/g, '')}`,
+      'END:VCARD',
+    ].join('\r\n')).join('\r\n');
+    downloadTextFile(`${base}.vcf`, vcf, 'text/vcard;charset=utf-8;');
+    return;
+  }
+
+  if (format === 'xls') {
+    const table = `<html><head><meta charset="UTF-8"></head><body><table border="1"><thead><tr>${CLIENT_EXPORT_HEADERS.map((header) => `<th>${escapeHtml(header)}</th>`).join('')}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table></body></html>`;
+    downloadTextFile(`${base}.xls`, table, 'application/vnd.ms-excel;charset=utf-8;');
+    return;
+  }
+
+  if (format === 'pdf') {
+    downloadTextFile(`${base}.pdf`, buildSimpleClientsPdf(safeClients), 'application/pdf');
+  }
+}
+
+function exportClientsToCsv(clients, filename = 'clientes.csv') {
+  downloadCsvFile(filename, CLIENT_EXPORT_HEADERS, getClientExportRows(clients));
 }
 
 function normalizeSlug(value) {
@@ -7518,6 +7670,9 @@ function ClientsSection() {
   const [importingContacts, setImportingContacts] = useState(false);
   const [importContactsStatus, setImportContactsStatus] = useState('');
   const [webImportOpen, setWebImportOpen] = useState(false);
+  const [importPreview, setImportPreview] = useState([]);
+  const [importPreviewFileName, setImportPreviewFileName] = useState('');
+  const [exportClientsOpen, setExportClientsOpen] = useState(false);
 
   let storedProfessional = {};
 
@@ -7743,6 +7898,30 @@ function ClientsSection() {
     const text = String(rawText || '').replace(/^\uFEFF/, '');
     const lowerName = String(file?.name || '').toLowerCase();
 
+    const normalizeImportedContact = (name, phone) => ({
+      name: String(name || 'Cliente sin nombre').trim() || 'Cliente sin nombre',
+      phone: String(phone || '').trim(),
+      deviceContactId: null,
+    });
+
+    if (lowerName.endsWith('.json')) {
+      const parsed = JSON.parse(text || '[]');
+      const items = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.clientes) ? parsed.clientes : [];
+      return items.map((item) => normalizeImportedContact(
+        item?.nombre ?? item?.name ?? item?.cliente ?? item?.clientName,
+        item?.telefono ?? item?.phone ?? item?.celular ?? item?.clientPhone
+      )).filter((contact) => contact.phone);
+    }
+
+    if (lowerName.endsWith('.xml')) {
+      const doc = new DOMParser().parseFromString(text, 'application/xml');
+      if (doc.querySelector('parsererror')) throw new Error('El archivo XML no es válido.');
+      return Array.from(doc.querySelectorAll('cliente, contact, contacto')).map((node) => normalizeImportedContact(
+        node.querySelector('nombre, name, cliente')?.textContent,
+        node.querySelector('telefono, phone, celular')?.textContent
+      )).filter((contact) => contact.phone);
+    }
+
     if (lowerName.endsWith('.vcf') || /BEGIN:VCARD/i.test(text)) {
       return text
         .split(/END:VCARD/i)
@@ -7753,114 +7932,114 @@ function ClientsSection() {
           const phoneMatch = block.match(/(?:^|\r?\n)TEL(?:;[^:]*)?:(.+)/i);
 
           let name = '';
-
           if (nameMatch) {
-            if (nameMatch.length >= 3) {
-              name = [nameMatch[2], nameMatch[1]].filter(Boolean).join(' ');
-            } else {
-              name = nameMatch[1];
-            }
+            name = nameMatch.length >= 3
+              ? [nameMatch[2], nameMatch[1]].filter(Boolean).join(' ')
+              : nameMatch[1];
           }
 
-          return {
-            name: String(name || 'Cliente sin nombre')
-              .replace(/\\n/gi, ' ')
-              .replace(/\\,/g, ',')
-              .trim(),
-            phone: String(phoneMatch?.[1] || '')
-              .replace(/^tel:/i, '')
-              .replace(/\\-/g, '-')
-              .trim(),
-            deviceContactId: null,
-          };
+          return normalizeImportedContact(
+            String(name || 'Cliente sin nombre').replace(/\\n/gi, ' ').replace(/\\,/g, ','),
+            String(phoneMatch?.[1] || '').replace(/^tel:/i, '').replace(/\\-/g, '-')
+          );
         })
         .filter((contact) => contact.phone);
     }
 
-    const lines = text
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean);
-
-    if (lines.length < 2) {
-      return [];
+    if (lowerName.endsWith('.xls') || /<table[\s>]/i.test(text)) {
+      const doc = new DOMParser().parseFromString(text, 'text/html');
+      const rows = Array.from(doc.querySelectorAll('tr')).map((tr) =>
+        Array.from(tr.querySelectorAll('th,td')).map((cell) => cell.textContent?.trim() || '')
+      ).filter((row) => row.length > 0);
+      if (rows.length < 2) return [];
+      const headers = rows[0].map((header) => normalizeSearchText(header).replace(/[^a-z0-9]+/g, ' ').trim());
+      const nameIndex = headers.findIndex((header) => ['cliente', 'nombre', 'name'].some((candidate) => header === candidate || header.includes(candidate)));
+      const phoneIndex = headers.findIndex((header) => ['telefono', 'phone', 'mobile', 'celular'].some((candidate) => header === candidate || header.includes(candidate)));
+      if (phoneIndex < 0) throw new Error('El archivo XLS no tiene una columna de teléfono reconocible.');
+      return rows.slice(1).map((row) => normalizeImportedContact(row[nameIndex >= 0 ? nameIndex : 0], row[phoneIndex])).filter((contact) => contact.phone);
     }
+
+    if (lowerName.endsWith('.txt')) {
+      return text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).map((line) => {
+        const parts = line.includes('\t') ? line.split('\t') : line.includes(';') ? line.split(';') : line.split(',');
+        return normalizeImportedContact(parts[0], parts[1]);
+      }).filter((contact) => contact.phone);
+    }
+
+    const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    if (lines.length < 2) return [];
 
     const firstLine = lines[0];
     const commaCount = (firstLine.match(/,/g) || []).length;
     const semicolonCount = (firstLine.match(/;/g) || []).length;
-    const separator = semicolonCount > commaCount ? ';' : ',';
+    const tabCount = (firstLine.match(/\t/g) || []).length;
+    const separator = tabCount > commaCount && tabCount > semicolonCount ? '\t' : semicolonCount > commaCount ? ';' : ',';
     const headers = splitCsvLine(firstLine, separator).map((header) =>
       normalizeSearchText(header).replace(/[^a-z0-9]+/g, ' ').trim()
     );
 
-    const findHeaderIndex = (candidates) =>
-      headers.findIndex((header) =>
-        candidates.some((candidate) => header === candidate || header.includes(candidate))
-      );
+    const findHeaderIndex = (candidates) => headers.findIndex((header) =>
+      candidates.some((candidate) => header === candidate || header.includes(candidate))
+    );
+    const nameIndex = findHeaderIndex(['cliente', 'nombre', 'name', 'full name', 'given name', 'first name']);
+    const phoneIndexes = headers.map((header, index) => ({ header, index })).filter(({ header }) =>
+      ['telefono', 'phone', 'mobile', 'celular', 'telefono 1 valor', 'phone 1 value'].some((candidate) => header === candidate || header.includes(candidate))
+    ).map(({ index }) => index);
 
-    const nameIndex = findHeaderIndex([
-      'cliente',
-      'nombre',
-      'name',
-      'full name',
-      'given name',
-      'first name',
-    ]);
+    if (phoneIndexes.length === 0) throw new Error('El archivo no tiene una columna de teléfono reconocible.');
 
-    const phoneIndexes = headers
-      .map((header, index) => ({ header, index }))
-      .filter(({ header }) =>
-        ['telefono', 'phone', 'mobile', 'celular', 'telefono 1 valor', 'phone 1 value']
-          .some((candidate) => header === candidate || header.includes(candidate))
-      )
-      .map(({ index }) => index);
-
-    if (phoneIndexes.length === 0) {
-      throw new Error('El archivo no tiene una columna de teléfono reconocible.');
-    }
-
-    return lines
-      .slice(1)
-      .map((line) => {
-        const row = splitCsvLine(line, separator);
-        const phone = phoneIndexes
-          .map((index) => row[index])
-          .find((value) => String(value || '').trim());
-
-        return {
-          name: String(nameIndex >= 0 ? row[nameIndex] : 'Cliente sin nombre').trim() || 'Cliente sin nombre',
-          phone: String(phone || '').trim(),
-          deviceContactId: null,
-        };
-      })
-      .filter((contact) => contact.phone);
+    return lines.slice(1).map((line) => {
+      const row = splitCsvLine(line, separator);
+      const phone = phoneIndexes.map((index) => row[index]).find((value) => String(value || '').trim());
+      return normalizeImportedContact(nameIndex >= 0 ? row[nameIndex] : 'Cliente sin nombre', phone);
+    }).filter((contact) => contact.phone);
   };
 
   const handleWebContactsFile = async (event) => {
     const file = event.target.files?.[0];
-
-    if (!file) {
-      return;
-    }
+    if (!file) return;
 
     setImportingContacts(true);
     setImportContactsStatus('');
+    setImportPreview([]);
 
     try {
       const contacts = await parseWebContactsFile(file);
+      if (contacts.length === 0) throw new Error('No encontramos clientes con teléfono dentro del archivo.');
 
-      if (contacts.length === 0) {
-        throw new Error('No encontramos contactos con teléfono dentro del archivo.');
-      }
+      const unique = [];
+      const seen = new Set();
+      contacts.forEach((contact) => {
+        const key = normalizePhoneForWhatsApp(contact.phone);
+        if (!key || seen.has(key)) return;
+        seen.add(key);
+        unique.push(contact);
+      });
 
-      await submitImportedContacts(contacts);
-      setWebImportOpen(false);
+      setImportPreview(unique.slice(0, 500));
+      setImportPreviewFileName(file.name || 'archivo');
+      setImportContactsStatus(unique.length > 500 ? 'Se mostrarán e importarán los primeros 500 clientes válidos.' : '');
     } catch (error) {
-      setImportContactsStatus(error.message || 'No se pudieron importar los contactos');
+      setImportContactsStatus(error.message || 'No se pudieron leer los clientes del archivo');
     } finally {
       setImportingContacts(false);
       event.target.value = '';
+    }
+  };
+
+  const confirmWebContactsImport = async () => {
+    if (importPreview.length === 0) return;
+    setImportingContacts(true);
+    setImportContactsStatus('');
+    try {
+      await submitImportedContacts(importPreview);
+      setImportPreview([]);
+      setImportPreviewFileName('');
+      setWebImportOpen(false);
+    } catch (error) {
+      setImportContactsStatus(error.message || 'No se pudieron importar los clientes');
+    } finally {
+      setImportingContacts(false);
     }
   };
 
@@ -8131,7 +8310,7 @@ function ClientsSection() {
 
   return (
     <div>
-      {webImportOpen && !Capacitor.isNativePlatform() && (
+      {webImportOpen && (
         <div
           role="dialog"
           aria-modal="true"
@@ -8168,7 +8347,7 @@ function ClientsSection() {
                   Importar clientes
                 </div>
                 <div style={{ marginTop: 6, fontSize: 13, lineHeight: 1.5, color: '#6e6e73', fontWeight: 650 }}>
-                  Seleccioná un archivo de contactos. Aceptamos CSV y VCF. Si un teléfono ya existe, no se crea un cliente duplicado.
+                  Seleccioná un archivo de clientes. Aceptamos CSV, XLS, JSON, XML, TXT y VCF. Antes de importar vas a ver una vista previa. Si un teléfono ya existe, no se crea un cliente duplicado.
                 </div>
               </div>
 
@@ -8208,7 +8387,7 @@ function ClientsSection() {
             >
               <input
                 type="file"
-                accept=".csv,.vcf,text/csv,text/vcard,text/x-vcard"
+                accept=".csv,.xls,.json,.xml,.txt,.vcf,text/csv,text/plain,text/vcard,text/x-vcard,application/json,application/xml,application/vnd.ms-excel"
                 onChange={handleWebContactsFile}
                 disabled={importingContacts}
                 style={{
@@ -8224,7 +8403,7 @@ function ClientsSection() {
                 {importingContacts ? 'Importando...' : 'Seleccionar archivo'}
               </div>
               <div style={{ marginTop: 5, fontSize: 12, color: '#8e8e93', fontWeight: 750 }}>
-                CSV o VCF
+                CSV · XLS · JSON · XML · TXT · VCF
               </div>
             </label>
 
@@ -8240,8 +8419,37 @@ function ClientsSection() {
                 fontWeight: 700,
               }}
             >
-              Podés exportar tus contactos desde iCloud, Google Contacts u otra agenda y subir ese archivo acá.
+              Podés importar archivos generados por TuAgendaYa, Excel, sistemas de gestión, iCloud o Google Contacts. El teléfono se usa para evitar duplicados.
             </div>
+
+            {importPreview.length > 0 && (
+              <div style={{ marginTop: 14 }}>
+                <div style={{ fontSize: 13, fontWeight: 900, color: '#1a1a1a', marginBottom: 8 }}>
+                  Vista previa · {importPreview.length} clientes · {importPreviewFileName}
+                </div>
+                <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid #e8e8ed', borderRadius: 14, background: '#fff' }}>
+                  {importPreview.slice(0, 30).map((contact, index) => (
+                    <div key={`${contact.phone}-${index}`} style={{ padding: '10px 12px', borderTop: index === 0 ? 'none' : '1px solid #f0f0f2' }}>
+                      <div style={{ fontSize: 12.5, fontWeight: 900, color: '#1a1a1a' }}>{contact.name}</div>
+                      <div style={{ marginTop: 2, fontSize: 11.5, fontWeight: 700, color: '#6e6e73' }}>{contact.phone}</div>
+                    </div>
+                  ))}
+                  {importPreview.length > 30 && (
+                    <div style={{ padding: 10, textAlign: 'center', fontSize: 11.5, color: '#8e8e93', fontWeight: 800 }}>
+                      + {importPreview.length - 30} clientes más
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12, flexWrap: 'wrap' }}>
+                  <button type="button" disabled={importingContacts} onClick={() => { setImportPreview([]); setImportPreviewFileName(''); }} style={{ border: 'none', borderRadius: 12, padding: '10px 14px', background: '#f2f2f7', color: '#1a1a1a', fontWeight: 900, cursor: 'pointer' }}>
+                    Elegir otro
+                  </button>
+                  <button type="button" disabled={importingContacts} onClick={confirmWebContactsImport} style={{ border: 'none', borderRadius: 12, padding: '10px 14px', background: '#0071e3', color: '#fff', fontWeight: 900, cursor: importingContacts ? 'default' : 'pointer' }}>
+                    {importingContacts ? 'Importando...' : `Importar ${importPreview.length} clientes`}
+                  </button>
+                </div>
+              </div>
+            )}
 
             {importContactsStatus && (
               <div
@@ -8249,8 +8457,8 @@ function ClientsSection() {
                   marginTop: 12,
                   padding: '10px 12px',
                   borderRadius: 12,
-                  background: '#fff4f4',
-                  color: '#b42318',
+                  background: importPreview.length > 0 ? '#f5f5f7' : '#fff4f4',
+                  color: importPreview.length > 0 ? '#6e6e73' : '#b42318',
                   fontSize: 12,
                   lineHeight: 1.45,
                   fontWeight: 800,
@@ -8259,6 +8467,38 @@ function ClientsSection() {
                 {importContactsStatus}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {exportClientsOpen && (
+        <div role="dialog" aria-modal="true" aria-label="Exportar clientes" style={{ position: 'fixed', inset: 0, zIndex: 15000, background: 'rgba(15,23,42,0.42)', backdropFilter: 'blur(8px)', display: 'grid', placeItems: 'center', padding: 18 }} onMouseDown={(event) => { if (event.target === event.currentTarget) setExportClientsOpen(false); }}>
+          <div style={{ width: 'min(560px, 100%)', background: '#fff', borderRadius: 24, padding: 22, boxShadow: '0 28px 70px rgba(15,23,42,0.24)', border: '1px solid rgba(15,23,42,0.08)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontSize: 20, fontWeight: 950, color: '#111827' }}>Exportar clientes</div>
+                <div style={{ marginTop: 6, fontSize: 13, lineHeight: 1.5, color: '#6e6e73', fontWeight: 650 }}>
+                  Elegí el formato. Se exportarán {filteredClients.length} clientes según el filtro actual.
+                </div>
+              </div>
+              <button type="button" onClick={() => setExportClientsOpen(false)} aria-label="Cerrar" style={{ width: 34, height: 34, flexShrink: 0, borderRadius: 999, border: 'none', background: '#f2f2f7', color: '#6e6e73', fontSize: 18, fontWeight: 900, cursor: 'pointer' }}>×</button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(130px,1fr))', gap: 10, marginTop: 18 }}>
+              {[
+                ['csv', 'CSV', 'Compatible con Excel'],
+                ['xls', 'XLS', 'Hoja de cálculo'],
+                ['json', 'JSON', 'Sistemas y copias'],
+                ['xml', 'XML', 'Intercambio de datos'],
+                ['txt', 'TXT', 'Texto simple'],
+                ['vcf', 'VCF', 'Agenda de contactos'],
+                ['pdf', 'PDF', 'Listado para compartir'],
+              ].map(([format, label, description]) => (
+                <button key={format} type="button" onClick={() => { exportClients(filteredClients, format); setExportClientsOpen(false); }} style={{ border: '1px solid #e2e8f0', borderRadius: 16, padding: '14px 12px', background: '#fff', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit' }}>
+                  <div style={{ fontSize: 15, fontWeight: 950, color: '#0071e3' }}>{label}</div>
+                  <div style={{ marginTop: 4, fontSize: 11.5, lineHeight: 1.35, color: '#8e8e93', fontWeight: 700 }}>{description}</div>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -8395,13 +8635,35 @@ function ClientsSection() {
                 whiteSpace: 'nowrap',
               }}
             >
-              {importingContacts ? 'Importando...' : 'Importar contactos'}
+              {importingContacts ? 'Importando...' : (Capacitor.isNativePlatform() ? 'Importar contactos' : 'Importar archivo')}
             </button>
+
+            {Capacitor.isNativePlatform() && (
+              <button
+                type="button"
+                onClick={() => { setImportContactsStatus(''); setImportPreview([]); setImportPreviewFileName(''); setWebImportOpen(true); }}
+                disabled={importingContacts}
+                style={{
+                  border: 'none',
+                  background: '#f5f5f7',
+                  color: '#1a1a1a',
+                  borderRadius: 999,
+                  padding: '9px 13px',
+                  fontSize: 12,
+                  fontWeight: 900,
+                  fontFamily: 'inherit',
+                  cursor: importingContacts ? 'default' : 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Importar archivo
+              </button>
+            )}
 
             <button
               type="button"
               className="clients-export-button"
-              onClick={() => exportClientsToCsv(filteredClients, 'clientes-tuagendaya.csv')}
+              onClick={() => setExportClientsOpen(true)}
               disabled={filteredClients.length === 0}
               style={{
                 border: 'none',
@@ -8430,7 +8692,7 @@ function ClientsSection() {
 
         {!Capacitor.isNativePlatform() && !importContactsStatus && (
           <div style={{ margin: '-4px 0 14px', fontSize: 11.5, color: '#8e8e93', fontWeight: 700 }}>
-            Desde la web podés importar clientes desde un archivo CSV o VCF exportado desde tus contactos.
+            Desde la web podés importar CSV, XLS, JSON, XML, TXT o VCF. Para exportar tenés 7 formatos, incluido PDF.
           </div>
         )}
 
