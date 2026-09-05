@@ -14312,6 +14312,7 @@ function AdminDashboardPage() {
   const [selectedBusinessBookings, setSelectedBusinessBookings] = useState([]);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState('');
+  const [adminActionLoading, setAdminActionLoading] = useState('');
 
   const token = localStorage.getItem('tuagendaya_admin_token');
 
@@ -14413,6 +14414,117 @@ function AdminDashboardPage() {
     }
   };
 
+  const runPlanAction = async (professional, action, payload = {}, successMessage = 'Cambio guardado') => {
+    if (!professional?.id || adminActionLoading) return;
+
+    try {
+      setAdminActionLoading(action);
+      const data = await adminFetch(`/admin/professionals/${professional.id}/plan-actions`, {
+        method: 'PATCH',
+        body: JSON.stringify({ action, ...payload }),
+      });
+
+      if (data.professional) {
+        setSelectedBusiness((current) => current?.id === professional.id ? { ...current, ...data.professional } : current);
+      }
+
+      await loadAdminData();
+      alert(successMessage);
+    } catch (err) {
+      alert(err.message || 'No se pudo aplicar el cambio');
+    } finally {
+      setAdminActionLoading('');
+    }
+  };
+
+  const changeBusinessPlan = async (professional) => {
+    const currentPlan = String(professional?.plan || 'Profesional').toLowerCase();
+    const requested = window.prompt(
+      'Escribí el plan que querés asignar:\n\nProfesional\nfree',
+      currentPlan === 'free' || currentPlan === 'gratis' ? 'free' : 'Profesional'
+    );
+    if (requested === null) return;
+
+    const normalized = requested.trim().toLowerCase();
+    if (!['profesional', 'free', 'gratis'].includes(normalized)) {
+      alert('Plan inválido. Usá Profesional o free.');
+      return;
+    }
+
+    const plan = normalized === 'profesional' ? 'Profesional' : 'free';
+    if (!window.confirm(`¿Cambiar el plan de ${professional.businessName || professional.name || 'este negocio'} a ${plan}?`)) return;
+    await runPlanAction(professional, 'set_plan', { plan }, 'Plan actualizado');
+  };
+
+  const extendBusinessExpiration = async (professional) => {
+    const rawDays = window.prompt('¿Cuántos días querés extender el vencimiento?', '30');
+    if (rawDays === null) return;
+    const days = Number.parseInt(rawDays, 10);
+    if (!Number.isInteger(days) || days < 1 || days > 3650) {
+      alert('Ingresá una cantidad válida de días entre 1 y 3650.');
+      return;
+    }
+    if (!window.confirm(`¿Extender ${days} día${days === 1 ? '' : 's'} el vencimiento de ${professional.businessName || professional.name || 'este negocio'}?`)) return;
+    await runPlanAction(professional, 'extend_expiration', { days }, `Vencimiento extendido ${days} día${days === 1 ? '' : 's'}`);
+  };
+
+  const markBusinessManualPayment = async (professional) => {
+    const defaultAmount = Number(professional?.planPrice || professional?.plan_price || 600) || 600;
+    const rawAmount = window.prompt('Importe recibido del pago manual:', String(defaultAmount));
+    if (rawAmount === null) return;
+    const amount = Number(String(rawAmount).replace(',', '.'));
+    if (!Number.isFinite(amount) || amount < 0) {
+      alert('Ingresá un importe válido.');
+      return;
+    }
+
+    const rawDays = window.prompt('¿Cuántos días de membresía acredita este pago?', '30');
+    if (rawDays === null) return;
+    const days = Number.parseInt(rawDays, 10);
+    if (!Number.isInteger(days) || days < 1 || days > 3650) {
+      alert('Ingresá una cantidad válida de días entre 1 y 3650.');
+      return;
+    }
+
+    const currency = String(professional?.planCurrency || professional?.plan_currency || 'UYU').toUpperCase();
+    if (!window.confirm(`¿Registrar pago manual de ${currency} ${amount} y acreditar ${days} días?`)) return;
+    await runPlanAction(professional, 'mark_manual_payment', { amount, days, currency }, 'Pago manual registrado');
+  };
+
+  const toggleBusinessLifetimeFree = async (professional) => {
+    const lifetimeFree = Boolean(professional?.lifetimeFree ?? professional?.lifetime_free);
+    const isNicoProtected = String(professional?.slug || '').trim().toLowerCase() === 'barberianicoaquino';
+
+    if (lifetimeFree && isNicoProtected) {
+      alert('La membresía gratis de por vida de Nico está protegida y no se puede quitar desde el panel.');
+      return;
+    }
+
+    const enabled = !lifetimeFree;
+    const message = enabled
+      ? `¿Dar membresía gratis de por vida a ${professional.businessName || professional.name || 'este negocio'}?`
+      : `¿Quitar la membresía gratis de por vida de ${professional.businessName || professional.name || 'este negocio'}?`;
+    if (!window.confirm(message)) return;
+
+    await runPlanAction(
+      professional,
+      'set_lifetime_free',
+      { enabled },
+      enabled ? 'Membresía gratis de por vida activada' : 'Membresía gratis de por vida desactivada'
+    );
+  };
+
+  const resetBusinessTrial = async (professional) => {
+    const isNicoProtected = String(professional?.slug || '').trim().toLowerCase() === 'barberianicoaquino';
+    if (isNicoProtected) {
+      alert('La cuenta de Nico es gratis de por vida y no usa período de prueba.');
+      return;
+    }
+
+    if (!window.confirm(`¿Reiniciar desde hoy el período de prueba de ${professional.businessName || professional.name || 'este negocio'}? Esto reemplaza su estado de pago y vencimiento actuales.`)) return;
+    await runPlanAction(professional, 'reset_trial', {}, 'Período de prueba reiniciado');
+  };
+
   const openBusinessDetail = async (professional) => {
     setDetailError('');
     setDetailLoading(true);
@@ -14470,6 +14582,7 @@ function AdminDashboardPage() {
           .admin-detail-grid { grid-template-columns: 1fr !important; }
           .admin-transfer-card { grid-template-columns: 1fr !important; }
           .admin-transfer-actions { grid-template-columns: 1fr !important; }
+          .admin-quick-actions { grid-template-columns: 1fr !important; }
         }
       `}</style>
 
@@ -14796,6 +14909,69 @@ function AdminDashboardPage() {
                       style={{ border: '1px solid #dcdce3', borderRadius: 14, padding: '11px 14px', background: '#fff', color: '#0071e3', fontWeight: 900, cursor: 'pointer' }}
                     >
                       Copiar link público
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ border: '1px solid #d9e8fb', background: '#f7fbff', borderRadius: 18, padding: 16, marginBottom: 16 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+                    <div>
+                      <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 900, color: '#1a1a1a' }}>Acciones rápidas</h3>
+                      <div style={{ color: '#6e6e73', fontSize: 12, fontWeight: 750 }}>Cambios administrativos sobre esta cuenta.</div>
+                    </div>
+                    {adminActionLoading && (
+                      <span style={{ fontSize: 12, color: '#0071e3', fontWeight: 900 }}>Guardando...</span>
+                    )}
+                  </div>
+
+                  <div className="admin-quick-actions" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
+                    <button
+                      type="button"
+                      disabled={Boolean(adminActionLoading)}
+                      onClick={() => changeBusinessPlan(selectedBusiness)}
+                      style={{ border: '1px solid #cfe3fb', borderRadius: 14, padding: '11px 12px', background: '#fff', color: '#0071e3', fontWeight: 900, cursor: adminActionLoading ? 'wait' : 'pointer' }}
+                    >
+                      Cambiar plan
+                    </button>
+                    <button
+                      type="button"
+                      disabled={Boolean(adminActionLoading) || Boolean(selectedBusiness.lifetimeFree ?? selectedBusiness.lifetime_free)}
+                      onClick={() => extendBusinessExpiration(selectedBusiness)}
+                      style={{ border: '1px solid #cfe3fb', borderRadius: 14, padding: '11px 12px', background: '#fff', color: '#0071e3', fontWeight: 900, cursor: adminActionLoading ? 'wait' : 'pointer', opacity: (selectedBusiness.lifetimeFree ?? selectedBusiness.lifetime_free) ? 0.5 : 1 }}
+                    >
+                      Extender vencimiento
+                    </button>
+                    <button
+                      type="button"
+                      disabled={Boolean(adminActionLoading)}
+                      onClick={() => markBusinessManualPayment(selectedBusiness)}
+                      style={{ border: '1px solid #bfe8cc', borderRadius: 14, padding: '11px 12px', background: '#fff', color: '#188038', fontWeight: 900, cursor: adminActionLoading ? 'wait' : 'pointer' }}
+                    >
+                      Marcar pago manual
+                    </button>
+                    <button
+                      type="button"
+                      disabled={Boolean(adminActionLoading)}
+                      onClick={() => toggleBusinessLifetimeFree(selectedBusiness)}
+                      style={{ border: '1px solid #d9d9e0', borderRadius: 14, padding: '11px 12px', background: '#fff', color: '#1a1a1a', fontWeight: 900, cursor: adminActionLoading ? 'wait' : 'pointer' }}
+                    >
+                      {(selectedBusiness.lifetimeFree ?? selectedBusiness.lifetime_free) ? 'Quitar gratis de por vida' : 'Gratis de por vida'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={Boolean(adminActionLoading)}
+                      onClick={() => resetBusinessTrial(selectedBusiness)}
+                      style={{ border: '1px solid #ffd8a8', borderRadius: 14, padding: '11px 12px', background: '#fff', color: '#b26a00', fontWeight: 900, cursor: adminActionLoading ? 'wait' : 'pointer' }}
+                    >
+                      Reiniciar prueba
+                    </button>
+                    <button
+                      type="button"
+                      disabled={Boolean(adminActionLoading)}
+                      onClick={() => updateStatus(selectedBusiness, selectedBusiness.status === 'suspended' ? 'active' : 'suspended')}
+                      style={{ border: 'none', borderRadius: 14, padding: '11px 12px', background: selectedBusiness.status === 'suspended' ? '#21c55d' : '#ff3b30', color: '#fff', fontWeight: 900, cursor: adminActionLoading ? 'wait' : 'pointer' }}
+                    >
+                      {selectedBusiness.status === 'suspended' ? 'Activar negocio' : 'Suspender negocio'}
                     </button>
                   </div>
                 </div>

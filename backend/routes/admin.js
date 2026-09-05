@@ -74,6 +74,14 @@ function normalizeProfessional(row) {
     plan_price: lifetimeFree ? 0 : Number(row.plan_price || 0),
     planCurrency: row.plan_currency || 'UYU',
     plan_currency: row.plan_currency || 'UYU',
+    promoStartedAt: row.promo_started_at || null,
+    promo_started_at: row.promo_started_at || null,
+    promoFreeMonths: Number(row.promo_free_months || 2),
+    promo_free_months: Number(row.promo_free_months || 2),
+    promoDiscountMonths: Number(row.promo_discount_months || 2),
+    promo_discount_months: Number(row.promo_discount_months || 2),
+    promoDiscountPercent: Number(row.promo_discount_percent || 50),
+    promo_discount_percent: Number(row.promo_discount_percent || 50),
     bookingsCount: Number(row.bookings_count || 0),
     clientsCount: Number(row.clients_count || 0),
     createdAt: row.created_at,
@@ -196,6 +204,10 @@ router.get("/stats", requireAdmin, async (req, res) => {
         p.billing_method,
         p.plan_price,
         p.plan_currency,
+        p.promo_started_at,
+        p.promo_free_months,
+        p.promo_discount_months,
+        p.promo_discount_percent,
         p.created_at,
         p.updated_at,
         COUNT(b.id)::int AS bookings_count,
@@ -269,6 +281,10 @@ router.get("/professionals", requireAdmin, async (req, res) => {
         p.billing_method,
         p.plan_price,
         p.plan_currency,
+        p.promo_started_at,
+        p.promo_free_months,
+        p.promo_discount_months,
+        p.promo_discount_percent,
         p.created_at,
         p.updated_at,
         COUNT(b.id)::int AS bookings_count,
@@ -321,6 +337,10 @@ router.get("/professionals/:id", requireAdmin, async (req, res) => {
         p.billing_method,
         p.plan_price,
         p.plan_currency,
+        p.promo_started_at,
+        p.promo_free_months,
+        p.promo_discount_months,
+        p.promo_discount_percent,
         p.created_at,
         p.updated_at,
         COUNT(b.id)::int AS bookings_count,
@@ -423,6 +443,220 @@ router.patch("/professionals/:id/status", requireAdmin, async (req, res) => {
   } catch (error) {
     console.error("Error admin status:", error);
     res.status(500).json({ error: "Error actualizando estado" });
+  }
+});
+
+
+router.patch("/professionals/:id/plan-actions", requireAdmin, async (req, res) => {
+  const client = await db.connect();
+
+  try {
+    const professionalId = Number(req.params.id);
+    const action = normalizeText(req.body.action).toLowerCase();
+
+    if (!professionalId || Number.isNaN(professionalId)) {
+      return res.status(400).json({ error: "Profesional inválido" });
+    }
+
+    const currentResult = await client.query(
+      `SELECT id, slug, plan, status, lifetime_free, plan_price, plan_currency, plan_expires_at
+       FROM professionals
+       WHERE id = $1
+       LIMIT 1`,
+      [professionalId]
+    );
+
+    if (currentResult.rows.length === 0) {
+      return res.status(404).json({ error: "Negocio no encontrado" });
+    }
+
+    const current = currentResult.rows[0];
+    const currentSlug = String(current.slug || '').trim().toLowerCase();
+
+    await client.query('BEGIN');
+
+    if (action === 'set_plan') {
+      const requestedPlan = normalizeText(req.body.plan);
+      const normalizedPlan = requestedPlan.toLowerCase();
+      const allowedPlans = new Map([
+        ['free', 'free'],
+        ['gratis', 'free'],
+        ['profesional', 'Profesional'],
+      ]);
+      const nextPlan = allowedPlans.get(normalizedPlan);
+
+      if (!nextPlan) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: "Plan inválido" });
+      }
+
+      if (currentSlug === NICO_LIFETIME_FREE_SLUG && nextPlan !== 'Profesional') {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: "La membresía vitalicia de Nico está fijada en Profesional" });
+      }
+
+      await client.query(
+        `UPDATE professionals
+         SET plan = $1,
+             updated_at = NOW()
+         WHERE id = $2`,
+        [nextPlan, professionalId]
+      );
+    } else if (action === 'extend_expiration') {
+      const days = Number.parseInt(req.body.days, 10);
+      if (!Number.isInteger(days) || days < 1 || days > 3650) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: "Los días deben estar entre 1 y 3650" });
+      }
+
+      if (current.lifetime_free === true || currentSlug === NICO_LIFETIME_FREE_SLUG) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: "Una cuenta gratis de por vida no tiene vencimiento" });
+      }
+
+      await client.query(
+        `UPDATE professionals
+         SET status = 'active',
+             plan_payment_status = 'paid',
+             plan_expires_at = GREATEST(COALESCE(plan_expires_at, NOW()), NOW()) + ($1::int * INTERVAL '1 day'),
+             updated_at = NOW()
+         WHERE id = $2`,
+        [days, professionalId]
+      );
+    } else if (action === 'mark_manual_payment') {
+      const days = Number.parseInt(req.body.days ?? 30, 10);
+      const amount = Number(req.body.amount ?? current.plan_price ?? process.env.PLAN_BASE_PRICE ?? 600);
+      const currency = normalizeText(req.body.currency || current.plan_currency || process.env.PLAN_CURRENCY || 'UYU').toUpperCase();
+
+      if (!Number.isInteger(days) || days < 1 || days > 3650) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: "Los días del pago deben estar entre 1 y 3650" });
+      }
+      if (!Number.isFinite(amount) || amount < 0 || amount > 100000000) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: "Importe inválido" });
+      }
+      if (!/^[A-Z]{3}$/.test(currency)) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: "Moneda inválida" });
+      }
+
+      const baseResult = await client.query(
+        `SELECT GREATEST(COALESCE(plan_expires_at, NOW()), NOW()) + ($1::int * INTERVAL '1 day') AS next_expires
+         FROM professionals WHERE id = $2`,
+        [days, professionalId]
+      );
+      const nextExpires = baseResult.rows[0]?.next_expires;
+
+      await client.query(
+        `UPDATE professionals
+         SET status = 'active',
+             plan = 'Profesional',
+             lifetime_free = FALSE,
+             plan_payment_status = 'paid',
+             plan_expires_at = $1,
+             last_payment_at = NOW(),
+             billing_method = 'manual_admin',
+             plan_price = $2,
+             plan_currency = $3,
+             updated_at = NOW()
+         WHERE id = $4`,
+        [nextExpires, amount, currency, professionalId]
+      );
+
+      await client.query(
+        `INSERT INTO plan_payments
+          (professional_id, method, status, amount, currency, plan, period_days, approved_at, expires_at, created_at, updated_at)
+         VALUES ($1, 'manual_admin', 'approved', $2, $3, 'Profesional', $4, NOW(), $5, NOW(), NOW())`,
+        [professionalId, amount, currency, days, nextExpires]
+      );
+    } else if (action === 'set_lifetime_free') {
+      const enabled = req.body.enabled === true;
+
+      if (!enabled && currentSlug === NICO_LIFETIME_FREE_SLUG) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: "La membresía gratis de por vida de Nico está protegida" });
+      }
+
+      if (enabled) {
+        await client.query(
+          `UPDATE professionals
+           SET status = 'active',
+               plan = 'Profesional',
+               lifetime_free = TRUE,
+               plan_payment_status = 'paid',
+               plan_expires_at = NULL,
+               billing_method = 'lifetime_free',
+               plan_price = 0,
+               updated_at = NOW()
+           WHERE id = $1`,
+          [professionalId]
+        );
+      } else {
+        const basePrice = Number(process.env.PLAN_BASE_PRICE || 600) || 600;
+        await client.query(
+          `UPDATE professionals
+           SET lifetime_free = FALSE,
+               plan_payment_status = 'pending',
+               plan_expires_at = NULL,
+               billing_method = NULL,
+               plan_price = CASE WHEN COALESCE(plan_price, 0) <= 0 THEN $1 ELSE plan_price END,
+               updated_at = NOW()
+           WHERE id = $2`,
+          [basePrice, professionalId]
+        );
+      }
+    } else if (action === 'reset_trial') {
+      if (currentSlug === NICO_LIFETIME_FREE_SLUG) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: "La cuenta de Nico es gratis de por vida y no usa período de prueba" });
+      }
+
+      await client.query(
+        `UPDATE professionals
+         SET status = 'active',
+             plan = 'free',
+             lifetime_free = FALSE,
+             promo_started_at = NOW(),
+             plan_payment_status = 'pending',
+             plan_expires_at = NULL,
+             last_payment_at = NULL,
+             billing_method = NULL,
+             updated_at = NOW()
+         WHERE id = $1`,
+        [professionalId]
+      );
+    } else {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: "Acción de plan inválida" });
+    }
+
+    await client.query('COMMIT');
+
+    const result = await db.query(
+      `SELECT
+        p.id, p.name, p.business_name, p.email, p.phone, p.profession, p.address, p.slug, p.logo_url,
+        p.status, p.plan, p.lifetime_free, p.monthly_limit, p.plan_payment_status, p.plan_expires_at,
+        p.last_payment_at, p.billing_method, p.plan_price, p.plan_currency,
+        p.promo_started_at, p.promo_free_months, p.promo_discount_months, p.promo_discount_percent,
+        p.created_at, p.updated_at,
+        COUNT(b.id)::int AS bookings_count,
+        COUNT(b.id) FILTER (WHERE b.booking_date >= DATE_TRUNC('month', CURRENT_DATE) AND b.booking_date < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month')::int AS monthly_bookings_count,
+        COUNT(DISTINCT LOWER(TRIM(b.client_phone))) FILTER (WHERE b.client_phone IS NOT NULL AND TRIM(b.client_phone) <> '')::int AS clients_count
+       FROM professionals p
+       LEFT JOIN bookings b ON b.professional_id = p.id
+       WHERE p.id = $1
+       GROUP BY p.id`,
+      [professionalId]
+    );
+
+    res.json({ success: true, professional: normalizeProfessional(result.rows[0]) });
+  } catch (error) {
+    try { await client.query('ROLLBACK'); } catch {}
+    console.error("Error admin plan action:", error);
+    res.status(500).json({ error: "Error actualizando plan del negocio" });
+  } finally {
+    client.release();
   }
 });
 
