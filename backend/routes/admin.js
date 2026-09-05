@@ -199,7 +199,7 @@ router.get("/stats", requireAdmin, async (req, res) => {
         p.created_at,
         p.updated_at,
         COUNT(b.id)::int AS bookings_count,
-        COUNT(b.id) FILTER (WHERE b.date >= DATE_TRUNC('month', CURRENT_DATE) AND b.date < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month')::int AS monthly_bookings_count,
+        COUNT(b.id) FILTER (WHERE b.booking_date >= DATE_TRUNC('month', CURRENT_DATE) AND b.booking_date < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month')::int AS monthly_bookings_count,
         COUNT(DISTINCT LOWER(TRIM(b.client_phone))) FILTER (WHERE b.client_phone IS NOT NULL AND TRIM(b.client_phone) <> '')::int AS clients_count
       FROM professionals p
       LEFT JOIN bookings b ON b.professional_id = p.id
@@ -272,7 +272,7 @@ router.get("/professionals", requireAdmin, async (req, res) => {
         p.created_at,
         p.updated_at,
         COUNT(b.id)::int AS bookings_count,
-        COUNT(b.id) FILTER (WHERE b.date >= DATE_TRUNC('month', CURRENT_DATE) AND b.date < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month')::int AS monthly_bookings_count,
+        COUNT(b.id) FILTER (WHERE b.booking_date >= DATE_TRUNC('month', CURRENT_DATE) AND b.booking_date < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month')::int AS monthly_bookings_count,
         COUNT(DISTINCT LOWER(TRIM(b.client_phone))) FILTER (WHERE b.client_phone IS NOT NULL AND TRIM(b.client_phone) <> '')::int AS clients_count
       FROM professionals p
       LEFT JOIN bookings b ON b.professional_id = p.id
@@ -324,7 +324,7 @@ router.get("/professionals/:id", requireAdmin, async (req, res) => {
         p.created_at,
         p.updated_at,
         COUNT(b.id)::int AS bookings_count,
-        COUNT(b.id) FILTER (WHERE b.date >= DATE_TRUNC('month', CURRENT_DATE) AND b.date < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month')::int AS monthly_bookings_count,
+        COUNT(b.id) FILTER (WHERE b.booking_date >= DATE_TRUNC('month', CURRENT_DATE) AND b.booking_date < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month')::int AS monthly_bookings_count,
         COUNT(DISTINCT LOWER(TRIM(b.client_phone))) FILTER (WHERE b.client_phone IS NOT NULL AND TRIM(b.client_phone) <> '')::int AS clients_count
       FROM professionals p
       LEFT JOIN bookings b ON b.professional_id = p.id
