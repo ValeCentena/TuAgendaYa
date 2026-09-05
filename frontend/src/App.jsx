@@ -14376,6 +14376,7 @@ function AdminDashboardPage() {
   const [adminInternalNote, setAdminInternalNote] = useState('');
   const [adminInternalNoteMeta, setAdminInternalNoteMeta] = useState(null);
   const [adminNoteSaving, setAdminNoteSaving] = useState(false);
+  const [adminCsvDownloading, setAdminCsvDownloading] = useState('');
 
   const token = localStorage.getItem('tuagendaya_admin_token');
 
@@ -14703,6 +14704,56 @@ function AdminDashboardPage() {
     }
   };
 
+  const downloadAdminCsv = async (type) => {
+    if (adminCsvDownloading) return;
+
+    const labels = {
+      businesses: 'negocios',
+      payments: 'pagos',
+      bookings: 'reservas',
+    };
+    const label = labels[type];
+    if (!label) return;
+
+    try {
+      setAdminCsvDownloading(type);
+      const params = new URLSearchParams();
+      if (search.trim()) params.set('search', search.trim());
+      if (status !== 'all') params.set('status', status);
+
+      const currentToken = localStorage.getItem('tuagendaya_admin_token');
+      const response = await fetch(`${API_BASE}/admin/exports/${type}.csv?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${currentToken}` },
+      });
+
+      if (response.status === 401 || response.status === 403) {
+        localStorage.removeItem('tuagendaya_admin_token');
+        localStorage.removeItem('tuagendaya_admin_user');
+        navigate(adminLoginPath, { replace: true });
+        throw new Error('Sesión admin vencida');
+      }
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || `No se pudo exportar ${label}`);
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${label}-tuagendaya.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert(err.message || `No se pudo exportar ${label}`);
+    } finally {
+      setAdminCsvDownloading('');
+    }
+  };
+
   const copyText = async (text, label = 'Copiado') => {
     if (!text) return;
 
@@ -14831,11 +14882,42 @@ function AdminDashboardPage() {
         </div>
 
         <div style={{ background: '#fff', borderRadius: 24, padding: 22, boxShadow: '0 1px 10px rgba(0,0,0,0.06)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 16, flexWrap: 'wrap' }}>
             <div>
               <h2 style={{ margin: '0 0 6px', color: '#1a1a1a', fontSize: 20, fontWeight: 900 }}>Negocios registrados</h2>
               <p style={{ margin: 0, color: '#6e6e73', fontSize: 13 }}>Ver detalle, copiar link público, activar o suspender negocios.</p>
             </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {[
+                { type: 'businesses', label: 'Exportar negocios' },
+                { type: 'payments', label: 'Exportar pagos' },
+                { type: 'bookings', label: 'Exportar reservas' },
+              ].map((item) => (
+                <button
+                  key={item.type}
+                  type="button"
+                  disabled={Boolean(adminCsvDownloading)}
+                  onClick={() => downloadAdminCsv(item.type)}
+                  style={{
+                    border: '1px solid #dcdce3',
+                    borderRadius: 12,
+                    padding: '9px 11px',
+                    background: '#fff',
+                    color: '#0071e3',
+                    fontSize: 12,
+                    fontWeight: 900,
+                    cursor: adminCsvDownloading ? 'wait' : 'pointer',
+                    opacity: adminCsvDownloading && adminCsvDownloading !== item.type ? 0.55 : 1,
+                  }}
+                >
+                  {adminCsvDownloading === item.type ? 'Exportando...' : item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ background: '#f7f7fb', border: '1px solid #ececf2', borderRadius: 14, padding: '10px 12px', color: '#6e6e73', fontSize: 12, fontWeight: 750, marginBottom: 12 }}>
+            Las exportaciones respetan la búsqueda y el filtro de estado comercial seleccionados abajo.
           </div>
 
           <div className="admin-filters" style={{ display: 'grid', gridTemplateColumns: '1fr 180px', gap: 10, marginBottom: 16 }}>

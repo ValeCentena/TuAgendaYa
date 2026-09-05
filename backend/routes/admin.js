@@ -39,6 +39,81 @@ function requireAdmin(req, res, next) {
 const NICO_LIFETIME_FREE_SLUG = 'barberianicoaquino';
 
 
+function csvCell(value) {
+  if (value === null || value === undefined) return '""';
+  let text = String(value).replace(/\r?\n/g, ' ').trim();
+  if (/^[=+\-@]/.test(text)) text = `'${text}`;
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function sendCsv(res, filename, headers, rows) {
+  const lines = [headers.map(csvCell).join(',')];
+  for (const row of rows) lines.push(row.map(csvCell).join(','));
+  const safeFilename = String(filename || 'export.csv').replace(/[^a-zA-Z0-9._-]/g, '_');
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"`);
+  res.setHeader('Cache-Control', 'no-store');
+  res.status(200).send(`\uFEFF${lines.join('\r\n')}`);
+}
+
+function buildAdminExportProfessionalFilter(query = {}, alias = 'p') {
+  const search = normalizeText(query.search).toLowerCase();
+  const status = normalizeText(query.status).toLowerCase();
+  const params = [];
+  const where = [];
+
+  if (search) {
+    params.push(`%${search}%`);
+    where.push(`(
+      LOWER(COALESCE(${alias}.name, '')) LIKE $${params.length}
+      OR LOWER(COALESCE(${alias}.business_name, '')) LIKE $${params.length}
+      OR LOWER(COALESCE(${alias}.email, '')) LIKE $${params.length}
+      OR LOWER(COALESCE(${alias}.slug, '')) LIKE $${params.length}
+      OR LOWER(COALESCE(${alias}.profession, '')) LIKE $${params.length}
+    )`);
+  }
+
+  if (status && status !== 'all') {
+    const lifetimeFreeSql = `(COALESCE(${alias}.lifetime_free, FALSE) = TRUE OR LOWER(COALESCE(${alias}.slug, '')) = '${NICO_LIFETIME_FREE_SLUG}')`;
+    const activePaidSql = `(
+      COALESCE(${alias}.status, 'active') <> 'suspended'
+      AND NOT ${lifetimeFreeSql}
+      AND (
+        LOWER(COALESCE(${alias}.plan_payment_status, '')) = 'paid'
+        OR (${alias}.plan_expires_at IS NOT NULL AND ${alias}.plan_expires_at >= CURRENT_DATE)
+      )
+    )`;
+    const expiredSql = `(
+      COALESCE(${alias}.status, 'active') <> 'suspended'
+      AND NOT ${lifetimeFreeSql}
+      AND (
+        LOWER(COALESCE(${alias}.plan_payment_status, '')) = 'overdue'
+        OR (${alias}.plan_expires_at IS NOT NULL AND ${alias}.plan_expires_at < CURRENT_DATE)
+      )
+    )`;
+
+    if (status === 'suspended') where.push(`${alias}.status = 'suspended'`);
+    else if (status === 'lifetime_free') where.push(lifetimeFreeSql);
+    else if (status === 'active_paid') where.push(activePaidSql);
+    else if (status === 'expired') where.push(expiredSql);
+    else if (status === 'trial') {
+      where.push(`(
+        COALESCE(${alias}.status, 'active') <> 'suspended'
+        AND NOT ${lifetimeFreeSql}
+        AND NOT ${activePaidSql}
+        AND NOT ${expiredSql}
+      )`);
+    } else {
+      const error = new Error('Filtro de estado inválido');
+      error.statusCode = 400;
+      throw error;
+    }
+  }
+
+  return { params, whereSql: where.length ? `WHERE ${where.join(' AND ')}` : '' };
+}
+
+
 async function ensureAdminProfessionalNotesTable() {
   await db.query(`
     CREATE TABLE IF NOT EXISTS admin_professional_notes (
@@ -390,6 +465,99 @@ router.get("/alerts", requireAdmin, async (req, res) => {
   } catch (error) {
     console.error("Error admin alerts:", error);
     res.status(500).json({ error: "Error obteniendo alertas admin" });
+  }
+});
+
+
+router.get('/exports/businesses.csv', requireAdmin, async (req, res) => {
+  try {
+    const { params, whereSql } = buildAdminExportProfessionalFilter(req.query, 'p');
+    const result = await db.query(`
+      SELECT
+        p.id, p.business_name, p.name, p.email, p.phone, p.profession, p.slug,
+        p.status, p.plan, p.lifetime_free, p.monthly_limit,
+        p.plan_payment_status, p.plan_expires_at, p.last_payment_at,
+        p.billing_method, p.plan_price, p.plan_currency, p.created_at
+      FROM professionals p
+      ${whereSql}
+      ORDER BY p.created_at DESC
+    `, params);
+
+    sendCsv(res, 'negocios-tuagendaya.csv', [
+      'ID', 'Negocio', 'Dueño', 'Email', 'Teléfono', 'Rubro', 'Slug', 'Estado',
+      'Plan', 'Gratis de por vida', 'Límite mensual', 'Estado de pago',
+      'Vencimiento', 'Último pago', 'Método de cobro', 'Precio', 'Moneda', 'Alta'
+    ], result.rows.map((row) => [
+      row.id, row.business_name, row.name, row.email, row.phone, row.profession, row.slug,
+      row.status, row.plan,
+      row.lifetime_free === true || String(row.slug || '').trim().toLowerCase() === NICO_LIFETIME_FREE_SLUG ? 'Sí' : 'No',
+      row.monthly_limit, row.plan_payment_status, row.plan_expires_at, row.last_payment_at,
+      row.billing_method, row.plan_price, row.plan_currency, row.created_at
+    ]));
+  } catch (error) {
+    console.error('Error exportando negocios admin:', error);
+    res.status(error.statusCode || 500).json({ error: error.statusCode ? error.message : 'Error exportando negocios' });
+  }
+});
+
+router.get('/exports/payments.csv', requireAdmin, async (req, res) => {
+  try {
+    const { params, whereSql } = buildAdminExportProfessionalFilter(req.query, 'p');
+    const result = await db.query(`
+      SELECT
+        pp.id, p.business_name, p.name AS owner_name, p.email,
+        pp.method, pp.status, pp.amount, pp.currency, pp.plan, pp.period_days,
+        pp.transfer_reference, pp.approved_at, pp.expires_at, pp.created_at
+      FROM plan_payments pp
+      INNER JOIN professionals p ON p.id = pp.professional_id
+      ${whereSql}
+      ORDER BY pp.created_at DESC
+    `, params);
+
+    sendCsv(res, 'pagos-tuagendaya.csv', [
+      'ID pago', 'Negocio', 'Dueño', 'Email', 'Método', 'Estado', 'Importe',
+      'Moneda', 'Plan', 'Días acreditados', 'Referencia transferencia',
+      'Aprobado', 'Vencimiento', 'Creado'
+    ], result.rows.map((row) => [
+      row.id, row.business_name, row.owner_name, row.email, row.method, row.status,
+      row.amount, row.currency, row.plan, row.period_days, row.transfer_reference,
+      row.approved_at, row.expires_at, row.created_at
+    ]));
+  } catch (error) {
+    console.error('Error exportando pagos admin:', error);
+    res.status(error.statusCode || 500).json({ error: error.statusCode ? error.message : 'Error exportando pagos' });
+  }
+});
+
+router.get('/exports/bookings.csv', requireAdmin, async (req, res) => {
+  try {
+    const { params, whereSql } = buildAdminExportProfessionalFilter(req.query, 'p');
+    const result = await db.query(`
+      SELECT
+        b.id, p.business_name, p.email AS business_email,
+        b.client_name, b.client_phone, b.booking_date, b.start_time, b.end_time,
+        ps.name AS service_name, sm.name AS staff_name,
+        b.status, b.payment_status, b.payment_method, b.amount_paid, b.created_at
+      FROM bookings b
+      INNER JOIN professionals p ON p.id = b.professional_id
+      LEFT JOIN professional_services ps ON ps.id = b.service_id
+      LEFT JOIN staff_members sm ON sm.id = b.staff_id
+      ${whereSql}
+      ORDER BY b.booking_date DESC NULLS LAST, b.start_time DESC NULLS LAST, b.created_at DESC
+    `, params);
+
+    sendCsv(res, 'reservas-tuagendaya.csv', [
+      'ID reserva', 'Negocio', 'Email negocio', 'Cliente', 'Teléfono cliente',
+      'Fecha', 'Hora inicio', 'Hora fin', 'Servicio', 'Profesional/Staff',
+      'Estado', 'Estado de pago', 'Método de pago', 'Importe pagado', 'Creada'
+    ], result.rows.map((row) => [
+      row.id, row.business_name, row.business_email, row.client_name, row.client_phone,
+      row.booking_date, row.start_time, row.end_time, row.service_name, row.staff_name,
+      row.status, row.payment_status, row.payment_method, row.amount_paid, row.created_at
+    ]));
+  } catch (error) {
+    console.error('Error exportando reservas admin:', error);
+    res.status(error.statusCode || 500).json({ error: error.statusCode ? error.message : 'Error exportando reservas' });
   }
 });
 
