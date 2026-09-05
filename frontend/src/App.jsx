@@ -14304,6 +14304,8 @@ function AdminDashboardPage() {
   const adminLoginPath = '/login';
   const [stats, setStats] = useState(null);
   const [professionals, setProfessionals] = useState([]);
+  const [adminAlerts, setAdminAlerts] = useState([]);
+  const [adminAlertCounts, setAdminAlertCounts] = useState({ total: 0, critical: 0, warning: 0, info: 0 });
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('all');
   const [loading, setLoading] = useState(true);
@@ -14354,13 +14356,16 @@ function AdminDashboardPage() {
       if (search.trim()) params.set('search', search.trim());
       if (status !== 'all') params.set('status', status);
 
-      const [statsData, professionalsData] = await Promise.all([
+      const [statsData, professionalsData, alertsData] = await Promise.all([
         adminFetch('/admin/stats'),
         adminFetch(`/admin/professionals?${params.toString()}`),
+        adminFetch('/admin/alerts'),
       ]);
 
       setStats(statsData);
       setProfessionals(professionalsData.professionals || []);
+      setAdminAlerts(alertsData.alerts || []);
+      setAdminAlertCounts(alertsData.counts || { total: 0, critical: 0, warning: 0, info: 0 });
     } catch (err) {
       setError(err.message || 'Error cargando panel admin');
     } finally {
@@ -14542,6 +14547,35 @@ function AdminDashboardPage() {
     setDetailLoading(false);
   };
 
+  const openAlertBusiness = async (alertItem) => {
+    if (!alertItem?.professionalId) return;
+
+    const listedProfessional = professionals.find((professional) => Number(professional.id) === Number(alertItem.professionalId));
+    if (listedProfessional) {
+      await openBusinessDetail(listedProfessional);
+      return;
+    }
+
+    setDetailError('');
+    setDetailLoading(true);
+    setSelectedBusiness({
+      id: alertItem.professionalId,
+      businessName: alertItem.businessName || 'Negocio',
+      slug: alertItem.slug || '',
+    });
+    setSelectedBusinessBookings([]);
+
+    try {
+      const data = await adminFetch(`/admin/professionals/${alertItem.professionalId}`);
+      setSelectedBusiness(data.professional || null);
+      setSelectedBusinessBookings(data.latestBookings || []);
+    } catch (err) {
+      setDetailError(err.message || 'No se pudo cargar el detalle del negocio');
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
   const copyText = async (text, label = 'Copiado') => {
     if (!text) return;
 
@@ -14576,6 +14610,7 @@ function AdminDashboardPage() {
           .admin-transfer-card { grid-template-columns: 1fr !important; }
           .admin-transfer-actions { grid-template-columns: 1fr !important; }
           .admin-quick-actions { grid-template-columns: 1fr !important; }
+          .admin-alert-summary { grid-template-columns: 1fr 1fr !important; }
         }
       `}</style>
 
@@ -14605,6 +14640,67 @@ function AdminDashboardPage() {
               <div style={{ color: '#6e6e73', fontSize: 12, fontWeight: 800 }}>{card.label}</div>
             </div>
           ))}
+        </div>
+
+        <div style={{ background: '#fff', borderRadius: 24, padding: 22, boxShadow: '0 1px 10px rgba(0,0,0,0.06)', marginBottom: 18 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14, flexWrap: 'wrap', marginBottom: 16 }}>
+            <div>
+              <h2 style={{ margin: '0 0 5px', color: '#1a1a1a', fontSize: 20, fontWeight: 900 }}>Alertas</h2>
+              <p style={{ margin: 0, color: '#6e6e73', fontSize: 13 }}>Situaciones que requieren revisión. Tocá una alerta para abrir el negocio.</p>
+            </div>
+            <div style={{ borderRadius: 999, padding: '7px 11px', background: adminAlertCounts.total > 0 ? '#fff3e8' : '#edfff3', color: adminAlertCounts.total > 0 ? '#b15b00' : '#188038', fontSize: 12, fontWeight: 900 }}>
+              {adminAlertCounts.total > 0 ? `${adminAlertCounts.total} pendiente${adminAlertCounts.total === 1 ? '' : 's'}` : 'Sin alertas'}
+            </div>
+          </div>
+
+          {adminAlerts.length === 0 ? (
+            <div style={{ background: '#f7fbf8', border: '1px solid #d9f0df', borderRadius: 16, padding: 14, color: '#188038', fontSize: 13, fontWeight: 800 }}>
+              No hay alertas importantes en este momento.
+            </div>
+          ) : (
+            <>
+              <div className="admin-alert-summary" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 9, marginBottom: 12 }}>
+                {[
+                  { label: 'Críticas', value: adminAlertCounts.critical || 0, bg: '#fff0f0', color: '#d92d20' },
+                  { label: 'Atención', value: adminAlertCounts.warning || 0, bg: '#fff7e8', color: '#b15b00' },
+                  { label: 'Informativas', value: adminAlertCounts.info || 0, bg: '#eef6ff', color: '#0071e3' },
+                ].map((item) => (
+                  <div key={item.label} style={{ background: item.bg, borderRadius: 14, padding: '10px 12px' }}>
+                    <div style={{ color: item.color, fontSize: 18, fontWeight: 900 }}>{item.value}</div>
+                    <div style={{ color: '#6e6e73', fontSize: 11, fontWeight: 800 }}>{item.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ display: 'grid', gap: 9 }}>
+                {adminAlerts.map((alertItem) => {
+                  const severityStyle = alertItem.severity === 'critical'
+                    ? { bg: '#fff0f0', border: '#ffd2cf', color: '#d92d20' }
+                    : alertItem.severity === 'warning'
+                      ? { bg: '#fff8ec', border: '#ffe0ac', color: '#b15b00' }
+                      : { bg: '#f2f8ff', border: '#cfe5ff', color: '#0071e3' };
+
+                  return (
+                    <button
+                      key={alertItem.id}
+                      type="button"
+                      onClick={() => openAlertBusiness(alertItem)}
+                      style={{ width: '100%', textAlign: 'left', border: `1px solid ${severityStyle.border}`, background: severityStyle.bg, borderRadius: 16, padding: 13, cursor: 'pointer' }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ color: severityStyle.color, fontSize: 12, fontWeight: 900, marginBottom: 3 }}>{alertItem.title}</div>
+                          <div style={{ color: '#1a1a1a', fontSize: 14, fontWeight: 900, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{alertItem.businessName}</div>
+                          <div style={{ color: '#6e6e73', fontSize: 12.5, fontWeight: 700, marginTop: 3 }}>{alertItem.detail}</div>
+                        </div>
+                        <span style={{ color: '#8e8e93', fontSize: 18, lineHeight: 1 }}>›</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
 
         <div style={{ background: '#fff', borderRadius: 24, padding: 22, boxShadow: '0 1px 10px rgba(0,0,0,0.06)' }}>
