@@ -118,8 +118,11 @@ async function getMercadoPagoConnection(professionalId) {
 }
 
 
+const NICO_LIFETIME_FREE_SLUG = 'barberianicoaquino';
+
 function isLifetimeFreeProfessional(professional = {}) {
-  return professional?.lifetime_free === true || professional?.lifetimeFree === true;
+  const slug = String(professional?.slug || '').trim().toLowerCase();
+  return professional?.lifetime_free === true || professional?.lifetimeFree === true || slug === NICO_LIFETIME_FREE_SLUG;
 }
 
 async function ensureNicoLifetimeFree() {
@@ -133,12 +136,17 @@ async function ensureNicoLifetimeFree() {
          billing_method = 'lifetime_free',
          plan_price = 0,
          updated_at = NOW()
-     WHERE lifetime_free IS NOT TRUE
+     WHERE LOWER(TRIM(COALESCE(slug, ''))) = $1
        AND (
-         (LOWER(COALESCE(slug, '')) LIKE '%nico%' AND LOWER(COALESCE(slug, '')) LIKE '%aquino%')
-         OR
-         (LOWER(COALESCE(business_name, '')) LIKE '%nico%' AND LOWER(COALESCE(business_name, '')) LIKE '%aquino%')
-       )`
+         lifetime_free IS NOT TRUE
+         OR status IS DISTINCT FROM 'active'
+         OR plan IS DISTINCT FROM 'Profesional'
+         OR plan_payment_status IS DISTINCT FROM 'paid'
+         OR plan_expires_at IS NOT NULL
+         OR billing_method IS DISTINCT FROM 'lifetime_free'
+         OR COALESCE(plan_price, 0) <> 0
+       )`,
+    [NICO_LIFETIME_FREE_SLUG]
   );
 }
 
