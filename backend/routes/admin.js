@@ -482,6 +482,7 @@ router.patch("/professionals/:id/plan-actions", requireAdmin, async (req, res) =
         ['free', 'free'],
         ['gratis', 'free'],
         ['profesional', 'Profesional'],
+        ['empresa', 'Empresa'],
       ]);
       const nextPlan = allowedPlans.get(normalizedPlan);
 

@@ -14313,6 +14313,7 @@ function AdminDashboardPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState('');
   const [adminActionLoading, setAdminActionLoading] = useState('');
+  const [planModalOpen, setPlanModalOpen] = useState(false);
 
   const token = localStorage.getItem('tuagendaya_admin_token');
 
@@ -14437,23 +14438,15 @@ function AdminDashboardPage() {
     }
   };
 
-  const changeBusinessPlan = async (professional) => {
-    const currentPlan = String(professional?.plan || 'Profesional').toLowerCase();
-    const requested = window.prompt(
-      'Escribí el plan que querés asignar:\n\nProfesional\nfree',
-      currentPlan === 'free' || currentPlan === 'gratis' ? 'free' : 'Profesional'
-    );
-    if (requested === null) return;
+  const changeBusinessPlan = (professional) => {
+    if (!professional?.id || adminActionLoading) return;
+    setPlanModalOpen(true);
+  };
 
-    const normalized = requested.trim().toLowerCase();
-    if (!['profesional', 'free', 'gratis'].includes(normalized)) {
-      alert('Plan inválido. Usá Profesional o free.');
-      return;
-    }
-
-    const plan = normalized === 'profesional' ? 'Profesional' : 'free';
-    if (!window.confirm(`¿Cambiar el plan de ${professional.businessName || professional.name || 'este negocio'} a ${plan}?`)) return;
-    await runPlanAction(professional, 'set_plan', { plan }, 'Plan actualizado');
+  const confirmEmpresaPlan = async () => {
+    if (!selectedBusiness?.id || adminActionLoading) return;
+    await runPlanAction(selectedBusiness, 'set_plan', { plan: 'Empresa' }, 'Plan Empresa asignado');
+    setPlanModalOpen(false);
   };
 
   const extendBusinessExpiration = async (professional) => {
@@ -15005,6 +14998,84 @@ function AdminDashboardPage() {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {planModalOpen && selectedBusiness && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Cambiar plan"
+          onClick={() => { if (!adminActionLoading) setPlanModalOpen(false); }}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 10050,
+            background: 'rgba(15, 23, 42, 0.48)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 18,
+          }}
+        >
+          <div
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: 480,
+              background: '#fff',
+              borderRadius: 24,
+              boxShadow: '0 24px 70px rgba(15, 23, 42, 0.24)',
+              padding: 22,
+              border: '1px solid #ececf1',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14, marginBottom: 18 }}>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 900, color: '#8e8e93', marginBottom: 4 }}>CAMBIAR PLAN</div>
+                <h3 style={{ margin: 0, fontSize: 22, fontWeight: 900, color: '#111827' }}>Elegí el nuevo plan</h3>
+              </div>
+              <button
+                type="button"
+                disabled={Boolean(adminActionLoading)}
+                onClick={() => setPlanModalOpen(false)}
+                style={{ border: '1px solid #e1e1e8', background: '#fff', borderRadius: 12, padding: '8px 11px', fontWeight: 900, cursor: adminActionLoading ? 'wait' : 'pointer' }}
+              >
+                Cerrar
+              </button>
+            </div>
+
+            <div style={{ background: '#f7f7fb', borderRadius: 16, padding: '13px 14px', marginBottom: 14, color: '#6e6e73', fontSize: 14 }}>
+              Plan actual: <strong style={{ color: '#1a1a1a' }}>{selectedBusiness.plan || 'Profesional'}</strong>
+            </div>
+
+            <div style={{ border: '2px solid #0071e3', background: '#f2f8ff', borderRadius: 20, padding: 18, marginBottom: 18 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                <div>
+                  <div style={{ color: '#0071e3', fontSize: 20, fontWeight: 900, marginBottom: 4 }}>Plan Empresa</div>
+                  <div style={{ color: '#6e6e73', fontSize: 14, fontWeight: 750 }}>Más de 1000 reservas mensuales</div>
+                </div>
+                <div style={{ width: 26, height: 26, borderRadius: '50%', background: '#0071e3', color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 900 }}>✓</div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              disabled={Boolean(adminActionLoading)}
+              onClick={confirmEmpresaPlan}
+              style={{ width: '100%', border: 'none', borderRadius: 15, padding: '13px 16px', background: adminActionLoading ? '#9ecbff' : '#0071e3', color: '#fff', fontSize: 15, fontWeight: 900, cursor: adminActionLoading ? 'wait' : 'pointer', marginBottom: 10 }}
+            >
+              {adminActionLoading === 'set_plan' ? 'Guardando...' : 'Seleccionar Plan Empresa'}
+            </button>
+            <button
+              type="button"
+              disabled={Boolean(adminActionLoading)}
+              onClick={() => setPlanModalOpen(false)}
+              style={{ width: '100%', border: '1px solid #dcdce3', borderRadius: 15, padding: '12px 16px', background: '#fff', color: '#1a1a1a', fontSize: 15, fontWeight: 900, cursor: adminActionLoading ? 'wait' : 'pointer' }}
+            >
+              Cancelar
+            </button>
           </div>
         </div>
       )}
