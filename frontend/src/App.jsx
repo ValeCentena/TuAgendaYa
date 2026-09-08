@@ -16262,7 +16262,7 @@ function LandingPage() {
   };
 
   return (
-    <div className="tay-landing">
+    <div className={`tay-landing${isNativeIosApp() ? ' tay-native-ios' : ''}`}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900;1000&display=swap');
 
@@ -16278,6 +16278,10 @@ function LandingPage() {
 
         .tay-landing * {
           box-sizing: border-box;
+        }
+
+        .tay-landing.tay-native-ios {
+          padding-top: env(safe-area-inset-top, 0px);
         }
 
         html {
