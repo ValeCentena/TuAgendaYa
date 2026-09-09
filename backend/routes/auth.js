@@ -9,6 +9,122 @@ const router = express.Router();
 
 const PASSWORD_RESET_EXPIRES_IN = "30m";
 
+
+const EMAIL_VERIFICATION_EXPIRES_IN = "20m";
+const EMAIL_VERIFICATION_CODE_TTL_MS = 10 * 60 * 1000;
+const EMAIL_VERIFICATION_SEND_COOLDOWN_MS = 60 * 1000;
+const EMAIL_VERIFICATION_WINDOW_MS = 15 * 60 * 1000;
+const EMAIL_VERIFICATION_MAX_SENDS = 5;
+const EMAIL_VERIFICATION_MAX_CHECKS = 8;
+const emailVerificationCodes = new Map();
+const emailVerificationSendAttempts = new Map();
+const emailVerificationCheckAttempts = new Map();
+
+function getEmailVerificationSecret() {
+  const jwtSecret = String(process.env.JWT_SECRET || "").trim();
+
+  if (!jwtSecret) {
+    throw new Error("JWT_SECRET no configurado");
+  }
+
+  return crypto
+    .createHash("sha256")
+    .update(`tuagendaya-email-verification:${jwtSecret}`)
+    .digest("hex");
+}
+
+function normalizeRegistrationPhone(value) {
+  const raw = String(value || "").trim();
+  const digits = raw.replace(/\D/g, "");
+
+  if (!digits) return "";
+
+  if (raw.startsWith("+")) {
+    return digits.length >= 8 && digits.length <= 15 ? `+${digits}` : "";
+  }
+
+  if (digits.startsWith("598") && digits.length === 11) {
+    return `+${digits}`;
+  }
+
+  if (digits.startsWith("09") && digits.length === 9) {
+    return `+598${digits.slice(1)}`;
+  }
+
+  if (digits.startsWith("9") && digits.length === 8) {
+    return `+598${digits}`;
+  }
+
+  if (digits.length === 8) {
+    return `+598${digits}`;
+  }
+
+  if (digits.length >= 9 && digits.length <= 15) {
+    return `+${digits}`;
+  }
+
+  return "";
+}
+
+function normalizeRegistrationEmail(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function isValidRegistrationEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function hashEmailVerificationCode(email, code) {
+  return crypto
+    .createHmac("sha256", getEmailVerificationSecret())
+    .update(`${email}:${code}`)
+    .digest("hex");
+}
+
+async function isEmailAlreadyRegistered(email) {
+  const result = await db.query(
+    `
+    SELECT id
+    FROM professionals
+    WHERE LOWER(email) = $1
+    LIMIT 1
+    `,
+    [normalizeRegistrationEmail(email)]
+  );
+
+  return result.rows.length > 0;
+}
+
+function consumeRateLimit(store, key, maxAttempts, windowMs, cooldownMs = 0) {
+  const now = Date.now();
+  let record = store.get(key);
+
+  if (!record || record.resetAt <= now) {
+    record = { count: 0, resetAt: now + windowMs, lastAt: 0 };
+  }
+
+  if (cooldownMs > 0 && record.lastAt && now - record.lastAt < cooldownMs) {
+    const retryAfter = Math.max(1, Math.ceil((cooldownMs - (now - record.lastAt)) / 1000));
+    const error = new Error(`Esperá ${retryAfter} segundos antes de solicitar otro código.`);
+    error.statusCode = 429;
+    error.retryAfter = retryAfter;
+    throw error;
+  }
+
+  if (record.count >= maxAttempts) {
+    const retryAfter = Math.max(1, Math.ceil((record.resetAt - now) / 1000));
+    const error = new Error("Demasiados intentos de verificación. Intentá nuevamente más tarde.");
+    error.statusCode = 429;
+    error.retryAfter = retryAfter;
+    throw error;
+  }
+
+  record.count += 1;
+  record.lastAt = now;
+  store.set(key, record);
+  return record;
+}
+
 function getPasswordResetSecret() {
   const jwtSecret = String(process.env.JWT_SECRET || "").trim();
 
@@ -154,6 +270,150 @@ async function authMiddleware(req, res, next) {
   }
 }
 
+
+router.post("/email-verification/send", async (req, res) => {
+  try {
+    const email = normalizeRegistrationEmail(req.body?.email);
+
+    if (!email || !isValidRegistrationEmail(email)) {
+      return res.status(400).json({ error: "Ingresá un email válido." });
+    }
+
+    if (await isEmailAlreadyRegistered(email)) {
+      return res.status(409).json({ error: "Ese email ya está registrado." });
+    }
+
+    const rateKey = `${req.ip || "unknown"}:${email}`;
+    consumeRateLimit(
+      emailVerificationSendAttempts,
+      rateKey,
+      EMAIL_VERIFICATION_MAX_SENDS,
+      EMAIL_VERIFICATION_WINDOW_MS,
+      EMAIL_VERIFICATION_SEND_COOLDOWN_MS
+    );
+
+    const code = String(crypto.randomInt(100000, 1000000));
+    emailVerificationCodes.set(email, {
+      digest: hashEmailVerificationCode(email, code),
+      expiresAt: Date.now() + EMAIL_VERIFICATION_CODE_TTL_MS,
+    });
+
+    const transporter = createMailTransport();
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM || "TuAgendaYa <no-reply@tuagendaya.com>",
+      to: email,
+      subject: "Código de verificación de TuAgendaYa",
+      text: [
+        "Verificá tu correo para continuar con el registro en TuAgendaYa.",
+        "",
+        `Tu código es: ${code}`,
+        "",
+        "El código vence en 10 minutos.",
+        "Si no intentaste crear una cuenta, podés ignorar este correo.",
+      ].join("\n"),
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#1d1d1f;line-height:1.5;">
+          <h2 style="margin:0 0 16px;color:#0071e3;">TuAgendaYa</h2>
+          <p>Verificá tu correo para continuar con el registro.</p>
+          <div style="margin:24px 0;padding:18px;border-radius:16px;background:#f5f7fa;text-align:center;">
+            <div style="font-size:13px;color:#6e6e73;margin-bottom:8px;">Código de verificación</div>
+            <div style="font-size:32px;font-weight:800;letter-spacing:8px;color:#111827;">${code}</div>
+          </div>
+          <p style="font-size:14px;color:#6e6e73;">El código vence en 10 minutos.</p>
+          <p style="font-size:14px;color:#6e6e73;">Si no intentaste crear una cuenta, podés ignorar este correo.</p>
+        </div>
+      `,
+    });
+
+    return res.json({
+      success: true,
+      email,
+      resendAfterSeconds: Math.ceil(EMAIL_VERIFICATION_SEND_COOLDOWN_MS / 1000),
+    });
+  } catch (error) {
+    if (error.retryAfter) {
+      res.set("Retry-After", String(error.retryAfter));
+    }
+
+    console.error("Error email verification send:", error.message);
+    return res.status(error.statusCode || 500).json({
+      error: error.message || "No se pudo enviar el código de verificación.",
+    });
+  }
+});
+
+router.post("/email-verification/check", async (req, res) => {
+  try {
+    const email = normalizeRegistrationEmail(req.body?.email);
+    const code = String(req.body?.code || "").replace(/\D/g, "").slice(0, 6);
+
+    if (!email || !isValidRegistrationEmail(email)) {
+      return res.status(400).json({ error: "Email inválido." });
+    }
+
+    if (code.length !== 6) {
+      return res.status(400).json({ error: "Ingresá el código de 6 dígitos." });
+    }
+
+    const rateKey = `${req.ip || "unknown"}:${email}`;
+    consumeRateLimit(
+      emailVerificationCheckAttempts,
+      rateKey,
+      EMAIL_VERIFICATION_MAX_CHECKS,
+      EMAIL_VERIFICATION_WINDOW_MS
+    );
+
+    const pending = emailVerificationCodes.get(email);
+    if (!pending || pending.expiresAt <= Date.now()) {
+      emailVerificationCodes.delete(email);
+      return res.status(400).json({ error: "El código venció. Solicitá uno nuevo." });
+    }
+
+    const receivedDigest = hashEmailVerificationCode(email, code);
+    const expectedBuffer = Buffer.from(pending.digest, "hex");
+    const receivedBuffer = Buffer.from(receivedDigest, "hex");
+    const matches =
+      expectedBuffer.length === receivedBuffer.length &&
+      crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
+
+    if (!matches) {
+      return res.status(400).json({ error: "El código no es correcto." });
+    }
+
+    if (await isEmailAlreadyRegistered(email)) {
+      emailVerificationCodes.delete(email);
+      return res.status(409).json({ error: "Ese email ya está registrado." });
+    }
+
+    const verificationToken = jwt.sign(
+      {
+        purpose: "professional_registration_email_verified",
+        email,
+      },
+      getEmailVerificationSecret(),
+      { expiresIn: EMAIL_VERIFICATION_EXPIRES_IN }
+    );
+
+    emailVerificationCodes.delete(email);
+    emailVerificationCheckAttempts.delete(rateKey);
+
+    return res.json({
+      success: true,
+      email,
+      verificationToken,
+    });
+  } catch (error) {
+    if (error.retryAfter) {
+      res.set("Retry-After", String(error.retryAfter));
+    }
+
+    console.error("Error email verification check:", error.message);
+    return res.status(error.statusCode || 500).json({
+      error: error.message || "No se pudo verificar el código.",
+    });
+  }
+});
+
 router.post("/register", async (req, res) => {
   try {
     const {
@@ -166,13 +426,14 @@ router.post("/register", async (req, res) => {
       profession,
       address,
       slug,
+      emailVerificationToken,
     } = req.body;
 
     const cleanName = String(name || "").trim();
     const cleanBusinessName = String(businessName || business_name || "").trim();
-    const cleanEmail = String(email || "").trim().toLowerCase();
+    const cleanEmail = normalizeRegistrationEmail(email);
     const cleanPassword = String(password || "");
-    const cleanPhone = String(phone || "").trim();
+    const cleanPhone = normalizeRegistrationPhone(phone);
     const cleanProfession = String(profession || "").trim();
     const cleanAddress = String(address || "").trim();
     const cleanSlug = normalizeSlug(slug || cleanBusinessName || cleanName);
@@ -185,8 +446,29 @@ router.post("/register", async (req, res) => {
       return res.status(400).json({ error: "El nombre del negocio es obligatorio" });
     }
 
-    if (!cleanEmail) {
-      return res.status(400).json({ error: "El email es obligatorio" });
+    if (!cleanPhone) {
+      return res.status(400).json({ error: "El teléfono es obligatorio y debe ser válido" });
+    }
+
+    if (!cleanEmail || !isValidRegistrationEmail(cleanEmail)) {
+      return res.status(400).json({ error: "El email es obligatorio y debe ser válido" });
+    }
+
+    let verifiedEmailPayload;
+    try {
+      verifiedEmailPayload = jwt.verify(
+        String(emailVerificationToken || ""),
+        getEmailVerificationSecret()
+      );
+    } catch {
+      return res.status(403).json({ error: "Primero verificá tu correo para crear la cuenta" });
+    }
+
+    if (
+      verifiedEmailPayload?.purpose !== "professional_registration_email_verified" ||
+      verifiedEmailPayload?.email !== cleanEmail
+    ) {
+      return res.status(403).json({ error: "La verificación no corresponde al correo ingresado" });
     }
 
     if (!cleanPassword || cleanPassword.length < 8) {

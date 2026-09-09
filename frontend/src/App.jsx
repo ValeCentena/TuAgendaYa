@@ -2047,6 +2047,24 @@ function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [legalAccepted, setLegalAccepted] = useState(false);
+  const [emailVerificationOpen, setEmailVerificationOpen] = useState(false);
+  const [emailVerificationLoading, setEmailVerificationLoading] = useState(false);
+  const [emailVerificationCode, setEmailVerificationCode] = useState('');
+  const [emailVerificationToken, setEmailVerificationToken] = useState('');
+  const [emailVerificationEmail, setEmailVerificationEmail] = useState('');
+  const [emailVerificationMessage, setEmailVerificationMessage] = useState('');
+  const [emailVerificationError, setEmailVerificationError] = useState('');
+  const [emailVerificationCooldown, setEmailVerificationCooldown] = useState(0);
+
+  useEffect(() => {
+    if (emailVerificationCooldown <= 0) return undefined;
+
+    const timer = window.setInterval(() => {
+      setEmailVerificationCooldown((current) => Math.max(0, current - 1));
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [emailVerificationCooldown]);
 
   const steps = [
     {
@@ -2082,6 +2100,14 @@ function RegisterPage() {
       next.slug = normalizeSlug(value);
     }
 
+    if (field === 'email' && value !== form.email) {
+      setEmailVerificationToken('');
+      setEmailVerificationEmail('');
+      setEmailVerificationCode('');
+      setEmailVerificationMessage('');
+      setEmailVerificationError('');
+    }
+
     setForm(next);
   };
 
@@ -2091,6 +2117,7 @@ function RegisterPage() {
     if (targetStep === 1) {
       if (!form.businessName.trim()) return 'El nombre del negocio es obligatorio.';
       if (!form.profession.trim()) return 'El rubro o profesión es obligatorio.';
+      if (!form.phone.trim()) return 'El teléfono es obligatorio.';
       if (!form.address.trim()) return 'La dirección del negocio es obligatoria.';
     }
 
@@ -2107,11 +2134,102 @@ function RegisterPage() {
     return '';
   };
 
-  const goNext = () => {
+  const sendEmailVerification = async () => {
+    setEmailVerificationOpen(true);
+    setEmailVerificationLoading(true);
+    setEmailVerificationError('');
+    setEmailVerificationMessage('');
+
+    try {
+      const response = await fetch(`${API_BASE}/auth/email-verification/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: form.email.trim() }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || 'No se pudo enviar el código de verificación.');
+      }
+
+      setEmailVerificationEmail(data.email || form.email.trim().toLowerCase());
+      setEmailVerificationCode('');
+      setEmailVerificationCooldown(Number(data.resendAfterSeconds || 60));
+      setEmailVerificationMessage(`Enviamos un código de 6 dígitos a ${data.email || form.email.trim()}.`);
+    } catch (verificationError) {
+      setEmailVerificationError(
+        verificationError?.message || 'No se pudo enviar el código de verificación.'
+      );
+    } finally {
+      setEmailVerificationLoading(false);
+    }
+  };
+
+  const verifyEmailCode = async () => {
+    const cleanCode = String(emailVerificationCode || '').replace(/\D/g, '');
+
+    if (cleanCode.length !== 6) {
+      setEmailVerificationError('Ingresá el código de 6 dígitos que recibiste.');
+      return;
+    }
+
+    setEmailVerificationLoading(true);
+    setEmailVerificationError('');
+
+    try {
+      const response = await fetch(`${API_BASE}/auth/email-verification/check`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: form.email.trim(),
+          code: cleanCode,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || 'El código no es correcto o ya venció.');
+      }
+
+      setEmailVerificationToken(data.verificationToken || '');
+      setEmailVerificationEmail(form.email.trim().toLowerCase());
+      setEmailVerificationOpen(false);
+      setEmailVerificationCode('');
+      setEmailVerificationMessage('');
+      setError('');
+      setStep(3);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (verificationError) {
+      setEmailVerificationError(
+        verificationError?.message || 'No se pudo verificar el código.'
+      );
+    } finally {
+      setEmailVerificationLoading(false);
+    }
+  };
+
+  const goNext = async () => {
     const validationError = validateStep(step);
 
     if (validationError) {
       setError(validationError);
+      return;
+    }
+
+    if (step === 2) {
+      const normalizedEmail = form.email.trim().toLowerCase();
+
+      if (emailVerificationToken && emailVerificationEmail === normalizedEmail) {
+        setError('');
+        setStep(3);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+
+      setError('');
+      await sendEmailVerification();
       return;
     }
 
@@ -2134,9 +2252,15 @@ function RegisterPage() {
 
     if (validations.length > 0) {
       setError(validations[0]);
-      if (!form.businessName.trim() || !form.profession.trim() || !form.address.trim()) setStep(1);
+      if (!form.businessName.trim() || !form.profession.trim() || !form.phone.trim() || !form.address.trim()) setStep(1);
       else if (!form.name.trim() || !form.email.trim() || form.password.length < 8) setStep(2);
       else setStep(3);
+      return;
+    }
+
+    if (!emailVerificationToken || emailVerificationEmail !== form.email.trim().toLowerCase()) {
+      setError('Primero verificá el correo electrónico.');
+      setStep(2);
       return;
     }
 
@@ -2161,6 +2285,7 @@ function RegisterPage() {
           profession: form.profession.trim(),
           address: form.address.trim(),
           slug: normalizeSlug(form.slug),
+          emailVerificationToken,
         }),
       });
 
@@ -2219,7 +2344,7 @@ function RegisterPage() {
           </div>
 
           <div>
-            <label style={smallLabelStyle}>Teléfono</label>
+            <label style={smallLabelStyle}>Teléfono *</label>
             <input
               style={{ ...inputStyle, marginBottom: 0, borderRadius: 15, padding: '13px 14px' }}
               value={form.phone}
@@ -2227,6 +2352,9 @@ function RegisterPage() {
               placeholder=""
               inputMode="tel"
             />
+            <div style={{ marginTop: 7, color: '#8e8e93', fontSize: 11.5, fontWeight: 650 }}>
+              Si no escribís código de país, TuAgendaYa asume Uruguay (+598).
+            </div>
           </div>
 
           <div className="register-full">
@@ -2550,6 +2678,98 @@ function RegisterPage() {
           </button>
         </section>
       </div>
+
+      {emailVerificationOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Verificar correo"
+          onClick={(event) => {
+            if (event.target === event.currentTarget && !emailVerificationLoading) {
+              setEmailVerificationOpen(false);
+            }
+          }}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 10000,
+            background: 'rgba(15,23,42,0.48)',
+            backdropFilter: 'blur(8px)',
+            display: 'grid',
+            placeItems: 'center',
+            padding: 18,
+          }}
+        >
+          <div style={{ width: 'min(430px, 100%)', background: '#fff', borderRadius: 28, border: '0.5px solid #e5e7eb', boxShadow: '0 28px 80px rgba(15,23,42,0.24)', padding: 22 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14 }}>
+              <div>
+                <div style={{ color: '#0071e3', fontSize: 12, fontWeight: 950, marginBottom: 6 }}>SEGURIDAD</div>
+                <h3 style={{ margin: 0, color: '#111827', fontSize: 23, fontWeight: 950, letterSpacing: '-0.6px' }}>
+                  Verificá tu correo
+                </h3>
+                <p style={{ margin: '8px 0 0', color: '#64748b', fontSize: 13.5, lineHeight: 1.5, fontWeight: 650 }}>
+                  {emailVerificationMessage || 'Estamos enviando un código de verificación.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => !emailVerificationLoading && setEmailVerificationOpen(false)}
+                disabled={emailVerificationLoading}
+                aria-label="Cerrar"
+                style={{ width: 38, height: 38, borderRadius: 14, border: '0.5px solid #dbe1e8', background: '#f8fafc', color: '#475569', fontSize: 20, fontWeight: 800, cursor: emailVerificationLoading ? 'default' : 'pointer', flex: '0 0 auto' }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div style={{ marginTop: 18, background: '#f8fafc', borderRadius: 18, padding: 14, border: '0.5px solid #e5e7eb' }}>
+              <div style={{ color: '#64748b', fontSize: 11.5, fontWeight: 800, marginBottom: 5 }}>Correo</div>
+              <div style={{ color: '#111827', fontSize: 16, fontWeight: 950 }}>{emailVerificationEmail || form.email}</div>
+            </div>
+
+            <label style={{ ...smallLabelStyle, display: 'block', marginTop: 16 }}>Código de verificación</label>
+            <input
+              value={emailVerificationCode}
+              onChange={(event) => setEmailVerificationCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  if (!emailVerificationLoading) verifyEmailCode();
+                }
+              }}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              placeholder="000000"
+              disabled={emailVerificationLoading}
+              style={{ ...inputStyle, marginBottom: 0, borderRadius: 16, padding: '14px 16px', fontSize: 24, fontWeight: 950, letterSpacing: '0.18em', textAlign: 'center' }}
+            />
+
+            {emailVerificationError && (
+              <div style={{ background: '#fff2f2', border: '0.5px solid #ffcdd2', borderRadius: 14, padding: '10px 12px', fontSize: 12.5, color: '#c62828', marginTop: 12, fontWeight: 750 }}>
+                {emailVerificationError}
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={verifyEmailCode}
+              disabled={emailVerificationLoading || String(emailVerificationCode || '').replace(/\D/g, '').length !== 6}
+              style={{ width: '100%', marginTop: 16, padding: '14px', borderRadius: 17, border: 'none', background: emailVerificationLoading ? '#94a3b8' : '#0071e3', color: '#fff', fontSize: 15, fontWeight: 950, fontFamily: 'inherit', cursor: emailVerificationLoading ? 'not-allowed' : 'pointer' }}
+            >
+              {emailVerificationLoading ? 'Verificando...' : 'Verificar y continuar'}
+            </button>
+
+            <button
+              type="button"
+              onClick={sendEmailVerification}
+              disabled={emailVerificationLoading || emailVerificationCooldown > 0}
+              style={{ width: '100%', marginTop: 10, padding: '11px 8px', borderRadius: 15, border: '0.5px solid #d0d7e2', background: '#fff', color: '#0071e3', fontSize: 12.5, fontWeight: 900, fontFamily: 'inherit', cursor: emailVerificationLoading || emailVerificationCooldown > 0 ? 'not-allowed' : 'pointer' }}
+            >
+              {emailVerificationCooldown > 0 ? `Reenviar en ${emailVerificationCooldown}s` : 'Reenviar código'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
