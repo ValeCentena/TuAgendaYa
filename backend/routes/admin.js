@@ -41,6 +41,28 @@ const NICO_LIFETIME_FREE_SLUG = 'barberianicoaquino';
 
 const TEST_ACCOUNT_EMAIL = 'sodko@sadsd.com';
 
+
+function quotePgIdentifier(value) {
+  return `"${String(value || '').replace(/"/g, '""')}"`;
+}
+
+async function deleteProfessionalOwnedRows(client, professionalId) {
+  const columns = await client.query(
+    `SELECT table_name, column_name
+     FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND column_name IN ('professional_id', 'owner_professional_id')
+       AND table_name NOT IN ('professionals', 'admin_audit_log')
+     ORDER BY table_name, column_name`
+  );
+
+  for (const row of columns.rows) {
+    const tableName = quotePgIdentifier(row.table_name);
+    const columnName = quotePgIdentifier(row.column_name);
+    await client.query(`DELETE FROM ${tableName} WHERE ${columnName} = $1`, [professionalId]);
+  }
+}
+
 async function deleteRowsIfColumnExists(client, tableName, columnName, professionalId) {
   const check = await client.query(
     `SELECT EXISTS (
@@ -1286,6 +1308,75 @@ router.patch("/professionals/:id/plan-actions", requireAdmin, async (req, res) =
     try { await client.query('ROLLBACK'); } catch {}
     console.error("Error admin plan action:", error);
     res.status(500).json({ error: "Error actualizando plan del negocio" });
+  } finally {
+    client.release();
+  }
+});
+
+
+router.delete("/professionals/:id", requireAdmin, async (req, res) => {
+  const professionalId = Number.parseInt(req.params.id, 10);
+  const confirmation = normalizeText(req.body?.confirmation);
+
+  if (!Number.isInteger(professionalId) || professionalId < 1) {
+    return res.status(400).json({ error: "ID de negocio inválido" });
+  }
+
+  if (confirmation !== 'ELIMINAR') {
+    return res.status(400).json({ error: "Confirmación inválida. Escribí ELIMINAR para continuar." });
+  }
+
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+
+    const found = await client.query(
+      `SELECT id, email, business_name, name, slug
+       FROM professionals
+       WHERE id = $1
+       LIMIT 1
+       FOR UPDATE`,
+      [professionalId]
+    );
+
+    if (found.rows.length !== 1) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: "Negocio no encontrado" });
+    }
+
+    const professional = found.rows[0];
+
+    await logAdminAudit(client, req, 'account_deleted', professionalId, {
+      deletedProfessional: {
+        id: professional.id,
+        email: professional.email,
+        businessName: professional.business_name,
+        name: professional.name,
+        slug: professional.slug,
+      },
+    });
+
+    // Limpia tablas históricas o auxiliares que tengan professional_id /
+    // owner_professional_id aunque alguna versión antigua no tenga FK CASCADE.
+    await deleteProfessionalOwnedRows(client, professionalId);
+
+    const deleted = await client.query(
+      `DELETE FROM professionals
+       WHERE id = $1
+       RETURNING id, email, business_name, name, slug`,
+      [professionalId]
+    );
+
+    if (deleted.rows.length !== 1) {
+      throw new Error('No se pudo eliminar exactamente una cuenta');
+    }
+
+    await client.query('COMMIT');
+    return res.json({ success: true, deleted: deleted.rows[0] });
+  } catch (error) {
+    try { await client.query('ROLLBACK'); } catch {}
+    console.error('Error deleting professional account:', error);
+    return res.status(500).json({ error: "No se pudo eliminar la cuenta" });
   } finally {
     client.release();
   }

@@ -14861,6 +14861,8 @@ function AdminDashboardPage() {
   const [adminCsvDownloading, setAdminCsvDownloading] = useState('');
   const [adminAudit, setAdminAudit] = useState([]);
   const [adminAuditOpen, setAdminAuditOpen] = useState(false);
+  const [deleteAccountModalOpen, setDeleteAccountModalOpen] = useState(false);
+  const [deleteAccountConfirmation, setDeleteAccountConfirmation] = useState('');
 
   const token = localStorage.getItem('tuagendaya_admin_token');
 
@@ -15111,24 +15113,30 @@ function AdminDashboardPage() {
 
 
 
-  const deleteExactTestAccount = async (professional) => {
-    const exactEmail = String(professional?.email || '').trim().toLowerCase();
-    if (!professional?.id || exactEmail !== 'sodko@sadsd.com' || adminActionLoading) return;
+  const openDeleteAccountModal = (professional) => {
+    if (!professional?.id || adminActionLoading) return;
+    setSelectedBusiness(professional);
+    setDeleteAccountConfirmation('');
+    setDeleteAccountModalOpen(true);
+  };
 
-    const businessName = professional.businessName || professional.business_name || professional.name || 'test';
-    const confirmed = window.confirm(
-      `Vas a eliminar definitivamente la cuenta ${businessName} (${professional.email}) y todos sus datos asociados. ¿Continuar?`
-    );
-    if (!confirmed) return;
+  const deleteProfessionalAccount = async () => {
+    if (!selectedBusiness?.id || adminActionLoading) return;
+    if (deleteAccountConfirmation !== 'ELIMINAR') return;
 
     try {
-      setAdminActionLoading('delete_test_account');
-      await adminFetch(`/admin/professionals/${professional.id}/test-account`, { method: 'DELETE' });
+      setAdminActionLoading('delete_account');
+      await adminFetch(`/admin/professionals/${selectedBusiness.id}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ confirmation: deleteAccountConfirmation }),
+      });
+      setDeleteAccountModalOpen(false);
+      setDeleteAccountConfirmation('');
       closeBusinessDetail();
       await loadAdminData();
-      alert('Cuenta test eliminada correctamente');
+      alert('Cuenta eliminada definitivamente');
     } catch (err) {
-      alert(err.message || 'No se pudo eliminar la cuenta test');
+      alert(err.message || 'No se pudo eliminar la cuenta');
     } finally {
       setAdminActionLoading('');
     }
@@ -15884,16 +15892,14 @@ function AdminDashboardPage() {
                     >
                       {selectedBusiness.status === 'suspended' ? 'Activar negocio' : 'Suspender negocio'}
                     </button>
-                    {String(selectedBusiness.email || '').trim().toLowerCase() === 'sodko@sadsd.com' && (
-                      <button
-                        type="button"
-                        disabled={Boolean(adminActionLoading)}
-                        onClick={() => deleteExactTestAccount(selectedBusiness)}
-                        style={{ border: '1px solid #ffb3ad', borderRadius: 14, padding: '11px 12px', background: '#fff5f4', color: '#d92d20', fontWeight: 900, cursor: adminActionLoading ? 'wait' : 'pointer' }}
-                      >
-                        {adminActionLoading === 'delete_test_account' ? 'Eliminando...' : 'Eliminar cuenta test'}
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      disabled={Boolean(adminActionLoading)}
+                      onClick={() => openDeleteAccountModal(selectedBusiness)}
+                      style={{ border: '1px solid #ffb3ad', borderRadius: 14, padding: '11px 12px', background: '#fff5f4', color: '#d92d20', fontWeight: 900, cursor: adminActionLoading ? 'wait' : 'pointer' }}
+                    >
+                      Eliminar cuenta
+                    </button>
                   </div>
                 </div>
 
@@ -15983,6 +15989,112 @@ function AdminDashboardPage() {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {deleteAccountModalOpen && selectedBusiness && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Eliminar cuenta"
+          onClick={() => {
+            if (!adminActionLoading) {
+              setDeleteAccountModalOpen(false);
+              setDeleteAccountConfirmation('');
+            }
+          }}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 10060,
+            background: 'rgba(15, 23, 42, 0.58)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 18,
+          }}
+        >
+          <div
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: 520,
+              background: '#fff',
+              borderRadius: 24,
+              boxShadow: '0 24px 70px rgba(15, 23, 42, 0.28)',
+              padding: 22,
+              border: '1px solid #ffd1cd',
+            }}
+          >
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 12, fontWeight: 900, color: '#d92d20', marginBottom: 5 }}>ACCIÓN IRREVERSIBLE</div>
+              <h3 style={{ margin: '0 0 7px', fontSize: 22, fontWeight: 900, color: '#111827' }}>Eliminar cuenta</h3>
+              <div style={{ color: '#6e6e73', fontSize: 14, lineHeight: 1.5 }}>
+                Se eliminará definitivamente esta cuenta y todos los datos asociados. Esta acción no se puede deshacer.
+              </div>
+            </div>
+
+            <div style={{ background: '#fff5f4', border: '1px solid #ffd1cd', borderRadius: 16, padding: 14, marginBottom: 16, display: 'grid', gap: 6 }}>
+              <div><strong>Negocio:</strong> {selectedBusiness.businessName || selectedBusiness.business_name || selectedBusiness.name || '-'}</div>
+              <div><strong>Email:</strong> {selectedBusiness.email || '-'}</div>
+              <div><strong>Slug:</strong> {selectedBusiness.slug || '-'}</div>
+              <div><strong>Reservas:</strong> {Number(selectedBusiness.bookingsCount || 0)}</div>
+              <div><strong>Clientes:</strong> {Number(selectedBusiness.clientsCount || 0)}</div>
+            </div>
+
+            <label style={{ display: 'block', color: '#1a1a1a', fontSize: 13, fontWeight: 900, marginBottom: 7 }}>
+              Escribí <span style={{ color: '#d92d20' }}>ELIMINAR</span> para confirmar
+            </label>
+            <input
+              value={deleteAccountConfirmation}
+              onChange={(event) => setDeleteAccountConfirmation(event.target.value.toUpperCase())}
+              autoComplete="off"
+              placeholder="ELIMINAR"
+              disabled={Boolean(adminActionLoading)}
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                border: '1px solid #dcdce3',
+                borderRadius: 14,
+                padding: '12px 13px',
+                fontSize: 15,
+                fontWeight: 800,
+                outline: 'none',
+                marginBottom: 14,
+              }}
+            />
+
+            <button
+              type="button"
+              disabled={deleteAccountConfirmation !== 'ELIMINAR' || Boolean(adminActionLoading)}
+              onClick={deleteProfessionalAccount}
+              style={{
+                width: '100%',
+                border: 'none',
+                borderRadius: 15,
+                padding: '13px 16px',
+                background: deleteAccountConfirmation === 'ELIMINAR' && !adminActionLoading ? '#d92d20' : '#f0b5b0',
+                color: '#fff',
+                fontSize: 15,
+                fontWeight: 900,
+                cursor: deleteAccountConfirmation === 'ELIMINAR' && !adminActionLoading ? 'pointer' : 'not-allowed',
+                marginBottom: 10,
+              }}
+            >
+              {adminActionLoading === 'delete_account' ? 'Eliminando...' : 'Eliminar cuenta definitivamente'}
+            </button>
+            <button
+              type="button"
+              disabled={Boolean(adminActionLoading)}
+              onClick={() => {
+                setDeleteAccountModalOpen(false);
+                setDeleteAccountConfirmation('');
+              }}
+              style={{ width: '100%', border: '1px solid #dcdce3', borderRadius: 15, padding: '12px 16px', background: '#fff', color: '#1a1a1a', fontSize: 15, fontWeight: 900, cursor: adminActionLoading ? 'wait' : 'pointer' }}
+            >
+              Cancelar
+            </button>
           </div>
         </div>
       )}
