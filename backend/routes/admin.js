@@ -39,6 +39,38 @@ function requireAdmin(req, res, next) {
 const NICO_LIFETIME_FREE_SLUG = 'barberianicoaquino';
 
 
+const TEST_ACCOUNT_EMAIL = 'sodko@sadsd.com';
+
+async function deleteRowsIfColumnExists(client, tableName, columnName, professionalId) {
+  const check = await client.query(
+    `SELECT EXISTS (
+       SELECT 1
+       FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = $1
+         AND column_name = $2
+     ) AS exists`,
+    [tableName, columnName]
+  );
+
+  if (!check.rows[0]?.exists) return;
+
+  const allowedTables = new Set([
+    'professional_payment_connections',
+    'cash_closures',
+    'staff_members',
+    'admin_audit_log',
+  ]);
+  const allowedColumns = new Set(['professional_id', 'owner_professional_id']);
+
+  if (!allowedTables.has(tableName) || !allowedColumns.has(columnName)) {
+    throw new Error('Intento de limpieza fuera de la lista permitida');
+  }
+
+  await client.query(`DELETE FROM ${tableName} WHERE ${columnName} = $1`, [professionalId]);
+}
+
+
 function csvCell(value) {
   if (value === null || value === undefined) return '""';
   let text = String(value).replace(/\r?\n/g, ' ').trim();
@@ -1254,6 +1286,65 @@ router.patch("/professionals/:id/plan-actions", requireAdmin, async (req, res) =
     try { await client.query('ROLLBACK'); } catch {}
     console.error("Error admin plan action:", error);
     res.status(500).json({ error: "Error actualizando plan del negocio" });
+  } finally {
+    client.release();
+  }
+});
+
+
+router.delete("/professionals/:id/test-account", requireAdmin, async (req, res) => {
+  const professionalId = Number.parseInt(req.params.id, 10);
+  if (!Number.isInteger(professionalId) || professionalId < 1) {
+    return res.status(400).json({ error: "ID de negocio inválido" });
+  }
+
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+
+    const found = await client.query(
+      `SELECT id, email, business_name, name, slug
+       FROM professionals
+       WHERE id = $1
+         AND LOWER(TRIM(email)) = $2
+       LIMIT 1
+       FOR UPDATE`,
+      [professionalId, TEST_ACCOUNT_EMAIL]
+    );
+
+    if (found.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({
+        error: "Esta acción solo está habilitada para la cuenta test indicada",
+      });
+    }
+
+    // Limpieza explícita de tablas históricas que en algunas versiones
+    // no tienen FK ON DELETE CASCADE. El resto se elimina por cascada
+    // al borrar la fila de professionals.
+    await deleteRowsIfColumnExists(client, 'professional_payment_connections', 'professional_id', professionalId);
+    await deleteRowsIfColumnExists(client, 'cash_closures', 'professional_id', professionalId);
+    await deleteRowsIfColumnExists(client, 'staff_members', 'owner_professional_id', professionalId);
+    await deleteRowsIfColumnExists(client, 'admin_audit_log', 'professional_id', professionalId);
+
+    const deleted = await client.query(
+      `DELETE FROM professionals
+       WHERE id = $1
+         AND LOWER(TRIM(email)) = $2
+       RETURNING id, email, business_name, name, slug`,
+      [professionalId, TEST_ACCOUNT_EMAIL]
+    );
+
+    if (deleted.rows.length !== 1) {
+      throw new Error('No se pudo eliminar exactamente una cuenta test');
+    }
+
+    await client.query('COMMIT');
+    return res.json({ success: true, deleted: deleted.rows[0] });
+  } catch (error) {
+    try { await client.query('ROLLBACK'); } catch {}
+    console.error('Error deleting exact test account:', error);
+    return res.status(500).json({ error: "No se pudo eliminar la cuenta test" });
   } finally {
     client.release();
   }

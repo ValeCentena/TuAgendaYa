@@ -15109,6 +15109,31 @@ function AdminDashboardPage() {
     }
   };
 
+
+
+  const deleteExactTestAccount = async (professional) => {
+    const exactEmail = String(professional?.email || '').trim().toLowerCase();
+    if (!professional?.id || exactEmail !== 'sodko@sadsd.com' || adminActionLoading) return;
+
+    const businessName = professional.businessName || professional.business_name || professional.name || 'test';
+    const confirmed = window.confirm(
+      `Vas a eliminar definitivamente la cuenta ${businessName} (${professional.email}) y todos sus datos asociados. ¿Continuar?`
+    );
+    if (!confirmed) return;
+
+    try {
+      setAdminActionLoading('delete_test_account');
+      await adminFetch(`/admin/professionals/${professional.id}/test-account`, { method: 'DELETE' });
+      closeBusinessDetail();
+      await loadAdminData();
+      alert('Cuenta test eliminada correctamente');
+    } catch (err) {
+      alert(err.message || 'No se pudo eliminar la cuenta test');
+    } finally {
+      setAdminActionLoading('');
+    }
+  };
+
   const saveAdminInternalNote = async () => {
     if (!selectedBusiness?.id || adminNoteSaving) return;
 
@@ -15859,6 +15884,16 @@ function AdminDashboardPage() {
                     >
                       {selectedBusiness.status === 'suspended' ? 'Activar negocio' : 'Suspender negocio'}
                     </button>
+                    {String(selectedBusiness.email || '').trim().toLowerCase() === 'sodko@sadsd.com' && (
+                      <button
+                        type="button"
+                        disabled={Boolean(adminActionLoading)}
+                        onClick={() => deleteExactTestAccount(selectedBusiness)}
+                        style={{ border: '1px solid #ffb3ad', borderRadius: 14, padding: '11px 12px', background: '#fff5f4', color: '#d92d20', fontWeight: 900, cursor: adminActionLoading ? 'wait' : 'pointer' }}
+                      >
+                        {adminActionLoading === 'delete_test_account' ? 'Eliminando...' : 'Eliminar cuenta test'}
+                      </button>
+                    )}
                   </div>
                 </div>
 
