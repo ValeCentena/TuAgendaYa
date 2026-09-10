@@ -205,6 +205,39 @@ async function findLatestPendingBookingByPhone(phone) {
 async function updateBookingFromWhatsApp(action, token, id, phone = null) {
   if (!action) return null;
 
+  // Cuando el cliente rechaza / indica “No puedo asistir”, la reserva
+  // se elimina definitivamente y no queda en agenda ni historial.
+  if (action === "cancel") {
+    if (token) {
+      const result = await db.query(
+        `DELETE FROM bookings WHERE confirmation_token = $1 RETURNING *`,
+        [token]
+      );
+      return result.rows[0] || null;
+    }
+
+    if (id) {
+      const result = await db.query(
+        `DELETE FROM bookings WHERE id = $1 RETURNING *`,
+        [id]
+      );
+      return result.rows[0] || null;
+    }
+
+    if (phone) {
+      const latest = await findLatestPendingBookingByPhone(phone);
+      if (!latest) return null;
+
+      const result = await db.query(
+        `DELETE FROM bookings WHERE id = $1 RETURNING *`,
+        [latest.id]
+      );
+      return result.rows[0] || null;
+    }
+
+    return null;
+  }
+
   await ensurePaymentColumns();
 
   const nextStatus = action === "confirm" ? "confirmed" : "cancelled";
