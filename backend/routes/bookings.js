@@ -13,6 +13,25 @@ const {
 
 const router = express.Router();
 
+// Limpieza idempotente: cualquier reserva heredada con estado cancelado
+// se elimina al iniciar el backend. Las cancelaciones nuevas se borran
+// directamente en sus respectivos endpoints y nunca quedan en historial.
+async function purgeLegacyCancelledBookings() {
+  try {
+    const result = await db.query(
+      `DELETE FROM bookings WHERE status = 'cancelled' RETURNING id`
+    );
+
+    if (result.rows.length > 0) {
+      console.log(`[bookings] Reservas canceladas antiguas eliminadas: ${result.rows.length}`);
+    }
+  } catch (error) {
+    console.error('[bookings] No se pudieron limpiar reservas canceladas antiguas:', error.message);
+  }
+}
+
+purgeLegacyCancelledBookings();
+
 function getTokenFromHeader(req) {
   const authHeader = req.headers.authorization || "";
 
@@ -431,20 +450,13 @@ async function markBookingPaymentFailedFromMercadoPago({ bookingId, paymentId, p
 
   const result = await db.query(
     `
-      UPDATE bookings
-      SET
-        status = 'cancelled',
-        payment_status = 'pending',
-        amount_paid = 0,
-        mercadopago_payment_id = COALESCE($2, mercadopago_payment_id),
-        payment_updated_at = NOW(),
-        updated_at = NOW()
+      DELETE FROM bookings
       WHERE id = $1
         AND payment_method = 'online'
         AND payment_status <> 'paid'
       RETURNING *
     `,
-    [bookingId, paymentId ? String(paymentId) : null]
+    [bookingId]
   );
 
   return result.rows[0] || null;
@@ -634,27 +646,9 @@ async function markBookingAutomaticallyPaid(whereSql, values) {
 }
 
 async function markBookingAutomaticallyCancelled(whereSql, values) {
-  await ensurePaymentColumns();
-
   const result = await db.query(
     `
-      UPDATE bookings b
-      SET
-        status = 'cancelled',
-        client_cancelled_at = NOW(),
-        client_confirmed_at = NULL,
-        payment_status = CASE
-          WHEN b.payment_method = 'online' AND b.payment_status = 'paid'
-            THEN 'paid'
-          ELSE 'cancelled'
-        END,
-        amount_paid = CASE
-          WHEN b.payment_method = 'online' AND b.payment_status = 'paid'
-            THEN b.amount_paid
-          ELSE 0
-        END,
-        payment_updated_at = NOW(),
-        updated_at = NOW()
+      DELETE FROM bookings b
       WHERE ${whereSql}
       RETURNING *
     `,
@@ -4345,11 +4339,7 @@ router.patch("/:id/cancel", async (req, res) => {
 
     const result = await db.query(
       `
-      UPDATE bookings
-      SET
-        status = 'cancelled',
-        client_cancelled_at = NOW(),
-        updated_at = NOW()
+      DELETE FROM bookings
       WHERE id = $1 AND professional_id = $2
       RETURNING *
       `,
@@ -4364,6 +4354,7 @@ router.patch("/:id/cancel", async (req, res) => {
 
     res.json({
       success: true,
+      deleted: true,
       booking: normalizeBooking(result.rows[0]),
     });
   } catch (error) {
