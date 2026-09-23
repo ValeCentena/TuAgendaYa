@@ -32,6 +32,62 @@ async function purgeLegacyCancelledBookings() {
 
 purgeLegacyCancelledBookings();
 
+function normalizeClientPhoneForIdentity(phone) {
+  const onlyNumbers = String(phone || "").replace(/\D/g, "");
+
+  if (!onlyNumbers) return "";
+  if (onlyNumbers.startsWith("598")) return onlyNumbers;
+  if (onlyNumbers.startsWith("09") && onlyNumbers.length >= 8) return `598${onlyNumbers.slice(1)}`;
+  if (onlyNumbers.startsWith("9") && onlyNumbers.length >= 8) return `598${onlyNumbers}`;
+  if (onlyNumbers.startsWith("0") && onlyNumbers.length > 6) return `598${onlyNumbers.slice(1)}`;
+
+  return onlyNumbers;
+}
+
+async function syncProfessionalClientNameByPhone(queryClient, professionalId, clientName, clientPhone) {
+  const safeName = String(clientName || "").trim().slice(0, 160);
+  const safePhone = String(clientPhone || "").trim().slice(0, 60);
+  const normalizedPhone = normalizeClientPhoneForIdentity(safePhone);
+
+  // Sin teléfono válido no intentamos consolidar identidades.
+  if (!safeName || !normalizedPhone || normalizedPhone.length < 7) return;
+
+  await queryClient.query(`
+    CREATE TABLE IF NOT EXISTS professional_clients (
+      id SERIAL PRIMARY KEY,
+      professional_id INTEGER NOT NULL REFERENCES professionals(id) ON DELETE CASCADE,
+      client_name TEXT NOT NULL,
+      client_phone TEXT NOT NULL,
+      normalized_phone TEXT NOT NULL,
+      device_contact_id TEXT,
+      source TEXT NOT NULL DEFAULT 'device',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (professional_id, normalized_phone)
+    )
+  `);
+
+  // El teléfono define la identidad del cliente. Si ya existe, únicamente
+  // actualizamos el nombre con el último nombre usado en una reserva pública.
+  await queryClient.query(
+    `INSERT INTO professional_clients (
+       professional_id,
+       client_name,
+       client_phone,
+       normalized_phone,
+       source,
+       created_at,
+       updated_at
+     )
+     VALUES ($1, $2, $3, $4, 'booking', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+     ON CONFLICT (professional_id, normalized_phone)
+     DO UPDATE SET
+       client_name = EXCLUDED.client_name,
+       updated_at = CURRENT_TIMESTAMP`,
+    [professionalId, safeName, safePhone, normalizedPhone]
+  );
+}
+
 function getTokenFromHeader(req) {
   const authHeader = req.headers.authorization || "";
 
@@ -2734,6 +2790,13 @@ router.post("/public/:slug/book", async (req, res) => {
           isOnlinePayment ? "pending" : "paid",
           isOnlinePayment ? 0 : Number(service ? service.price || 0 : 0),
         ]
+      );
+
+      await syncProfessionalClientNameByPhone(
+        bookingClient,
+        professional.id,
+        clientName,
+        clientPhone
       );
 
       await bookingClient.query("COMMIT");
