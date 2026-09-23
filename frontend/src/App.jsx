@@ -3945,6 +3945,8 @@ function NicoTimelineCalendar({
   const longPressTimerRef = useRef(null);
   const pointerStartRef = useRef(null);
   const suppressClickRef = useRef(false);
+  const dragRuntimeRef = useRef(null);
+  const dragStateRef = useRef(null);
 
   const clearLongPressTimer = () => {
     if (longPressTimerRef.current) {
@@ -3953,7 +3955,14 @@ function NicoTimelineCalendar({
     }
   };
 
-  useEffect(() => () => clearLongPressTimer(), []);
+  useEffect(() => {
+    dragStateRef.current = dragState;
+  }, [dragState]);
+
+  useEffect(() => () => {
+    clearLongPressTimer();
+    dragRuntimeRef.current = null;
+  }, []);
 
   const selectedDate = fromDateKey(selectedDateKey);
   const weekday = selectedDate.toLocaleDateString('es-UY', { weekday: 'long' });
@@ -4057,6 +4066,113 @@ function NicoTimelineCalendar({
   const timeGutter = 58;
   const hours = Array.from({ length: endHour - startHour + 1 }, (_, index) => startHour + index);
 
+  const bookingRescheduleRef = useRef(onBookingReschedule);
+  useEffect(() => {
+    bookingRescheduleRef.current = onBookingReschedule;
+  }, [onBookingReschedule]);
+
+  useEffect(() => {
+    if (!dragState?.bookingId) return undefined;
+
+    const runtime = dragRuntimeRef.current;
+    if (!runtime || runtime.bookingId !== dragState.bookingId) return undefined;
+
+    const previousBodyOverscroll = document.body.style.overscrollBehavior;
+    const previousRootOverscroll = document.documentElement.style.overscrollBehavior;
+    document.body.style.overscrollBehavior = 'none';
+    document.documentElement.style.overscrollBehavior = 'none';
+
+    const updateFromPointer = (event) => {
+      const currentRuntime = dragRuntimeRef.current;
+      if (!currentRuntime || event.pointerId !== currentRuntime.pointerId) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const rawDeltaMinutes = (event.clientY - currentRuntime.clientY) / currentRuntime.minuteHeight;
+      const snappedDelta = Math.round(rawDeltaMinutes / currentRuntime.interval) * currentRuntime.interval;
+      const previewStart = Math.max(
+        currentRuntime.minStart,
+        Math.min(currentRuntime.maxStart, currentRuntime.originalStart + snappedDelta)
+      );
+      const previewTop = Math.max(
+        0,
+        (previewStart - currentRuntime.minStart) * currentRuntime.minuteHeight
+      );
+
+      setDragState((current) => {
+        if (!current || current.bookingId !== currentRuntime.bookingId || current.saving) return current;
+        return { ...current, previewStart, previewTop };
+      });
+    };
+
+    const finishDrag = async (event) => {
+      const currentRuntime = dragRuntimeRef.current;
+      if (!currentRuntime || event.pointerId !== currentRuntime.pointerId) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      suppressClickRef.current = true;
+
+      try {
+        currentRuntime.target?.releasePointerCapture?.(currentRuntime.pointerId);
+      } catch {}
+
+      const currentDrag = dragStateRef.current;
+      dragRuntimeRef.current = null;
+      pointerStartRef.current = null;
+
+      if (!currentDrag || currentDrag.bookingId !== currentRuntime.bookingId) {
+        setDragState(null);
+        window.setTimeout(() => { suppressClickRef.current = false; }, 120);
+        return;
+      }
+
+      if (currentDrag.previewStart === currentDrag.originalStart) {
+        setDragState(null);
+        window.setTimeout(() => { suppressClickRef.current = false; }, 120);
+        return;
+      }
+
+      setDragState((current) => current && current.bookingId === currentRuntime.bookingId
+        ? { ...current, saving: true }
+        : current);
+
+      const newHour = Math.floor(currentDrag.previewStart / 60);
+      const newMinute = currentDrag.previewStart % 60;
+      const newStartTime = `${pad(newHour)}:${pad(newMinute)}`;
+
+      try {
+        await bookingRescheduleRef.current?.(currentRuntime.booking, newStartTime);
+      } finally {
+        setDragState(null);
+        window.setTimeout(() => { suppressClickRef.current = false; }, 160);
+      }
+    };
+
+    const cancelDrag = (event) => {
+      const currentRuntime = dragRuntimeRef.current;
+      if (!currentRuntime || event.pointerId !== currentRuntime.pointerId) return;
+      event.preventDefault();
+      dragRuntimeRef.current = null;
+      pointerStartRef.current = null;
+      setDragState(null);
+      window.setTimeout(() => { suppressClickRef.current = false; }, 120);
+    };
+
+    window.addEventListener('pointermove', updateFromPointer, { capture: true, passive: false });
+    window.addEventListener('pointerup', finishDrag, { capture: true, passive: false });
+    window.addEventListener('pointercancel', cancelDrag, { capture: true, passive: false });
+
+    return () => {
+      window.removeEventListener('pointermove', updateFromPointer, true);
+      window.removeEventListener('pointerup', finishDrag, true);
+      window.removeEventListener('pointercancel', cancelDrag, true);
+      document.body.style.overscrollBehavior = previousBodyOverscroll;
+      document.documentElement.style.overscrollBehavior = previousRootOverscroll;
+    };
+  }, [dragState?.bookingId]);
+
   return (
     <>
       <style>{`
@@ -4064,6 +4180,7 @@ function NicoTimelineCalendar({
           touch-action: none;
           user-select: none;
           -webkit-user-select: none;
+          -webkit-touch-callout: none;
         }
 
         .nico-booking-draggable.nico-dragging {
@@ -4386,17 +4503,33 @@ function NicoTimelineCalendar({
                             bookingId: booking.id,
                             pointerId: event.pointerId,
                             clientY: event.clientY,
-                            originalStart: start,
-                            originalTop: top,
-                            durationMinutes: end - start,
                           };
 
                           longPressTimerRef.current = window.setTimeout(() => {
                             const pointer = pointerStartRef.current;
-                            if (!pointer || pointer.bookingId !== booking.id) return;
+                            if (!pointer || pointer.bookingId !== booking.id || pointer.pointerId !== event.pointerId) return;
+
+                            const interval = Number(bookingStartIntervalMinutes) === 60 ? 60 : 30;
+                            const durationMinutes = end - start;
+                            const minStart = startHour * 60;
+                            const maxStart = endHour * 60 - durationMinutes;
 
                             suppressClickRef.current = true;
                             try { pointerTarget.setPointerCapture(event.pointerId); } catch {}
+
+                            dragRuntimeRef.current = {
+                              booking,
+                              bookingId: booking.id,
+                              pointerId: event.pointerId,
+                              target: pointerTarget,
+                              clientY: pointer.clientY,
+                              originalStart: start,
+                              durationMinutes,
+                              interval,
+                              minStart,
+                              maxStart,
+                              minuteHeight,
+                            };
 
                             setDragState({
                               bookingId: booking.id,
@@ -4404,7 +4537,7 @@ function NicoTimelineCalendar({
                               originalStart: start,
                               previewStart: start,
                               previewTop: top,
-                              durationMinutes: end - start,
+                              durationMinutes,
                               saving: false,
                             });
                           }, 450);
@@ -4413,66 +4546,21 @@ function NicoTimelineCalendar({
                           const pointer = pointerStartRef.current;
                           if (!pointer || pointer.bookingId !== booking.id) return;
 
-                          if (!dragState || dragState.bookingId !== booking.id) {
-                            if (Math.abs(event.clientY - pointer.clientY) > 8) {
-                              clearLongPressTimer();
-                            }
-                            return;
+                          if (!dragRuntimeRef.current && Math.abs(event.clientY - pointer.clientY) > 8) {
+                            clearLongPressTimer();
                           }
-
-                          event.preventDefault();
-                          const rawDeltaMinutes = (event.clientY - pointer.clientY) / minuteHeight;
-                          const interval = Number(bookingStartIntervalMinutes) === 60 ? 60 : 30;
-                          const snappedDelta = Math.round(rawDeltaMinutes / interval) * interval;
-                          const minStart = startHour * 60;
-                          const maxStart = endHour * 60 - dragState.durationMinutes;
-                          const previewStart = Math.max(
-                            minStart,
-                            Math.min(maxStart, dragState.originalStart + snappedDelta)
-                          );
-                          const previewTop = Math.max(0, (previewStart - startHour * 60) * minuteHeight);
-
-                          setDragState((current) => current && current.bookingId === booking.id
-                            ? { ...current, previewStart, previewTop }
-                            : current);
                         }}
-                        onPointerUp={async (event) => {
+                        onPointerUp={(event) => {
+                          if (dragRuntimeRef.current?.bookingId === booking.id) return;
                           clearLongPressTimer();
-                          const currentDrag = dragState?.bookingId === booking.id ? dragState : null;
                           pointerStartRef.current = null;
-
-                          if (!currentDrag) return;
-
-                          event.preventDefault();
-                          suppressClickRef.current = true;
                           try { event.currentTarget.releasePointerCapture(event.pointerId); } catch {}
-
-                          if (currentDrag.previewStart === currentDrag.originalStart) {
-                            setDragState(null);
-                            window.setTimeout(() => { suppressClickRef.current = false; }, 80);
-                            return;
-                          }
-
-                          setDragState((current) => current && current.bookingId === booking.id
-                            ? { ...current, saving: true }
-                            : current);
-
-                          const newHour = Math.floor(currentDrag.previewStart / 60);
-                          const newMinute = currentDrag.previewStart % 60;
-                          const newStartTime = `${pad(newHour)}:${pad(newMinute)}`;
-
-                          try {
-                            await onBookingReschedule?.(booking, newStartTime);
-                          } finally {
-                            setDragState(null);
-                            window.setTimeout(() => { suppressClickRef.current = false; }, 120);
-                          }
                         }}
-                        onPointerCancel={() => {
+                        onPointerCancel={(event) => {
+                          if (dragRuntimeRef.current?.bookingId === booking.id) return;
                           clearLongPressTimer();
                           pointerStartRef.current = null;
-                          setDragState(null);
-                          suppressClickRef.current = false;
+                          try { event.currentTarget.releasePointerCapture(event.pointerId); } catch {}
                         }}
                         onClick={(event) => {
                           if (suppressClickRef.current) {
