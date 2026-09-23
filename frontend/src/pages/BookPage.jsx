@@ -1374,7 +1374,7 @@ export default function BookPage() {
             <div className="public-booking-section" style={sectionStyle}>
               <div style={sectionTitleStyle}>Tus datos</div>
 
-              <label style={labelStyle}>Nombre completo *</label>
+              <label style={labelStyle}>Nombre y apellido (obligatorio)</label>
 
               <input
                 style={inputStyle}
