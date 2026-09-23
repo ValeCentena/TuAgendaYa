@@ -32,62 +32,6 @@ async function purgeLegacyCancelledBookings() {
 
 purgeLegacyCancelledBookings();
 
-function normalizeClientPhoneForIdentity(phone) {
-  const onlyNumbers = String(phone || "").replace(/\D/g, "");
-
-  if (!onlyNumbers) return "";
-  if (onlyNumbers.startsWith("598")) return onlyNumbers;
-  if (onlyNumbers.startsWith("09") && onlyNumbers.length >= 8) return `598${onlyNumbers.slice(1)}`;
-  if (onlyNumbers.startsWith("9") && onlyNumbers.length >= 8) return `598${onlyNumbers}`;
-  if (onlyNumbers.startsWith("0") && onlyNumbers.length > 6) return `598${onlyNumbers.slice(1)}`;
-
-  return onlyNumbers;
-}
-
-async function syncProfessionalClientNameByPhone(queryClient, professionalId, clientName, clientPhone) {
-  const safeName = String(clientName || "").trim().slice(0, 160);
-  const safePhone = String(clientPhone || "").trim().slice(0, 60);
-  const normalizedPhone = normalizeClientPhoneForIdentity(safePhone);
-
-  // Sin teléfono válido no intentamos consolidar identidades.
-  if (!safeName || !normalizedPhone || normalizedPhone.length < 7) return;
-
-  await queryClient.query(`
-    CREATE TABLE IF NOT EXISTS professional_clients (
-      id SERIAL PRIMARY KEY,
-      professional_id INTEGER NOT NULL REFERENCES professionals(id) ON DELETE CASCADE,
-      client_name TEXT NOT NULL,
-      client_phone TEXT NOT NULL,
-      normalized_phone TEXT NOT NULL,
-      device_contact_id TEXT,
-      source TEXT NOT NULL DEFAULT 'device',
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE (professional_id, normalized_phone)
-    )
-  `);
-
-  // El teléfono define la identidad del cliente. Si ya existe, únicamente
-  // actualizamos el nombre con el último nombre usado en una reserva pública.
-  await queryClient.query(
-    `INSERT INTO professional_clients (
-       professional_id,
-       client_name,
-       client_phone,
-       normalized_phone,
-       source,
-       created_at,
-       updated_at
-     )
-     VALUES ($1, $2, $3, $4, 'booking', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-     ON CONFLICT (professional_id, normalized_phone)
-     DO UPDATE SET
-       client_name = EXCLUDED.client_name,
-       updated_at = CURRENT_TIMESTAMP`,
-    [professionalId, safeName, safePhone, normalizedPhone]
-  );
-}
-
 function getTokenFromHeader(req) {
   const authHeader = req.headers.authorization || "";
 
@@ -1745,7 +1689,7 @@ async function getAvailabilityForDate(professionalId, staffId, bookingDate) {
   };
 }
 
-async function getBusyBookings(professionalId, bookingDate, staffId) {
+async function getBusyBookings(professionalId, bookingDate, staffId, excludeBookingId = null) {
   if (staffId) {
     const result = await db.query(
       `
@@ -1754,10 +1698,11 @@ async function getBusyBookings(professionalId, bookingDate, staffId) {
       WHERE professional_id = $1
         AND staff_id = $2
         AND booking_date = $3
+        AND ($4::integer IS NULL OR id <> $4)
         AND status <> 'cancelled'
         AND start_time IS NOT NULL
       `,
-      [professionalId, staffId, bookingDate]
+      [professionalId, staffId, bookingDate, excludeBookingId]
     );
 
     return result.rows;
@@ -1769,10 +1714,11 @@ async function getBusyBookings(professionalId, bookingDate, staffId) {
     FROM bookings
     WHERE professional_id = $1
       AND booking_date = $2
+      AND ($3::integer IS NULL OR id <> $3)
       AND status <> 'cancelled'
       AND start_time IS NOT NULL
     `,
-    [professionalId, bookingDate]
+    [professionalId, bookingDate, excludeBookingId]
   );
 
   return result.rows;
@@ -1788,7 +1734,8 @@ async function isTimeRangeAvailable(
   bookingDate,
   startTime,
   endTime,
-  availability = null
+  availability = null,
+  excludeBookingId = null
 ) {
   const start = timeToMinutes(startTime);
   const end = timeToMinutes(endTime);
@@ -1805,7 +1752,7 @@ async function isTimeRangeAvailable(
     }
   }
 
-  const busy = await getBusyBookings(professionalId, bookingDate, staffId);
+  const busy = await getBusyBookings(professionalId, bookingDate, staffId, excludeBookingId);
 
   for (const booking of busy) {
     const busyStart = timeToMinutes(booking.start_time);
@@ -1815,6 +1762,40 @@ async function isTimeRangeAvailable(
       busyStart !== null &&
       busyEnd !== null &&
       rangesOverlap(start, end, busyStart, busyEnd)
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function isTimeRangeInsideAvailability(startTime, endTime, availability) {
+  if (!availability || !isAvailabilityActive(availability)) return false;
+
+  const start = timeToMinutes(startTime);
+  const end = timeToMinutes(endTime);
+  const availabilityStart = timeToMinutes(availability.start_time);
+  const availabilityEnd = timeToMinutes(availability.end_time);
+
+  if (start === null || end === null || end <= start) return false;
+
+  if (availabilityStart !== null && start < availabilityStart) return false;
+  if (availabilityEnd !== null && end > availabilityEnd) return false;
+
+  const breakEnabled = isTruthyDatabaseValue(
+    availability.break_enabled ?? availability.breakEnabled ?? false
+  );
+
+  if (breakEnabled) {
+    const breakStart = timeToMinutes(getAvailabilityBreakStart(availability));
+    const breakEnd = timeToMinutes(getAvailabilityBreakEnd(availability));
+
+    if (
+      breakStart !== null &&
+      breakEnd !== null &&
+      breakEnd > breakStart &&
+      rangesOverlap(start, end, breakStart, breakEnd)
     ) {
       return false;
     }
@@ -2790,13 +2771,6 @@ router.post("/public/:slug/book", async (req, res) => {
           isOnlinePayment ? "pending" : "paid",
           isOnlinePayment ? 0 : Number(service ? service.price || 0 : 0),
         ]
-      );
-
-      await syncProfessionalClientNameByPhone(
-        bookingClient,
-        professional.id,
-        clientName,
-        clientPhone
       );
 
       await bookingClient.query("COMMIT");
@@ -4324,6 +4298,151 @@ router.get("/me", async (req, res) => {
     res.status(error.status || 500).json({
       error: error.message || "Error obteniendo reservas",
     });
+  }
+});
+
+router.patch("/:id/reschedule-time", async (req, res) => {
+  const bookingClient = await db.connect();
+  let transactionOpen = false;
+
+  try {
+    const professionalId = await getProfessionalIdFromRequest(req);
+    const bookingId = Number(req.params.id);
+    const requestedStartTime = normalizeTime(req.body.startTime ?? req.body.start_time);
+
+    if (!bookingId || Number.isNaN(bookingId)) {
+      return res.status(400).json({ error: "Reserva inválida" });
+    }
+
+    if (!requestedStartTime) {
+      return res.status(400).json({ error: "Horario inválido" });
+    }
+
+    await bookingClient.query("BEGIN");
+    transactionOpen = true;
+
+    const bookingResult = await bookingClient.query(
+      `
+      SELECT
+        b.*,
+        s.name AS service_name,
+        s.duration_minutes AS service_duration_minutes,
+        s.price AS service_price,
+        sm.name AS staff_name
+      FROM bookings b
+      LEFT JOIN professional_services s ON s.id = b.service_id
+      LEFT JOIN staff_members sm ON sm.id = b.staff_id
+      WHERE b.id = $1
+        AND b.professional_id = $2
+      FOR UPDATE OF b
+      `,
+      [bookingId, professionalId]
+    );
+
+    const booking = bookingResult.rows[0];
+
+    if (!booking) {
+      await bookingClient.query("ROLLBACK");
+      transactionOpen = false;
+      return res.status(404).json({ error: "Reserva no encontrada" });
+    }
+
+    const bookingDate = normalizeDate(booking.booking_date);
+    const staffId = booking.staff_id || null;
+    const currentStart = normalizeTime(booking.start_time);
+    const currentEnd = normalizeTime(booking.end_time);
+    const currentStartMinutes = timeToMinutes(currentStart);
+    const currentEndMinutes = timeToMinutes(currentEnd);
+
+    let durationMinutes = currentEndMinutes - currentStartMinutes;
+    if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) {
+      durationMinutes = Number(booking.service_duration_minutes || 30);
+    }
+
+    const requestedEndTime = addMinutesToTime(requestedStartTime, durationMinutes);
+    const availability = await getAvailabilityForDate(professionalId, staffId, bookingDate);
+
+    if (!availability || !isAvailabilityActive(availability)) {
+      await bookingClient.query("ROLLBACK");
+      transactionOpen = false;
+      return res.status(409).json({ error: "No hay disponibilidad configurada para esa fecha" });
+    }
+
+    if (!isTimeRangeInsideAvailability(requestedStartTime, requestedEndTime, availability)) {
+      await bookingClient.query("ROLLBACK");
+      transactionOpen = false;
+      return res.status(409).json({ error: "Ese horario está fuera de la jornada disponible" });
+    }
+
+    const intervalMinutes = await getBookingStartIntervalMinutes(professionalId);
+    const requestedStartMinutes = timeToMinutes(requestedStartTime);
+
+    if (requestedStartMinutes === null || requestedStartMinutes % intervalMinutes !== 0) {
+      await bookingClient.query("ROLLBACK");
+      transactionOpen = false;
+      return res.status(400).json({
+        error: `El horario debe respetar intervalos de ${intervalMinutes} minutos`,
+      });
+    }
+
+    const bookingLockKey = [professionalId, staffId || 0, bookingDate].join(":");
+    await bookingClient.query("SELECT pg_advisory_xact_lock(hashtext($1))", [bookingLockKey]);
+
+    const available = await isTimeRangeAvailable(
+      professionalId,
+      staffId,
+      bookingDate,
+      requestedStartTime,
+      requestedEndTime,
+      availability,
+      bookingId
+    );
+
+    if (!available) {
+      await bookingClient.query("ROLLBACK");
+      transactionOpen = false;
+      return res.status(409).json({ error: "Ese horario no está disponible" });
+    }
+
+    const updatedResult = await bookingClient.query(
+      `
+      UPDATE bookings
+      SET
+        start_time = $1,
+        end_time = $2,
+        updated_at = NOW()
+      WHERE id = $3
+        AND professional_id = $4
+      RETURNING *
+      `,
+      [requestedStartTime, requestedEndTime, bookingId, professionalId]
+    );
+
+    await bookingClient.query("COMMIT");
+    transactionOpen = false;
+
+    const updated = updatedResult.rows[0];
+
+    return res.json({
+      success: true,
+      booking: normalizeBooking({
+        ...updated,
+        service_name: booking.service_name,
+        service_duration_minutes: booking.service_duration_minutes,
+        service_price: booking.service_price,
+        staff_name: booking.staff_name,
+      }),
+    });
+  } catch (error) {
+    if (transactionOpen) {
+      await bookingClient.query("ROLLBACK").catch(() => {});
+    }
+
+    return res.status(error.status || 500).json({
+      error: error.message || "Error reprogramando la reserva",
+    });
+  } finally {
+    bookingClient.release();
   }
 });
 

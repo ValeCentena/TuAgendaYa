@@ -3900,6 +3900,8 @@ function NicoTimelineCalendar({
   selectedDateKey,
   onDateChange,
   onBookingOpen,
+  onBookingReschedule,
+  bookingStartIntervalMinutes = 30,
   ownerName,
 }) {
   const pad = (value) => String(value).padStart(2, '0');
@@ -3938,6 +3940,20 @@ function NicoTimelineCalendar({
       ? hour * 60 + minute
       : null;
   };
+
+  const [dragState, setDragState] = useState(null);
+  const longPressTimerRef = useRef(null);
+  const pointerStartRef = useRef(null);
+  const suppressClickRef = useRef(false);
+
+  const clearLongPressTimer = () => {
+    if (longPressTimerRef.current) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  useEffect(() => () => clearLongPressTimer(), []);
 
   const selectedDate = fromDateKey(selectedDateKey);
   const weekday = selectedDate.toLocaleDateString('es-UY', { weekday: 'long' });
@@ -4044,6 +4060,18 @@ function NicoTimelineCalendar({
   return (
     <>
       <style>{`
+        .nico-booking-draggable {
+          touch-action: none;
+          user-select: none;
+          -webkit-user-select: none;
+        }
+
+        .nico-booking-draggable.nico-dragging {
+          z-index: 20 !important;
+          box-shadow: 0 12px 30px rgba(0,0,0,0.22) !important;
+          transform: scale(1.015);
+        }
+
         @media (max-width: 720px) {
           .nico-calendar-card {
             width: 100% !important;
@@ -4347,10 +4375,116 @@ function NicoTimelineCalendar({
                       <button
                         key={booking.id}
                         type="button"
-                        onClick={() => onBookingOpen(booking)}
+                        className={`nico-booking-draggable ${dragState?.bookingId === booking.id ? 'nico-dragging' : ''}`}
+                        onPointerDown={(event) => {
+                          if (event.button !== undefined && event.button !== 0) return;
+
+                          const pointerTarget = event.currentTarget;
+                          clearLongPressTimer();
+                          suppressClickRef.current = false;
+                          pointerStartRef.current = {
+                            bookingId: booking.id,
+                            pointerId: event.pointerId,
+                            clientY: event.clientY,
+                            originalStart: start,
+                            originalTop: top,
+                            durationMinutes: end - start,
+                          };
+
+                          longPressTimerRef.current = window.setTimeout(() => {
+                            const pointer = pointerStartRef.current;
+                            if (!pointer || pointer.bookingId !== booking.id) return;
+
+                            suppressClickRef.current = true;
+                            try { pointerTarget.setPointerCapture(event.pointerId); } catch {}
+
+                            setDragState({
+                              bookingId: booking.id,
+                              pointerId: event.pointerId,
+                              originalStart: start,
+                              previewStart: start,
+                              previewTop: top,
+                              durationMinutes: end - start,
+                              saving: false,
+                            });
+                          }, 450);
+                        }}
+                        onPointerMove={(event) => {
+                          const pointer = pointerStartRef.current;
+                          if (!pointer || pointer.bookingId !== booking.id) return;
+
+                          if (!dragState || dragState.bookingId !== booking.id) {
+                            if (Math.abs(event.clientY - pointer.clientY) > 8) {
+                              clearLongPressTimer();
+                            }
+                            return;
+                          }
+
+                          event.preventDefault();
+                          const rawDeltaMinutes = (event.clientY - pointer.clientY) / minuteHeight;
+                          const interval = Number(bookingStartIntervalMinutes) === 60 ? 60 : 30;
+                          const snappedDelta = Math.round(rawDeltaMinutes / interval) * interval;
+                          const minStart = startHour * 60;
+                          const maxStart = endHour * 60 - dragState.durationMinutes;
+                          const previewStart = Math.max(
+                            minStart,
+                            Math.min(maxStart, dragState.originalStart + snappedDelta)
+                          );
+                          const previewTop = Math.max(0, (previewStart - startHour * 60) * minuteHeight);
+
+                          setDragState((current) => current && current.bookingId === booking.id
+                            ? { ...current, previewStart, previewTop }
+                            : current);
+                        }}
+                        onPointerUp={async (event) => {
+                          clearLongPressTimer();
+                          const currentDrag = dragState?.bookingId === booking.id ? dragState : null;
+                          pointerStartRef.current = null;
+
+                          if (!currentDrag) return;
+
+                          event.preventDefault();
+                          suppressClickRef.current = true;
+                          try { event.currentTarget.releasePointerCapture(event.pointerId); } catch {}
+
+                          if (currentDrag.previewStart === currentDrag.originalStart) {
+                            setDragState(null);
+                            window.setTimeout(() => { suppressClickRef.current = false; }, 80);
+                            return;
+                          }
+
+                          setDragState((current) => current && current.bookingId === booking.id
+                            ? { ...current, saving: true }
+                            : current);
+
+                          const newHour = Math.floor(currentDrag.previewStart / 60);
+                          const newMinute = currentDrag.previewStart % 60;
+                          const newStartTime = `${pad(newHour)}:${pad(newMinute)}`;
+
+                          try {
+                            await onBookingReschedule?.(booking, newStartTime);
+                          } finally {
+                            setDragState(null);
+                            window.setTimeout(() => { suppressClickRef.current = false; }, 120);
+                          }
+                        }}
+                        onPointerCancel={() => {
+                          clearLongPressTimer();
+                          pointerStartRef.current = null;
+                          setDragState(null);
+                          suppressClickRef.current = false;
+                        }}
+                        onClick={(event) => {
+                          if (suppressClickRef.current) {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            return;
+                          }
+                          onBookingOpen(booking);
+                        }}
                         style={{
                           position: 'absolute',
-                          top,
+                          top: dragState?.bookingId === booking.id ? dragState.previewTop : top,
                           left: 7,
                           right: 7,
                           height,
@@ -4362,12 +4496,18 @@ function NicoTimelineCalendar({
                           textAlign: 'left',
                           padding: '9px 10px',
                           overflow: 'hidden',
-                          cursor: 'pointer',
+                          cursor: dragState?.bookingId === booking.id ? 'grabbing' : 'grab',
                           fontFamily: 'inherit',
+                          transition: dragState?.bookingId === booking.id ? 'none' : 'top 160ms ease, transform 140ms ease, box-shadow 140ms ease',
                           boxShadow: cancelled ? 'none' : '0 4px 14px rgba(0,0,0,0.14)',
                           opacity: cancelled ? 0.58 : 1,
                         }}
                       >
+                        {dragState?.bookingId === booking.id && (
+                          <div style={{ fontSize: 10.5, fontWeight: 950, color: member.color, marginBottom: 4, whiteSpace: 'nowrap' }}>
+                            {dragState.saving ? 'Guardando…' : `Nuevo horario · ${pad(Math.floor(dragState.previewStart / 60))}:${pad(dragState.previewStart % 60)}`}
+                          </div>
+                        )}
                         <div style={{ fontSize: 13, fontWeight: 950, lineHeight: 1.15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: cancelled ? 'line-through' : 'none' }}>
                           {clientName}
                         </div>
@@ -4422,6 +4562,7 @@ function ReservationsSection() {
     return `${y}-${m}-${d}`;
   });
   const [nicoStaff, setNicoStaff] = useState([]);
+  const [bookingStartIntervalMinutes, setBookingStartIntervalMinutes] = useState(30);
   const knownBookingIdsRef = useRef(new Set());
   const bookingsBootstrappedRef = useRef(false);
   const notificationTimeoutRef = useRef(null);
@@ -4602,6 +4743,34 @@ useEffect(() => {
   };
 
 
+  const rescheduleBookingFromTimeline = async (booking, newStartTime) => {
+    const token = localStorage.getItem('tuagendaya_token');
+    const response = await fetch(`${API_BASE}/bookings/${booking.id}/reschedule-time`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ startTime: newStartTime }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      window.alert(data.error || 'No se pudo cambiar el horario de la reserva.');
+      throw new Error(data.error || 'No se pudo reprogramar la reserva');
+    }
+
+    if (data.booking) {
+      handleBookingUpdated(data.booking);
+    } else {
+      await fetchBookings(false);
+    }
+
+    return data.booking;
+  };
+
+
   let storedProfessional = {};
 
   try {
@@ -4623,8 +4792,11 @@ useEffect(() => {
       fetch(`${API_BASE}/professionals/me/agenda-view`, {
         headers: { Authorization: `Bearer ${token}` },
       }).then((response) => response.json()),
+      fetch(`${API_BASE}/professionals/me/booking-start-interval`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }).then((response) => response.json()).catch(() => ({})),
     ])
-      .then(([staffData, agendaViewData]) => {
+      .then(([staffData, agendaViewData, intervalData]) => {
         if (cancelled) return;
 
         setNicoStaff(
@@ -4635,6 +4807,8 @@ useEffect(() => {
 
         const savedMode = agendaViewData.agendaViewMode || agendaViewData.agenda_view_mode;
         setNicoAgendaMode(savedMode === 'calendar' ? 'calendar' : 'list');
+        const intervalValue = Number(intervalData.bookingStartIntervalMinutes ?? intervalData.booking_start_interval_minutes);
+        setBookingStartIntervalMinutes(intervalValue === 60 ? 60 : 30);
       })
       .catch(() => {
         if (!cancelled) setNicoStaff([]);
@@ -5322,6 +5496,8 @@ useEffect(() => {
           selectedDateKey={nicoCalendarDateKey}
           onDateChange={setNicoCalendarDateKey}
           onBookingOpen={openBookingFromNicoCalendar}
+          onBookingReschedule={rescheduleBookingFromTimeline}
+          bookingStartIntervalMinutes={bookingStartIntervalMinutes}
           ownerName={storedProfessional.name || businessName || 'Profesional principal'}
         />
       )}
