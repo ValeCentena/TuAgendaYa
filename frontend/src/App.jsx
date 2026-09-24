@@ -4160,14 +4160,107 @@ function NicoTimelineCalendar({
       window.setTimeout(() => { suppressClickRef.current = false; }, 120);
     };
 
+    const updateFromTouch = (event) => {
+      const currentRuntime = dragRuntimeRef.current;
+      if (!currentRuntime || currentRuntime.inputType !== 'touch') return;
+
+      const touch = Array.from(event.touches || []).find(
+        (item) => item.identifier === currentRuntime.touchIdentifier
+      );
+      if (!touch) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const rawDeltaMinutes = (touch.clientY - currentRuntime.clientY) / currentRuntime.minuteHeight;
+      const snappedDelta = Math.round(rawDeltaMinutes / currentRuntime.interval) * currentRuntime.interval;
+      const previewStart = Math.max(
+        currentRuntime.minStart,
+        Math.min(currentRuntime.maxStart, currentRuntime.originalStart + snappedDelta)
+      );
+      const previewTop = Math.max(
+        0,
+        (previewStart - currentRuntime.minStart) * currentRuntime.minuteHeight
+      );
+
+      setDragState((current) => {
+        if (!current || current.bookingId !== currentRuntime.bookingId || current.saving) return current;
+        return { ...current, previewStart, previewTop };
+      });
+    };
+
+    const finishTouchDrag = async (event) => {
+      const currentRuntime = dragRuntimeRef.current;
+      if (!currentRuntime || currentRuntime.inputType !== 'touch') return;
+
+      const endedTouch = Array.from(event.changedTouches || []).find(
+        (item) => item.identifier === currentRuntime.touchIdentifier
+      );
+      if (!endedTouch) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      suppressClickRef.current = true;
+
+      const currentDrag = dragStateRef.current;
+      dragRuntimeRef.current = null;
+      pointerStartRef.current = null;
+      clearLongPressTimer();
+
+      if (!currentDrag || currentDrag.bookingId !== currentRuntime.bookingId) {
+        setDragState(null);
+        window.setTimeout(() => { suppressClickRef.current = false; }, 120);
+        return;
+      }
+
+      if (currentDrag.previewStart === currentDrag.originalStart) {
+        setDragState(null);
+        window.setTimeout(() => { suppressClickRef.current = false; }, 120);
+        return;
+      }
+
+      setDragState((current) => current && current.bookingId === currentRuntime.bookingId
+        ? { ...current, saving: true }
+        : current);
+
+      const newHour = Math.floor(currentDrag.previewStart / 60);
+      const newMinute = currentDrag.previewStart % 60;
+      const newStartTime = `${pad(newHour)}:${pad(newMinute)}`;
+
+      try {
+        await bookingRescheduleRef.current?.(currentRuntime.booking, newStartTime);
+      } finally {
+        setDragState(null);
+        window.setTimeout(() => { suppressClickRef.current = false; }, 160);
+      }
+    };
+
+    const cancelTouchDrag = (event) => {
+      const currentRuntime = dragRuntimeRef.current;
+      if (!currentRuntime || currentRuntime.inputType !== 'touch') return;
+
+      event.preventDefault();
+      dragRuntimeRef.current = null;
+      pointerStartRef.current = null;
+      clearLongPressTimer();
+      setDragState(null);
+      window.setTimeout(() => { suppressClickRef.current = false; }, 120);
+    };
+
     window.addEventListener('pointermove', updateFromPointer, { capture: true, passive: false });
     window.addEventListener('pointerup', finishDrag, { capture: true, passive: false });
     window.addEventListener('pointercancel', cancelDrag, { capture: true, passive: false });
+    window.addEventListener('touchmove', updateFromTouch, { capture: true, passive: false });
+    window.addEventListener('touchend', finishTouchDrag, { capture: true, passive: false });
+    window.addEventListener('touchcancel', cancelTouchDrag, { capture: true, passive: false });
 
     return () => {
       window.removeEventListener('pointermove', updateFromPointer, true);
       window.removeEventListener('pointerup', finishDrag, true);
       window.removeEventListener('pointercancel', cancelDrag, true);
+      window.removeEventListener('touchmove', updateFromTouch, true);
+      window.removeEventListener('touchend', finishTouchDrag, true);
+      window.removeEventListener('touchcancel', cancelTouchDrag, true);
       document.body.style.overscrollBehavior = previousBodyOverscroll;
       document.documentElement.style.overscrollBehavior = previousRootOverscroll;
     };
@@ -4184,6 +4277,7 @@ function NicoTimelineCalendar({
         }
 
         .nico-booking-draggable.nico-dragging {
+          will-change: top;
           z-index: 20 !important;
           box-shadow: 0 12px 30px rgba(0,0,0,0.22) !important;
           transform: scale(1.015);
@@ -4494,6 +4588,7 @@ function NicoTimelineCalendar({
                         type="button"
                         className={`nico-booking-draggable ${dragState?.bookingId === booking.id ? 'nico-dragging' : ''}`}
                         onPointerDown={(event) => {
+                          if (event.pointerType === 'touch') return;
                           if (event.button !== undefined && event.button !== 0) return;
 
                           const pointerTarget = event.currentTarget;
@@ -4543,6 +4638,7 @@ function NicoTimelineCalendar({
                           }, 450);
                         }}
                         onPointerMove={(event) => {
+                          if (event.pointerType === 'touch') return;
                           const pointer = pointerStartRef.current;
                           if (!pointer || pointer.bookingId !== booking.id) return;
 
@@ -4551,16 +4647,173 @@ function NicoTimelineCalendar({
                           }
                         }}
                         onPointerUp={(event) => {
+                          if (event.pointerType === 'touch') return;
                           if (dragRuntimeRef.current?.bookingId === booking.id) return;
                           clearLongPressTimer();
                           pointerStartRef.current = null;
                           try { event.currentTarget.releasePointerCapture(event.pointerId); } catch {}
                         }}
                         onPointerCancel={(event) => {
+                          if (event.pointerType === 'touch') return;
                           if (dragRuntimeRef.current?.bookingId === booking.id) return;
                           clearLongPressTimer();
                           pointerStartRef.current = null;
                           try { event.currentTarget.releasePointerCapture(event.pointerId); } catch {}
+                        }}
+                        onTouchStart={(event) => {
+                          if (event.touches.length !== 1) return;
+
+                          const touch = event.touches[0];
+                          const touchTarget = event.currentTarget;
+                          clearLongPressTimer();
+                          suppressClickRef.current = false;
+                          pointerStartRef.current = {
+                            bookingId: booking.id,
+                            touchIdentifier: touch.identifier,
+                            clientY: touch.clientY,
+                            inputType: 'touch',
+                          };
+
+                          longPressTimerRef.current = window.setTimeout(() => {
+                            const pointer = pointerStartRef.current;
+                            if (
+                              !pointer ||
+                              pointer.bookingId !== booking.id ||
+                              pointer.inputType !== 'touch' ||
+                              pointer.touchIdentifier !== touch.identifier
+                            ) return;
+
+                            const interval = Number(bookingStartIntervalMinutes) === 60 ? 60 : 30;
+                            const durationMinutes = end - start;
+                            const minStart = startHour * 60;
+                            const maxStart = endHour * 60 - durationMinutes;
+
+                            suppressClickRef.current = true;
+                            dragRuntimeRef.current = {
+                              booking,
+                              bookingId: booking.id,
+                              inputType: 'touch',
+                              touchIdentifier: touch.identifier,
+                              clientY: pointer.clientY,
+                              originalStart: start,
+                              durationMinutes,
+                              interval,
+                              minStart,
+                              maxStart,
+                              minuteHeight,
+                            };
+
+                            setDragState({
+                              bookingId: booking.id,
+                              touchIdentifier: touch.identifier,
+                              originalStart: start,
+                              previewStart: start,
+                              previewTop: top,
+                              durationMinutes,
+                              saving: false,
+                            });
+                          }, 450);
+                        }}
+                        onTouchMove={(event) => {
+                          const runtime = dragRuntimeRef.current;
+                          const pending = pointerStartRef.current;
+
+                          if (runtime?.bookingId === booking.id && runtime.inputType === 'touch') {
+                            const touch = Array.from(event.touches).find(
+                              (item) => item.identifier === runtime.touchIdentifier
+                            );
+                            if (!touch) return;
+
+                            event.preventDefault();
+                            event.stopPropagation();
+
+                            const rawDeltaMinutes = (touch.clientY - runtime.clientY) / runtime.minuteHeight;
+                            const snappedDelta = Math.round(rawDeltaMinutes / runtime.interval) * runtime.interval;
+                            const previewStart = Math.max(
+                              runtime.minStart,
+                              Math.min(runtime.maxStart, runtime.originalStart + snappedDelta)
+                            );
+                            const previewTop = Math.max(
+                              0,
+                              (previewStart - runtime.minStart) * runtime.minuteHeight
+                            );
+
+                            setDragState((current) => {
+                              if (!current || current.bookingId !== runtime.bookingId || current.saving) return current;
+                              return { ...current, previewStart, previewTop };
+                            });
+                            return;
+                          }
+
+                          if (pending?.bookingId === booking.id && pending.inputType === 'touch') {
+                            const touch = Array.from(event.touches).find(
+                              (item) => item.identifier === pending.touchIdentifier
+                            );
+                            if (touch && Math.abs(touch.clientY - pending.clientY) > 8) {
+                              clearLongPressTimer();
+                              pointerStartRef.current = null;
+                            }
+                          }
+                        }}
+                        onTouchEnd={async (event) => {
+                          const runtime = dragRuntimeRef.current;
+
+                          if (runtime?.bookingId === booking.id && runtime.inputType === 'touch') {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            suppressClickRef.current = true;
+
+                            const currentDrag = dragStateRef.current;
+                            dragRuntimeRef.current = null;
+                            pointerStartRef.current = null;
+                            clearLongPressTimer();
+
+                            if (!currentDrag || currentDrag.bookingId !== runtime.bookingId) {
+                              setDragState(null);
+                              window.setTimeout(() => { suppressClickRef.current = false; }, 120);
+                              return;
+                            }
+
+                            if (currentDrag.previewStart === currentDrag.originalStart) {
+                              setDragState(null);
+                              window.setTimeout(() => { suppressClickRef.current = false; }, 120);
+                              return;
+                            }
+
+                            setDragState((current) => current && current.bookingId === runtime.bookingId
+                              ? { ...current, saving: true }
+                              : current);
+
+                            const newHour = Math.floor(currentDrag.previewStart / 60);
+                            const newMinute = currentDrag.previewStart % 60;
+                            const newStartTime = `${pad(newHour)}:${pad(newMinute)}`;
+
+                            try {
+                              await bookingRescheduleRef.current?.(runtime.booking, newStartTime);
+                            } finally {
+                              setDragState(null);
+                              window.setTimeout(() => { suppressClickRef.current = false; }, 160);
+                            }
+                            return;
+                          }
+
+                          clearLongPressTimer();
+                          pointerStartRef.current = null;
+                        }}
+                        onTouchCancel={(event) => {
+                          const runtime = dragRuntimeRef.current;
+                          if (runtime?.bookingId === booking.id && runtime.inputType === 'touch') {
+                            event.preventDefault();
+                            dragRuntimeRef.current = null;
+                            pointerStartRef.current = null;
+                            clearLongPressTimer();
+                            setDragState(null);
+                            window.setTimeout(() => { suppressClickRef.current = false; }, 120);
+                            return;
+                          }
+
+                          clearLongPressTimer();
+                          pointerStartRef.current = null;
                         }}
                         onClick={(event) => {
                           if (suppressClickRef.current) {
