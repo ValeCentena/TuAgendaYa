@@ -5,7 +5,7 @@ import { CapacitorContacts } from '@capgo/capacitor-contacts';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import BookPage from './pages/BookPage.jsx';
 
-const API_BASE = 'https://tuagendaya-api.onrender.com/api';
+const API_BASE = `${import.meta.env.VITE_API_URL || 'https://tuagendaya-api.onrender.com'}/api`;
 
 const APP_FONT = '"Nunito", "Arial Rounded MT Bold", "Avenir Next", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
 
