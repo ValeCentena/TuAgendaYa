@@ -4004,9 +4004,33 @@ router.post("/manual", async (req, res) => {
       endTime || addMinutesToTime(normalizedStartTime, durationMinutes)
     );
 
+    // El link público no usa staffId cuando el negocio tiene un solo
+    // profesional activo: en ese caso toma la disponibilidad general del
+    // negocio. La reserva manual debe validar contra la misma disponibilidad
+    // para no rechazar horarios que el link público ofrece como disponibles.
+    let availabilityStaffId = staff ? staff.id : null;
+
+    if (staff) {
+      const activeStaffCountResult = await db.query(
+        `
+        SELECT COUNT(*)::integer AS count
+        FROM staff_members
+        WHERE owner_professional_id = $1
+          AND is_active = true
+        `,
+        [professionalId]
+      );
+
+      const activeStaffCount = Number(activeStaffCountResult.rows[0]?.count || 0);
+
+      if (activeStaffCount === 1) {
+        availabilityStaffId = null;
+      }
+    }
+
     const availability = await getAvailabilityForDate(
       professionalId,
-      staff ? staff.id : null,
+      availabilityStaffId,
       normalizedBookingDate
     );
 
@@ -4018,7 +4042,7 @@ router.post("/manual", async (req, res) => {
 
     const available = await isTimeRangeAvailable(
       professionalId,
-      staff ? staff.id : null,
+      availabilityStaffId,
       normalizedBookingDate,
       normalizedStartTime,
       finalEndTime,
@@ -4042,7 +4066,7 @@ router.post("/manual", async (req, res) => {
 
       const bookingLockKey = [
         professionalId,
-        staff ? staff.id : 0,
+        availabilityStaffId || 0,
         normalizedBookingDate,
       ].join(":");
 
@@ -4053,7 +4077,7 @@ router.post("/manual", async (req, res) => {
 
       const lockedAvailable = await isTimeRangeAvailable(
         professionalId,
-        staff ? staff.id : null,
+        availabilityStaffId,
         normalizedBookingDate,
         normalizedStartTime,
         finalEndTime,
