@@ -292,38 +292,55 @@ router.post("/email-verification/send", async (req, res) => {
       EMAIL_VERIFICATION_SEND_COOLDOWN_MS
     );
 
-    const code = String(crypto.randomInt(100000, 1000000));
+    const allowTestEmailVerification =
+      String(process.env.ALLOW_TEST_EMAIL_VERIFICATION || "").toLowerCase() === "true";
+
+    const configuredTestCode = String(
+      process.env.TEST_EMAIL_VERIFICATION_CODE || "123456"
+    )
+      .replace(/\D/g, "")
+      .slice(0, 6);
+
+    const testEmailVerificationCode =
+      configuredTestCode.length === 6 ? configuredTestCode : "123456";
+
+    const code = allowTestEmailVerification
+      ? testEmailVerificationCode
+      : String(crypto.randomInt(100000, 1000000));
+
     emailVerificationCodes.set(email, {
       digest: hashEmailVerificationCode(email, code),
       expiresAt: Date.now() + EMAIL_VERIFICATION_CODE_TTL_MS,
     });
 
-    const transporter = createMailTransport();
-    await transporter.sendMail({
-      from: process.env.SMTP_FROM || "TuAgendaYa <no-reply@tuagendaya.com>",
-      to: email,
-      subject: "Código de verificación de TuAgendaYa",
-      text: [
-        "Verificá tu correo para continuar con el registro en TuAgendaYa.",
-        "",
-        `Tu código es: ${code}`,
-        "",
-        "El código vence en 10 minutos.",
-        "Si no intentaste crear una cuenta, podés ignorar este correo.",
-      ].join("\n"),
-      html: `
-        <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#1d1d1f;line-height:1.5;">
-          <h2 style="margin:0 0 16px;color:#0071e3;">TuAgendaYa</h2>
-          <p>Verificá tu correo para continuar con el registro.</p>
-          <div style="margin:24px 0;padding:18px;border-radius:16px;background:#f5f7fa;text-align:center;">
-            <div style="font-size:13px;color:#6e6e73;margin-bottom:8px;">Código de verificación</div>
-            <div style="font-size:32px;font-weight:800;letter-spacing:8px;color:#111827;">${code}</div>
+    if (!allowTestEmailVerification) {
+      const transporter = createMailTransport();
+      await transporter.sendMail({
+        from: process.env.SMTP_FROM || "TuAgendaYa <no-reply@tuagendaya.com>",
+        to: email,
+        subject: "Código de verificación de TuAgendaYa",
+        text: [
+          "Verificá tu correo para continuar con el registro en TuAgendaYa.",
+          "",
+          `Tu código es: ${code}`,
+          "",
+          "El código vence en 10 minutos.",
+          "Si no intentaste crear una cuenta, podés ignorar este correo.",
+        ].join("\n"),
+        html: `
+          <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#1d1d1f;line-height:1.5;">
+            <h2 style="margin:0 0 16px;color:#0071e3;">TuAgendaYa</h2>
+            <p>Verificá tu correo para continuar con el registro.</p>
+            <div style="margin:24px 0;padding:18px;border-radius:16px;background:#f5f7fa;text-align:center;">
+              <div style="font-size:13px;color:#6e6e73;margin-bottom:8px;">Código de verificación</div>
+              <div style="font-size:32px;font-weight:800;letter-spacing:8px;color:#111827;">${code}</div>
+            </div>
+            <p style="font-size:14px;color:#6e6e73;">El código vence en 10 minutos.</p>
+            <p style="font-size:14px;color:#6e6e73;">Si no intentaste crear una cuenta, podés ignorar este correo.</p>
           </div>
-          <p style="font-size:14px;color:#6e6e73;">El código vence en 10 minutos.</p>
-          <p style="font-size:14px;color:#6e6e73;">Si no intentaste crear una cuenta, podés ignorar este correo.</p>
-        </div>
-      `,
-    });
+        `,
+      });
+    }
 
     return res.json({
       success: true,
