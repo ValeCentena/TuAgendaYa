@@ -3945,6 +3945,7 @@ router.post("/manual", async (req, res) => {
       service_id,
       staffId,
       staff_id,
+      useBusinessAvailability,
     } = req.body;
 
     const safeClientName = String(clientName || "").trim();
@@ -4008,9 +4009,16 @@ router.post("/manual", async (req, res) => {
     // profesional activo: en ese caso toma la disponibilidad general del
     // negocio. La reserva manual debe validar contra la misma disponibilidad
     // para no rechazar horarios que el link público ofrece como disponibles.
-    let availabilityStaffId = staff ? staff.id : null;
+    const shouldUseBusinessAvailability =
+      useBusinessAvailability === true ||
+      useBusinessAvailability === "true" ||
+      useBusinessAvailability === 1 ||
+      useBusinessAvailability === "1";
 
-    if (staff) {
+    let availabilityStaffId =
+      shouldUseBusinessAvailability ? null : staff ? staff.id : null;
+
+    if (staff && !shouldUseBusinessAvailability) {
       const activeStaffCountResult = await db.query(
         `
         SELECT COUNT(*)::integer AS count

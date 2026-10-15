@@ -3502,6 +3502,7 @@ function ManualBookingModal({ open, initialClient = null, onClose, onCreated }) 
           clientPhone: form.clientPhone.trim(),
           serviceId: Number(form.serviceId),
           staffId: form.staffId ? Number(form.staffId) : null,
+          useBusinessAvailability: staff.length <= 1,
           bookingDate: form.bookingDate,
           startTime: form.startTime,
           comment: form.comment.trim(),
